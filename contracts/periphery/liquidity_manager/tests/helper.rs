@@ -18,7 +18,7 @@ use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
-use astroport::liquidity_manager::{Cw20HookMsg, ExecuteMsg, SimulateMessage};
+use astroport::liquidity_manager::{Cw20HookMsg, ExecuteMsg};
 use astroport::liquidity_manager::{InstantiateMsg, QueryMsg};
 use astroport::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
 use astroport::pair::{
@@ -376,9 +376,9 @@ impl Helper {
             .wrap()
             .query_wasm_smart(
                 &self.liquidity_manager,
-                &QueryMsg::Simulate {
+                &QueryMsg::SimulateProvide {
                     pair_addr: self.pair_addr.to_string(),
-                    pair_msg: SimulateMessage::Provide(pair_msg),
+                    pair_msg,
                 },
             )
             .map_err(Into::into)
@@ -389,11 +389,9 @@ impl Helper {
             .wrap()
             .query_wasm_smart(
                 &self.liquidity_manager,
-                &QueryMsg::Simulate {
+                &QueryMsg::SimulateWithdraw {
                     pair_addr: self.pair_addr.to_string(),
-                    pair_msg: SimulateMessage::Withdraw {
-                        lp_tokens: lp_tokens_amount.into(),
-                    },
+                    lp_tokens: lp_tokens_amount.into(),
                 },
             )
             .map_err(Into::into)

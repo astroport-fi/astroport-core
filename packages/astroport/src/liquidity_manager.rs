@@ -1,8 +1,9 @@
-use crate::asset::Asset;
-use crate::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Uint128;
 use cw20::Cw20ReceiveMsg;
+
+use crate::asset::Asset;
+use crate::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -30,62 +31,16 @@ pub enum Cw20HookMsg {
 }
 
 #[cw_serde]
-/// Json representation should be one of the following:
-/// 1.
-/// ```json
-/// {
-///   "simulate": {
-///     "pair_addr": "wasm1...addr",
-///     "pair_msg": {
-///       "provide_liquidity": {
-///         "assets": [
-///          {
-///             "info": {
-///               "native_token": {
-///                 "denom": "uusd"
-///               }
-///             },
-///             "amount": "100000"
-///           },
-///           {
-///             "info": {
-///               "token": {
-///                 "contract_addr": "wasm1...cw20address"
-///               }
-///            },
-///             "amount": "100000"
-///           }
-///         ],
-///         "slippage_tolerance": "0.02",
-///         "auto_stake": true,
-///         "receiver": "wasm1...addr"
-///       }
-///     }
-///   }
-/// }
-/// ```
-///
-/// 2.
-/// ```json
-/// {
-///   "simulate": {
-///     "pair_addr": "wasm1...addr",
-///     "pair_msg": {
-///       "lp_tokens": "1000"
-///     }
-///   }
-/// }
-/// ```
+#[derive(QueryResponses)]
 pub enum QueryMsg {
-    Simulate {
+    #[returns(Uint128)]
+    SimulateProvide {
         pair_addr: String,
-        pair_msg: SimulateMessage,
+        pair_msg: PairExecuteMsg,
     },
-}
-
-#[cw_serde]
-#[serde(untagged)]
-pub enum SimulateMessage {
-    Provide(PairExecuteMsg),
-    Withdraw { lp_tokens: Uint128 },
+    #[returns(Vec<Asset>)]
+    SimulateWithdraw {
+        pair_addr: String,
+        lp_tokens: Uint128,
+    },
 }
