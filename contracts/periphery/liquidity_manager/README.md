@@ -110,13 +110,13 @@ returns excess assets to the user.
 
 ### `simulate`
 
-Simulates liquidity provide or withdraw. Simulation direction depends on "pair_msg" field layout.
+Simulates liquidity provide or withdraw.
 
 Provide simulation example: 
 
 ```json
 {
-  "simulate": {
+  "simulate_provide": {
     "pair_addr": "wasm1...addr",
     "pair_msg": {
       "provide_liquidity": {
@@ -151,11 +151,9 @@ Withdraw simulation example:
 
 ```json
 {
-  "simulate": {
+  "simulate_withdraw": {
     "pair_addr": "wasm1...addr",
-    "pair_msg": {
-      "lp_tokens": "1000"
-    }
+    "lp_tokens": "1000"
   }
 }
 ```
