@@ -13,7 +13,6 @@ jobs:
   check-artifacts-size:
     runs-on: ubuntu-latest
     name: Check Artifacts Size
-    needs: fetch_deps
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
