@@ -492,7 +492,8 @@ mod test {
     use crate::test_helpers::*;
 
     use crate::contract::{execute, migrate, query_channel};
-    use crate::msg::{ExecuteMsg, MigrateMsg, TransferMsg};
+    use crate::msg::{ExecuteMsg, MigrateMsg};
+    use astroport::cw20_ics20::TransferMsg;
     use cosmwasm_std::testing::{mock_env, mock_info};
     use cosmwasm_std::{coins, to_vec, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
     use cw20::Cw20ReceiveMsg;
