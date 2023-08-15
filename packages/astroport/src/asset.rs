@@ -8,7 +8,7 @@ use cosmwasm_std::{
     CustomMsg, CustomQuery, Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult,
     Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20::{Cw20Coin, Cw20CoinVerified, Cw20ExecuteMsg, Cw20QueryMsg, Denom, MinterResponse};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
@@ -59,7 +59,102 @@ impl fmt::Display for Asset {
     }
 }
 
+impl From<Coin> for Asset {
+    fn from(coin: Coin) -> Self {
+        Asset::native(coin.denom, coin.amount)
+    }
+}
+
+impl From<&Coin> for Asset {
+    fn from(coin: &Coin) -> Self {
+        coin.clone().into()
+    }
+}
+
+impl TryFrom<Asset> for Coin {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        match asset.info {
+            AssetInfo::NativeToken { denom } => Ok(Self {
+                denom,
+                amount: asset.amount,
+            }),
+            _ => Err(StdError::parse_err(
+                "Asset",
+                "Cannot convert non-native asset to Coin",
+            )),
+        }
+    }
+}
+
+impl TryFrom<&Asset> for Coin {
+    type Error = StdError;
+
+    fn try_from(asset: &Asset) -> Result<Self, Self::Error> {
+        asset.clone().try_into()
+    }
+}
+
+impl From<Cw20CoinVerified> for Asset {
+    fn from(coin: Cw20CoinVerified) -> Self {
+        Asset::cw20(coin.address, coin.amount)
+    }
+}
+
+impl TryFrom<Asset> for Cw20CoinVerified {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        match asset.info {
+            AssetInfo::Token { contract_addr } => Ok(Self {
+                address: contract_addr,
+                amount: asset.amount,
+            }),
+            _ => Err(StdError::generic_err(
+                "Cannot convert non-CW20 asset to Cw20Coin",
+            )),
+        }
+    }
+}
+
+impl TryFrom<Asset> for Cw20Coin {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        let verified: Cw20CoinVerified = asset.try_into()?;
+        Ok(Self {
+            address: verified.address.to_string(),
+            amount: verified.amount,
+        })
+    }
+}
+
 impl Asset {
+    /// Constructs a new [`Asset`] object.
+    pub fn new<A: Into<Uint128>>(info: AssetInfo, amount: A) -> Self {
+        Self {
+            info,
+            amount: amount.into(),
+        }
+    }
+
+    /// Returns an [`Asset`] object representing a native token with a given amount.
+    pub fn native<A: Into<String>, B: Into<Uint128>>(denom: A, amount: B) -> Self {
+        native_asset(denom.into(), amount.into())
+    }
+
+    /// Returns an [`Asset`] object representing a CW20 token with a given amount.
+    pub fn cw20<A: Into<Uint128>>(contract_addr: Addr, amount: A) -> Self {
+        token_asset(contract_addr, amount.into())
+    }
+
+    /// Returns an [`Asset`] object representing a CW20 token with a given amount, bypassing the
+    /// address validation.
+    pub fn cw20_unchecked<A: Into<String>, B: Into<Uint128>>(contract_addr: A, amount: B) -> Self {
+        token_asset(Addr::unchecked(contract_addr.into()), amount.into())
+    }
+
     /// Returns true if the token is native. Otherwise returns false.
     pub fn is_native_token(&self) -> bool {
         self.info.is_native_token()
@@ -237,7 +332,60 @@ impl fmt::Display for AssetInfo {
     }
 }
 
+impl From<Denom> for AssetInfo {
+    fn from(denom: Denom) -> Self {
+        match denom {
+            Denom::Cw20(contract_addr) => token_asset_info(contract_addr),
+            Denom::Native(denom) => native_asset_info(denom),
+        }
+    }
+}
+
+impl From<AssetInfo> for Denom {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Token { contract_addr } => Denom::Cw20(contract_addr),
+            AssetInfo::NativeToken { denom } => Denom::Native(denom),
+        }
+    }
+}
+
+impl TryFrom<AssetInfo> for Addr {
+    type Error = StdError;
+
+    fn try_from(asset_info: AssetInfo) -> StdResult<Self> {
+        match asset_info {
+            AssetInfo::Token { contract_addr } => Ok(contract_addr),
+            AssetInfo::NativeToken { denom: _ } => Err(StdError::generic_err("Not a CW20 token")),
+        }
+    }
+}
+
+impl From<Addr> for AssetInfo {
+    fn from(contract_addr: Addr) -> Self {
+        token_asset_info(contract_addr)
+    }
+}
+
 impl AssetInfo {
+    /// Returns an [`AssetInfo`] object representing the denomination for native asset.
+    pub fn native<A: Into<String>>(denom: A) -> Self {
+        native_asset_info(denom.into())
+    }
+
+    /// Returns an [`AssetInfo`] object representing the address of a CW20 token contract.
+    pub fn cw20(contract_addr: Addr) -> Self {
+        token_asset_info(contract_addr)
+    }
+
+    /// Returns an [`AssetInfo`] object representing the address of a CW20 token contract, bypassing
+    /// the address validation.
+    pub fn cw20_unchecked<A: Into<String>>(contract_addr: A) -> Self {
+        AssetInfo::Token {
+            contract_addr: Addr::unchecked(contract_addr.into()),
+        }
+    }
+
     /// Returns true if the caller is a native token. Otherwise returns false.
     pub fn is_native_token(&self) -> bool {
         match self {
@@ -614,6 +762,25 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::mock_info;
     use cosmwasm_std::{coin, coins};
+    use test_case::test_case;
+
+    fn mock_cw20() -> Asset {
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token"),
+            },
+            amount: Uint128::new(123456u128),
+        }
+    }
+
+    fn mock_native() -> Asset {
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: String::from("uusd"),
+            },
+            amount: Uint128::new(123456u128),
+        }
+    }
 
     #[test]
     fn test_native_coins_sent() {
@@ -742,5 +909,109 @@ mod tests {
         )
         .unwrap();
         validate_native_denom("factory/wasm1jdppe6fnj2q7hjsepty5crxtrryzhuqsjrj95y/uusd").unwrap();
+    }
+
+    #[test]
+    fn test_native_asset_info() {
+        let info = AssetInfo::native("uusd");
+        assert_eq!(
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string()
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn cw20_unchecked_asset_info() {
+        let info = AssetInfo::cw20_unchecked(Addr::unchecked("mock_token"));
+        assert_eq!(
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token")
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn cw20_asset_info() {
+        let info = AssetInfo::cw20(Addr::unchecked("mock_token"));
+        assert_eq!(
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token")
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn from_cw20coinverified_for_asset() {
+        let coin = Cw20CoinVerified {
+            address: Addr::unchecked("mock_token"),
+            amount: Uint128::new(123456u128),
+        };
+        assert_eq!(mock_cw20(), Asset::from(coin));
+    }
+
+    #[test_case(mock_native() => matches Err(_) ; "native")]
+    #[test_case(mock_cw20() => Ok(Cw20CoinVerified {
+                    address: Addr::unchecked("mock_token"),
+                    amount: 123456u128.into()
+                }) ; "cw20")]
+    fn try_from_asset_for_cw20coinverified(asset: Asset) -> StdResult<Cw20CoinVerified> {
+        Cw20CoinVerified::try_from(asset)
+    }
+
+    #[test_case(mock_native() => matches Err(_) ; "native")]
+    #[test_case(mock_cw20() => Ok(Cw20Coin {
+                    address: "mock_token".to_string(),
+                    amount: 123456u128.into()
+                }) ; "cw20")]
+    fn try_from_asset_for_cw20coin(asset: Asset) -> StdResult<Cw20Coin> {
+        Cw20Coin::try_from(asset)
+    }
+
+    #[test]
+    fn test_from_coin_for_asset() {
+        let coin = coin(123456u128, "uusd");
+        assert_eq!(mock_native(), Asset::from(coin));
+    }
+
+    #[test]
+    fn test_try_from_asset_for_coin() {
+        let coin = coin(123456u128, "uusd");
+        let asset = Asset::from(&coin);
+        let coin2: Coin = asset.try_into().unwrap();
+        assert_eq!(coin, coin2);
+    }
+
+    #[test]
+    fn test_from_addr_for_asset_info() {
+        let addr = Addr::unchecked("mock_token");
+        let info = AssetInfo::from(addr.clone());
+        assert_eq!(info, AssetInfo::cw20(addr));
+    }
+
+    #[test]
+    fn test_try_from_asset_info_for_addr() {
+        let addr = Addr::unchecked("mock_token");
+        let info = AssetInfo::cw20(addr.clone());
+        let addr2: Addr = info.try_into().unwrap();
+        assert_eq!(addr, addr2);
+    }
+
+    #[test]
+    fn test_from_denom_for_asset_info() {
+        let denom = Denom::Native("uusd".to_string());
+        let info = AssetInfo::from(denom.clone());
+        assert_eq!(info, AssetInfo::native("uusd"));
+    }
+
+    #[test]
+    fn test_try_from_asset_info_for_denom() {
+        let denom = Denom::Native("uusd".to_string());
+        let info = AssetInfo::native("uusd");
+        let denom2: Denom = info.try_into().unwrap();
+        assert_eq!(denom, denom2);
     }
 }
