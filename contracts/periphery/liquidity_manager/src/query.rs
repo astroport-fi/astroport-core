@@ -10,7 +10,7 @@ use astroport::querier::query_supply;
 use astroport_pair::contract::get_share_in_assets;
 
 use crate::error::ContractError;
-use crate::utils::{stableswap_provide_simulation, xyk_provide_simulation};
+use crate::utils::{convert_config, stableswap_provide_simulation, xyk_provide_simulation};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -95,8 +95,11 @@ fn simulate_provide(
                     to_binary(&predicted_lp_amount)
                 }
                 PairType::Stable {} => {
-                    let pair_config =
-                        astroport_pair_stable::state::CONFIG.query(&deps.querier, pair_addr)?;
+                    let pair_config_data = deps
+                        .querier
+                        .query_wasm_raw(pair_addr, b"config")?
+                        .ok_or_else(|| StdError::generic_err("pair stable config not found"))?;
+                    let pair_config = convert_config(deps.querier, pair_config_data)?;
                     to_binary(
                         &stableswap_provide_simulation(
                             deps.querier,

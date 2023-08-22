@@ -475,3 +475,42 @@ fn test_withdraw() {
         err.downcast().unwrap()
     );
 }
+
+#[test]
+fn test_onesided_provide_stable() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("UST")];
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        PoolParams::Stable(StablePoolParams {
+            amp: 40,
+            owner: None,
+        }),
+    )
+    .unwrap();
+
+    // initial provide must be double-sided
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000_u128),
+                helper.assets[&test_coins[1]].with_balance(100_000_000000_u128),
+            ],
+            None,
+        )
+        .unwrap();
+
+    // one-sided provide
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000_u128),
+                helper.assets[&test_coins[1]].with_balance(0u8),
+            ],
+            None,
+        )
+        .unwrap();
+}

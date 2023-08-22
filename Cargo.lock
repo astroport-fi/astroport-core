@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.3.2"
+version = "3.3.3"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -219,7 +219,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-liquidity-manager"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "anyhow",
  "astroport",
