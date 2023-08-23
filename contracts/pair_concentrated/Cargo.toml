@@ -24,9 +24,9 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
-astroport-factory = { path = "../factory", features = ["library"] }
-astroport-circular-buffer = { path = "../../packages/circular_buffer" }
+astroport = { path = "../../packages/astroport", version = "3" }
+astroport-factory = { path = "../factory", features = ["library"], version = "1" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"

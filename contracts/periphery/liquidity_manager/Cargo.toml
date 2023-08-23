@@ -15,11 +15,11 @@ cosmwasm-schema = "1.1"
 cw-storage-plus = "1.0"
 cw20 = "0.15"
 thiserror = "1.0"
-astroport = { path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", version = "3" }
 cw20-base = { version = "0.15", features = ["library"] }
-astroport-pair = { path = "../../pair", features = ["library"] }
-astroport-pair-stable = { path = "../../pair_stable", features = ["library"] }
-astroport-factory = { path = "../../factory", features = ["library"] }
+astroport-pair = { path = "../../pair", features = ["library"], version = "1" }
+astroport-pair-stable = { path = "../../pair_stable", features = ["library"], version = "3" }
+astroport-factory = { path = "../../factory", features = ["library"], version = "1" }
 
 [dev-dependencies]
 cw-multi-test = "0.16.4"

@@ -23,7 +23,7 @@ uint = "0.9"
 cw-storage-plus = "0.15"
 itertools = "0.10"
 cosmwasm-schema = "1.1"
-astroport-circular-buffer = { path = "../circular_buffer" }
+astroport-circular-buffer = { version = "0.1", path = "../circular_buffer" }
 cw-utils = "1.0"
 cw3 = "1.0"
 

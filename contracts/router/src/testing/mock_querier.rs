@@ -225,7 +225,7 @@ impl WasmMockQuerier {
 
     pub fn with_balance(&mut self, balances: &[(&String, &[Coin])]) {
         for (addr, balance) in balances {
-            self.base.update_balance(addr.clone(), balance.to_vec());
+            self.base.update_balance(addr.as_str(), balance.to_vec());
         }
     }
 

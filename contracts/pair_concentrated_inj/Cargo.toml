@@ -7,9 +7,9 @@ description = "The Astroport concentrated liquidity pair which supports Injectiv
 license = "MIT"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -24,14 +24,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false, features = [
-  "injective",
-] }
-astroport-factory = { path = "../factory", features = ["library"] }
-astroport-pair-concentrated = { path = "../pair_concentrated", features = [
-  "library",
-] }
-astroport-circular-buffer = { path = "../../packages/circular_buffer" }
+astroport = { path = "../../packages/astroport", version = "3", features = ["injective"] }
+astroport-factory = { path = "../factory", features = ["library"], version = "1" }
+astroport-pair-concentrated = { path = "../pair_concentrated", features = ["library"], version = "2.0.5" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
@@ -46,11 +42,11 @@ hex = "0.4.3"
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
-astroport-mocks = { path = "../../packages/astroport_mocks/" }
+astroport-mocks = { path = "../../packages/astroport_mocks" }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
 injective-math = "0.1"
-injective-testing = "0.1.1"
+injective-testing = "0.1"

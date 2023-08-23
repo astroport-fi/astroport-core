@@ -24,7 +24,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { path = "../../packages/astroport", version = "3" }
 cw2 = { version = "0.15" }
 cw20 = { version = "0.15" }
 cosmwasm-std = { version = "1.1" }
@@ -33,7 +33,7 @@ thiserror = { version = "1.0" }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
 cw-utils = "1.0.1"
-astroport-circular-buffer = { path = "../../packages/circular_buffer" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
 
 [dev-dependencies]
 anyhow = "1.0"
