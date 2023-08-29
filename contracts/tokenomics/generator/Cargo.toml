@@ -34,7 +34,7 @@ cw-utils = "1.0.1"
 
 [dev-dependencies]
 generator-controller = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-astroport-mocks = { path = "../../../packages/astroport_mocks/" }
+astroport-mocks = { path = "../../../packages/astroport_mocks" }
 astroport-token = { path = "../../token" }
 astroport-vesting = { path = "../vesting" }
 astroport-staking = { path = "../staking" }

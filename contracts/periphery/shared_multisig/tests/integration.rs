@@ -1,13 +1,18 @@
 #![cfg(not(tarpaulin_include))]
-use cosmwasm_std::{Addr, BankMsg, Coin, StdError, Uint128};
-use cw3::{
-    ProposalListResponse, ProposalResponse, Status, Vote, VoteInfo, VoteListResponse, VoteResponse,
-};
 
-use cw_multi_test::{App, ContractWrapper, Executor};
-use cw_utils::{Duration, Expiration, ThresholdResponse};
+use astroport::asset::{Asset, AssetInfo};
+use astroport::generator::PendingTokenResponse;
+use cosmwasm_std::{to_binary, Addr, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
+use cw20::Cw20ExecuteMsg;
+use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse};
+use cw_utils::{Duration, ThresholdResponse};
+use std::{cell::RefCell, rc::Rc};
 
-use astroport::shared_multisig::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use astroport::shared_multisig::{ExecuteMsg, PoolType, ProvideParams};
+
+use astroport_mocks::cw_multi_test::{App, Executor};
+use astroport_mocks::shared_multisig::MockSharedMultisigBuilder;
+use astroport_mocks::{astroport_address, MockFactoryBuilder, MockGeneratorBuilder};
 
 fn mock_app(owner: &Addr, coins: Option<Vec<Coin>>) -> App {
     let app = App::new(|router, _, storage| {
@@ -21,56 +26,26 @@ fn mock_app(owner: &Addr, coins: Option<Vec<Coin>>) -> App {
     app
 }
 
-fn store_shared_multisig_code(app: &mut App) -> u64 {
-    let contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_shared_multisig::contract::execute,
-        astroport_shared_multisig::contract::instantiate,
-        astroport_shared_multisig::contract::query,
-    ));
-
-    app.store_code(contract)
-}
-
-fn shared_multisig_instance(app: &mut App, owner: Addr, dao: String, manager: String) -> Addr {
-    let shared_multisig_code_id = store_shared_multisig_code(app);
-
-    app.instantiate_contract(
-        shared_multisig_code_id,
-        owner,
-        &InstantiateMsg {
-            max_voting_period: Duration::Height(3),
-            dao,
-            manager,
-        },
-        &[],
-        "Astroport shared multisig",
-        None,
-    )
-    .unwrap()
-}
-
 const OWNER: &str = "owner";
-const DAO: &str = "dao";
-const MANAGER: &str = "manager";
+const MANAGER1: &str = "manager1";
+const MANAGER2: &str = "manager2";
 const CHEATER: &str = "cheater";
 
 #[test]
 fn proper_initialization() {
-    let owner = Addr::unchecked("owner");
-    let manager = Addr::unchecked("manager");
-    let dao = Addr::unchecked("dao");
-    let mut app = mock_app(&owner, None);
+    let manager2 = Addr::unchecked("manager2");
+    let manager1 = Addr::unchecked("manager1");
 
-    let shared_addr =
-        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
+    let router = Rc::new(RefCell::new(App::default()));
 
-    let config_res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
-        .unwrap();
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
 
-    assert_eq!(manager, config_res.manager);
-    assert_eq!(dao, config_res.dao);
+    let config_res = shared_multisig.query_config().unwrap();
+
+    assert_eq!(manager2, config_res.manager2);
+    assert_eq!(manager1, config_res.manager1);
     assert_eq!(Duration::Height(3), config_res.max_voting_period);
     assert_eq!(
         ThresholdResponse::AbsoluteCount {
@@ -82,34 +57,35 @@ fn proper_initialization() {
 }
 
 #[test]
-fn check_update_manager() {
-    let owner = Addr::unchecked("owner");
-    let manager = Addr::unchecked("manager");
-    let dao = Addr::unchecked("dao");
+fn check_update_manager2() {
+    let manager1 = Addr::unchecked("manager1");
+    let manager2 = Addr::unchecked("manager2");
     let new_manager = Addr::unchecked("new_manager");
-    let recipient = Addr::unchecked("recipient");
-    let mut app = mock_app(&owner, None);
 
-    let shared_addr =
-        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
+    let router = Rc::new(RefCell::new(App::default()));
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
 
     // New manager
-    let msg = ExecuteMsg::ProposeNewManager {
-        manager: new_manager.to_string(),
+    let msg = ExecuteMsg::ProposeNewManager2 {
+        new_manager: "new_manager".to_string(),
         expires_in: 100, // seconds
     };
 
-    let err = app
-        .execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
+    let err = router
+        .borrow_mut()
+        .execute_contract(manager1.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim before proposal
-    let err = app
+    let err = router
+        .borrow_mut()
         .execute_contract(
             new_manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimManager {},
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager1 {},
             &[],
         )
         .unwrap_err();
@@ -118,65 +94,55 @@ fn check_update_manager() {
         "Generic error: Ownership proposal not found"
     );
 
-    let propose_msg = ExecuteMsg::Propose {
-        title: "Transfer 100 tokens".to_string(),
-        description: "Need to transfer tokens".to_string(),
-        msgs: vec![BankMsg::Send {
-            to_address: recipient.to_string(),
-            amount: vec![Coin {
-                denom: "utrn".to_string(),
-                amount: Uint128::new(100_000_000),
-            }],
-        }
-        .into()],
-        latest: None,
-    };
-
-    // try to propose from manager
-    app.execute_contract(manager.clone(), shared_addr.clone(), &propose_msg, &[])
+    // Try to propose new manager2
+    router
+        .borrow_mut()
+        .execute_contract(manager2.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap();
 
-    // Try to propose new manager
-    app.execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
-        .unwrap();
-
-    // Claim from DAO
-    let err = app
+    // Claim from manager1
+    let err = router
+        .borrow_mut()
         .execute_contract(
-            dao.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimManager {},
+            manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager2 {},
             &[],
         )
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
-    // Drop manager proposal
-    let err = app
+    // Drop manager1 proposal
+    let err = router
+        .borrow_mut()
         .execute_contract(
             new_manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::DropManagerProposal {},
+            shared_multisig.address.clone(),
+            &ExecuteMsg::DropManager1Proposal {},
             &[],
         )
         .unwrap_err();
-    // new_manager is not an manager yet
+
+    // new_manager is not an manager1 yet
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
-    app.execute_contract(
-        manager.clone(),
-        shared_addr.clone(),
-        &ExecuteMsg::DropManagerProposal {},
-        &[],
-    )
-    .unwrap();
+    router
+        .borrow_mut()
+        .execute_contract(
+            manager2.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::DropManager2Proposal {},
+            &[],
+        )
+        .unwrap();
 
-    // Try to claim manager
-    let err = app
+    // Try to claim manager2
+    let err = router
+        .borrow_mut()
         .execute_contract(
             new_manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimManager {},
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager2 {},
             &[],
         )
         .unwrap_err();
@@ -186,57 +152,59 @@ fn check_update_manager() {
     );
 
     // Propose new manager again
-    app.execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
+    router
+        .borrow_mut()
+        .execute_contract(manager2.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap();
 
-    // Claim manager
-    app.execute_contract(
-        new_manager.clone(),
-        shared_addr.clone(),
-        &ExecuteMsg::ClaimManager {},
-        &[],
-    )
-    .unwrap();
+    // Claim manager2
+    router
+        .borrow_mut()
+        .execute_contract(
+            new_manager.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager2 {},
+            &[],
+        )
+        .unwrap();
 
     // Let's query the contract state
-    let res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
-        .unwrap();
+    let res = shared_multisig.query_config().unwrap();
 
-    assert_eq!(res.manager, new_manager);
-    assert_eq!(res.dao, dao);
+    assert_eq!(res.manager2, new_manager);
+    assert_eq!(res.manager1, manager1);
 }
 
 #[test]
-fn check_update_dao() {
-    let owner = Addr::unchecked("owner");
-    let manager = Addr::unchecked("manager");
-    let dao = Addr::unchecked("dao");
-    let new_dao = Addr::unchecked("new_dao");
-    let recipient = Addr::unchecked("recipient");
-    let mut app = mock_app(&owner, None);
+fn check_update_manager1() {
+    let manager2 = Addr::unchecked("manager2");
+    let manager1 = Addr::unchecked("manager1");
+    let new_manager1 = Addr::unchecked("new_manager1");
 
-    let shared_addr =
-        shared_multisig_instance(&mut app, owner, DAO.to_string(), MANAGER.to_string());
+    let router = Rc::new(RefCell::new(App::default()));
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
 
-    // New DAO
-    let msg = ExecuteMsg::ProposeNewDao {
-        dao: new_dao.to_string(),
+    // New manager1
+    let msg = ExecuteMsg::ProposeNewManager1 {
+        new_manager: new_manager1.to_string(),
         expires_in: 100, // seconds
     };
 
-    let err = app
-        .execute_contract(manager.clone(), shared_addr.clone(), &msg, &[])
+    let err = router
+        .borrow_mut()
+        .execute_contract(manager2.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
     // Claim before proposal
-    let err = app
+    let err = router
+        .borrow_mut()
         .execute_contract(
-            new_dao.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimDao {},
+            new_manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager1 {},
             &[],
         )
         .unwrap_err();
@@ -245,66 +213,55 @@ fn check_update_dao() {
         "Generic error: Ownership proposal not found"
     );
 
-    let propose_msg = ExecuteMsg::Propose {
-        title: "Transfer 100 tokens".to_string(),
-        description: "Need to transfer tokens".to_string(),
-        msgs: vec![BankMsg::Send {
-            to_address: recipient.to_string(),
-            amount: vec![Coin {
-                denom: "utrn".to_string(),
-                amount: Uint128::new(100_000_000),
-            }],
-        }
-        .into()],
-        latest: None,
-    };
-
-    // try to propose from DAO
-    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+    // Try to propose new manager1
+    router
+        .borrow_mut()
+        .execute_contract(manager1.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap();
 
-    // Try to propose new DAO
-    app.execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
-        .unwrap();
-
-    // Claim from manager
-    let err = app
+    // Claim from manager2
+    let err = router
+        .borrow_mut()
         .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimDao {},
+            manager2.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager1 {},
             &[],
         )
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
-    // Drop DAO proposal
-    let err = app
+    // Drop manager1 proposal
+    let err = router
+        .borrow_mut()
         .execute_contract(
-            new_dao.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::DropDaoProposal {},
+            new_manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::DropManager1Proposal {},
             &[],
         )
         .unwrap_err();
 
-    // new_dao is not an DAO yet
+    // new_manager1 is not an manager1 yet
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
-    app.execute_contract(
-        dao.clone(),
-        shared_addr.clone(),
-        &ExecuteMsg::DropDaoProposal {},
-        &[],
-    )
-    .unwrap();
-
-    // Try to claim DAO
-    let err = app
+    router
+        .borrow_mut()
         .execute_contract(
-            new_dao.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::ClaimDao {},
+            manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::DropManager1Proposal {},
+            &[],
+        )
+        .unwrap();
+
+    // Try to claim manager1
+    let err = router
+        .borrow_mut()
+        .execute_contract(
+            new_manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager1 {},
             &[],
         )
         .unwrap_err();
@@ -313,665 +270,2022 @@ fn check_update_dao() {
         "Generic error: Ownership proposal not found"
     );
 
-    // Propose new DAO again
-    app.execute_contract(dao.clone(), shared_addr.clone(), &msg, &[])
+    // Propose new manager1 again
+    router
+        .borrow_mut()
+        .execute_contract(manager1.clone(), shared_multisig.address.clone(), &msg, &[])
         .unwrap();
 
-    // Claim DAO
-    app.execute_contract(
-        new_dao.clone(),
-        shared_addr.clone(),
-        &ExecuteMsg::ClaimDao {},
-        &[],
-    )
-    .unwrap();
+    // Claim manager1
+    router
+        .borrow_mut()
+        .execute_contract(
+            new_manager1.clone(),
+            shared_multisig.address.clone(),
+            &ExecuteMsg::ClaimManager1 {},
+            &[],
+        )
+        .unwrap();
 
     // Let's query the contract state
-    let res: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
-        .unwrap();
-
-    assert_eq!(res.manager, manager);
-    assert_eq!(res.dao, new_dao);
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.manager2, manager2);
+    assert_eq!(res.manager1, new_manager1);
 }
 
 #[test]
-fn shared_multisig_controls() {
-    let dao = Addr::unchecked(DAO);
-    let manager = Addr::unchecked(MANAGER);
-    let owner = Addr::unchecked(OWNER);
+fn test_proposal() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
     let cheater = Addr::unchecked(CHEATER);
-    let recipient = Addr::unchecked("recipient");
+    let astroport = astroport_address();
 
-    let mut router = mock_app(
-        &owner,
-        Some(vec![Coin {
-            denom: "utrn".to_string(),
-            amount: Uint128::new(100_000_000_000u128),
-        }]),
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &astroport,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let pcl = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
     );
 
-    let shared_addr = shared_multisig_instance(
-        &mut router,
-        owner.clone(),
-        DAO.to_string(),
-        MANAGER.to_string(),
-    );
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
 
-    // Sends tokens to the multisig
-    router
-        .send_tokens(
-            owner.clone(),
-            shared_addr.clone(),
-            &[Coin {
-                denom: "utrn".to_string(),
-                amount: Uint128::new(200_000_000u128),
-            }],
-        )
-        .unwrap();
-
-    // Check the recipient's balance
-    let res = router
-        .wrap()
-        .query_balance(recipient.to_string(), "utrn")
-        .unwrap();
-    assert_eq!(res.amount, Uint128::zero());
-    assert_eq!(res.denom, "utrn");
-
-    // Check the holder's balance
-    let res = router
-        .wrap()
-        .query_balance(shared_addr.to_string(), "utrn")
-        .unwrap();
-    assert_eq!(res.amount, Uint128::new(200_000_000));
-    assert_eq!(res.denom, "utrn");
-
-    let transfer_msg = BankMsg::Send {
-        to_address: recipient.to_string(),
-        amount: vec![Coin {
-            denom: "utrn".to_string(),
-            amount: Uint128::new(100_000_000),
-        }],
-    };
-
-    let propose_msg = ExecuteMsg::Propose {
-        title: "Transfer 100 tokens".to_string(),
-        description: "Need to transfer tokens".to_string(),
-        msgs: vec![transfer_msg.into()],
-        latest: None,
-    };
+    let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: shared_multisig.address.to_string(),
+        msg: to_binary(&ExecuteMsg::SetupPools {
+            target_pool: None,
+            migration_pool: Some(pcl.address.to_string()),
+        })
+        .unwrap(),
+        funds: vec![],
+    });
 
     // try to propose from cheater
-    let err = router
-        .execute_contract(cheater.clone(), shared_addr.clone(), &propose_msg, &[])
+    let err = shared_multisig
+        .propose(&cheater, vec![setup_pools_msg.clone()])
         .unwrap_err();
     assert_eq!("Unauthorized", err.root_cause().to_string());
 
-    // try to propose from DAO
-    router
-        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+    // try to propose from manager1
+    shared_multisig
+        .propose(&manager1, vec![setup_pools_msg.clone()])
         .unwrap();
 
     // Try to vote from cheater
-    let err = router
-        .execute_contract(
-            cheater.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Vote {
-                proposal_id: 1,
-                vote: Vote::Yes,
-            },
-            &[],
-        )
-        .unwrap_err();
+    let err = shared_multisig.vote(&cheater, 1, Vote::Yes).unwrap_err();
     assert_eq!("Unauthorized", err.root_cause().to_string());
 
-    // Try to execute with only 1 vote
-    let err = router
-        .execute_contract(
-            dao.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Execute { proposal_id: 1 },
-            &[],
-        )
-        .unwrap_err();
+    // Try to execute from cheater
+    let err = shared_multisig.execute(&cheater, 1).unwrap_err();
     assert_eq!(
         "Proposal must have passed and not yet been executed",
         err.root_cause().to_string()
     );
 
-    // Check DAO vote
-    let res: VoteResponse = router
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: dao.to_string(),
-            },
-        )
-        .unwrap();
+    // Try to execute from manager1
+    let err = shared_multisig.execute(&manager1, 1).unwrap_err();
+    assert_eq!(
+        "Proposal must have passed and not yet been executed",
+        err.root_cause().to_string()
+    );
+
+    // Check manager1 vote
+    let res = shared_multisig.query_vote(1, &manager1).unwrap();
     assert_eq!(
         res,
         VoteResponse {
             vote: Some(VoteInfo {
                 proposal_id: 1,
-                voter: dao.to_string(),
+                voter: manager1.to_string(),
                 vote: Vote::Yes,
                 weight: 1
             }),
         }
     );
 
-    // Check Manager vote
-    let res: VoteResponse = router
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: manager.to_string(),
-            },
-        )
-        .unwrap();
+    // Check manager2 vote
+    let res = shared_multisig.query_vote(1, &manager2).unwrap();
     assert_eq!(res.vote, None);
 
-    // Try to vote from Manager
-    router
-        .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Vote {
-                proposal_id: 1,
-                vote: Vote::No,
-            },
-            &[],
-        )
-        .unwrap();
+    // Try to vote from manager2
+    shared_multisig.vote(&manager2, 1, Vote::No).unwrap();
 
-    // Check Manager vote
-    let res: VoteResponse = router
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: manager.to_string(),
-            },
-        )
-        .unwrap();
+    // Check manager2 vote
+    let res = shared_multisig.query_vote(1, &manager2).unwrap();
     assert_eq!(
         res,
         VoteResponse {
             vote: Some(VoteInfo {
                 proposal_id: 1,
-                voter: manager.to_string(),
+                voter: manager2.to_string(),
                 vote: Vote::No,
                 weight: 1
             })
         }
     );
 
-    let err = router
-        .execute_contract(
-            cheater.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Execute { proposal_id: 1 },
-            &[],
-        )
-        .unwrap_err();
+    // Check manager2 vote
+    let res = shared_multisig.query_votes(1).unwrap();
     assert_eq!(
-        "Proposal must have passed and not yet been executed",
-        err.root_cause().to_string()
+        res,
+        VoteListResponse {
+            votes: vec![
+                VoteInfo {
+                    proposal_id: 1,
+                    voter: "manager1".to_string(),
+                    vote: Vote::Yes,
+                    weight: 1
+                },
+                VoteInfo {
+                    proposal_id: 1,
+                    voter: "manager2".to_string(),
+                    vote: Vote::No,
+                    weight: 1
+                }
+            ]
+        }
     );
 
-    // Try to vote from Manager
-    let err = router
-        .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Vote {
-                proposal_id: 1,
-                vote: Vote::Yes,
-            },
-            &[],
-        )
-        .unwrap_err();
+    // Try to vote from Manager2
+    let err = shared_multisig.vote(&manager2, 1, Vote::Yes).unwrap_err();
     assert_eq!(
         "Already voted on this proposal",
         err.root_cause().to_string()
     );
 
-    // Check the recipient's balance
-    let res = router
-        .wrap()
-        .query_balance(recipient.to_string(), "utrn")
-        .unwrap();
-    assert_eq!(res.amount, Uint128::zero());
-    assert_eq!(res.denom, "utrn");
-
-    // Check the holder's balance
-    let res = router
-        .wrap()
-        .query_balance(shared_addr.to_string(), "utrn")
-        .unwrap();
-    assert_eq!(res.amount, Uint128::new(200_000_000));
-    assert_eq!(res.denom, "utrn");
-
-    // try to propose from DAO
-    router
-        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+    // try to propose the second proposal from manager1
+    shared_multisig
+        .propose(&manager1, vec![setup_pools_msg.clone()])
         .unwrap();
 
-    router.update_block(|b| b.height += 4);
+    router.borrow_mut().update_block(|b| {
+        b.height += 4;
+    });
 
-    // Try to vote from Manager
-    let err = router
-        .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Vote {
-                proposal_id: 2,
-                vote: Vote::Yes,
-            },
-            &[],
-        )
-        .unwrap_err();
+    // check that the first proposal is rejected
+    let res = shared_multisig.query_proposal(1).unwrap();
+    assert_eq!(res.status, Status::Rejected);
+
+    // Try to vote from Manager2
+    let err = shared_multisig.vote(&manager2, 2, Vote::Yes).unwrap_err();
     assert_eq!(
         "Proposal voting period has expired",
         err.root_cause().to_string()
     );
 
-    let err = router
-        .execute_contract(
-            cheater.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Execute { proposal_id: 2 },
-            &[],
-        )
-        .unwrap_err();
+    // try to execute the second proposal from the cheater
+    let err = shared_multisig.execute(&cheater, 2).unwrap_err();
     assert_eq!(
         "Proposal must have passed and not yet been executed",
         err.root_cause().to_string()
     );
 
-    // Check votes status
-    let res: VoteResponse = router
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: manager.to_string(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        res,
-        VoteResponse {
-            vote: Some(VoteInfo {
-                proposal_id: 1,
-                voter: manager.to_string(),
-                vote: Vote::No,
-                weight: 1
-            })
-        }
-    );
-
-    let res: ProposalResponse = router
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 1 })
-        .unwrap();
+    // check that the second proposal is rejected
+    let res = shared_multisig.query_proposal(2).unwrap();
     assert_eq!(res.status, Status::Rejected);
 
-    let res: ProposalResponse = router
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 2 })
-        .unwrap();
-    assert_eq!(res.status, Status::Rejected);
-
-    // Try to update config from Manager
-    let err = router
-        .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::UpdateConfig {
-                max_voting_period: Duration::Height(10),
-            },
-            &[],
-        )
+    // Try to setup max voting period config from Manager2
+    let err = shared_multisig
+        .setup_max_voting_period(&manager2, Duration::Height(10))
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Unauthorized");
 
-    // Try to update config from multisig contract
-    router
-        .execute_contract(
-            shared_addr.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::UpdateConfig {
-                max_voting_period: Duration::Height(10),
-            },
-            &[],
-        )
+    // Try to setup max voting period config direct from multisig
+    shared_multisig
+        .setup_max_voting_period(&shared_multisig.address, Duration::Height(10))
         .unwrap();
 
-    let res: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Config {})
-        .unwrap();
+    // check configuration
+    let res = shared_multisig.query_config().unwrap();
     assert_eq!(res.max_voting_period, Duration::Height(10));
 
-    // try to propose from DAO
-    router
-        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+    // try to propose from manager1
+    shared_multisig
+        .propose(&manager1, vec![setup_pools_msg.clone()])
         .unwrap();
 
-    // Try to vote from Manager
-    router
-        .execute_contract(
-            manager.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Vote {
-                proposal_id: 3,
-                vote: Vote::Yes,
+    // Try to vote from Manager2
+    shared_multisig.vote(&manager2, 3, Vote::Yes).unwrap();
+
+    // Try to execute the third proposal
+    shared_multisig.execute(&manager2, 3).unwrap();
+
+    // check configuration
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.target_pool, None);
+    assert_eq!(res.migration_pool, Some(pcl.address));
+}
+
+#[test]
+fn test_transfer() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let owner = Addr::unchecked(OWNER);
+    let recipient = Addr::unchecked("recipient");
+
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &owner,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
             },
-            &[],
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
+
+    // Sends tokens to the multisig
+    shared_multisig
+        .send_tokens(
+            &owner,
+            Some(vec![
+                Coin {
+                    denom: denom1.clone(),
+                    amount: Uint128::new(200_000_000u128),
+                },
+                Coin {
+                    denom: denom2.clone(),
+                    amount: Uint128::new(200_000_000u128),
+                },
+                Coin {
+                    denom: denom3.clone(),
+                    amount: Uint128::new(300_000_000u128),
+                },
+            ]),
+            None,
         )
         .unwrap();
 
-    // Try to execute with only 1 vote
-    router
-        .execute_contract(
-            recipient.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Execute { proposal_id: 3 },
-            &[],
-        )
+    // Check the recipient's balance utrn
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), denom1.as_str())
         .unwrap();
+    assert_eq!(res.amount, Uint128::zero());
+    assert_eq!(res.denom, denom1.clone());
 
     // Check the recipient's balance
-    let res = router
-        .wrap()
-        .query_balance(recipient.to_string(), "utrn")
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), denom2.as_str())
         .unwrap();
-    assert_eq!(res.amount, Uint128::new(100_000_000));
-    assert_eq!(res.denom, "utrn");
+    assert_eq!(res.amount, Uint128::zero());
+    assert_eq!(res.denom, denom2.clone());
+
+    // Check the recipient's balance
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), denom3.as_str())
+        .unwrap();
+    assert_eq!(res.amount, Uint128::zero());
+    assert_eq!(res.denom, denom3);
 
     // Check the holder's balance
-    let res = router
-        .wrap()
-        .query_balance(shared_addr.to_string(), "utrn")
+    let res = shared_multisig
+        .query_native_balance(None, denom1.as_str())
         .unwrap();
-    assert_eq!(res.amount, Uint128::new(100_000_000));
-    assert_eq!(res.denom, "utrn");
+    assert_eq!(res.amount, Uint128::new(200_000_000));
+    assert_eq!(res.denom, denom1);
 
-    // try to propose from DAO
-    router
-        .execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
+    // Check the holder's balance
+    let res = shared_multisig
+        .query_native_balance(None, denom2.as_str())
         .unwrap();
+    assert_eq!(res.amount, Uint128::new(200_000_000));
+    assert_eq!(res.denom, denom2);
 
-    router.update_block(|b| b.height += 100);
+    // Check the holder's balance
+    let res = shared_multisig
+        .query_native_balance(None, denom3.as_str())
+        .unwrap();
+    assert_eq!(res.amount, Uint128::new(300_000_000));
+    assert_eq!(res.denom, denom3);
 
-    // Try to close expired proposal
-    router
-        .execute_contract(
-            recipient.clone(),
-            shared_addr.clone(),
-            &ExecuteMsg::Close { proposal_id: 4 },
-            &[],
+    // try to transfer when rage quit is not started yet
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom1.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
         )
-        .unwrap();
-}
-
-#[test]
-fn query_proposal() {
-    let owner = Addr::unchecked("owner");
-    let dao = Addr::unchecked("dao");
-    let manager = Addr::unchecked("manager");
-
-    let mut app = mock_app(&owner, None);
-    let shared_addr =
-        shared_multisig_instance(&mut app, owner, "dao".to_string(), "manager".to_string());
-
-    let err = app
-        .wrap()
-        .query_wasm_smart::<ProposalResponse>(&shared_addr, &QueryMsg::Proposal { proposal_id: 0 })
         .unwrap_err();
     assert_eq!(
-        StdError::generic_err("Querier contract error: cw3::proposal::Proposal not found"),
-        err
+        "Operation is unavailable. Rage quit is not started",
+        err.root_cause().to_string()
     );
 
-    let propose_msg = ExecuteMsg::Propose {
-        title: "Empty proposal".to_string(),
-        description: "Empty proposal".to_string(),
-        msgs: vec![],
-        latest: None,
-    };
-
-    // try to propose from DAO
-    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
-        .unwrap();
-
-    let res: ProposalResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::Proposal { proposal_id: 1 })
-        .unwrap();
-
+    // try to transfer when rage quit is not started yet
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom2.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
     assert_eq!(
-        res,
-        ProposalResponse {
-            id: 1,
-            title: "Empty proposal".to_string(),
-            description: "Empty proposal".to_string(),
-            msgs: vec![],
-            status: Status::Open,
-            expires: Expiration::AtHeight(app.block_info().height + 3),
-            threshold: ThresholdResponse::AbsoluteCount {
-                weight: 2,
-                total_weight: 2
-            },
-            proposer: dao.clone(),
-            deposit: None
-        }
+        "Operation is unavailable. Rage quit is not started",
+        err.root_cause().to_string()
     );
 
-    let propose_msg = ExecuteMsg::Propose {
-        title: "The second empty proposal".to_string(),
-        description: "The second empty proposal".to_string(),
-        msgs: vec![],
-        latest: None,
-    };
-
-    // try to propose from DAO
-    app.execute_contract(manager.clone(), shared_addr.clone(), &propose_msg, &[])
-        .unwrap();
-
-    let res: ProposalListResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::ListProposals {
-                start_after: None,
-                limit: None,
+    // try to transfer denom3 when rage quit is not started yet
+    shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
             },
+            Some(recipient.to_string()),
         )
         .unwrap();
 
-    assert_eq!(
-        res.proposals,
-        vec![
-            ProposalResponse {
-                id: 1,
-                title: "Empty proposal".to_string(),
-                description: "Empty proposal".to_string(),
-                msgs: vec![],
-                status: Status::Open,
-                expires: Expiration::AtHeight(app.block_info().height + 3),
-                threshold: ThresholdResponse::AbsoluteCount {
-                    weight: 2,
-                    total_weight: 2
+    // try to update config from manager1
+    shared_multisig.start_rage_quit(&manager2).unwrap();
+
+    // try to transfer denom1 from manager2
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom1.to_string(),
                 },
-                proposer: dao.clone(),
-                deposit: None
+                amount: Uint128::new(100_000_000),
             },
-            ProposalResponse {
-                id: 2,
-                title: "The second empty proposal".to_string(),
-                description: "The second empty proposal".to_string(),
-                msgs: vec![],
-                status: Status::Open,
-                expires: Expiration::AtHeight(app.block_info().height + 3),
-                threshold: ThresholdResponse::AbsoluteCount {
-                    weight: 2,
-                    total_weight: 2
-                },
-                proposer: manager.clone(),
-                deposit: None
-            }
-        ]
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Unauthorized: manager2 cannot transfer untrn",
+        err.root_cause().to_string()
     );
 
-    let res: ProposalListResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::ReverseProposals {
-                start_before: None,
-                limit: None,
+    // try to transfer denom1 from manager1
+    shared_multisig
+        .transfer(
+            &manager1,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom1.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
             },
+            Some(recipient.to_string()),
         )
         .unwrap();
 
-    assert_eq!(
-        res.proposals,
-        vec![
-            ProposalResponse {
-                id: 2,
-                title: "The second empty proposal".to_string(),
-                description: "The second empty proposal".to_string(),
-                msgs: vec![],
-                status: Status::Open,
-                expires: Expiration::AtHeight(app.block_info().height + 3),
-                threshold: ThresholdResponse::AbsoluteCount {
-                    weight: 2,
-                    total_weight: 2
+    // try to transfer denom2 from manager1
+    let err = shared_multisig
+        .transfer(
+            &manager1,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom2.to_string(),
                 },
-                proposer: manager,
-                deposit: None
+                amount: Uint128::new(100_000_000),
             },
-            ProposalResponse {
-                id: 1,
-                title: "Empty proposal".to_string(),
-                description: "Empty proposal".to_string(),
-                msgs: vec![],
-                status: Status::Open,
-                expires: Expiration::AtHeight(app.block_info().height + 3),
-                threshold: ThresholdResponse::AbsoluteCount {
-                    weight: 2,
-                    total_weight: 2
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Unauthorized: manager1 cannot transfer ibc/astro",
+        err.root_cause().to_string()
+    );
+
+    // try to transfer denom2 from manager2
+    shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom2.to_string(),
                 },
-                proposer: dao,
-                deposit: None
-            }
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap();
+
+    // try to transfer usdt from manager1
+    shared_multisig
+        .transfer(
+            &manager1,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap();
+
+    // try to transfer usdt from manager2
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Insufficient balance for: manager2. Available balance: 50000000"
+    );
+
+    // try to transfer usdt from manager2
+    let err = shared_multisig
+        .transfer(
+            &manager1,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Insufficient balance for: manager1. Available balance: 50000000"
+    );
+
+    // try to transfer usdt from manager2
+    shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(50_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap();
+
+    // try to transfer usdt from manager2
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(50_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Insufficient balance for: manager2. Available balance: 0"
+    );
+
+    shared_multisig
+        .transfer(
+            &manager1,
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: denom3.to_string(),
+                },
+                amount: Uint128::new(50_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap();
+
+    // Check the recipient's balance denom1
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), &denom1)
+        .unwrap();
+    assert_eq!(res.amount, Uint128::new(100_000_000));
+    assert_eq!(res.denom, denom1);
+
+    // Check the recipient's balance denom2
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), &denom2)
+        .unwrap();
+    assert_eq!(res.amount, Uint128::new(100_000_000));
+    assert_eq!(res.denom, denom2);
+
+    // Check the recipient's balance denom3
+    let res = shared_multisig
+        .query_native_balance(Some(recipient.as_str()), &denom3)
+        .unwrap();
+    assert_eq!(res.amount, Uint128::new(300_000_000));
+    assert_eq!(res.denom, denom3);
+
+    // Check the holder's balance
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(100_000_000));
+    assert_eq!(res.denom, denom1);
+
+    // Check the holder's balance
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(100_000_000));
+    assert_eq!(res.denom, denom2);
+
+    // Check the holder's balance
+    let res = shared_multisig.query_native_balance(None, &denom3).unwrap();
+    assert_eq!(res.amount, Uint128::zero());
+    assert_eq!(res.denom, denom3);
+}
+
+#[test]
+fn test_target_pool() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let owner = Addr::unchecked(OWNER);
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &owner,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let pcl = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+
+    let pcl_pair_info = pcl.pair_info();
+    assert_eq!(
+        pcl_pair_info.asset_infos,
+        vec![
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
         ]
+    );
+
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&owner, None, None).unwrap();
+
+    // try to provide from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Target pool is not set");
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(pcl.address.to_string()),
+            None,
+        )
+        .unwrap();
+
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(pcl.address));
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // try to withdraw from target
+    let err = shared_multisig.withdraw(&manager1, None, None).unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // Check the holder's balance for denom1
+    let denom1_before = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let denom1_before = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(99_999_000));
+
+    // deregister the target pool
+    factory
+        .deregister_pair(&[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ])
+        .unwrap();
+
+    // create the migration pool
+    let pcl_2 = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+
+    // Direct set up migration pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            None,
+            Some(pcl_2.address.to_string()),
+        )
+        .unwrap();
+
+    // try to provide from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Migration pool is already set"
+    );
+
+    // try to withdraw from target pool
+    shared_multisig.withdraw(&manager2, None, None).unwrap();
+
+    // Check the holder's balance for denom1
+    let denom1_before = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(899_998_999));
+    assert_eq!(denom1_before.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let denom1_before = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(899_998_999));
+    assert_eq!(denom1_before.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::zero());
+
+    // try to update config from manager1
+    shared_multisig.start_rage_quit(&manager2).unwrap();
+
+    // check if rage quit started
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.rage_quit_started, true);
+
+    // check if rage quit cannot be set back to false
+    let err = shared_multisig.start_rage_quit(&manager2).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+
+    // try to provide after rage quit started
+    let err = shared_multisig
+        .provide(&manager2, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
     );
 }
 
 #[test]
-fn query_list_votes() {
-    let owner = Addr::unchecked("owner");
-    let dao = Addr::unchecked("dao");
-    let manager = Addr::unchecked("manager");
+fn test_provide_withdraw_pcl() {
+    let astroport = astroport_address();
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let recipient = Addr::unchecked("recipient");
 
-    let mut app = mock_app(&owner, None);
-    let shared_addr =
-        shared_multisig_instance(&mut app, owner, "dao".to_string(), "manager".to_string());
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
 
-    let propose_msg = ExecuteMsg::Propose {
-        title: "Empty proposal".to_string(),
-        description: "Empty proposal".to_string(),
-        msgs: vec![],
-        latest: None,
-    };
-
-    // try to propose from DAO
-    app.execute_contract(dao.clone(), shared_addr.clone(), &propose_msg, &[])
-        .unwrap();
-
-    // DAO vote
-    app.wrap()
-        .query_wasm_smart::<VoteResponse>(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: dao.to_string(),
+    let router = Rc::new(RefCell::new(mock_app(
+        &astroport,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
             },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let pcl = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+
+    let pcl_pair_info = pcl.pair_info();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(pcl.address.to_string()),
+            None,
         )
         .unwrap();
 
-    let res: VoteResponse = app
-        .wrap()
-        .query_wasm_smart(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: "dao".to_string(),
-            },
-        )
-        .unwrap();
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(pcl.address));
 
+    // try to provide from recipient
+    let err = shared_multisig
+        .provide(&recipient, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
+
+    // try to provide without funds on multisig from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
     assert_eq!(
-        res.vote,
-        Some(VoteInfo {
-            proposal_id: 1,
-            voter: "dao".to_string(),
-            vote: Vote::Yes,
-            weight: 1
+        err.root_cause().to_string(),
+        "Asset balance mismatch between the argument and the \
+    Multisig balance. Available Multisig balance for untrn: 0"
+    );
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&astroport, None, None).unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // send tokens to the recipient
+    shared_multisig
+        .send_tokens(&astroport, None, Some(recipient.clone()))
+        .unwrap();
+
+    // try to swap tokens
+    for _ in 0..10 {
+        shared_multisig
+            .swap(
+                &recipient,
+                &pcl_pair_info.contract_addr,
+                &denom1,
+                10_000_000,
+                None,
+                None,
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+            )
+            .unwrap();
+
+        router.borrow_mut().update_block(|b| {
+            b.height += 1200;
+            b.time = b.time.plus_seconds(3600);
+        });
+
+        shared_multisig
+            .swap(
+                &recipient,
+                &pcl_pair_info.contract_addr,
+                &denom2,
+                15_000_000,
+                None,
+                None,
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+            )
+            .unwrap();
+
+        router.borrow_mut().update_block(|b| {
+            b.height += 100;
+        });
+
+        // try to provide from manager2
+        shared_multisig
+            .provide(
+                &manager2,
+                PoolType::Target,
+                Some(vec![
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: denom1.clone(),
+                        },
+                        amount: Uint128::new(10_000_000),
+                    },
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: denom2.clone(),
+                        },
+                        amount: Uint128::new(10_000_000),
+                    },
+                ]),
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+                None,
+            )
+            .unwrap();
+    }
+
+    router.borrow_mut().update_block(|b| {
+        b.time = b.time.plus_seconds(86400 * 7);
+    });
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // try to provide from manager2
+    shared_multisig
+        .provide(
+            &manager2,
+            PoolType::Target,
+            None,
+            Some(Decimal::from_ratio(5u128, 10u128)),
+            None,
+            None,
+        )
+        .unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(600_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(600_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(301_118_256));
+}
+
+#[test]
+fn test_provide_withdraw_xyk() {
+    let astroport = astroport_address();
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let recipient = Addr::unchecked("recipient");
+
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &astroport,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let xyk = factory.instantiate_xyk_pair(&[
+        AssetInfo::NativeToken {
+            denom: denom1.clone(),
+        },
+        AssetInfo::NativeToken {
+            denom: denom2.clone(),
+        },
+    ]);
+
+    let xyk_pair_info = xyk.pair_info().unwrap();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(xyk.address.to_string()),
+            None,
+        )
+        .unwrap();
+
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(xyk.address));
+
+    // try to provide from recipient
+    let err = shared_multisig
+        .provide(&recipient, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
+
+    // try to provide without funds on multisig from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Asset balance mismatch between the argument and the \
+    Multisig balance. Available Multisig balance for untrn: 0"
+    );
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&astroport, None, None).unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // send tokens to the recipient
+    shared_multisig
+        .send_tokens(&astroport, None, Some(recipient.clone()))
+        .unwrap();
+
+    // try to swap tokens
+    for _ in 0..10 {
+        shared_multisig
+            .swap(
+                &recipient,
+                &xyk_pair_info.contract_addr,
+                &denom1,
+                10_000_000,
+                None,
+                None,
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+            )
+            .unwrap();
+
+        router.borrow_mut().update_block(|b| {
+            b.height += 1400;
+        });
+
+        shared_multisig
+            .swap(
+                &recipient,
+                &xyk_pair_info.contract_addr,
+                &denom2,
+                15_000_000,
+                None,
+                None,
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+            )
+            .unwrap();
+
+        router.borrow_mut().update_block(|b| {
+            b.height += 100;
+        });
+
+        // try to provide from manager2
+        shared_multisig
+            .provide(
+                &manager2,
+                PoolType::Target,
+                Some(vec![
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: denom1.clone(),
+                        },
+                        amount: Uint128::new(10_000_000),
+                    },
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: denom2.clone(),
+                        },
+                        amount: Uint128::new(10_000_000),
+                    },
+                ]),
+                Some(Decimal::from_ratio(5u128, 10u128)),
+                None,
+                None,
+            )
+            .unwrap();
+    }
+
+    router.borrow_mut().update_block(|b| {
+        b.height += 500;
+        b.time = b.time.plus_seconds(86400);
+    });
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // try to provide from manager2
+    shared_multisig
+        .provide(
+            &manager2,
+            PoolType::Target,
+            None,
+            Some(Decimal::from_ratio(5u128, 10u128)),
+            None,
+            None,
+        )
+        .unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(600_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(600_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(263_078_132));
+}
+
+#[test]
+fn test_provide_to_both_pools() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let owner = Addr::unchecked(OWNER);
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &owner,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let generator = MockGeneratorBuilder::new(&router).instantiate();
+    let factory = generator.factory();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![
+        (denom1.to_owned(), 6),
+        (denom2.to_owned(), 6),
+        (denom3.to_owned(), 6),
+    ]);
+
+    let pcl_target = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+
+    let shared_multisig = MockSharedMultisigBuilder::new(&router).instantiate(
+        &factory.address,
+        Some(generator.address),
+        None,
+    );
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&owner, None, None).unwrap();
+
+    // try to provide from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Target pool is not set");
+
+    // try to provide from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Migration, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(pcl_target.address.to_string()),
+            None,
+        )
+        .unwrap();
+
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(pcl_target.address.clone()));
+    assert_eq!(config.migration_pool, None);
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // try to withdraw from target
+    let err = shared_multisig.withdraw(&manager1, None, None).unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // try to withdraw from migration
+    let err = shared_multisig.withdraw(&manager2, None, None).unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // try to update config from manager1
+    let err = shared_multisig
+        .complete_target_pool_migration(&manager2)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // try to update config from manager1
+    shared_multisig.start_rage_quit(&manager2).unwrap();
+
+    // check if rage quit started
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.rage_quit_started, true);
+
+    // check if rage quit cannot be set back to false
+    let err = shared_multisig.start_rage_quit(&manager2).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+
+    // try to provide after rage quit started in target pool
+    let err = shared_multisig
+        .provide(&manager2, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+}
+
+#[test]
+fn test_transfer_lp_tokens() {
+    let astroport = astroport_address();
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let cheater = Addr::unchecked(CHEATER);
+    let recipient = Addr::unchecked("recipient");
+
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &astroport,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let pcl = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+
+    let pcl_pair_info = pcl.pair_info();
+    let shared_multisig =
+        MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&astroport, None, None).unwrap();
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(pcl.address.to_string()),
+            None,
+        )
+        .unwrap();
+
+    // try to provide from recipient
+    let err = shared_multisig
+        .provide(&recipient, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Unauthorized");
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(99_999_000));
+
+    // Check the recipient's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, Some(recipient.clone()))
+        .unwrap();
+    assert_eq!(res.balance, Uint128::zero());
+
+    // try to transfer LP tokens through transfer endpoint
+    let err = shared_multisig
+        .transfer(
+            &manager2,
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: pcl_pair_info.liquidity_token.clone(),
+                },
+                amount: Uint128::new(100_000_000),
+            },
+            Some(recipient.to_string()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        "Unauthorized: manager2 cannot transfer contract3",
+        err.root_cause().to_string()
+    );
+
+    // create proposal message for transfer LP tokens to the recipient
+    let lp_transfer_amount = Uint128::new(10_000_000);
+    let transfer_lp_msg = CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: pcl_pair_info.liquidity_token.to_string(),
+        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            recipient: recipient.to_string(),
+            amount: lp_transfer_amount,
         })
-    );
+        .unwrap(),
+        funds: vec![],
+    });
 
-    let res: VoteListResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::ListVotes { proposal_id: 1 })
+    // try to propose from cheater
+    let err = shared_multisig
+        .propose(&cheater, vec![transfer_lp_msg.clone()])
+        .unwrap_err();
+    assert_eq!("Unauthorized", err.root_cause().to_string());
+
+    // try to propose from manager1
+    shared_multisig
+        .propose(&manager1, vec![transfer_lp_msg.clone()])
         .unwrap();
+
+    // Try to vote from manager2
+    shared_multisig.vote(&manager2, 1, Vote::Yes).unwrap();
+
+    // Try to execute the third proposal
+    shared_multisig.execute(&manager2, 1).unwrap();
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(89_999_000));
+
+    // Check the recipient's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, Some(recipient))
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(10_000_000));
+}
+
+#[test]
+fn test_end_migrate_from_target_to_migration_pool() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let owner = Addr::unchecked(OWNER);
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &owner,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let generator = MockGeneratorBuilder::new(&router).instantiate();
+    let factory = generator.factory();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let xyk_pool = factory.instantiate_xyk_pair(&[
+        AssetInfo::NativeToken {
+            denom: denom1.clone(),
+        },
+        AssetInfo::NativeToken {
+            denom: denom2.clone(),
+        },
+    ]);
+
+    let xyk_pair_info = xyk_pool.pair_info().unwrap();
     assert_eq!(
-        res,
-        VoteListResponse {
-            votes: vec![VoteInfo {
-                proposal_id: 1,
-                voter: "dao".to_string(),
-                vote: Vote::Yes,
-                weight: 1
-            }]
-        }
+        xyk_pair_info.asset_infos,
+        vec![
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ]
     );
 
-    // DAO vote
-    app.wrap()
-        .query_wasm_smart::<VoteResponse>(
-            &shared_addr,
-            &QueryMsg::Vote {
-                proposal_id: 1,
-                voter: manager.to_string(),
-            },
+    let shared_multisig = MockSharedMultisigBuilder::new(&router).instantiate(
+        &factory.address,
+        Some(generator.address),
+        None,
+    );
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&owner, None, None).unwrap();
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(xyk_pool.address.to_string()),
+            None,
         )
         .unwrap();
 
-    let res: VoteListResponse = app
-        .wrap()
-        .query_wasm_smart(&shared_addr, &QueryMsg::ListVotes { proposal_id: 1 })
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(xyk_pool.address.clone()));
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
         .unwrap();
+
+    // try to withdraw from target
+    let err = shared_multisig.withdraw(&manager1, None, None).unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Migration pool is not set");
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(99_999_000));
+
+    // deregister the target pool
+    factory
+        .deregister_pair(&[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ])
+        .unwrap();
+
+    // create the migration pool
+    let pcl_pool = factory.instantiate_concentrated_pair(
+        &[
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ],
+        None,
+    );
+    let pcl_pair_info = pcl_pool.pair_info();
+    // Direct set up migration pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            None,
+            Some(pcl_pool.address.to_string()),
+        )
+        .unwrap();
+
+    // try to withdraw from target pool and provide to migration pool in the same transaction
+    shared_multisig
+        .withdraw(
+            &manager2,
+            None,
+            Some(ProvideParams {
+                slippage_tolerance: None,
+                auto_stake: None,
+            }),
+        )
+        .unwrap();
+
+    // Check the holder's balance for denom1
+    let denom1_before = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let denom1_before = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::zero());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&pcl_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(99_998_000));
+
+    // try to update config from manager1
+    shared_multisig
+        .complete_target_pool_migration(&manager2)
+        .unwrap();
+
+    // check if migration is successful
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.migration_pool, None);
+    assert_eq!(res.target_pool, Some(pcl_pool.address));
+}
+
+#[test]
+fn test_withdraw_raqe_quit() {
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+    let owner = Addr::unchecked(OWNER);
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &owner,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let factory = MockFactoryBuilder::new(&router).instantiate();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let xyk_pool = factory.instantiate_xyk_pair(&[
+        AssetInfo::NativeToken {
+            denom: denom1.clone(),
+        },
+        AssetInfo::NativeToken {
+            denom: denom2.clone(),
+        },
+    ]);
+
+    let xyk_pair_info = xyk_pool.pair_info().unwrap();
     assert_eq!(
-        res,
-        VoteListResponse {
-            votes: vec![VoteInfo {
-                proposal_id: 1,
-                voter: "dao".to_string(),
-                vote: Vote::Yes,
-                weight: 1
-            }]
-        }
+        xyk_pair_info.asset_infos,
+        vec![
+            AssetInfo::NativeToken {
+                denom: denom1.clone(),
+            },
+            AssetInfo::NativeToken {
+                denom: denom2.clone(),
+            },
+        ]
+    );
+
+    let shared_multisig = MockSharedMultisigBuilder::new(&router).instantiate(
+        &factory.address,
+        None,
+        Some(xyk_pool.address.to_string()),
+    );
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&owner, None, None).unwrap();
+
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(xyk_pool.address.clone()));
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // Check the holder's balance for denom1
+    let denom1_before = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let denom1_before = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(denom1_before.amount, Uint128::new(800_000_000));
+    assert_eq!(denom1_before.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(99999000));
+
+    // try to update config from manager1
+    shared_multisig.start_rage_quit(&manager2).unwrap();
+
+    // check if rage quit has already started
+    let res = shared_multisig.query_config().unwrap();
+    assert_eq!(res.rage_quit_started, true);
+
+    // try to provide from manager1
+    let err = shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+
+    // try to update config from manager1
+    let err = shared_multisig
+        .complete_target_pool_migration(&manager2)
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+
+    // try to withdraw from target pool and provide to migration pool in the same transaction
+    let err = shared_multisig
+        .withdraw(
+            &manager2,
+            None,
+            Some(ProvideParams {
+                slippage_tolerance: None,
+                auto_stake: None,
+            }),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Operation is unavailable. Rage quit has already started"
+    );
+}
+
+#[test]
+fn test_autostake_and_withdraw() {
+    let astroport = astroport_address();
+    let manager1 = Addr::unchecked(MANAGER1);
+    let manager2 = Addr::unchecked(MANAGER2);
+
+    let denom1 = String::from("untrn");
+    let denom2 = String::from("ibc/astro");
+    let denom3 = String::from("usdt");
+
+    let router = Rc::new(RefCell::new(mock_app(
+        &astroport,
+        Some(vec![
+            Coin {
+                denom: denom1.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom2.clone(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: denom3,
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ]),
+    )));
+
+    let mut generator = MockGeneratorBuilder::new(&router).instantiate();
+    let factory = generator.factory();
+    let astro_token = generator.astro_token_info();
+    let coin_registry = factory.coin_registry();
+    coin_registry.add(vec![(denom1.to_owned(), 6), (denom2.to_owned(), 6)]);
+
+    let xyk = factory.instantiate_xyk_pair(&[
+        AssetInfo::NativeToken {
+            denom: denom1.clone(),
+        },
+        AssetInfo::NativeToken {
+            denom: denom2.clone(),
+        },
+    ]);
+
+    let xyk_pair_info = xyk.pair_info().unwrap();
+    let shared_multisig = MockSharedMultisigBuilder::new(&router).instantiate(
+        &factory.address,
+        Some(generator.address.clone()),
+        None,
+    );
+
+    // Direct set up target pool without proposal
+    shared_multisig
+        .setup_pools(
+            &shared_multisig.address,
+            Some(xyk.address.to_string()),
+            None,
+        )
+        .unwrap();
+
+    let config = shared_multisig.query_config().unwrap();
+    assert_eq!(config.target_pool, Some(xyk.address.clone()));
+
+    // Sends tokens to the multisig
+    shared_multisig.send_tokens(&astroport, None, None).unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(900_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // try to provide from manager1
+    shared_multisig
+        .provide(&manager1, PoolType::Target, None, None, None, None)
+        .unwrap();
+
+    // try to provide from manager2
+    shared_multisig
+        .provide(
+            &manager2,
+            PoolType::Target,
+            None,
+            Some(Decimal::from_ratio(5u128, 10u128)),
+            None,
+            None,
+        )
+        .unwrap();
+
+    // Check the holder's balance for denom1
+    let res = shared_multisig.query_native_balance(None, &denom1).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom1.clone());
+
+    // Check the holder's balance for denom2
+    let res = shared_multisig.query_native_balance(None, &denom2).unwrap();
+    assert_eq!(res.amount, Uint128::new(700_000_000));
+    assert_eq!(res.denom, denom2.clone());
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(199999000));
+
+    // Try to unstake from generator
+    let err = shared_multisig
+        .withdraw_generator(&manager2, Some(Uint128::new(10)))
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Insufficient balance for: contract8. Available balance: 0"
+    );
+
+    // try to provide from manager2
+    shared_multisig
+        .provide(&manager2, PoolType::Target, None, None, Some(true), None)
+        .unwrap();
+
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::new(100_000_000),
+    );
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Default::default(),
+            pending_on_proxy: None
+        },
+    );
+
+    generator.setup_pools(&[(xyk.lp_token().address.to_string(), Uint128::one())]);
+
+    router.borrow_mut().update_block(|b| {
+        b.height += 100;
+    });
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Uint128::new(100_000_000),
+            pending_on_proxy: None
+        },
+    );
+
+    // try to claim from manager2
+    shared_multisig.claim_generator_rewards(&manager2).unwrap();
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Uint128::zero(),
+            pending_on_proxy: None
+        },
+    );
+
+    // Check the holder's ASTRO balance
+    let res = shared_multisig
+        .query_cw20_balance(&Addr::unchecked(astro_token.to_string()), None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(100_000_000));
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::new(100_000_000),
+    );
+
+    // Try to unstake from generator
+    shared_multisig.withdraw_generator(&manager2, None).unwrap();
+
+    // Check the holder's LP balance
+    let res = shared_multisig
+        .query_cw20_balance(&xyk_pair_info.liquidity_token, None)
+        .unwrap();
+    assert_eq!(res.balance, Uint128::new(299_999_000));
+
+    router.borrow_mut().update_block(|b| {
+        b.height += 100;
+    });
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::zero(),
+    );
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Uint128::zero(),
+            pending_on_proxy: None
+        },
+    );
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::zero(),
+    );
+
+    // Try to deposit to generator
+    shared_multisig
+        .deposit_generator(&manager2, Some(Uint128::new(10)))
+        .unwrap();
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::new(10),
+    );
+
+    // Try to deposit zero LP tokens to generator
+    let err = shared_multisig
+        .deposit_generator(&manager2, Some(Uint128::zero()))
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Invalid zero amount");
+
+    // Try to deposit more LP tokens to generator then we have
+    let err = shared_multisig
+        .deposit_generator(&manager2, Some(Uint128::new(1000000000000)))
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Insufficient balance for: contract8. Available balance: 299998990"
+    );
+
+    // Try to deposit all LP tokens to generator
+    shared_multisig.deposit_generator(&manager2, None).unwrap();
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::new(299999000),
+    );
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Uint128::zero(),
+            pending_on_proxy: None
+        },
+    );
+
+    router.borrow_mut().update_block(|b| {
+        b.height += 100;
+    });
+
+    assert_eq!(
+        generator.pending_token(&xyk.lp_token().address, &shared_multisig.address),
+        PendingTokenResponse {
+            pending: Uint128::new(99_999_999),
+            pending_on_proxy: None
+        },
+    );
+
+    // Try to unstake from generator
+    shared_multisig.withdraw_generator(&manager2, None).unwrap();
+
+    // check the holder's deposit
+    assert_eq!(
+        generator.query_deposit(&xyk.lp_token(), &shared_multisig.address),
+        Uint128::zero(),
     );
 }

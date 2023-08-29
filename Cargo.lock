@@ -50,7 +50,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.3.3"
+version = "3.4.0"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -280,8 +280,9 @@ dependencies = [
 
 [[package]]
 name = "astroport-mocks"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
+ "anyhow",
  "astroport",
  "astroport-factory",
  "astroport-generator",
@@ -290,6 +291,7 @@ dependencies = [
  "astroport-pair-concentrated",
  "astroport-pair-concentrated-injective",
  "astroport-pair-stable",
+ "astroport-shared-multisig",
  "astroport-staking",
  "astroport-token",
  "astroport-vesting",
@@ -298,6 +300,9 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.5",
+ "cw-utils 1.0.1",
+ "cw20 0.15.1",
+ "cw3",
  "injective-cosmwasm",
  "schemars",
  "serde 1.0.180",
@@ -531,16 +536,21 @@ dependencies = [
 
 [[package]]
 name = "astroport-shared-multisig"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "astroport",
+ "astroport-generator",
+ "astroport-mocks",
+ "astroport-pair",
+ "astroport-pair-concentrated",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.1",
  "cw2 1.1.0",
+ "cw20 0.15.1",
  "cw3",
+ "itertools",
  "thiserror",
 ]
 

@@ -2,7 +2,9 @@ use std::fmt::Debug;
 
 use astroport::native_coin_registry::{ExecuteMsg, InstantiateMsg};
 use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
@@ -92,4 +94,34 @@ where
 pub struct MockCoinRegistry<B, A, S, C: Module, X, D, I, G> {
     pub app: WKApp<B, A, S, C, X, D, I, G>,
     pub address: Addr,
+}
+
+impl<B, A, S, C, X, D, I, G> MockCoinRegistry<B, A, S, C, X, D, I, G>
+where
+    B: Bank,
+    A: Api,
+    S: Storage,
+    C: Module,
+    X: Staking,
+    D: Distribution,
+    I: Ibc,
+    G: Gov,
+    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    C::QueryT: CustomQuery + DeserializeOwned + 'static,
+{
+    pub fn add(&self, coins: Vec<(String, u8)>) -> AppResponse {
+        let astroport = astroport_address();
+
+        self.app
+            .borrow_mut()
+            .execute_contract(
+                astroport,
+                self.address.clone(),
+                &ExecuteMsg::Add {
+                    native_coins: coins,
+                },
+                &[],
+            )
+            .unwrap()
+    }
 }

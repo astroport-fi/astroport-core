@@ -32,6 +32,7 @@ pub struct Config {
 /// Stable {};
 /// Custom(String::from("Custom"));
 /// ```
+#[derive(Eq)]
 #[cw_serde]
 pub enum PairType {
     /// XYK pair type
