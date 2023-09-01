@@ -20,7 +20,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::observation::{MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
+use astroport::observation::{PrecommitObservation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
 use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
@@ -785,15 +785,19 @@ fn swap(
         }
     }
 
-    // Store time series data.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    // Store observation from precommit data
+    accumulate_swap_sizes(deps.storage, &env)?;
+
+    // Store time series data in precommit observation.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
+    // This data will be reflected in observations in the next action.
     if offer_asset_dec.amount >= MIN_TRADE_SIZE && swap_result.dy >= MIN_TRADE_SIZE {
         let (base_amount, quote_amount) = if offer_ind == 0 {
             (offer_asset.amount, return_amount)
         } else {
             (return_amount, offer_asset.amount)
         };
-        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
     }
 
     CONFIG.save(deps.storage, &config)?;

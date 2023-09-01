@@ -4,6 +4,7 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     CustomQuery, Decimal, Decimal256, Deps, Env, StdError, StdResult, Storage, Uint128,
 };
+use cw_storage_plus::Item;
 
 /// Circular buffer size which stores observations
 pub const OBSERVATIONS_SIZE: u32 = 3000;
@@ -14,7 +15,7 @@ pub const MIN_TRADE_SIZE: Decimal256 = Decimal256::raw(1000000000000000);
 /// Stores trade size observations. We use it in orderbook integration
 /// and derive prices for external contracts/users.
 #[cw_serde]
-#[derive(Copy)]
+#[derive(Copy, Default)]
 pub struct Observation {
     pub timestamp: u64,
     /// Base asset simple moving average (mean)
@@ -54,7 +55,18 @@ where
             oldest_ind = 0;
             newest_ind %= buffer.capacity();
         } else {
-            return Err(StdError::generic_err("Buffer is empty"));
+            return match PrecommitObservation::may_load(deps.storage)? {
+                // First observation after pool initialization could be captured but not committed yet
+                Some(obs) if obs.precommit_ts <= target => Ok(OracleObservation {
+                    timestamp: target,
+                    price: Decimal::from_ratio(obs.base_amount, obs.quote_amount),
+                }),
+                Some(_) => Err(StdError::generic_err(format!(
+                    "Requested observation is too old. Last known observation is at {}",
+                    target
+                ))),
+                None => Err(StdError::generic_err("Buffer is empty")),
+            };
         }
     }
 
@@ -140,6 +152,47 @@ fn binary_search(
         } else {
             start = mid + 1;
         }
+    }
+}
+
+#[cw_serde]
+pub struct PrecommitObservation {
+    pub base_amount: Uint128,
+    pub quote_amount: Uint128,
+    pub precommit_ts: u64,
+}
+
+impl<'a> PrecommitObservation {
+    /// Temporal storage for observation which should be committed in the next block
+    const PRECOMMIT_OBSERVATION: Item<'a, PrecommitObservation> =
+        Item::new("precommit_observation");
+
+    pub fn save(
+        storage: &mut dyn Storage,
+        env: &Env,
+        base_amount: Uint128,
+        quote_amount: Uint128,
+    ) -> StdResult<()> {
+        let next_obs = match Self::may_load(storage)? {
+            // Accumulating observations at the same block
+            Some(mut prev_obs) if env.block.time.seconds() == prev_obs.precommit_ts => {
+                prev_obs.base_amount += base_amount;
+                prev_obs.quote_amount += quote_amount;
+                prev_obs
+            }
+            _ => PrecommitObservation {
+                base_amount,
+                quote_amount,
+                precommit_ts: env.block.time.seconds(),
+            },
+        };
+
+        Self::PRECOMMIT_OBSERVATION.save(storage, &next_obs)
+    }
+
+    #[inline]
+    pub fn may_load(storage: &dyn Storage) -> StdResult<Option<Self>> {
+        Self::PRECOMMIT_OBSERVATION.may_load(storage)
     }
 }
 

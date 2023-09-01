@@ -308,6 +308,16 @@ impl Helper {
         offer_asset: &Asset,
         max_spread: Option<Decimal>,
     ) -> AnyResult<AppResponse> {
+        self.swap_full_params(sender, offer_asset, max_spread, None)
+    }
+
+    pub fn swap_full_params(
+        &mut self,
+        sender: &Addr,
+        offer_asset: &Asset,
+        max_spread: Option<Decimal>,
+        belief_price: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
         match &offer_asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Send {
@@ -315,7 +325,7 @@ impl Helper {
                     amount: offer_asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
-                        belief_price: None,
+                        belief_price,
                         max_spread,
                         to: None,
                     })
@@ -336,7 +346,7 @@ impl Helper {
                 let msg = ExecuteMsg::Swap {
                     offer_asset: offer_asset.clone(),
                     ask_asset_info: None,
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to: None,
                 };

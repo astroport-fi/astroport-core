@@ -28,7 +28,9 @@ use astroport::pair::{
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{query_observation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
+use astroport::observation::{
+    query_observation, PrecommitObservation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE,
+};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,
@@ -669,8 +671,12 @@ pub fn swap(
         }
     }
 
-    // Store time series data.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    // Store observation from precommit data
+    accumulate_swap_sizes(deps.storage, &env)?;
+
+    // Store time series data in precommit observation.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
+    // This data will be reflected in observations in the next action.
     let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
     if offer_asset_dec.amount >= MIN_TRADE_SIZE
         && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
@@ -678,7 +684,7 @@ pub fn swap(
         // Store time series data
         let (base_amount, quote_amount) =
             determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
-        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
     }
 
     Ok(Response::new()

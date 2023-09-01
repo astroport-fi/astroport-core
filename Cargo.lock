@@ -41,16 +41,16 @@ dependencies = [
 [[package]]
 name = "astro-satellite-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc#e0cc213c878a5e9549530175c0aff940c9c99b81"
+source = "git+https://github.com/astroport-fi/astroport_ibc#ffb48ebfd7dbbc010cf86c9b02bad236c456fca0"
 dependencies = [
- "astroport-governance 1.2.0",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
  "cosmwasm-schema",
  "cosmwasm-std",
 ]
 
 [[package]]
 name = "astroport"
-version = "3.4.0"
+version = "3.5.0"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -97,9 +97,9 @@ dependencies = [
 [[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.2"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
 dependencies = [
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -151,7 +151,7 @@ dependencies = [
  "anyhow",
  "astroport",
  "astroport-factory",
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance)",
+ "astroport-governance 1.4.0",
  "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-nft",
@@ -196,7 +196,19 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=feat/merge_hidden_2023_05_22#1e865abe55093d249b69b538e2d54472b643d6c7"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
+dependencies = [
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
+]
+
+[[package]]
+name = "astroport-governance"
+version = "1.2.0"
+source = "git+https://github.com/astroport-fi/astroport-governance#f0ef7c6dde76fc77ce360262923366a5cde3c3f8"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -208,20 +220,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.4.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
-dependencies = [
- "astroport",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw20 0.15.1",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-governance"
-version = "1.4.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance#259fbc78d33f1b76e4213054babc95a1d9202f5c"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -264,7 +263,7 @@ dependencies = [
  "astroport",
  "astroport-escrow-fee-distributor",
  "astroport-factory",
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "astroport-native-coin-registry",
  "astroport-pair",
  "astroport-pair-stable",
@@ -341,9 +340,9 @@ dependencies = [
 [[package]]
 name = "astroport-nft"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
 dependencies = [
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw2 0.15.1",
@@ -440,7 +439,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "2.0.5"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "astroport",
@@ -463,7 +462,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-injective"
-version = "2.0.5"
+version = "2.1.0"
 dependencies = [
  "anyhow",
  "astroport",
@@ -492,7 +491,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "3.1.1"
+version = "3.2.0"
 dependencies = [
  "anyhow",
  "astroport",
@@ -1541,9 +1540,9 @@ checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
 [[package]]
 name = "generator-controller"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
 dependencies = [
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -2831,9 +2830,9 @@ checksum = "49874b5167b65d7193b8aba1567f5c7d93d001cafc34600cee003eda787e483f"
 [[package]]
 name = "voting-escrow"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
 dependencies = [
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -2846,9 +2845,9 @@ dependencies = [
 [[package]]
 name = "voting-escrow-delegation"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#cccde2c619bb4fc1e0a23c926b1595ab66f909c1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#784452baf414f13d8b9e7de461391eb765ff9043"
 dependencies = [
- "astroport-governance 1.4.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",

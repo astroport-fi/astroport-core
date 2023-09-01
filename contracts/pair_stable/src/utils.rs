@@ -1,13 +1,14 @@
+use std::cmp::Ordering;
+
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdError,
-    StdResult, Storage, Uint128, Uint256, Uint64,
+    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
+    Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
-use std::cmp::Ordering;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
-use astroport::observation::Observation;
+use astroport::observation::{Observation, PrecommitObservation};
 use astroport::querier::query_factory_config;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -291,77 +292,45 @@ pub(crate) fn compute_swap(
 }
 
 /// Calculate and save moving averages of swap sizes.
-pub fn accumulate_swap_sizes(
-    storage: &mut dyn Storage,
-    env: &Env,
-    base_amount: Uint128,
-    quote_amount: Uint128,
-) -> BufferResult<()> {
-    let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
+    if let Some(PrecommitObservation {
+        base_amount,
+        quote_amount,
+        precommit_ts,
+    }) = PrecommitObservation::may_load(storage)?
+    {
+        let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
 
-    let new_observation;
-    if let Some(last_obs) = buffer.read_last(storage)? {
-        // Since this is circular buffer the next index contains the oldest value
-        let count = buffer.capacity();
-        if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
-            let new_base_sma = safe_sma_calculation(
-                last_obs.base_sma,
-                oldest_obs.base_amount,
-                count,
-                base_amount,
-            )?;
-            let new_quote_sma = safe_sma_calculation(
-                last_obs.quote_sma,
-                oldest_obs.quote_amount,
-                count,
-                quote_amount,
-            )?;
-            new_observation = Observation {
-                base_amount,
-                quote_amount,
-                base_sma: new_base_sma,
-                quote_sma: new_quote_sma,
-                timestamp: env.block.time.seconds(),
-            };
+        if let Some(last_obs) = buffer.read_last(storage)? {
+            // Skip saving observation if it has been already saved
+            if last_obs.timestamp < precommit_ts {
+                buffer.instant_push(
+                    storage,
+                    &Observation {
+                        base_amount,
+                        quote_amount,
+                        timestamp: precommit_ts,
+                        ..Default::default()
+                    },
+                )?
+            }
         } else {
-            // Buffer is not full yet
-            let count = Uint128::from(buffer.head());
-            let new_base_sma = (last_obs.base_sma * count + base_amount) / (count + Uint128::one());
-            let new_quote_sma =
-                (last_obs.quote_sma * count + quote_amount) / (count + Uint128::one());
-            new_observation = Observation {
-                base_amount,
-                quote_amount,
-                base_sma: new_base_sma,
-                quote_sma: new_quote_sma,
-                timestamp: env.block.time.seconds(),
-            };
+            // Buffer is empty
+            if env.block.time.seconds() > precommit_ts {
+                buffer.instant_push(
+                    storage,
+                    &Observation {
+                        timestamp: precommit_ts,
+                        base_amount,
+                        quote_amount,
+                        ..Default::default()
+                    },
+                )?
+            }
         }
-    } else {
-        // Buffer is empty
-        new_observation = Observation {
-            timestamp: env.block.time.seconds(),
-            base_sma: base_amount,
-            base_amount,
-            quote_sma: quote_amount,
-            quote_amount,
-        };
     }
 
-    buffer.instant_push(storage, &new_observation)
-}
-
-/// Internal function to calculate new moving average using Uint256.
-/// Overflow is possible only if new average order size is greater than 2^128 - 1 which is unlikely.
-fn safe_sma_calculation(
-    sma: Uint128,
-    oldest_amount: Uint128,
-    count: u32,
-    new_amount: Uint128,
-) -> StdResult<Uint128> {
-    let res = (sma.full_mul(count) + Uint256::from(new_amount) - Uint256::from(oldest_amount))
-        .checked_div(count.into())?;
-    res.try_into().map_err(StdError::from)
+    Ok(())
 }
 
 /// Internal function to determine which asset is base one, which is quote one

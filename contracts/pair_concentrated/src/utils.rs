@@ -7,7 +7,7 @@ use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
-use astroport::observation::Observation;
+use astroport::observation::{Observation, PrecommitObservation};
 use astroport::querier::{query_factory_config, query_supply};
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -424,65 +424,82 @@ fn safe_sma_calculation(
     res.try_into().map_err(StdError::from)
 }
 
-/// Calculate and save moving averages of swap sizes.
-pub fn accumulate_swap_sizes(
-    storage: &mut dyn Storage,
-    env: &Env,
-    base_amount: Uint128,
-    quote_amount: Uint128,
-) -> BufferResult<()> {
-    let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+/// Same as [`safe_sma_calculation`] but is being used when buffer is not full yet.
+fn safe_sma_buffer_not_full(sma: Uint128, count: u32, new_amount: Uint128) -> StdResult<Uint128> {
+    let res = (sma.full_mul(count) + Uint256::from(new_amount)).checked_div((count + 1).into())?;
+    res.try_into().map_err(StdError::from)
+}
 
-    let new_observation;
-    if let Some(last_obs) = buffer.read_last(storage)? {
-        // Since this is circular buffer the next index contains the oldest value
-        let count = buffer.capacity();
-        if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
-            let new_base_sma = safe_sma_calculation(
-                last_obs.base_sma,
-                oldest_obs.base_amount,
-                count,
-                base_amount,
-            )?;
-            let new_quote_sma = safe_sma_calculation(
-                last_obs.quote_sma,
-                oldest_obs.quote_amount,
-                count,
-                quote_amount,
-            )?;
-            new_observation = Observation {
-                base_amount,
-                quote_amount,
-                base_sma: new_base_sma,
-                quote_sma: new_quote_sma,
-                timestamp: env.block.time.seconds(),
-            };
+/// Calculate and save moving averages of swap sizes.
+pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
+    if let Some(PrecommitObservation {
+        base_amount,
+        quote_amount,
+        precommit_ts,
+    }) = PrecommitObservation::may_load(storage)?
+    {
+        let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+
+        let new_observation;
+        if let Some(last_obs) = buffer.read_last(storage)? {
+            // Skip saving observation if it has been already saved
+            if last_obs.timestamp < precommit_ts {
+                // Since this is circular buffer the next index contains the oldest value
+                let count = buffer.capacity();
+                if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
+                    let new_base_sma = safe_sma_calculation(
+                        last_obs.base_sma,
+                        oldest_obs.base_amount,
+                        count,
+                        base_amount,
+                    )?;
+                    let new_quote_sma = safe_sma_calculation(
+                        last_obs.quote_sma,
+                        oldest_obs.quote_amount,
+                        count,
+                        quote_amount,
+                    )?;
+                    new_observation = Observation {
+                        base_amount,
+                        quote_amount,
+                        base_sma: new_base_sma,
+                        quote_sma: new_quote_sma,
+                        timestamp: precommit_ts,
+                    };
+                } else {
+                    // Buffer is not full yet
+                    let count = buffer.head();
+                    let base_sma = safe_sma_buffer_not_full(last_obs.base_sma, count, base_amount)?;
+                    let quote_sma =
+                        safe_sma_buffer_not_full(last_obs.quote_sma, count, quote_amount)?;
+                    new_observation = Observation {
+                        base_amount,
+                        quote_amount,
+                        base_sma,
+                        quote_sma,
+                        timestamp: precommit_ts,
+                    };
+                }
+
+                buffer.instant_push(storage, &new_observation)?
+            }
         } else {
-            // Buffer is not full yet
-            let count = Uint128::from(buffer.head());
-            let new_base_sma = (last_obs.base_sma * count + base_amount) / (count + Uint128::one());
-            let new_quote_sma =
-                (last_obs.quote_sma * count + quote_amount) / (count + Uint128::one());
-            new_observation = Observation {
-                base_amount,
-                quote_amount,
-                base_sma: new_base_sma,
-                quote_sma: new_quote_sma,
-                timestamp: env.block.time.seconds(),
-            };
+            // Buffer is empty
+            if env.block.time.seconds() > precommit_ts {
+                new_observation = Observation {
+                    timestamp: precommit_ts,
+                    base_sma: base_amount,
+                    base_amount,
+                    quote_sma: quote_amount,
+                    quote_amount,
+                };
+
+                buffer.instant_push(storage, &new_observation)?
+            }
         }
-    } else {
-        // Buffer is empty
-        new_observation = Observation {
-            timestamp: env.block.time.seconds(),
-            base_sma: base_amount,
-            base_amount,
-            quote_sma: quote_amount,
-            quote_amount,
-        };
     }
 
-    buffer.instant_push(storage, &new_observation)
+    Ok(())
 }
 
 #[cfg(test)]
@@ -492,6 +509,7 @@ mod tests {
     use std::str::FromStr;
 
     use cosmwasm_std::testing::{mock_env, MockStorage};
+    use cosmwasm_std::{BlockInfo, Timestamp};
 
     use super::*;
 
@@ -539,32 +557,30 @@ mod tests {
     }
 
     #[test]
-    fn test_swap_obeservations() {
+    fn test_swap_observations() {
         let mut store = MockStorage::new();
-        let env = mock_env();
+        let mut env = mock_env();
+        env.block.time = Timestamp::from_seconds(1);
+
+        let next_block = |block: &mut BlockInfo| {
+            block.height += 1;
+            block.time = block.time.plus_seconds(1);
+        };
 
         BufferManager::init(&mut store, OBSERVATIONS, 10).unwrap();
 
-        for _ in 0..50 {
-            accumulate_swap_sizes(
-                &mut store,
-                &env,
-                Uint128::from(1000u128),
-                Uint128::from(500u128),
-            )
-            .unwrap();
+        for _ in 0..=50 {
+            accumulate_swap_sizes(&mut store, &env).unwrap();
+            PrecommitObservation::save(&mut store, &env, 1000u128.into(), 500u128.into()).unwrap();
+            next_block(&mut env.block);
         }
 
         let buffer = BufferManager::new(&store, OBSERVATIONS).unwrap();
 
+        let obs = buffer.read_last(&store).unwrap().unwrap();
+        assert_eq!(obs.timestamp, 50);
         assert_eq!(buffer.head(), 0);
-        assert_eq!(
-            buffer.read_last(&store).unwrap().unwrap().base_sma.u128(),
-            1000u128
-        );
-        assert_eq!(
-            buffer.read_last(&store).unwrap().unwrap().quote_sma.u128(),
-            500u128
-        );
+        assert_eq!(obs.base_sma.u128(), 1000u128);
+        assert_eq!(obs.quote_sma.u128(), 500u128);
     }
 }

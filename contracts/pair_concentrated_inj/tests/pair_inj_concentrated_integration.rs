@@ -1016,6 +1016,7 @@ fn check_orderbook_integration() {
                 None,
             )
             .unwrap();
+        helper.next_block(false).unwrap();
     }
 
     let err = helper
@@ -1028,7 +1029,7 @@ fn check_orderbook_integration() {
 
     let ob_state = helper.query_ob_config_smart().unwrap();
     assert_eq!(ob_state.orders_number, 5);
-    assert_eq!(ob_state.need_reconcile, true);
+    assert_eq!(ob_state.need_reconcile, false); // sudo endpoint was already executed and liq. deployed in OB
     assert_eq!(ob_state.ready, true);
 
     let ob_config = helper.query_ob_config().unwrap();
@@ -1047,14 +1048,14 @@ fn check_orderbook_integration() {
         .deposits
         .total_balance
         .into();
-    assert_eq!(inj_deposit, 2489_766000000000000000);
-    assert_eq!(astro_deposit, 4979_553543);
+    assert_eq!(inj_deposit, 2489_981000000000000000);
+    assert_eq!(astro_deposit, 4979_051501);
 
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
     let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);
 
-    assert_eq!(inj_pool, 497543_148893233248565365);
-    assert_eq!(astro_pool, 995084_822997);
+    assert_eq!(inj_pool, 497542_933893233248565365);
+    assert_eq!(astro_pool, 995085_325039);
 
     // total liquidity is close to initial provided liquidity
     let total_inj = inj_deposit + inj_pool;
@@ -1624,6 +1625,7 @@ fn test_migrate_cl_to_orderbook_cl() {
                 None,
             )
             .unwrap();
+        helper.next_block(true).unwrap();
     }
 
     let migrate_msg = MigrateMsg::MigrateToOrderbook {
@@ -1701,6 +1703,7 @@ fn test_migrate_cl_to_orderbook_cl() {
                 None,
             )
             .unwrap();
+        helper.next_block(true).unwrap();
     }
 
     // Check that orders have been created
@@ -1720,8 +1723,8 @@ fn test_migrate_cl_to_orderbook_cl() {
         .deposits
         .total_balance
         .into();
-    assert_eq!(inj_deposit, 2489_761000000000000000);
-    assert_eq!(astro_deposit, 4979_563465);
+    assert_eq!(inj_deposit, 2489_976000000000000000);
+    assert_eq!(astro_deposit, 4979_061419);
 
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
     let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);

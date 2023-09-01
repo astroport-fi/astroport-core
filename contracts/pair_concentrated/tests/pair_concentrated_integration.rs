@@ -1,23 +1,22 @@
 #![cfg(not(tarpaulin_include))]
 
-use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
-use cosmwasm_std::{Addr, Coin, Decimal, StdError, Uint128};
-
-use astroport_mocks::cw_multi_test::{BasicApp, Executor};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
+
+use cosmwasm_std::{Addr, Coin, Decimal, StdError, Uint128};
 
 use astroport::asset::{
     native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
-
 use astroport::pair::{ExecuteMsg, PoolResponse};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
+use astroport_mocks::cw_multi_test::{BasicApp, Executor};
+use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
 use astroport_pair_concentrated::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pair_concentrated::error::ContractError;
 
@@ -88,7 +87,7 @@ fn check_observe_queries() {
         res,
         OracleObservation {
             timestamp: helper.app.block_info().time.seconds(),
-            price: Decimal::from_str("0.99741246").unwrap()
+            price: Decimal::from_str("1.002627596167552265").unwrap()
         }
     );
 }
@@ -266,7 +265,7 @@ fn provide_and_withdraw() {
     );
 
     let err = helper
-        .provide_liquidity(&user1, &[random_coin])
+        .provide_liquidity(&user1, &[random_coin.clone()])
         .unwrap_err();
     assert_eq!(
         "The asset random-coin does not belong to the pair",
@@ -277,6 +276,22 @@ fn provide_and_withdraw() {
     assert_eq!(
         "Generic error: Nothing to provide",
         err.root_cause().to_string()
+    );
+
+    // Try to provide 3 assets
+    let err = helper
+        .provide_liquidity(
+            &user1,
+            &[
+                random_coin.clone(),
+                helper.assets[&test_coins[0]].with_balance(1u8),
+                helper.assets[&test_coins[1]].with_balance(1u8),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidNumberOfAssets(2),
+        err.downcast().unwrap()
     );
 
     // Try to provide with zero amount
@@ -299,6 +314,23 @@ fn provide_and_withdraw() {
         &[helper.assets[&test_coins[1]].with_balance(50_000_000000u128)],
         &user1,
     );
+
+    // Test very small initial provide
+    let err = helper
+        .provide_liquidity(
+            &user1,
+            &[
+                helper.assets[&test_coins[0]].with_balance(1000u128),
+                helper.assets[&test_coins[1]].with_balance(500u128),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::MinimumLiquidityAmountError {},
+        err.downcast().unwrap()
+    );
+
+    // This is normal provision
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
@@ -667,6 +699,24 @@ fn check_swaps_simple() {
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
     ];
     helper.provide_liquidity(&owner, &assets).unwrap();
+
+    // trying to swap cw20 without calling Cw20::Send method
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::Swap {
+                offer_asset: helper.assets[&test_coins[1]].with_balance(1u8),
+                ask_asset_info: None,
+                belief_price: None,
+                max_spread: None,
+                to: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Cw20DirectSwap {}, err.downcast().unwrap());
 
     let d = helper.query_d().unwrap();
     assert_eq!(dec_to_f64(d), 200000f64);
@@ -1037,6 +1087,39 @@ fn update_owner() {
         )
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    // Drop ownership proposal
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::DropOwnershipProposal {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::DropOwnershipProposal {},
+            &[],
+        )
+        .unwrap();
+
+    // Propose new owner
+    helper
+        .app
+        .execute_contract(
+            Addr::unchecked(&helper.owner),
+            helper.pair_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
 
     // Claim ownership
     helper
@@ -1538,4 +1621,90 @@ fn provide_withdraw_slippage() {
     helper
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
         .unwrap();
+}
+
+#[test]
+fn test_frontrun_before_initial_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(10f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::from_ratio(10u8, 1u8),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // Random person tries to frontrun initial provide and imbalance pool upfront
+    helper
+        .app
+        .send_tokens(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &[helper.assets[&test_coins[0]]
+                .with_balance(10_000_000000u128)
+                .as_coin()
+                .unwrap()],
+        )
+        .unwrap();
+
+    // Fully balanced provide
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    // Now pool became imbalanced with value (10010, 1)  (or in internal representation (10010, 10))
+    // while price scale stays 10
+
+    let arber = Addr::unchecked("arber");
+    let offer_asset_luna = helper.assets[&test_coins[1]].with_balance(1_000000u128);
+    // Arber spinning pool back to balanced state
+    loop {
+        helper.app.next_block(10);
+        helper.give_me_money(&[offer_asset_luna.clone()], &arber);
+        // swapping until price satisfies an arber
+        if helper
+            .swap_full_params(
+                &arber,
+                &offer_asset_luna,
+                Some(f64_to_dec(0.02)),
+                Some(f64_to_dec(0.1)), // imagine market price is 10 -> i.e. inverted price is 1/10
+            )
+            .is_err()
+        {
+            break;
+        }
+    }
+
+    // price scale changed, however it isn't equal to 10 because of repegging
+    // But next swaps will align price back to the market value
+    let config = helper.query_config().unwrap();
+    let price_scale = config.pool_state.price_state.price_scale;
+    assert!(
+        dec_to_f64(price_scale) - 77.255853 < 1e-5,
+        "price_scale: {price_scale} is far from expected price",
+    );
+
+    // Arber collected significant profit (denominated in uusd)
+    // Essentially 10_000 - fees (which settled in the pool)
+    let arber_balance = helper.coin_balance(&test_coins[0], &arber);
+    assert_eq!(arber_balance, 9667_528248);
+
+    // Pool's TVL increased from (10, 1) i.e. 20 to (320, 32) i.e. 640 considering market price is 10.0
+    let pools = config
+        .pair_info
+        .query_pools(&helper.app.wrap(), &helper.pair_addr)
+        .unwrap();
+    assert_eq!(pools[0].amount.u128(), 320_624088);
+    assert_eq!(pools[1].amount.u128(), 32_000000);
 }
