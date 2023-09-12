@@ -10,13 +10,14 @@ use astroport::factory::{
 };
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, TWAP_PRECISION,
+    TWAP_PRECISION,
 };
+use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair_xyk_sale_tax::error::ContractError;
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{attr, coin, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
@@ -75,7 +76,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         pair_configs: vec![PairConfig {
             code_id: pair_contract_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
+            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -109,7 +110,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let pair = router
@@ -337,12 +338,7 @@ fn test_provide_and_withdraw_liquidity() {
         config.clone(),
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: Some(
-                to_binary(&XYKPoolConfig {
-                    track_asset_balances: false
-                })
-                .unwrap()
-            ),
+            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
             owner,
             factory_addr: config.factory_addr
         }
@@ -442,34 +438,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
         )
         .unwrap();
 
-    let token_name = "Ytoken";
-
-    let init_msg = TokenInstantiateMsg {
-        name: token_name.to_string(),
-        symbol: token_name.to_string(),
-        decimals: 7,
-        initial_balances: vec![Cw20Coin {
-            address: OWNER.to_string(),
-            amount: y_amount,
-        }],
-        mint: Some(MinterResponse {
-            minter: String::from(OWNER),
-            cap: None,
-        }),
-        marketing: None,
-    };
-
-    let token_y_instance = app
-        .instantiate_contract(
-            token_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            token_name,
-            None,
-        )
-        .unwrap();
-
     let pair_code_id = store_pair_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
 
@@ -478,7 +446,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
+            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -506,12 +474,10 @@ fn test_compatibility_of_tokens_with_different_precision() {
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
-            AssetInfo::Token {
-                contract_addr: token_y_instance.clone(),
-            },
+            AssetInfo::native("uusd"),
         ],
-        pair_type: PairType::Xyk {},
-        init_params: None,
+        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -522,9 +488,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             AssetInfo::Token {
                 contract_addr: token_x_instance.clone(),
             },
-            AssetInfo::Token {
-                contract_addr: token_y_instance.clone(),
-            },
+            AssetInfo::native("uusd"),
         ],
     };
 
@@ -542,15 +506,6 @@ fn test_compatibility_of_tokens_with_different_precision() {
     };
 
     app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = Cw20ExecuteMsg::IncreaseAllowance {
-        spender: pair_instance.to_string(),
-        expires: None,
-        amount: y_amount,
-    };
-
-    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
         .unwrap();
 
     let user = Addr::unchecked("user");
@@ -584,9 +539,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
                 amount: x_amount,
             },
             Asset {
-                info: AssetInfo::Token {
-                    contract_addr: token_y_instance.clone(),
-                },
+                info: AssetInfo::native("uusd"),
                 amount: y_amount,
             },
         ],
@@ -595,8 +548,13 @@ fn test_compatibility_of_tokens_with_different_precision() {
         receiver: None,
     };
 
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
-        .unwrap();
+    app.execute_contract(
+        owner.clone(),
+        pair_instance.clone(),
+        &msg,
+        &[coin(y_amount.u128(), "uusd")],
+    )
+    .unwrap();
 
     let user = Addr::unchecked("user");
 
@@ -616,18 +574,11 @@ fn test_compatibility_of_tokens_with_different_precision() {
     app.execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
         .unwrap();
 
-    let msg = Cw20QueryMsg::Balance {
-        address: user.to_string(),
-    };
-
-    let res: BalanceResponse = app
-        .wrap()
-        .query_wasm_smart(&token_y_instance, &msg)
-        .unwrap();
+    let res = app.wrap().query_balance(&user, "uusd").unwrap();
 
     let acceptable_spread_amount = Uint128::new(10);
 
-    assert_eq!(res.balance, y_expected_return - acceptable_spread_amount);
+    assert_eq!(res.amount, y_expected_return - acceptable_spread_amount);
 }
 
 #[test]
@@ -755,7 +706,7 @@ fn create_pair_with_same_assets() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let resp = router
@@ -788,7 +739,7 @@ fn wrong_number_of_assets() {
         }],
         token_code_id: 123,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let err = router
@@ -815,7 +766,7 @@ fn wrong_number_of_assets() {
         ],
         token_code_id: 123,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let err = router
@@ -868,7 +819,7 @@ fn asset_balances_tracking_works_correctly() {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
+            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -901,8 +852,17 @@ fn asset_balances_tracking_works_correctly() {
                 denom: "test2".to_string(),
             },
         ],
-        pair_type: PairType::Xyk {},
-        init_params: None,
+        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+        init_params: Some(
+            to_binary(&SaleTaxInitParams {
+                tax_config: TaxConfigUnchecked {
+                    tax_denom: "test1".to_string(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            })
+            .unwrap(),
+        ),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -958,7 +918,11 @@ fn asset_balances_tracking_works_correctly() {
 
     // Enable asset balances tracking
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_binary(&SaleTaxConfigUpdates {
+            track_asset_balances: Some(true),
+            ..Default::default()
+        })
+        .unwrap(),
     };
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
@@ -1099,10 +1063,14 @@ fn asset_balances_tracking_works_correctly() {
                 denom: "uusd".to_string(),
             },
         ],
-        pair_type: PairType::Xyk {},
+        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
         init_params: Some(
-            to_binary(&XYKPoolParams {
-                track_asset_balances: Some(true),
+            to_binary(&SaleTaxInitParams {
+                track_asset_balances: true,
+                tax_config: TaxConfigUnchecked {
+                    tax_rate: Decimal::zero(),
+                    ..Default::default()
+                },
             })
             .unwrap(),
         ),
@@ -1162,7 +1130,11 @@ fn asset_balances_tracking_works_correctly() {
 
     // Check that enabling asset balances tracking can not be done if it is already enabled
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_binary(&SaleTaxConfigUpdates {
+            track_asset_balances: Some(true),
+            ..Default::default()
+        })
+        .unwrap(),
     };
     assert_eq!(
         app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -1428,7 +1400,7 @@ fn update_pair_config() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let pair = router
@@ -1451,19 +1423,18 @@ fn update_pair_config() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(
-                to_binary(&XYKPoolConfig {
-                    track_asset_balances: false
-                })
-                .unwrap()
-            ),
+            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0")
         }
     );
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_binary(&SaleTaxConfigUpdates {
+            track_asset_balances: Some(true),
+            ..Default::default()
+        })
+        .unwrap(),
     };
     assert_eq!(
         router
@@ -1492,8 +1463,9 @@ fn update_pair_config() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
-                    track_asset_balances: true
+                to_binary(&SaleTaxInitParams {
+                    track_asset_balances: true,
+                    ..Default::default()
                 })
                 .unwrap()
             ),

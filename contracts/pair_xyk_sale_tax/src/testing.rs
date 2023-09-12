@@ -1,3 +1,4 @@
+use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
@@ -76,7 +77,7 @@ fn proper_initialization() {
             },
         ],
         token_code_id: 10u64,
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let sender = "addr0000";
@@ -160,7 +161,7 @@ fn provide_liquidity() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -663,7 +664,7 @@ fn withdraw_liquidity() {
         token_code_id: 10u64,
 
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -784,7 +785,7 @@ fn try_native_to_token() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -819,20 +820,27 @@ fn try_native_to_token() {
 
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
     let msg_transfer = res.messages.get(0).expect("no message");
+    let msg_tax = res.messages.get(1).expect("no message");
+
+    let expected_tax_amount = offer_amount * Decimal::percent(5);
+    let offer_amount_minus_tax = offer_amount - expected_tax_amount;
 
     // Current price is 1.5, so expected return without spread is 1000
-    // 952380952 = 20000000000 - (30000000000 * 20000000000) / (30000000000 + 1500000000)
-    let expected_ret_amount = Uint128::new(952_380_952u128);
+    let expected_ret_amount = Uint128::new(
+        20000000000 - (30000000000 * 20000000000) / (30000000000 + offer_amount_minus_tax.u128()),
+    );
 
-    // 47619047 = 1500000000 * (20000000000 / 30000000000) - 952380952
-    let expected_spread_amount = Uint128::new(47619047u128);
+    let expected_spread_amount = Uint128::new(
+        (offer_amount_minus_tax.u128() * 20000000000 / 30000000000) - expected_ret_amount.u128(),
+    );
 
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128); // 0.166
 
     let expected_return_amount = expected_ret_amount
         .checked_sub(expected_commission_amount)
-        .unwrap();
+        .unwrap()
+        - Uint128::one(); // 1 unit lost to rounding
 
     // Check simulation result
     deps.querier.with_balance(&[(
@@ -931,9 +939,25 @@ fn try_native_to_token() {
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("sale_tax", expected_tax_amount.to_string()),
         ]
     );
 
+    assert_eq!(
+        msg_tax,
+        &SubMsg {
+            msg: CosmosMsg::Bank(BankMsg::Send {
+                to_address: String::from("addr0000"),
+                amount: vec![Coin {
+                    denom: "uusd".to_string(),
+                    amount: expected_tax_amount,
+                }],
+            }),
+            id: 0,
+            gas_limit: None,
+            reply_on: ReplyOn::Never,
+        }
+    );
     assert_eq!(
         &SubMsg {
             msg: WasmMsg::Execute {
@@ -990,7 +1014,7 @@ fn try_token_to_native() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -1121,6 +1145,7 @@ fn try_token_to_native() {
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("sale_tax", Uint128::zero().to_string()),
         ]
     );
 
@@ -1239,7 +1264,7 @@ fn test_query_pool() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -1304,7 +1329,7 @@ fn test_query_share() {
         ],
         token_code_id: 10u64,
         factory_addr: String::from("factory"),
-        init_params: None,
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let env = mock_env();
@@ -1418,6 +1443,7 @@ fn test_accumulate_prices() {
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
                 track_asset_balances: false,
+                tax_config: TaxConfigChecked::default(),
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),
@@ -1458,10 +1484,27 @@ fn compute_swap_rounding() {
     let spread_amount = Uint128::from(0_u128);
     let commission_amount = Uint128::from(0_u128);
     let offer_amount = Uint128::from(1_u128);
+    let sale_tax = Uint128::zero();
 
     assert_eq!(
-        compute_swap(offer_pool, ask_pool, offer_amount, Decimal::zero()),
-        Ok((return_amount, spread_amount, commission_amount))
+        compute_swap(
+            offer_pool,
+            ask_pool,
+            &Asset::new(AssetInfo::native("uusd"), offer_amount),
+            Decimal::zero(),
+            &TaxConfigChecked {
+                tax_denom: "uusd".to_string(),
+                tax_rate: Decimal::zero(),
+                tax_recipient: Addr::unchecked("addr0000")
+            }
+        ),
+        Ok((
+            return_amount,
+            spread_amount,
+            commission_amount,
+            offer_amount,
+            sale_tax
+        ))
     );
 }
 
@@ -1476,14 +1519,16 @@ proptest! {
         let offer_pool = Uint128::from(offer_pool);
         let ask_pool = Uint128::from(ask_pool);
         let offer_amount = Uint128::from(offer_amount);
+        let offer_asset = Asset::new(AssetInfo::native("uusd"), offer_amount);
         let commission_amount = Decimal::zero();
 
         // Make sure there are no overflows
         compute_swap(
             offer_pool,
             ask_pool,
-            offer_amount,
+            &offer_asset,
             commission_amount,
+            &TaxConfigChecked::default(),
         ).unwrap();
     }
 }
@@ -1495,66 +1540,70 @@ fn ensure_useful_error_messages_are_given_on_swaps() {
     const AMOUNT: Uint128 = Uint128::new(1_000000);
     const ZERO: Uint128 = Uint128::zero();
     const DZERO: Decimal = Decimal::zero();
+    let offer_asset_info = AssetInfo::native("uusd");
+    let offer_asset: Asset = Asset::new(offer_asset_info.clone(), AMOUNT);
+    let zero_offer_asset: Asset = Asset::new(AssetInfo::native("uusd"), ZERO);
+    let tax: TaxConfigChecked = TaxConfigChecked::default();
 
     // Computing ask
     assert_eq!(
-        compute_swap(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
+        compute_swap(ZERO, ZERO, &zero_offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
+        compute_swap(ZERO, ZERO, &offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ASK, ZERO, DZERO).unwrap_err(),
+        compute_swap(ZERO, ASK, &zero_offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
+        compute_swap(ZERO, ASK, &offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
+        compute_swap(OFFER, ZERO, &zero_offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
+        compute_swap(OFFER, ZERO, &offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        compute_swap(OFFER, ASK, &zero_offer_asset, DZERO, &tax).unwrap_err(),
         StdError::generic_err("Swap amount must not be zero")
     );
-    compute_swap(OFFER, ASK, AMOUNT, DZERO).unwrap();
+    compute_swap(OFFER, ASK, &offer_asset, DZERO, &tax).unwrap();
 
     // Computing offer
     assert_eq!(
-        compute_offer_amount(ZERO, ZERO, ZERO, DZERO).unwrap_err(),
+        compute_offer_amount(ZERO, ZERO, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO).unwrap_err(),
+        compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ASK, ZERO, DZERO).unwrap_err(),
+        compute_offer_amount(ZERO, ASK, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ASK, AMOUNT, DZERO).unwrap_err(),
+        compute_offer_amount(ZERO, ASK, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ZERO, ZERO, DZERO).unwrap_err(),
+        compute_offer_amount(OFFER, ZERO, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO).unwrap_err(),
+        compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ASK, ZERO, DZERO).unwrap_err(),
+        compute_offer_amount(OFFER, ASK, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
         StdError::generic_err("Swap amount must not be zero")
     );
-    compute_offer_amount(OFFER, ASK, AMOUNT, DZERO).unwrap();
+    compute_offer_amount(OFFER, ASK, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap();
 }
