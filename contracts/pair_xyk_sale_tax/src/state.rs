@@ -3,6 +3,8 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, SnapshotMap};
 
+use astroport::pair_xyk_sale_tax::TaxConfigChecked;
+
 /// This structure stores the main config parameters for a constant product pair contract.
 #[cw_serde]
 pub struct Config {
@@ -18,6 +20,8 @@ pub struct Config {
     pub price1_cumulative_last: Uint128,
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
+    /// The config of the sales tax
+    pub tax_config: TaxConfigChecked,
 }
 
 /// Stores the config struct at the given key

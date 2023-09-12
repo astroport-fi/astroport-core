@@ -5,9 +5,9 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
-    Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
+    attr, coins, from_binary, to_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Decimal256,
+    Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -18,10 +18,7 @@ use astroport::asset::{
 };
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
-use astroport::pair::{
-    ConfigResponse, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE,
-};
+use astroport::pair::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
@@ -32,9 +29,10 @@ use cw_utils::parse_instantiate_response_data;
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
+use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-pair";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// A `reply` call code ID used for sub-messages.
@@ -48,41 +46,36 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    // Validate asset infos
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
     }
-
     msg.asset_infos[0].check(deps.api)?;
     msg.asset_infos[1].check(deps.api)?;
-
     if msg.asset_infos[0] == msg.asset_infos[1] {
         return Err(ContractError::DoublingAssets {});
     }
 
-    let mut track_asset_balances = false;
-
-    if let Some(init_params) = msg.init_params {
-        let params: XYKPoolParams = from_binary(&init_params)?;
-        track_asset_balances = params.track_asset_balances.unwrap_or_default();
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    let init_params = SaleTaxInitParams::from_binary(msg.init_params.clone())?;
 
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Xyk {},
+            pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         },
         factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
-        track_asset_balances,
+        track_asset_balances: init_params.track_asset_balances,
+        tax_config: init_params.tax_config.check(deps.api, &msg.asset_infos)?,
     };
 
-    if track_asset_balances {
+    if init_params.track_asset_balances {
         for asset in &config.pair_info.asset_infos {
             BALANCES.save(deps.storage, asset, &Uint128::zero(), env.block.height)?;
         }
@@ -662,13 +655,12 @@ pub fn swap(
         config.pair_info.pair_type.clone(),
     )?;
 
-    let offer_amount = offer_asset.amount;
-
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
+    let (return_amount, spread_amount, commission_amount, offer_amount, sale_tax) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
-        offer_amount,
+        &offer_asset,
         fee_info.total_fee_rate,
+        &config.tax_config,
     )?;
 
     // Check the max spread limit (if it was specified)
@@ -689,6 +681,17 @@ pub fn swap(
     let mut messages = vec![];
     if !return_amount.is_zero() {
         messages.push(return_asset.into_msg(receiver.clone())?)
+    }
+
+    // Add message to send tax
+    if !sale_tax.is_zero() {
+        messages.push(
+            BankMsg::Send {
+                to_address: config.tax_config.tax_recipient.to_string(),
+                amount: coins(sale_tax.u128(), &offer_asset.info.to_string()),
+            }
+            .into(),
+        );
     }
 
     // Compute the Maker fee
@@ -739,11 +742,12 @@ pub fn swap(
             attr("receiver", receiver),
             attr("offer_asset", offer_asset.info.to_string()),
             attr("ask_asset", ask_pool.info.to_string()),
-            attr("offer_amount", offer_amount),
+            attr("offer_amount", offer_asset.amount),
             attr("return_amount", return_amount),
             attr("spread_amount", spread_amount),
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
+            attr("sale_tax", sale_tax),
         ]))
 }
 
@@ -765,29 +769,35 @@ pub fn update_config(
 
     let mut response = Response::default();
 
-    match from_binary::<XYKPoolUpdateParams>(&params)? {
-        XYKPoolUpdateParams::EnableAssetBalancesTracking => {
-            if config.track_asset_balances {
-                return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
-            }
-            config.track_asset_balances = true;
+    let config_updates = from_binary::<SaleTaxConfigUpdates>(&params)?;
 
-            let pools = config
-                .pair_info
-                .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-            for pool in pools.iter() {
-                BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
-            }
-
-            CONFIG.save(deps.storage, &config)?;
-
-            response.attributes.push(attr(
-                "asset_balances_tracking".to_owned(),
-                "enabled".to_owned(),
-            ));
+    let track_asset_balances = config_updates.track_asset_balances.unwrap_or_default();
+    if track_asset_balances {
+        if config.track_asset_balances {
+            return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
         }
+        config.track_asset_balances = true;
+
+        let pools = config
+            .pair_info
+            .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+
+        for pool in pools.iter() {
+            BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
+        }
+        response.attributes.push(attr(
+            "asset_balances_tracking".to_owned(),
+            "enabled".to_owned(),
+        ));
     }
+
+    let new_tax_config =
+        config
+            .tax_config
+            .apply_updates(deps.api, &config.pair_info.asset_infos, config_updates)?;
+    config.tax_config = new_tax_config;
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(response)
 }
@@ -959,11 +969,12 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         config.pair_info.pair_type,
     )?;
 
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
+    let (return_amount, spread_amount, commission_amount, _offer_amount, _sale_tax) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
-        offer_asset.amount,
+        &offer_asset,
         fee_info.total_fee_rate,
+        &config.tax_config,
     )?;
 
     Ok(SimulationResponse {
@@ -1013,6 +1024,8 @@ pub fn query_reverse_simulation(
         ask_pool.amount,
         ask_asset.amount,
         fee_info.total_fee_rate,
+        &config.tax_config,
+        &offer_pool.info,
     )?;
 
     Ok(ReverseSimulationResponse {
@@ -1067,8 +1080,9 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: Some(to_binary(&XYKPoolConfig {
+        params: Some(to_binary(&SaleTaxInitParams {
             track_asset_balances: config.track_asset_balances,
+            tax_config: config.tax_config.into(),
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
@@ -1092,15 +1106,28 @@ pub fn query_asset_balances_at(
 ///
 /// * **ask_pool** total amount of ask assets in the pool.
 ///
-/// * **offer_amount** amount of offer assets to swap.
+/// * **offer_asset** The asset to swap.
 ///
 /// * **commission_rate** total amount of fees charged for the swap.
+///
+/// * **tax_config** tax configuration for the swap.
 pub fn compute_swap(
     offer_pool: Uint128,
     ask_pool: Uint128,
-    offer_amount: Uint128,
+    offer_asset: &Asset,
     commission_rate: Decimal,
-) -> StdResult<(Uint128, Uint128, Uint128)> {
+    tax_config: &TaxConfigChecked,
+) -> StdResult<(Uint128, Uint128, Uint128, Uint128, Uint128)> {
+    // Deduct tax
+    let mut offer_amount = offer_asset.amount;
+    let sale_tax = if offer_asset.info.to_string() == tax_config.tax_denom {
+        let sale_tax = tax_config.tax_rate * offer_amount;
+        offer_amount = offer_amount.checked_sub(sale_tax)?;
+        sale_tax
+    } else {
+        Uint128::zero()
+    };
+
     // offer => ask
     check_swap_parameters(vec![offer_pool, ask_pool], offer_amount)?;
 
@@ -1126,6 +1153,8 @@ pub fn compute_swap(
         return_amount.try_into()?,
         spread_amount.try_into()?,
         commission_amount.try_into()?,
+        offer_amount.try_into()?,
+        sale_tax,
     ))
 }
 
@@ -1138,11 +1167,17 @@ pub fn compute_swap(
 /// * **ask_amount** amount of ask assets to swap to.
 ///
 /// * **commission_rate** total amount of fees charged for the swap.
+///
+/// * **tax_config** tax configuration for the swap.
+///
+/// * **offer_asset_info** asset info for the offer asset.
 pub fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
     commission_rate: Decimal,
+    tax_config: &TaxConfigChecked,
+    offer_asset_info: &AssetInfo,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
     check_swap_parameters(vec![offer_pool, ask_pool], ask_amount)?;
@@ -1152,7 +1187,7 @@ pub fn compute_offer_amount(
     let one_minus_commission = Decimal256::one() - Decimal256::from(commission_rate);
     let inv_one_minus_commission = Decimal256::one() / one_minus_commission;
 
-    let offer_amount: Uint128 = cp
+    let mut offer_amount: Uint128 = cp
         .multiply_ratio(
             Uint256::from(1u8),
             Uint256::from(
@@ -1168,6 +1203,13 @@ pub fn compute_offer_amount(
     let spread_amount = (offer_amount * Decimal::from_ratio(ask_pool, offer_pool))
         .saturating_sub(before_commission_deduction.try_into()?);
     let commission_amount = before_commission_deduction * Decimal256::from(commission_rate);
+
+    // Add tax
+    if offer_asset_info.to_string() == tax_config.tax_denom {
+        offer_amount =
+            offer_amount.mul_ceil(Decimal::one() / (Decimal::one() - tax_config.tax_rate));
+    }
+
     Ok((offer_amount, spread_amount, commission_amount.try_into()?))
 }
 
@@ -1272,7 +1314,11 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{Decimal, Uint128};
+    use astroport::{
+        asset::{Asset, AssetInfo},
+        pair_xyk_sale_tax::TaxConfig,
+    };
+    use cosmwasm_std::{Addr, Decimal, Uint128};
 
     use crate::contract::compute_swap;
 
@@ -1283,8 +1329,18 @@ mod tests {
         let offer_amount = Uint128::from(1000000000u128);
         let commission_rate = Decimal::permille(3);
 
-        let (return_amount, spread_amount, commission_amount) =
-            compute_swap(offer_pool, ask_pool, offer_amount, commission_rate).unwrap();
+        let (return_amount, spread_amount, commission_amount, _, _) = compute_swap(
+            offer_pool,
+            ask_pool,
+            &Asset::new(AssetInfo::native("uusd"), offer_amount),
+            commission_rate,
+            &TaxConfig {
+                tax_denom: "uusd".to_string(),
+                tax_rate: Decimal::zero(),
+                tax_recipient: Addr::unchecked("tax_recipient"),
+            },
+        )
+        .unwrap();
         assert_eq!(return_amount, Uint128::from(2u128));
         assert_eq!(spread_amount, Uint128::zero());
         assert_eq!(commission_amount, Uint128::zero());
