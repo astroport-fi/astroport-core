@@ -7,7 +7,7 @@ mod helper;
 use crate::helper::{dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
 use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::AbsDiff;
-use astroport::pair_concentrated::ConcentratedPoolParams;
+use astroport::pair_concentrated::{ConcentratedPoolParams, ConcentratedPoolUpdateParams};
 use astroport_pair_concentrated::error::ContractError;
 use cosmwasm_std::{Addr, Decimal, Decimal256};
 use proptest::prelude::*;
@@ -68,6 +68,71 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
         };
         // let swap_amount = helper.coin_balance(&test_coins[ask_ind], &user) - balance_before;
 
+        i += 1;
+
+        // Shift time so EMA will update oracle prices
+        helper.app.next_block(shift_time);
+    }
+}
+
+fn simulate_fee_share_case(case: Vec<(usize, u128, u64)>) {
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+
+    let balances = vec![100_000_000_000000u128, 100_000_000_000000u128];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    // Set to 5% fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: 1000,
+        fee_share_address: "share_address".to_string(),
+    };
+    helper.update_config(&owner, &action).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(balances[0]),
+        helper.assets[&test_coins[1]].with_balance(balances[1]),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let mut i = 0;
+    for (offer_ind, dy, shift_time) in case {
+        let _ask_ind = 1 - offer_ind;
+
+        println!("i: {i}, {offer_ind} {dy} {shift_time}");
+        let offer_asset = helper.assets[&test_coins[offer_ind]].with_balance(dy);
+        // let balance_before = helper.coin_balance(&test_coins[ask_ind], &user);
+        helper.give_me_money(&[offer_asset.clone()], &user);
+        if let Err(err) = helper.swap(&user, &offer_asset, None) {
+            let err: ContractError = err.downcast().unwrap();
+            match err {
+                ContractError::MaxSpreadAssertion {} => {
+                    // if swap fails because of spread then skip this case
+                    println!("exceeds spread limit");
+                }
+                _ => panic!("{err}"),
+            }
+
+            i += 1;
+            continue;
+        };
+        // let swap_amount = helper.coin_balance(&test_coins[ask_ind], &user) - balance_before;
         i += 1;
 
         // Shift time so EMA will update oracle prices
@@ -589,6 +654,14 @@ proptest! {
     #[test]
     fn simulate_transactions(case in generate_cases()) {
         simulate_case(case);
+    }
+}
+
+proptest! {
+    #[ignore]
+    #[test]
+    fn simulate_fee_share_transactions(case in generate_cases()) {
+        simulate_fee_share_case(case);
     }
 }
 

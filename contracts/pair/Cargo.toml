@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair"
-version = "1.4.0"
+version = "1.5.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport constant product pool contract implementation"

@@ -238,6 +238,7 @@ pub struct SwapResult {
     pub dy: Decimal256,
     pub spread_fee: Decimal256,
     pub maker_fee: Decimal256,
+    pub share_fee: Decimal256,
     pub total_fee: Decimal256,
 }
 
@@ -260,8 +261,16 @@ pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdRes
         offer_amount = Decimal256::raw(1u128);
     }
 
-    let last_price = compute_swap(xs, offer_amount, 1, config, env, Decimal256::zero())?
-        .calc_last_prices(offer_amount, 0);
+    let last_price = compute_swap(
+        xs,
+        offer_amount,
+        1,
+        config,
+        env,
+        Decimal256::zero(),
+        Decimal256::zero(),
+    )?
+    .calc_last_prices(offer_amount, 0);
 
     Ok(last_price)
 }
@@ -274,6 +283,7 @@ pub fn compute_swap(
     config: &Config,
     env: &Env,
     maker_fee_share: Decimal256,
+    share_fee_share: Decimal256,
 ) -> StdResult<SwapResult> {
     let offer_ind = 1 ^ ask_ind;
 
@@ -309,10 +319,13 @@ pub fn compute_swap(
     let total_fee = fee_rate * dy;
     dy -= total_fee;
 
+    let share_fee = total_fee * share_fee_share;
+
     Ok(SwapResult {
         dy,
         spread_fee,
-        maker_fee: total_fee * maker_fee_share,
+        maker_fee: (total_fee - share_fee) * maker_fee_share,
+        share_fee,
         total_fee,
     })
 }

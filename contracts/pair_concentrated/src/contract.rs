@@ -3,7 +3,7 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Attribute, Binary, CosmosMsg, Decimal,
     Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
@@ -21,7 +21,7 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::observation::{PrecommitObservation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
+use astroport::pair::{Cw20HookMsg, ExecuteMsg, FeeShareConfig, InstantiateMsg, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
 };
@@ -118,6 +118,7 @@ pub fn instantiate(
         pool_state,
         owner: None,
         track_asset_balances: params.track_asset_balances.unwrap_or_default(),
+        fee_share: None,
     };
 
     if config.track_asset_balances {
@@ -735,6 +736,11 @@ fn swap(
     if fee_info.fee_address.is_some() {
         maker_fee_share = fee_info.maker_fee_rate.into();
     }
+    // If this pool is configured to share fees
+    let mut share_fee_share = Decimal256::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        share_fee_share = Decimal256::from_ratio(fee_share.bps, 10000u16);
+    }
 
     let swap_result = compute_swap(
         &xs,
@@ -743,9 +749,10 @@ fn swap(
         &config,
         &env,
         maker_fee_share,
+        share_fee_share,
     )?;
     xs[offer_ind] += offer_asset_dec.amount;
-    xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;
+    xs[ask_ind] -= swap_result.dy + swap_result.maker_fee + swap_result.share_fee;
 
     let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
     let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
@@ -776,6 +783,17 @@ fn swap(
     }
     .into_msg(&receiver)?];
 
+    // Send the shared fee
+    let mut fee_share_amount = Uint128::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        fee_share_amount = swap_result.share_fee.to_uint(ask_asset_prec)?;
+        if !fee_share_amount.is_zero() {
+            let fee = pools[ask_ind].info.with_balance(fee_share_amount);
+            messages.push(fee.into_msg(fee_share.recipient)?);
+        }
+    }
+
+    // Send the maker fee
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
         maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
@@ -812,7 +830,10 @@ fn swap(
         BALANCES.save(
             deps.storage,
             &pools[ask_ind].info,
-            &(pools[ask_ind].amount.to_uint(ask_asset_prec)? - return_amount - maker_fee),
+            &(pools[ask_ind].amount.to_uint(ask_asset_prec)?
+                - return_amount
+                - maker_fee
+                - fee_share_amount),
             env.block.height,
         )?;
     }
@@ -831,6 +852,7 @@ fn swap(
             swap_result.total_fee.to_uint(ask_asset_prec)?,
         ),
         attr("maker_fee_amount", maker_fee),
+        attr("fee_share_amount", fee_share_amount),
     ]))
 }
 
@@ -850,6 +872,8 @@ fn update_config(
     if info.sender != *owner {
         return Err(ContractError::Unauthorized {});
     }
+
+    let mut attrs: Vec<Attribute> = vec![];
 
     let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
@@ -880,10 +904,44 @@ fn update_config(
 
             "enable_asset_balances_tracking"
         }
+        ConcentratedPoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address,
+        } => {
+            // Enable fee sharing for this contract
+            // If fee sharing is already enabled, we should be able to overwrite
+            // the values currently set
+
+            // Ensure the fee share isn't 0 and doesn't exceed the maximum allowed value
+            if fee_share_bps == 0 || fee_share_bps > MAX_FEE_SHARE_BPS {
+                return Err(ContractError::FeeShareOutOfBounds {});
+            }
+
+            // Set sharing config
+            config.fee_share = Some(FeeShareConfig {
+                bps: fee_share_bps,
+                recipient: deps.api.addr_validate(&fee_share_address)?,
+            });
+
+            CONFIG.save(deps.storage, &config)?;
+
+            attrs.push(attr("fee_share_bps", fee_share_bps.to_string()));
+            attrs.push(attr("fee_share_address", fee_share_address));
+            "enable_fee_share"
+        }
+        ConcentratedPoolUpdateParams::DisableFeeShare => {
+            // Disable fee sharing for this contract by setting bps and
+            // address back to None
+            config.fee_share = None;
+            CONFIG.save(deps.storage, &config)?;
+            "disable_fee_share"
+        }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_attribute("action", action))
+    Ok(Response::new()
+        .add_attribute("action", action)
+        .add_attributes(attrs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

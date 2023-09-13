@@ -72,6 +72,7 @@ pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> 
         pool_state: old_config.pool_state,
         owner: old_config.owner,
         track_asset_balances: false,
+        fee_share: None,
     };
 
     CONFIG.save(storage, &new_config)?;

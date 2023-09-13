@@ -1,5 +1,5 @@
 use crate::consts::MIN_AMP_CHANGING_TIME;
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
 use astroport_circular_buffer::error::BufferError;
 use cosmwasm_std::{ConversionOverflowError, Decimal, OverflowError, StdError};
 use thiserror::Error;
@@ -77,4 +77,10 @@ pub enum ContractError {
 
     #[error("Asset balances tracking is already enabled")]
     AssetBalancesTrackingIsAlreadyEnabled {},
+
+    #[error(
+        "Fee share is 0 or exceeds maximum allowed value of {} bps",
+        MAX_FEE_SHARE_BPS
+    )]
+    FeeShareOutOfBounds {},
 }

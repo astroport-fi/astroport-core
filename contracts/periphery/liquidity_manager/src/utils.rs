@@ -270,5 +270,6 @@ pub fn convert_config(
         next_amp: compat_config.next_amp,
         next_amp_time: compat_config.next_amp_time,
         greatest_precision,
+        fee_share: None,
     })
 }

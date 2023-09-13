@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg};
+use crate::pair::{Cw20HookMsg as PairCw20HookMsg, ExecuteMsg as PairExecuteMsg, FeeShareConfig};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -75,4 +75,6 @@ pub struct CompatPairStableConfig {
     pub price0_cumulative_last: Option<Uint128>,
     /// The last cumulative price 1 asset in pool
     pub price1_cumulative_last: Option<Uint128>,
+    // Fee sharing configuration
+    pub fee_share: Option<FeeShareConfig>,
 }

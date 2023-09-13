@@ -11,7 +11,7 @@ use astroport::asset::{
 };
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
-use astroport::pair::{ExecuteMsg, PoolResponse};
+use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
@@ -1707,4 +1707,109 @@ fn test_frontrun_before_initial_provide() {
         .unwrap();
     assert_eq!(pools[0].amount.u128(), 320_624088);
     assert_eq!(pools[1].amount.u128(), 32_000000);
+}
+
+#[test]
+fn check_correct_fee_share() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let share_recipient = Addr::unchecked("share_recipient");
+    // Attempt setting fee share with max+1 fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: MAX_FEE_SHARE_BPS + 1,
+        fee_share_address: share_recipient.to_string(),
+    };
+    let err = helper.update_config(&owner, &action).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::FeeShareOutOfBounds {}
+    );
+
+    // Attempt setting fee share with max+1 fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: 0,
+        fee_share_address: share_recipient.to_string(),
+    };
+    let err = helper.update_config(&owner, &action).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::FeeShareOutOfBounds {}
+    );
+
+    helper.app.next_block(1000);
+
+    // Set to 5% fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: 1000,
+        fee_share_address: share_recipient.to_string(),
+    };
+    helper.update_config(&owner, &action).unwrap();
+
+    let config = helper.query_config().unwrap();
+    let fee_share = config.fee_share.unwrap();
+    assert_eq!(fee_share.bps, 1000u16);
+    assert_eq!(fee_share.recipient, share_recipient.to_string());
+
+    helper.app.next_block(1000);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(1000);
+
+    let user = Addr::unchecked("user");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    // Check that the shared fees are sent
+    let expected_fee_share = 26081u128;
+    let recipient_balance = helper.coin_balance(&test_coins[1], &share_recipient);
+    assert_eq!(recipient_balance, expected_fee_share);
+
+    let provider = Addr::unchecked("provider");
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(1_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &provider);
+    helper.provide_liquidity(&provider, &assets).unwrap();
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    helper
+        .withdraw_liquidity(&provider, 999_999354, vec![])
+        .unwrap();
+
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    // Disable fee share
+    let action = ConcentratedPoolUpdateParams::DisableFeeShare {};
+    helper.update_config(&owner, &action).unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert!(config.fee_share.is_none());
 }

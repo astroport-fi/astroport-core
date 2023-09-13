@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use astroport::pair::FeeShareConfig;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     Addr, Decimal, Decimal256, DepsMut, Env, Order, StdError, StdResult, Storage, Uint128,
@@ -38,6 +39,8 @@ pub struct Config {
     pub owner: Option<Addr>,
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
+    // The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This structure stores the pool parameters which may be adjusted via the `update_pool_params`.
