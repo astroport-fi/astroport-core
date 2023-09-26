@@ -36,6 +36,8 @@ pub struct ConcentratedPoolParams {
     /// They will not be tracked if the parameter is ignored.
     /// It can not be disabled later once enabled.
     pub track_asset_balances: Option<bool>,
+    /// The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This structure holds concentrated pool parameters which can be changed immediately.
@@ -103,7 +105,7 @@ pub struct ConcentratedPoolConfig {
     pub ma_half_time: u64,
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
-    // The config for swap fee sharing
+    /// The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
 }
 

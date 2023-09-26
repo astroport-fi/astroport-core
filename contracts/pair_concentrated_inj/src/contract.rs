@@ -27,23 +27,24 @@ use astroport::pair_concentrated_inj::{
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_circular_buffer::BufferManager;
+use astroport_pcl_common::state::{
+    AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
+};
+use astroport_pcl_common::utils::{
+    assert_max_spread, assert_slippage_tolerance, before_swap_check, calc_provide_fee,
+    check_asset_infos, check_assets, check_pair_registered, compute_swap, get_share_in_assets,
+    mint_liquidity_token_message,
+};
+use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
 use crate::orderbook::state::OrderbookState;
 use crate::orderbook::utils::{
     get_subaccount_balances, is_allowed_for_begin_blocker, is_contract_active, leave_orderbook,
     process_cumulative_trade,
 };
-use crate::state::{
-    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, CONFIG,
-    OBSERVATIONS, OWNERSHIP_PROPOSAL,
-};
-use crate::utils::{
-    accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_provide_fee, check_asset_infos, check_assets, check_pair_registered, compute_swap,
-    get_share_in_assets, mint_liquidity_token_message, query_contract_balances, query_pools,
-};
+use crate::state::{CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
+use crate::utils::{accumulate_swap_sizes, query_contract_balances, query_pools};
 
 /// Contract name that is used for migration.
 pub(crate) const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -62,7 +63,7 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
-    check_asset_infos(&msg.asset_infos)?;
+    check_asset_infos(deps.api, &msg.asset_infos)?;
 
     if msg.asset_infos.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
@@ -83,7 +84,7 @@ pub fn instantiate(
 
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
 
-    store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
+    Precisions::store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     let base_precision = msg.asset_infos[0].decimals(&deps.querier, &factory_addr)?;
     let ob_state = OrderbookState::new(
@@ -135,6 +136,8 @@ pub fn instantiate(
         pool_params,
         pool_state,
         owner: None,
+        track_asset_balances: false, // TODO: decide whether to track asset balances in PCL inj pool
+        fee_share: None,             // TODO: decide whether to enable fee sharing or not
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -394,7 +397,7 @@ where
         }
     }
 
-    check_assets(&assets)?;
+    check_assets(deps.api, &assets)?;
 
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
@@ -615,7 +618,7 @@ fn withdraw_liquidity(
 
     let refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
-        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?
+        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
@@ -785,6 +788,7 @@ where
         &config,
         &env,
         maker_fee_share,
+        Decimal256::zero(),
     )?;
     xs[offer_ind] += offer_asset_dec.amount;
     xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;

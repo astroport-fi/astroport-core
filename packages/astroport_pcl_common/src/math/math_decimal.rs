@@ -1,10 +1,8 @@
 use cosmwasm_std::{Decimal256, Fraction, StdError, StdResult, Uint128};
-use itertools::Itertools;
-
-use astroport::cosmwasm_ext::AbsDiff;
 
 use crate::consts::{HALFPOW_TOL, MAX_ITER, N, N_POW2, TOL};
 use crate::math::signed_decimal::SignedDecimal256;
+use itertools::Itertools;
 
 /// Internal constant to increase calculation accuracy. (1000.0)
 const PADDING: Decimal256 = Decimal256::raw(1000000000000000000000);
@@ -138,7 +136,7 @@ pub fn half_float_pow(power: Decimal256) -> StdResult<Decimal256> {
         let k = Decimal256::from_atomics(i, 0).unwrap();
         let mut c = k - Decimal256::one();
 
-        c = frac_pow.diff(c);
+        c = frac_pow.abs_diff(c);
         term = term * c * half / k;
         sum -= term;
 
@@ -292,7 +290,10 @@ mod tests {
     fn test_calculations() {
         let gamma = 0.000145;
 
-        let x_range: Vec<u128> = (1000u128..=100_000).step_by(10000).into_iter().collect();
+        let x_range = (1000u128..=100_000)
+            .step_by(10000)
+            .into_iter()
+            .collect_vec();
         let mut a_range = (100u128..=10000u128).step_by(1000).collect_vec();
         a_range.push(1);
 

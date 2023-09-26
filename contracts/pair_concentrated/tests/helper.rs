@@ -29,11 +29,27 @@ use astroport::pair_concentrated::{
 use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
-use astroport_pair_concentrated::state::Config;
+use astroport_pcl_common::state::Config;
 
 const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
+
+pub fn common_pcl_params() -> ConcentratedPoolParams {
+    ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+        fee_share: None,
+    }
+}
 
 #[cw_serde]
 pub struct AmpGammaResponse {

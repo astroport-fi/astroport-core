@@ -1,0 +1,19 @@
+[package]
+name = "astroport-pcl-common"
+version = "1.0.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cosmwasm-std = "1"
+cosmwasm-schema = "1"
+cw-storage-plus = "1"
+cw20 = "1"
+thiserror = "1"
+astroport = { path = "../astroport", version = "3" }
+astroport-factory = { path = "../../contracts/factory", version = "1.6", features = ["library"] }
+itertools = "0.11"
+
+[dev-dependencies]
+anyhow = "1"

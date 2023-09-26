@@ -292,6 +292,7 @@ where
             price_scale: Decimal::one(),
             ma_half_time: 600,
             track_asset_balances: None,
+            fee_share: None,
         };
 
         self.app

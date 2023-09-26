@@ -29,6 +29,7 @@ astroport-factory = { path = "../factory", features = [
     "library",
 ], version = "1" }
 astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
+astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "1" }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"

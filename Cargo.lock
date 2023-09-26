@@ -60,7 +60,7 @@ dependencies = [
  "cw20 0.15.1",
  "cw3",
  "injective-math",
- "itertools",
+ "itertools 0.10.5",
  "test-case",
  "thiserror",
  "uint 0.9.5",
@@ -124,7 +124,7 @@ dependencies = [
  "cw-utils 1.0.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "itertools",
+ "itertools 0.10.5",
  "prost 0.11.9",
  "protobuf",
  "thiserror",
@@ -251,7 +251,7 @@ dependencies = [
  "cw20 0.15.1",
  "cw20-base 0.15.1",
  "derivative",
- "itertools",
+ "itertools 0.10.5",
  "serde_json 1.0.104",
  "thiserror",
 ]
@@ -368,7 +368,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "itertools",
+ "itertools 0.10.5",
  "thiserror",
 ]
 
@@ -448,6 +448,7 @@ dependencies = [
  "astroport-factory",
  "astroport-mocks",
  "astroport-native-coin-registry",
+ "astroport-pcl-common",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -456,14 +457,14 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "derivative",
- "itertools",
+ "itertools 0.10.5",
  "proptest",
  "thiserror",
 ]
 
 [[package]]
 name = "astroport-pair-concentrated-injective"
-version = "2.1.0"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "astroport",
@@ -472,6 +473,7 @@ dependencies = [
  "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair-concentrated",
+ "astroport-pcl-common",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -484,7 +486,7 @@ dependencies = [
  "injective-cosmwasm",
  "injective-math",
  "injective-testing",
- "itertools",
+ "itertools 0.10.5",
  "proptest",
  "thiserror",
  "tiny-keccak 2.0.2",
@@ -508,10 +510,25 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "derivative",
- "itertools",
+ "itertools 0.10.5",
  "proptest",
  "prost 0.11.9",
  "sim",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-pcl-common"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport",
+ "astroport-factory",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.1.0",
+ "cw20 1.1.0",
+ "itertools 0.11.0",
  "thiserror",
 ]
 
@@ -550,7 +567,7 @@ dependencies = [
  "cw2 1.1.0",
  "cw20 0.15.1",
  "cw3",
- "itertools",
+ "itertools 0.10.5",
  "thiserror",
 ]
 
@@ -957,7 +974,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "derivative",
- "itertools",
+ "itertools 0.10.5",
  "prost 0.9.0",
  "schemars",
  "serde 1.0.180",
@@ -974,7 +991,7 @@ dependencies = [
  "cw-storage-plus 1.1.0",
  "cw-utils 1.0.1",
  "derivative",
- "itertools",
+ "itertools 0.10.5",
  "k256",
  "prost 0.9.0",
  "schemars",
@@ -1549,7 +1566,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "cw20 0.15.1",
- "itertools",
+ "itertools 0.10.5",
  "thiserror",
 ]
 
@@ -1726,6 +1743,15 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
 dependencies = [
  "either",
 ]
@@ -2076,7 +2102,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9cc1a3263e07e0bf68e96268f37665207b49560d98739662cdfaae215c720fe"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -2089,7 +2115,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -2693,36 +2719,36 @@ dependencies = [
 
 [[package]]
 name = "test-case"
-version = "3.1.0"
+version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a1d6e7bde536b0412f20765b76e921028059adfd1b90d8974d33fd3c91b25df"
+checksum = "c8f1e820b7f1d95a0cdbf97a5df9de10e1be731983ab943e56703ac1b8e9d425"
 dependencies = [
  "test-case-macros",
 ]
 
 [[package]]
 name = "test-case-core"
-version = "3.1.0"
+version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d10394d5d1e27794f772b6fc854c7e91a2dc26e2cbf807ad523370c2a59c0cee"
+checksum = "54c25e2cb8f5fcd7318157634e8838aa6f7e4715c96637f969fabaccd1ef5462"
 dependencies = [
  "cfg-if",
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.28",
 ]
 
 [[package]]
 name = "test-case-macros"
-version = "3.1.0"
+version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eeb9a44b1c6a54c1ba58b152797739dba2a83ca74e18168a68c980eb142f9404"
+checksum = "37cfd7bbc88a0104e304229fba519bdc45501a30b760fb72240342f1289ad257"
 dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.28",
  "test-case-core",
 ]
 

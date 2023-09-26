@@ -15,13 +15,15 @@ use astroport::pair_concentrated::{
 };
 use astroport::pair_concentrated_inj::{ExecuteMsg, MigrateMsg, OrderbookConfig};
 use astroport_mocks::cw_multi_test::Executor;
-use astroport_pair_concentrated_injective::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pair_concentrated_injective::error::ContractError;
 use astroport_pair_concentrated_injective::orderbook::consts::MIN_TRADES_TO_AVG_LIMITS;
+use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
+use astroport_pcl_common::error::PclError;
 
 use crate::helper::mocks::{mock_inj_app, InjAppExt, MockFundingMode};
 use crate::helper::{
-    dec_to_f64, f64_to_dec, orderbook_pair_contract, AppExtension, Helper, TestCoin,
+    common_pcl_params, dec_to_f64, f64_to_dec, orderbook_pair_contract, AppExtension, Helper,
+    TestCoin,
 };
 
 mod helper;
@@ -30,18 +32,7 @@ mod helper;
 fn check_wrong_initialization() {
     let owner = Addr::unchecked("owner");
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::from_ratio(2u8, 1u8),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
+    let params = common_pcl_params();
 
     let mut wrong_params = params.clone();
     wrong_params.amp = Decimal::zero();
@@ -55,11 +46,11 @@ fn check_wrong_initialization() {
     .unwrap_err();
 
     assert_eq!(
-        ContractError::IncorrectPoolParam(
+        ContractError::PclError(PclError::IncorrectPoolParam(
             "amp".to_string(),
             AMP_MIN.to_string(),
             AMP_MAX.to_string()
-        ),
+        )),
         err.downcast().unwrap(),
     );
 
@@ -75,11 +66,11 @@ fn check_wrong_initialization() {
     .unwrap_err();
 
     assert_eq!(
-        ContractError::IncorrectPoolParam(
+        ContractError::PclError(PclError::IncorrectPoolParam(
             "ma_half_time".to_string(),
             MA_HALF_TIME_LIMITS.start().to_string(),
             MA_HALF_TIME_LIMITS.end().to_string()
-        ),
+        )),
         err.downcast().unwrap(),
     );
 
@@ -116,16 +107,8 @@ fn provide_and_withdraw() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(2u8, 1u8),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
@@ -305,16 +288,8 @@ fn check_imbalanced_provide() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
     let mut params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(2u8, 1u8),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params.clone(), true).unwrap();
@@ -360,20 +335,7 @@ fn provide_with_different_precision() {
 
     let test_coins = vec![TestCoin::native("FOO"), TestCoin::native("BAR")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_00000u128),
@@ -419,20 +381,7 @@ fn swap_different_precisions() {
 
     let test_coins = vec![TestCoin::native("FOO"), TestCoin::native("BAR")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_00000u128),
@@ -475,20 +424,7 @@ fn check_reverse_swap() {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -516,19 +452,7 @@ fn check_swaps_simple() {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let user = Addr::unchecked("user");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
@@ -568,7 +492,7 @@ fn check_swaps_simple() {
     helper.give_me_money(&[offer_asset.clone()], &user);
     let err = helper.swap(&user, &offer_asset, None).unwrap_err();
     assert_eq!(
-        ContractError::MaxSpreadAssertion {},
+        ContractError::PclError(PclError::MaxSpreadAssertion {}),
         err.downcast().unwrap()
     );
 
@@ -621,19 +545,7 @@ fn check_swaps_with_price_update() {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     helper.app.next_block(1000);
 
@@ -675,19 +587,7 @@ fn provides_and_swaps() {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     helper.app.next_block(1000);
 
@@ -734,14 +634,7 @@ fn check_amp_gamma_change() {
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(40f64),
         gamma: f64_to_dec(0.0001),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins, params, true).unwrap();
 
@@ -828,20 +721,7 @@ fn check_prices() {
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
-    let helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
     let err = helper.query_prices().unwrap_err();
     assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
                , err);
@@ -853,20 +733,7 @@ fn update_owner() {
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
-    let mut helper = Helper::new(&owner, test_coins, params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins, common_pcl_params(), true).unwrap();
 
     let new_owner = String::from("new_owner");
 
@@ -947,16 +814,8 @@ fn check_orderbook_integration() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
 
     let app = mock_inj_app(|_, _, _| {});
@@ -1117,16 +976,8 @@ fn check_last_withdraw() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
@@ -1182,16 +1033,8 @@ fn check_deactivate_orderbook() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
@@ -1581,16 +1424,8 @@ fn test_migrate_cl_to_orderbook_cl() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut app = mock_inj_app(|_, _, _| {});
     let market_id = app
@@ -1743,16 +1578,8 @@ fn test_wrong_assets_order() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut app = mock_inj_app(|_, _, _| {});
     let market_id = app
@@ -1811,16 +1638,8 @@ fn test_feegrant_mode() {
     let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
 
     let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: f64_to_dec(0.5),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
     let mut app = mock_inj_app(|_, _, _| {});
     app.create_market(
@@ -1994,15 +1813,8 @@ fn provide_withdraw_provide() {
 
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(10f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(10u8, 1u8),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
@@ -2040,15 +1852,8 @@ fn provide_withdraw_slippage() {
 
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(10f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
         price_scale: Decimal::from_ratio(10u8, 1u8),
-        ma_half_time: 600,
-        track_asset_balances: None,
+        ..common_pcl_params()
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
@@ -2071,7 +1876,7 @@ fn provide_withdraw_slippage() {
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.02)))
         .unwrap_err();
     assert_eq!(
-        ContractError::MaxSpreadAssertion {},
+        ContractError::PclError(PclError::MaxSpreadAssertion {}),
         err.downcast().unwrap()
     );
     // With 3% slippage it should work
@@ -2088,7 +1893,7 @@ fn provide_withdraw_slippage() {
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.02)))
         .unwrap_err();
     assert_eq!(
-        ContractError::MaxSpreadAssertion {},
+        ContractError::PclError(PclError::MaxSpreadAssertion {}),
         err.downcast().unwrap(),
     );
     helper

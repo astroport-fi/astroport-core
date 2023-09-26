@@ -28,19 +28,20 @@ use astroport::pair_concentrated::{
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_circular_buffer::BufferManager;
+use astroport_pcl_common::state::{
+    AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
+};
+use astroport_pcl_common::utils::{
+    assert_max_spread, assert_slippage_tolerance, before_swap_check, calc_provide_fee,
+    check_asset_infos, check_assets, check_cw20_in_pool, check_pair_registered, compute_swap,
+    get_share_in_assets, mint_liquidity_token_message,
+};
+use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
 use crate::migration::migrate_config;
-use crate::state::{
-    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
-    CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
-};
-use crate::utils::{
-    accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool, check_pair_registered,
-    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools,
-};
+use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
+use crate::utils::{accumulate_swap_sizes, query_pools};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -78,7 +79,7 @@ pub fn instantiate(
 
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
 
-    store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
+    Precisions::store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
@@ -113,7 +114,6 @@ pub fn instantiate(
             pair_type: PairType::Custom("concentrated".to_string()),
         },
         factory_addr,
-        block_time_last: env.block.time.seconds(),
         pool_params,
         pool_state,
         owner: None,
@@ -767,7 +767,7 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let last_price = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    let last_price = swap_result.calc_last_price(offer_asset_dec.amount, offer_ind);
 
     // update_price() works only with internal representation
     xs[1] *= config.pool_state.price_state.price_scale;

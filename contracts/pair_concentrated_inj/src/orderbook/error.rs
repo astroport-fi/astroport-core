@@ -1,8 +1,11 @@
-use crate::error::ContractError;
-use astroport::injective_ext::InjMathError;
-use astroport_circular_buffer::error::BufferError;
 use cosmwasm_std::{ConversionOverflowError, Decimal256RangeExceeded, OverflowError, StdError};
 use thiserror::Error;
+
+use astroport::injective_ext::InjMathError;
+use astroport_circular_buffer::error::BufferError;
+use astroport_pcl_common::error::PclError;
+
+use crate::error::ContractError;
 
 /// This enum describes pair contract errors
 #[derive(Error, Debug, PartialEq)]
@@ -21,6 +24,9 @@ pub enum OrderbookError {
 
     #[error("{0}")]
     ContractError(#[from] ContractError),
+
+    #[error("{0}")]
+    PclError(#[from] PclError),
 
     #[error("{0}")]
     CircularBuffer(#[from] BufferError),
