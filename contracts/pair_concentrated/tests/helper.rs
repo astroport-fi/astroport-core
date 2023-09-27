@@ -16,8 +16,8 @@ use anyhow::Result as AnyResult;
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
-    SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
@@ -305,6 +305,16 @@ impl Helper {
         offer_asset: &Asset,
         max_spread: Option<Decimal>,
     ) -> AnyResult<AppResponse> {
+        self.swap_full_params(sender, offer_asset, max_spread, None)
+    }
+
+    pub fn swap_full_params(
+        &mut self,
+        sender: &Addr,
+        offer_asset: &Asset,
+        max_spread: Option<Decimal>,
+        belief_price: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
         match &offer_asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Send {
@@ -312,7 +322,7 @@ impl Helper {
                     amount: offer_asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
-                        belief_price: None,
+                        belief_price,
                         max_spread,
                         to: None,
                     })
@@ -333,7 +343,7 @@ impl Helper {
                 let msg = ExecuteMsg::Swap {
                     offer_asset: offer_asset.clone(),
                     ask_asset_info: None,
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to: None,
                 };
@@ -453,6 +463,12 @@ impl Helper {
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
         from_slice(&binary)
+    }
+
+    pub fn query_pool(&self) -> StdResult<PoolResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::Pool {})
     }
 
     pub fn query_lp_price(&self) -> StdResult<Decimal256> {
