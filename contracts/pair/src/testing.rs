@@ -931,6 +931,7 @@ fn try_native_to_token() {
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("fee_share_amount", "0"),
         ]
     );
 
@@ -1121,6 +1122,7 @@ fn try_token_to_native() {
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("fee_share_amount", "0"),
         ]
     );
 
@@ -1418,6 +1420,7 @@ fn test_accumulate_prices() {
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
                 track_asset_balances: false,
+                fee_share: None,
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),

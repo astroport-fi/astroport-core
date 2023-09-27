@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated-injective"
-version = "2.0.5"
+version = "2.2.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair which supports Injective orderbook integration"
@@ -24,10 +24,11 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false, features = ["injective"] }
-astroport-factory = { path = "../factory", features = ["library"] }
-astroport-pair-concentrated = { path = "../pair_concentrated", features = ["library"] }
-astroport-circular-buffer = { path = "../../packages/circular_buffer" }
+astroport = { path = "../../packages/astroport", version = "3", features = ["injective"] }
+astroport-factory = { path = "../factory", features = ["library"], version = "1" }
+astroport-pair-concentrated = { path = "../pair_concentrated", features = ["library"], version = "2.0.5" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
+astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "1" }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"
@@ -49,4 +50,4 @@ anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
 injective-math = "0.1"
-injective-testing = "0.1"
+injective-testing = "0.1.1"

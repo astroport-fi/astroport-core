@@ -1,4 +1,5 @@
 use astroport::asset::addr_opt_validate;
+use astroport::cw20_ics20::TransferMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -17,7 +18,7 @@ use crate::ibc::Ics20Packet;
 use crate::migrations::standard_v1;
 use crate::msg::{
     AllowMsg, AllowedInfo, AllowedResponse, ChannelResponse, ConfigResponse, ExecuteMsg, InitMsg,
-    ListAllowedResponse, ListChannelsResponse, MigrateMsg, PortResponse, QueryMsg, TransferMsg,
+    ListAllowedResponse, ListChannelsResponse, MigrateMsg, PortResponse, QueryMsg,
 };
 use crate::state::{
     increase_channel_balance, AllowInfo, Config, ADMIN, ALLOW_LIST, CHANNEL_INFO, CHANNEL_STATE,

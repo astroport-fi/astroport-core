@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use cosmwasm_std::{Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128};
+use cosmwasm_std::{
+    from_slice, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
+};
 
 use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::generator::QueryMsg as GeneratorQueryMsg;
+use astroport::liquidity_manager::CompatPairStableConfig;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::U256;
 use astroport_pair::{
@@ -185,7 +188,10 @@ pub fn stableswap_provide_simulation(
                     config.pair_info.contract_addr.clone(),
                     asset.info.to_string(),
                 )?
-                .unwrap();
+                .or_else(|| asset.info.decimals(&querier, &config.factory_addr).ok())
+                .ok_or_else(|| {
+                    StdError::generic_err(format!("Asset {asset} precision not found"))
+                })?;
             Ok((
                 asset.to_decimal_asset(coin_precision)?,
                 Decimal256::with_precision(pool, coin_precision)?,
@@ -235,4 +241,35 @@ pub fn stableswap_provide_simulation(
     };
 
     Ok(share)
+}
+
+pub fn convert_config(
+    querier: QuerierWrapper,
+    config_data: Vec<u8>,
+) -> StdResult<PairStableConfig> {
+    let compat_config: CompatPairStableConfig = from_slice(&config_data)?;
+
+    let greatest_precision = if let Some(prec) = compat_config.greatest_precision {
+        prec
+    } else {
+        let mut greatest_precision = 0u8;
+        for asset_info in &compat_config.pair_info.asset_infos {
+            let precision = asset_info.decimals(&querier, &compat_config.factory_addr)?;
+            greatest_precision = greatest_precision.max(precision);
+        }
+        greatest_precision
+    };
+
+    Ok(PairStableConfig {
+        owner: compat_config.owner,
+        pair_info: compat_config.pair_info,
+        factory_addr: compat_config.factory_addr,
+        block_time_last: compat_config.block_time_last,
+        init_amp: compat_config.init_amp,
+        init_amp_time: compat_config.init_amp_time,
+        next_amp: compat_config.next_amp,
+        next_amp_time: compat_config.next_amp_time,
+        greatest_precision,
+        fee_share: None,
+    })
 }

@@ -1,4 +1,4 @@
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
 use cosmwasm_std::{OverflowError, StdError};
 use thiserror::Error;
 
@@ -52,6 +52,12 @@ pub enum ContractError {
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
+
+    #[error(
+        "Fee share is 0 or exceeds maximum allowed value of {} bps",
+        MAX_FEE_SHARE_BPS
+    )]
+    FeeShareOutOfBounds {},
 }
 
 impl From<OverflowError> for ContractError {

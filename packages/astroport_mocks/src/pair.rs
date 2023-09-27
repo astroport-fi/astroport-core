@@ -4,7 +4,7 @@ use astroport::{
     asset::{Asset, AssetInfo, PairInfo},
     pair::{ExecuteMsg, QueryMsg},
 };
-use cosmwasm_std::{Addr, Api, Coin, CustomQuery, Decimal, Storage};
+use cosmwasm_std::{Addr, Api, Coin, CustomQuery, Decimal, StdResult, Storage};
 use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -167,5 +167,12 @@ where
             };
         }
         self.provide(sender, assets, None, true, None)
+    }
+
+    pub fn pair_info(&self) -> StdResult<PairInfo> {
+        self.app
+            .borrow()
+            .wrap()
+            .query_wasm_smart(self.address.clone(), &QueryMsg::Pair {})
     }
 }

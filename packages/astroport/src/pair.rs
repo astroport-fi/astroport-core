@@ -3,16 +3,22 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
 pub const DEFAULT_SLIPPAGE: &str = "0.005";
 /// The maximum allowed swap slippage
 pub const MAX_ALLOWED_SLIPPAGE: &str = "0.5";
+/// The maximum fee share allowed, 10%
+pub const MAX_FEE_SHARE_BPS: u16 = 1000;
 
 /// Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
+
+/// Min safe trading size (0.00001) to calculate a price. This value considers
+/// amount in decimal form with respective token precision.
+pub const MIN_TRADE_SIZE: Decimal256 = Decimal256::raw(10000000000000);
 
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
@@ -151,6 +157,15 @@ pub struct ConfigResponse {
     pub factory_addr: Addr,
 }
 
+/// Holds the configuration for fee sharing
+#[cw_serde]
+pub struct FeeShareConfig {
+    /// The fee shared with the address
+    pub bps: u16,
+    /// The share is sent to this address on every swap
+    pub recipient: Addr,
+}
+
 /// This structure holds the parameters that are returned from a swap simulation response
 #[cw_serde]
 pub struct SimulationResponse {
@@ -203,6 +218,8 @@ pub struct XYKPoolParams {
 pub struct XYKPoolConfig {
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
+    // The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This enum stores the option available to enable asset balances tracking over blocks.
@@ -210,6 +227,14 @@ pub struct XYKPoolConfig {
 pub enum XYKPoolUpdateParams {
     /// Enables asset balances tracking over blocks.
     EnableAssetBalancesTracking,
+    /// Enables the sharing of swap fees with an external party.
+    EnableFeeShare {
+        /// The fee shared with the fee_share_address
+        fee_share_bps: u16,
+        /// The fee_share_bps is sent to this address on every swap
+        fee_share_address: String,
+    },
+    DisableFeeShare,
 }
 
 /// This structure holds stableswap pool parameters.
@@ -226,13 +251,26 @@ pub struct StablePoolParams {
 pub struct StablePoolConfig {
     /// The stableswap pool amplification
     pub amp: Decimal,
+    // The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This enum stores the options available to start and stop changing a stableswap pool's amplification.
 #[cw_serde]
 pub enum StablePoolUpdateParams {
-    StartChangingAmp { next_amp: u64, next_amp_time: u64 },
+    StartChangingAmp {
+        next_amp: u64,
+        next_amp_time: u64,
+    },
     StopChangingAmp {},
+    /// Enables the sharing of swap fees with an external party.
+    EnableFeeShare {
+        /// The fee shared with the fee_share_address
+        fee_share_bps: u16,
+        /// The fee_share_bps is sent to this address on every swap
+        fee_share_address: String,
+    },
+    DisableFeeShare,
 }
 
 #[cfg(test)]
@@ -281,6 +319,7 @@ mod tests {
             params: Some(
                 to_binary(&StablePoolConfig {
                     amp: Decimal::one(),
+                    fee_share: None,
                 })
                 .unwrap(),
             ),

@@ -1,13 +1,14 @@
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::PairType;
-use astroport::observation::OBSERVATIONS_SIZE;
-use astroport_circular_buffer::BufferManager;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, StdError, Storage, Uint128};
 use cw_storage_plus::Item;
 
-use crate::state::{Config, CONFIG, OBSERVATIONS};
-use crate::state::{PoolParams, PoolState};
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::PairType;
+use astroport::observation::OBSERVATIONS_SIZE;
+use astroport_circular_buffer::BufferManager;
+use astroport_pcl_common::state::{Config, PoolParams, PoolState};
+
+use crate::state::{CONFIG, OBSERVATIONS};
 
 pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> {
     #[cw_serde]
@@ -67,11 +68,11 @@ pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> 
     let new_config = Config {
         pair_info,
         factory_addr: old_config.factory_addr,
-        block_time_last: old_config.block_time_last,
         pool_params: old_config.pool_params,
         pool_state: old_config.pool_state,
         owner: old_config.owner,
         track_asset_balances: false,
+        fee_share: None,
     };
 
     CONFIG.save(storage, &new_config)?;

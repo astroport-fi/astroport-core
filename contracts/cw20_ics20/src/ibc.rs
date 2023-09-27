@@ -492,9 +492,10 @@ mod test {
     use crate::test_helpers::*;
 
     use crate::contract::{execute, migrate, query_channel};
-    use crate::msg::{ExecuteMsg, MigrateMsg, TransferMsg};
+    use crate::msg::{ExecuteMsg, MigrateMsg};
+    use astroport::cw20_ics20::TransferMsg;
     use cosmwasm_std::testing::{mock_env, mock_info};
-    use cosmwasm_std::{coins, to_vec, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
+    use cosmwasm_std::{coins, to_vec, Addr, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
     use cw20::Cw20ReceiveMsg;
 
     #[test]
@@ -585,6 +586,10 @@ mod test {
         )
     }
 
+    fn mock_relayer_addr() -> Addr {
+        Addr::unchecked("relayer")
+    }
+
     #[test]
     fn send_receive_cw20() {
         let send_channel = "channel-9";
@@ -603,7 +608,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, cw20_denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
+        let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
@@ -648,14 +653,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::cw20(987654321, cw20_addr)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert_eq!(1, res.messages.len());
         assert_eq!(
@@ -698,7 +703,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, cw20_denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
@@ -743,14 +748,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::cw20(987654321, cw20_addr)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // We can receive less than we sent, but if a memo is set without a handler, we fail
-        let msg = IbcPacketReceiveMsg::new(recv_packet_with_memo);
+        let msg = IbcPacketReceiveMsg::new(recv_packet_with_memo, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
 
         // No messages should be sent
@@ -779,7 +784,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
+        let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
@@ -802,14 +807,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::native(987654321, denom)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_packet);
+        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert_eq!(1, res.messages.len());
         assert_eq!(

@@ -2,16 +2,19 @@
 
 extern crate core;
 
-mod helper;
+use std::collections::HashMap;
 
-use crate::helper::{dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
-use astroport::asset::AssetInfoExt;
-use astroport::cosmwasm_ext::AbsDiff;
-use astroport::pair_concentrated::ConcentratedPoolParams;
-use astroport_pair_concentrated_injective::error::ContractError;
 use cosmwasm_std::{Addr, Decimal, Decimal256};
 use proptest::prelude::*;
-use std::collections::HashMap;
+
+use astroport::asset::AssetInfoExt;
+use astroport::cosmwasm_ext::AbsDiff;
+use astroport_pair_concentrated_injective::error::ContractError;
+use astroport_pcl_common::error::PclError;
+
+use crate::helper::{common_pcl_params, dec_to_f64, AppExtension, Helper, TestCoin};
+
+mod helper;
 
 const MAX_EVENTS: usize = 100;
 
@@ -21,22 +24,9 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
 
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
-
     let balances = vec![100_000_000_000000u128, 100_000_000_000000u128];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(balances[0]),
@@ -55,7 +45,7 @@ fn simulate_case(case: Vec<(usize, u128, u64)>) {
         if let Err(err) = helper.swap(&user, &offer_asset, None) {
             let err: ContractError = err.downcast().unwrap();
             match err {
-                ContractError::MaxSpreadAssertion {} => {
+                ContractError::PclError(PclError::MaxSpreadAssertion {}) => {
                     // if swap fails because of spread then skip this case
                     println!("exceeds spread limit");
                 }
@@ -82,20 +72,8 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("USDC")];
 
     let initial_price_scale = Decimal::one();
-    let params = ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: initial_price_scale,
-        ma_half_time: 600,
-        track_asset_balances: None,
-    };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     // owner makes the first provide cuz the pool charges small amount of fees
     let assets = vec![
@@ -117,7 +95,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
         if let Err(err) = helper.provide_liquidity(&user, &assets) {
             let err: ContractError = err.downcast().unwrap();
             match err {
-                ContractError::MaxSpreadAssertion {} => {
+                ContractError::PclError(PclError::MaxSpreadAssertion {}) => {
                     // if swap fails because of spread then skip this case
                     println!("spread limit exceeded");
                 }

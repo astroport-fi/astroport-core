@@ -1,8 +1,9 @@
-use crate::consts::MIN_AMP_CHANGING_TIME;
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
-use astroport_circular_buffer::error::BufferError;
-use cosmwasm_std::{ConversionOverflowError, Decimal, OverflowError, StdError};
+use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
+
+use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
+use astroport_circular_buffer::error::BufferError;
+use astroport_pcl_common::error::PclError;
 
 /// This enum describes pair contract errors
 #[derive(Error, Debug, PartialEq)]
@@ -19,6 +20,9 @@ pub enum ContractError {
     #[error("{0}")]
     CircularBuffer(#[from] BufferError),
 
+    #[error("{0}")]
+    PclError(#[from] PclError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
@@ -28,34 +32,8 @@ pub enum ContractError {
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
-    #[error("{0} parameter must be greater than {1} and less than or equal to {2}")]
-    IncorrectPoolParam(String, String, String),
-
-    #[error(
-    "{0} error: The difference between the old and new amp or gamma values must not exceed {1} percent",
-    )]
-    MaxChangeAssertion(String, Decimal),
-
-    #[error(
-        "Amp and gamma coefficients cannot be changed more often than once per {} seconds",
-        MIN_AMP_CHANGING_TIME
-    )]
-    MinChangingTimeAssertion {},
-
     #[error("Initial provide can not be one-sided")]
     InvalidZeroAmount {},
-
-    #[error("Operation exceeds max spread limit")]
-    MaxSpreadAssertion {},
-
-    #[error("Provided spread amount exceeds allowed limit")]
-    AllowedSpreadAssertion {},
-
-    #[error("Doubling assets in asset infos")]
-    DoublingAssets {},
-
-    #[error("Generator address is not set in factory. Cannot auto-stake")]
-    AutoStakeError {},
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
     MinimumLiquidityAmountError {},
@@ -77,4 +55,10 @@ pub enum ContractError {
 
     #[error("Asset balances tracking is already enabled")]
     AssetBalancesTrackingIsAlreadyEnabled {},
+
+    #[error(
+        "Fee share is 0 or exceeds maximum allowed value of {} bps",
+        MAX_FEE_SHARE_BPS
+    )]
+    FeeShareOutOfBounds {},
 }

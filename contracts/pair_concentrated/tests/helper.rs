@@ -20,20 +20,36 @@ use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, Pa
 use astroport::factory::{PairConfig, PairType};
 use astroport::observation::OracleObservation;
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, ReverseSimulationResponse,
-    SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse,
+    ReverseSimulationResponse, SimulationResponse,
 };
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
+    ConcentratedPoolConfig, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
 use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
-use astroport_pair_concentrated::state::Config;
+use astroport_pcl_common::state::Config;
 
 const NATIVE_TOKEN_PRECISION: u8 = 6;
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
+
+pub fn common_pcl_params() -> ConcentratedPoolParams {
+    ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+        fee_share: None,
+    }
+}
 
 #[cw_serde]
 pub struct AmpGammaResponse {
@@ -308,6 +324,16 @@ impl Helper {
         offer_asset: &Asset,
         max_spread: Option<Decimal>,
     ) -> AnyResult<AppResponse> {
+        self.swap_full_params(sender, offer_asset, max_spread, None)
+    }
+
+    pub fn swap_full_params(
+        &mut self,
+        sender: &Addr,
+        offer_asset: &Asset,
+        max_spread: Option<Decimal>,
+        belief_price: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
         match &offer_asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Send {
@@ -315,7 +341,7 @@ impl Helper {
                     amount: offer_asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
-                        belief_price: None,
+                        belief_price,
                         max_spread,
                         to: None,
                     })
@@ -336,7 +362,7 @@ impl Helper {
                 let msg = ExecuteMsg::Swap {
                     offer_asset: offer_asset.clone(),
                     ask_asset_info: None,
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to: None,
                 };
@@ -458,6 +484,12 @@ impl Helper {
         from_slice(&binary)
     }
 
+    pub fn query_pool(&self) -> StdResult<PoolResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::Pool {})
+    }
+
     pub fn query_lp_price(&self) -> StdResult<Decimal256> {
         self.app
             .wrap()
@@ -498,7 +530,7 @@ impl Helper {
             .app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
-        let params: ConcentratedPoolParams = from_slice(
+        let params: ConcentratedPoolConfig = from_slice(
             &config_resp
                 .params
                 .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,

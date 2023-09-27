@@ -74,6 +74,7 @@ pub fn migrate_config_to_v210(mut deps: DepsMut) -> StdResult<Config> {
         next_amp: cfg_v100.next_amp,
         next_amp_time: cfg_v100.next_amp_time,
         greatest_precision,
+        fee_share: None,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -123,6 +124,7 @@ pub fn migrate_config_from_v21(deps: DepsMut) -> StdResult<()> {
         next_amp: cfg_v212.next_amp,
         next_amp_time: cfg_v212.next_amp_time,
         greatest_precision: cfg_v212.greatest_precision,
+        fee_share: None,
     };
 
     CONFIG.save(deps.storage, &cfg)?;

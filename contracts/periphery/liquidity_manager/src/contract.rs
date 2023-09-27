@@ -259,7 +259,7 @@ fn provide_liquidity(
         let allowance_submessages = assets
             .iter()
             .filter_map(|asset| match &asset.info {
-                AssetInfo::Token { contract_addr } => {
+                AssetInfo::Token { contract_addr } if !asset.amount.is_zero() => {
                     let transfer_from_msg = wasm_execute(
                         contract_addr,
                         &Cw20ExecuteMsg::TransferFrom {

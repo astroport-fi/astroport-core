@@ -5,8 +5,8 @@ use crate::asset::PairInfo;
 use crate::asset::{Asset, AssetInfo};
 use crate::observation::OracleObservation;
 use crate::pair::{
-    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
-    SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, FeeShareConfig, PoolResponse,
+    ReverseSimulationResponse, SimulationResponse,
 };
 
 /// This structure holds concentrated pool parameters.
@@ -36,6 +36,8 @@ pub struct ConcentratedPoolParams {
     /// They will not be tracked if the parameter is ignored.
     /// It can not be disabled later once enabled.
     pub track_asset_balances: Option<bool>,
+    /// The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This structure holds concentrated pool parameters which can be changed immediately.
@@ -68,6 +70,14 @@ pub enum ConcentratedPoolUpdateParams {
     StopChangingAmpGamma {},
     /// Enable asset balances tracking
     EnableAssetBalancesTracking {},
+    /// Enables the sharing of swap fees with an external party.
+    EnableFeeShare {
+        /// The fee shared with the fee_share_address
+        fee_share_bps: u16,
+        /// The fee_share_bps is sent to this address on every swap
+        fee_share_address: String,
+    },
+    DisableFeeShare,
 }
 
 /// This structure stores a CL pool's configuration.
@@ -95,6 +105,8 @@ pub struct ConcentratedPoolConfig {
     pub ma_half_time: u64,
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
+    /// The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// This structure describes the query messages available in the contract.
