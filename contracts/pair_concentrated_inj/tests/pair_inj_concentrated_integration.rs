@@ -3,12 +3,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use cosmwasm_std::{coins, Addr, Coin, Decimal, StdError, Uint128};
+use cosmwasm_std::{coins, Addr, Coin, Decimal, Decimal256, StdError, Uint128};
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
+use itertools::{max, Itertools};
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
-use astroport::cosmwasm_ext::AbsDiff;
+use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
@@ -1899,4 +1900,81 @@ fn provide_withdraw_slippage() {
     helper
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
         .unwrap();
+}
+
+#[test]
+fn check_small_trades() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: f64_to_dec(4.360000915600192),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+
+    // Fully balanced but small provide
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(8_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_834862u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    // Trying to mess the last price with lowest possible swap
+    for _ in 0..1000 {
+        helper.app.next_block(30);
+        let offer_asset = helper.assets[&test_coins[1]].with_balance(1u8);
+        helper
+            .swap_full_params(&owner, &offer_asset, None, Some(Decimal::MAX))
+            .unwrap();
+    }
+
+    // Check that after price scale adjustments (even they are small) internal value is still nearly balanced
+    let config = helper.query_config().unwrap();
+    let pool = helper
+        .query_pool()
+        .unwrap()
+        .assets
+        .into_iter()
+        .map(|asset| asset.amount.to_decimal256(6u8).unwrap())
+        .collect_vec();
+
+    let ixs = [pool[0], pool[1] * config.pool_state.price_state.price_scale];
+    let relative_diff = ixs[0].abs_diff(ixs[1]) / max(&ixs).unwrap();
+
+    assert!(
+        relative_diff < Decimal256::percent(3),
+        "Internal PCL value is off. Relative_diff: {}",
+        relative_diff
+    );
+
+    // Trying to mess the last price with lowest possible provide
+    for _ in 0..1000 {
+        helper.app.next_block(30);
+        let assets = vec![helper.assets[&test_coins[1]].with_balance(1u8)];
+        helper
+            .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
+            .unwrap();
+    }
+
+    // Check that after price scale adjustments (even they are small) internal value is still nearly balanced
+    let config = helper.query_config().unwrap();
+    let pool = helper
+        .query_pool()
+        .unwrap()
+        .assets
+        .into_iter()
+        .map(|asset| asset.amount.to_decimal256(6u8).unwrap())
+        .collect_vec();
+
+    let ixs = [pool[0], pool[1] * config.pool_state.price_state.price_scale];
+    let relative_diff = ixs[0].abs_diff(ixs[1]) / max(&ixs).unwrap();
+
+    assert!(
+        relative_diff < Decimal256::percent(3),
+        "Internal PCL value is off. Relative_diff: {}",
+        relative_diff
+    );
 }

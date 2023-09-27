@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -15,6 +15,10 @@ pub const MAX_FEE_SHARE_BPS: u16 = 1000;
 
 /// Decimal precision for TWAP results
 pub const TWAP_PRECISION: u8 = 6;
+
+/// Min safe trading size (0.00001) to calculate a price. This value considers
+/// amount in decimal form with respective token precision.
+pub const MIN_TRADE_SIZE: Decimal256 = Decimal256::raw(10000000000000);
 
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]

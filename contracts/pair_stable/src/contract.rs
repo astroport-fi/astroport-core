@@ -24,13 +24,11 @@ use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{
     ConfigResponse, FeeShareConfig, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS, MIN_TRADE_SIZE,
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{
-    query_observation, PrecommitObservation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE,
-};
+use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,

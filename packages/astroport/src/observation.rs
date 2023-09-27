@@ -1,16 +1,13 @@
-use crate::cosmwasm_ext::AbsDiff;
-use astroport_circular_buffer::{BufferManager, CircularBuffer};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    CustomQuery, Decimal, Decimal256, Deps, Env, StdError, StdResult, Storage, Uint128,
-};
+use cosmwasm_std::{CustomQuery, Decimal, Deps, Env, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::Item;
+
+use astroport_circular_buffer::{BufferManager, CircularBuffer};
+
+use crate::cosmwasm_ext::AbsDiff;
 
 /// Circular buffer size which stores observations
 pub const OBSERVATIONS_SIZE: u32 = 3000;
-/// Min safe trading size (0.001) to calculate oracle price in observation. This value considers
-/// amount in decimal form with respective token precision.
-pub const MIN_TRADE_SIZE: Decimal256 = Decimal256::raw(1000000000000000);
 
 /// Stores trade size observations. We use it in orderbook integration
 /// and derive prices for external contracts/users.
