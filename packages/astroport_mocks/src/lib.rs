@@ -11,6 +11,7 @@ pub mod pair;
 pub mod pair_concentrated;
 pub mod pair_concentrated_inj;
 pub mod pair_stable;
+pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod vesting;

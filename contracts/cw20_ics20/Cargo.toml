@@ -30,7 +30,7 @@ semver = "1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.23" }
 
-astroport = { path = "../../packages/astroport" }
+astroport = { path = "../../packages/astroport", version = "3" }
 
 [dev-dependencies]
 cw20-ics20-original = { version = "0.13.4", package = "cw20-ics20" }

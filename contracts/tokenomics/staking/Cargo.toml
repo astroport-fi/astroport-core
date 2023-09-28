@@ -25,7 +25,7 @@ cw-storage-plus = "0.15"
 thiserror = { version = "1.0" }
 cw2 = "0.15"
 cw20 = "0.15"
-astroport = { path = "../../../packages/astroport", default-features = false }
+astroport = { path = "../../../packages/astroport", version = "3" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-schema = { version = "1.1" }
 cw-utils = "1.0.1"

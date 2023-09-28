@@ -1,3 +1,4 @@
+use anyhow::Result as AnyResult;
 use std::fmt::Debug;
 
 use astroport::{
@@ -7,7 +8,9 @@ use astroport::{
     pair_concentrated::ConcentratedPoolParams,
 };
 use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Decimal, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
@@ -62,6 +65,7 @@ where
     pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
         Self { app: app.clone() }
     }
+
     pub fn instantiate(self) -> MockFactory<B, A, S, C, X, D, I, G> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
@@ -288,6 +292,7 @@ where
             price_scale: Decimal::one(),
             ma_half_time: 600,
             track_asset_balances: None,
+            fee_share: None,
         };
 
         self.app
@@ -320,6 +325,19 @@ where
             app: self.app.clone(),
             address: res.contract_addr,
         }
+    }
+
+    pub fn deregister_pair(&self, asset_infos: &[AssetInfo]) -> AnyResult<AppResponse> {
+        let astroport = astroport_address();
+
+        self.app.borrow_mut().execute_contract(
+            astroport,
+            self.address.clone(),
+            &ExecuteMsg::Deregister {
+                asset_infos: asset_infos.to_vec(),
+            },
+            &[],
+        )
     }
 
     pub fn config(&self) -> ConfigResponse {

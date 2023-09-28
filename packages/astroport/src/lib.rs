@@ -1,10 +1,13 @@
 pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
+pub mod cw20_ics20;
 pub mod factory;
 pub mod fee_granter;
 pub mod generator;
 pub mod generator_proxy;
+#[cfg(feature = "injective")]
+pub mod injective_ext;
 pub mod maker;
 pub mod native_coin_registry;
 pub mod native_coin_wrapper;
@@ -24,9 +27,6 @@ pub mod token;
 pub mod vesting;
 pub mod xastro_outpost_token;
 pub mod xastro_token;
-
-#[cfg(feature = "injective")]
-pub mod injective_ext;
 
 #[cfg(test)]
 mod mock_querier;

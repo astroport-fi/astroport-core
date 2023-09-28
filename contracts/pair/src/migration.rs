@@ -38,6 +38,7 @@ pub(crate) fn add_asset_balances_tracking_flag(
         price0_cumulative_last: old_config.price0_cumulative_last,
         price1_cumulative_last: old_config.price1_cumulative_last,
         track_asset_balances: false,
+        fee_share: None,
     };
 
     CONFIG.save(storage, &new_config)?;

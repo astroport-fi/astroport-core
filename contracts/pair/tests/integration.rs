@@ -9,14 +9,15 @@ use astroport::factory::{
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, TWAP_PRECISION,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, FeeShareConfig,
+    InstantiateMsg, PoolResponse, QueryMsg, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
+    MAX_FEE_SHARE_BPS, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair::error::ContractError;
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
@@ -339,7 +340,8 @@ fn test_provide_and_withdraw_liquidity() {
             block_time_last: router.block_info().time.seconds(),
             params: Some(
                 to_binary(&XYKPoolConfig {
-                    track_asset_balances: false
+                    track_asset_balances: false,
+                    fee_share: None,
                 })
                 .unwrap()
             ),
@@ -1453,7 +1455,8 @@ fn update_pair_config() {
             block_time_last: 0,
             params: Some(
                 to_binary(&XYKPoolConfig {
-                    track_asset_balances: false
+                    track_asset_balances: false,
+                    fee_share: None,
                 })
                 .unwrap()
             ),
@@ -1493,7 +1496,199 @@ fn update_pair_config() {
             block_time_last: 0,
             params: Some(
                 to_binary(&XYKPoolConfig {
-                    track_asset_balances: true
+                    track_asset_balances: true,
+                    fee_share: None,
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+}
+
+#[test]
+fn enable_disable_fee_sharing() {
+    let owner = Addr::unchecked(OWNER);
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    let token_contract_code_id = store_token_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance.to_string(),
+        init_params: None,
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: false,
+                    fee_share: None,
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+
+    // Attemt to set fee sharing higher than maximum
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+            fee_share_bps: MAX_FEE_SHARE_BPS + 1,
+            fee_share_address: "contract".to_string(),
+        })
+        .unwrap(),
+    };
+    assert_eq!(
+        router
+            .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::FeeShareOutOfBounds {}
+    );
+
+    // Attemt to set fee sharing to 0
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+            fee_share_bps: 0,
+            fee_share_address: "contract".to_string(),
+        })
+        .unwrap(),
+    };
+    assert_eq!(
+        router
+            .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::FeeShareOutOfBounds {}
+    );
+
+    let fee_share_bps = 500; // 5%
+    let fee_share_contract = "contract".to_string();
+
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address: fee_share_contract.clone(),
+        })
+        .unwrap(),
+    };
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: false,
+                    fee_share: Some(FeeShareConfig {
+                        bps: fee_share_bps,
+                        recipient: Addr::unchecked(fee_share_contract),
+                    }),
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+
+    // Disable fee sharing
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::DisableFeeShare).unwrap(),
+    };
+
+    router
+        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&XYKPoolConfig {
+                    track_asset_balances: false,
+                    fee_share: None,
                 })
                 .unwrap()
             ),
@@ -1649,5 +1844,338 @@ fn test_imbalanced_withdraw_is_disabled() {
     assert_eq!(
         err.root_cause().to_string(),
         "Generic error: Imbalanced withdraw is currently disabled"
+    );
+}
+
+#[test]
+fn check_correct_fee_share() {
+    // Validate the resulting values
+    // We swapped 1_000000 of token X
+    // Fee is set to 0.3% of the swap amount resulting in 1000000 * 0.003 = 3000
+    // User receives with 1000000 - 3000 = 997000
+    // Of the 3000 fee, 10% is sent to the fee sharing contract resulting in 300
+    // Of the 2700 fee left, 33.33% is sent to the maker resulting in 899
+    // Of the 1801 fee left, all of it is left in the pool
+
+    // Test with 10% fee share, 0.3% total fee and 33.33% maker fee
+    test_fee_share(
+        3333u16,
+        30u16,
+        1000u16,
+        Uint128::from(300u64),
+        Uint128::from(899u64),
+    );
+
+    // Test with 5% fee share, 0.3% total fee and 50% maker fee
+    test_fee_share(
+        5000u16,
+        30u16,
+        500u16,
+        Uint128::from(150u64),
+        Uint128::from(1425u64),
+    );
+
+    // Test with 5% fee share, 0.1% total fee and 33.33% maker fee
+    test_fee_share(
+        3333u16,
+        10u16,
+        500u16,
+        Uint128::from(50u64),
+        Uint128::from(316u64),
+    );
+}
+
+fn test_fee_share(
+    maker_fee_bps: u16,
+    total_fee_bps: u16,
+    fee_share_bps: u16,
+    expected_fee_share: Uint128,
+    expected_maker_fee: Uint128,
+) {
+    let owner = Addr::unchecked(OWNER);
+
+    let mut app = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000000u128),
+            },
+        ],
+    );
+
+    let token_code_id = store_token_code(&mut app);
+
+    let x_amount = Uint128::new(1_000_000_000000);
+    let y_amount = Uint128::new(1_000_000_000000);
+    let x_offer = Uint128::new(1_000000);
+    let maker_address = "maker";
+
+    let token_name = "Xtoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 6,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: x_amount + x_offer,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+        marketing: None,
+    };
+
+    let token_x_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let token_name = "Ytoken";
+
+    let init_msg = TokenInstantiateMsg {
+        name: token_name.to_string(),
+        symbol: token_name.to_string(),
+        decimals: 6,
+        initial_balances: vec![Cw20Coin {
+            address: OWNER.to_string(),
+            amount: y_amount,
+        }],
+        mint: Some(MinterResponse {
+            minter: String::from(OWNER),
+            cap: None,
+        }),
+        marketing: None,
+    };
+
+    let token_y_instance = app
+        .instantiate_contract(
+            token_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            token_name,
+            None,
+        )
+        .unwrap();
+
+    let pair_code_id = store_pair_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: Some(maker_address.to_string()),
+        pair_configs: vec![PairConfig {
+            code_id: pair_code_id,
+            maker_fee_bps,
+            pair_type: PairType::Xyk {},
+            total_fee_bps,
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+        pair_type: PairType::Xyk {},
+        init_params: Some(
+            to_binary(&XYKPoolParams {
+                track_asset_balances: Some(true),
+            })
+            .unwrap(),
+        ),
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: vec![
+            AssetInfo::Token {
+                contract_addr: token_x_instance.clone(),
+            },
+            AssetInfo::Token {
+                contract_addr: token_y_instance.clone(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: x_amount + x_offer,
+    };
+
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = Cw20ExecuteMsg::IncreaseAllowance {
+        spender: pair_instance.to_string(),
+        expires: None,
+        amount: y_amount,
+    };
+
+    app.execute_contract(owner.clone(), token_y_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let user = Addr::unchecked("user");
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: vec![
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_x_instance.clone(),
+                },
+                amount: x_amount,
+            },
+            Asset {
+                info: AssetInfo::Token {
+                    contract_addr: token_y_instance.clone(),
+                },
+                amount: y_amount,
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: None,
+        receiver: None,
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let fee_share_address = "contract_receiver".to_string();
+
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address: fee_share_address.clone(),
+        })
+        .unwrap(),
+    };
+
+    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let swap_msg = Cw20ExecuteMsg::Send {
+        contract: pair_instance.to_string(),
+        msg: to_binary(&Cw20HookMsg::Swap {
+            ask_asset_info: None,
+            belief_price: None,
+            max_spread: None,
+            to: Some(user.to_string()),
+        })
+        .unwrap(),
+        amount: x_offer,
+    };
+
+    // try to swap after provide liquidity
+    app.execute_contract(owner.clone(), token_x_instance.clone(), &swap_msg, &[])
+        .unwrap();
+
+    let y_expected_return =
+        x_offer - Uint128::from((x_offer * Decimal::from_ratio(total_fee_bps, 10000u64)).u128());
+
+    let msg = Cw20QueryMsg::Balance {
+        address: user.to_string(),
+    };
+
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(&token_y_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.balance, y_expected_return);
+
+    let msg = Cw20QueryMsg::Balance {
+        address: fee_share_address.to_string(),
+    };
+
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(&token_y_instance, &msg)
+        .unwrap();
+
+    let acceptable_spread_amount = Uint128::new(1);
+    assert_eq!(res.balance, expected_fee_share - acceptable_spread_amount);
+
+    let msg = Cw20QueryMsg::Balance {
+        address: maker_address.to_string(),
+    };
+    // Assert maker fee is correct
+    let res: BalanceResponse = app
+        .wrap()
+        .query_wasm_smart(&token_y_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.balance, expected_maker_fee);
+
+    app.update_block(|b| b.height += 1);
+
+    // Assert LP balances are correct
+    let msg = QueryMsg::Pool {};
+    let res: PoolResponse = app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+
+    let acceptable_spread_amount = Uint128::new(1);
+    assert_eq!(res.assets[0].amount, x_amount + x_offer);
+    assert_eq!(
+        res.assets[1].amount,
+        y_amount - y_expected_return - expected_maker_fee - expected_fee_share
+            + acceptable_spread_amount
+    );
+
+    // Assert LP balances tracked are correct
+    let msg = QueryMsg::AssetBalanceAt {
+        asset_info: AssetInfo::Token {
+            contract_addr: token_y_instance,
+        },
+        block_height: Uint64::from(app.block_info().height),
+    };
+    let res: Option<Uint128> = app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
+
+    assert_eq!(
+        res.unwrap(),
+        y_amount - y_expected_return - expected_maker_fee - expected_fee_share
+            + acceptable_spread_amount
     );
 }

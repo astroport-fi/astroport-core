@@ -23,12 +23,12 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{
-    ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE,
+    ConfigResponse, FeeShareConfig, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS, MIN_TRADE_SIZE,
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{query_observation, MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
+use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,
@@ -104,6 +104,7 @@ pub fn instantiate(
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
         greatest_precision,
+        fee_share: None,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -658,19 +659,50 @@ pub fn swap(
         messages.push(return_asset.into_msg(receiver.clone())?)
     }
 
+    // If this pool is configured to share fees, calculate the amount to send
+    // to the receiver and add the transfer message
+    // The calculation works as follows: We take the share percentage first,
+    // and the remainder is then split between LPs and maker
+    let mut fees_commission_amount = commission_amount;
+    let mut fee_share_amount = Uint128::zero();
+    if let Some(fee_share) = config.fee_share {
+        // Calculate the fee share amount from the full commission amount
+        let share_fee_rate = Decimal::from_ratio(fee_share.bps, 10000u16);
+        fee_share_amount = fees_commission_amount * share_fee_rate;
+
+        if !fee_share_amount.is_zero() {
+            // Subtract the fee share amount from the commission
+            fees_commission_amount = fees_commission_amount.saturating_sub(fee_share_amount);
+
+            // Build send message for the shared amount
+            let fee_share_msg = Asset {
+                info: ask_pool.info.clone(),
+                amount: fee_share_amount,
+            }
+            .into_msg(fee_share.recipient)?;
+            messages.push(fee_share_msg);
+        }
+    }
+
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
-        if let Some(f) =
-            calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
-        {
+        if let Some(f) = calculate_maker_fee(
+            &ask_pool.info,
+            fees_commission_amount,
+            fee_info.maker_fee_rate,
+        ) {
             maker_fee_amount = f.amount;
             messages.push(f.into_msg(fee_address)?);
         }
     }
 
-    // Store time series data.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    // Store observation from precommit data
+    accumulate_swap_sizes(deps.storage, &env)?;
+
+    // Store time series data in precommit observation.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
+    // This data will be reflected in observations in the next action.
     let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
     if offer_asset_dec.amount >= MIN_TRADE_SIZE
         && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
@@ -678,7 +710,7 @@ pub fn swap(
         // Store time series data
         let (base_amount, quote_amount) =
             determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
-        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
     }
 
     Ok(Response::new()
@@ -698,6 +730,7 @@ pub fn swap(
             attr("spread_amount", spread_amount),
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
+            attr("fee_share_amount", fee_share_amount),
         ]))
 }
 
@@ -964,6 +997,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&StablePoolConfig {
             amp: Decimal::from_ratio(compute_current_amp(&config, &env)?, AMP_PRECISION),
+            fee_share: config.fee_share,
         })?),
         owner: config.owner.unwrap_or(factory_config.owner),
         factory_addr: config.factory_addr,
@@ -1065,7 +1099,7 @@ pub fn update_config(
     info: MessageInfo,
     params: Binary,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     if info.sender
@@ -1078,15 +1112,55 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
+    let mut response = Response::default();
+
     match from_binary::<StablePoolUpdateParams>(&params)? {
         StablePoolUpdateParams::StartChangingAmp {
             next_amp,
             next_amp_time,
         } => start_changing_amp(config, deps, env, next_amp, next_amp_time)?,
         StablePoolUpdateParams::StopChangingAmp {} => stop_changing_amp(config, deps, env)?,
+        StablePoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address,
+        } => {
+            // Enable fee sharing for this contract
+            // If fee sharing is already enabled, we should be able to overwrite
+            // the values currently set
+
+            // Ensure the fee share isn't 0 and doesn't exceed the maximum allowed value
+            if fee_share_bps == 0 || fee_share_bps > MAX_FEE_SHARE_BPS {
+                return Err(ContractError::FeeShareOutOfBounds {});
+            }
+
+            // Set sharing config
+            config.fee_share = Some(FeeShareConfig {
+                bps: fee_share_bps,
+                recipient: deps.api.addr_validate(&fee_share_address)?,
+            });
+
+            CONFIG.save(deps.storage, &config)?;
+
+            response.attributes.push(attr("action", "enable_fee_share"));
+            response
+                .attributes
+                .push(attr("fee_share_bps", fee_share_bps.to_string()));
+            response
+                .attributes
+                .push(attr("fee_share_address", fee_share_address));
+        }
+        StablePoolUpdateParams::DisableFeeShare => {
+            // Disable fee sharing for this contract by setting bps and
+            // address back to None
+            config.fee_share = None;
+            CONFIG.save(deps.storage, &config)?;
+            response
+                .attributes
+                .push(attr("action", "disable_fee_share"));
+        }
     }
 
-    Ok(Response::default())
+    Ok(response)
 }
 
 /// Start changing the AMP value.

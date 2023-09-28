@@ -18,7 +18,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { path = "../../packages/astroport", version = "3" }
 cw1-whitelist = { version = "0.15", features = ["library"] }
 cw2 = "0.15"
 cosmwasm-std = "1.1"

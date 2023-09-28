@@ -8,8 +8,8 @@ use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 
 use cosmwasm_std::{
-    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Env, QuerierWrapper,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
+    QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -219,7 +219,9 @@ pub fn build_send_msg(
         })),
         AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
             recipient,
-            &astro_satellite_package::ExecuteMsg::TransferAstro {},
+            // Satellite type parameter is only needed for CheckMessages endpoint which is not used in Maker contract.
+            // So it's safe to pass Empty as CustomMsg
+            &astro_satellite_package::ExecuteMsg::<Empty>::TransferAstro {},
             coins(asset.amount.u128(), denom),
         )?)),
     }

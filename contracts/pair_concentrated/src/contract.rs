@@ -3,7 +3,7 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Attribute, Binary, CosmosMsg, Decimal,
     Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
@@ -20,27 +20,30 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
-use astroport::observation::{MIN_TRADE_SIZE, OBSERVATIONS_SIZE};
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
+use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, FeeShareConfig, InstantiateMsg, MAX_FEE_SHARE_BPS, MIN_TRADE_SIZE,
+};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_circular_buffer::BufferManager;
+use astroport_pcl_common::state::{
+    AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
+};
+use astroport_pcl_common::utils::{
+    assert_max_spread, assert_slippage_tolerance, before_swap_check, calc_provide_fee,
+    check_asset_infos, check_assets, check_cw20_in_pool, check_pair_registered, compute_swap,
+    get_share_in_assets, mint_liquidity_token_message,
+};
+use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
 use crate::migration::migrate_config;
-use crate::state::{
-    store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
-    CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
-};
-use crate::utils::{
-    accumulate_swap_sizes, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool, check_pair_registered,
-    compute_swap, get_share_in_assets, mint_liquidity_token_message, query_pools,
-};
+use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
+use crate::utils::{accumulate_swap_sizes, query_pools};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -78,7 +81,7 @@ pub fn instantiate(
 
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
 
-    store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
+    Precisions::store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
@@ -113,11 +116,11 @@ pub fn instantiate(
             pair_type: PairType::Custom("concentrated".to_string()),
         },
         factory_addr,
-        block_time_last: env.block.time.seconds(),
         pool_params,
         pool_state,
         owner: None,
         track_asset_balances: params.track_asset_balances.unwrap_or_default(),
+        fee_share: None,
     };
 
     if config.track_asset_balances {
@@ -520,8 +523,8 @@ pub fn provide_liquidity(
 
     let mut slippage = Decimal256::zero();
 
-    // if assets_diff[1] is zero then deposits are balanced thus no need to update price and check slippage
-    if !assets_diff[1].is_zero() {
+    // If deposit doesn't diverge too much from the balanced share, we don't update the price
+    if assets_diff[0] >= MIN_TRADE_SIZE && assets_diff[1] >= MIN_TRADE_SIZE {
         slippage = assert_slippage_tolerance(
             &deposits,
             share,
@@ -735,6 +738,11 @@ fn swap(
     if fee_info.fee_address.is_some() {
         maker_fee_share = fee_info.maker_fee_rate.into();
     }
+    // If this pool is configured to share fees
+    let mut share_fee_share = Decimal256::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        share_fee_share = Decimal256::from_ratio(fee_share.bps, 10000u16);
+    }
 
     let swap_result = compute_swap(
         &xs,
@@ -743,9 +751,10 @@ fn swap(
         &config,
         &env,
         maker_fee_share,
+        share_fee_share,
     )?;
     xs[offer_ind] += offer_asset_dec.amount;
-    xs[ask_ind] -= swap_result.dy + swap_result.maker_fee;
+    xs[ask_ind] -= swap_result.dy + swap_result.maker_fee + swap_result.share_fee;
 
     let return_amount = swap_result.dy.to_uint(ask_asset_prec)?;
     let spread_amount = swap_result.spread_fee.to_uint(ask_asset_prec)?;
@@ -760,13 +769,19 @@ fn swap(
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    let last_price = swap_result.calc_last_prices(offer_asset_dec.amount, offer_ind);
+    // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
+    // especially if token precisions are 18.
+    if (swap_result.dy + swap_result.maker_fee + swap_result.share_fee) >= MIN_TRADE_SIZE
+        && offer_asset_dec.amount >= MIN_TRADE_SIZE
+    {
+        let last_price = swap_result.calc_last_price(offer_asset_dec.amount, offer_ind);
 
-    // update_price() works only with internal representation
-    xs[1] *= config.pool_state.price_state.price_scale;
-    config
-        .pool_state
-        .update_price(&config.pool_params, &env, total_share, &xs, last_price)?;
+        // update_price() works only with internal representation
+        xs[1] *= config.pool_state.price_state.price_scale;
+        config
+            .pool_state
+            .update_price(&config.pool_params, &env, total_share, &xs, last_price)?;
+    }
 
     let receiver = to.unwrap_or_else(|| sender.clone());
 
@@ -776,6 +791,17 @@ fn swap(
     }
     .into_msg(&receiver)?];
 
+    // Send the shared fee
+    let mut fee_share_amount = Uint128::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        fee_share_amount = swap_result.share_fee.to_uint(ask_asset_prec)?;
+        if !fee_share_amount.is_zero() {
+            let fee = pools[ask_ind].info.with_balance(fee_share_amount);
+            messages.push(fee.into_msg(fee_share.recipient)?);
+        }
+    }
+
+    // Send the maker fee
     let mut maker_fee = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
         maker_fee = swap_result.maker_fee.to_uint(ask_asset_prec)?;
@@ -785,15 +811,19 @@ fn swap(
         }
     }
 
-    // Store time series data.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors
+    // Store observation from precommit data
+    accumulate_swap_sizes(deps.storage, &env)?;
+
+    // Store time series data in precommit observation.
+    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
+    // This data will be reflected in observations in the next action.
     if offer_asset_dec.amount >= MIN_TRADE_SIZE && swap_result.dy >= MIN_TRADE_SIZE {
         let (base_amount, quote_amount) = if offer_ind == 0 {
             (offer_asset.amount, return_amount)
         } else {
             (return_amount, offer_asset.amount)
         };
-        accumulate_swap_sizes(deps.storage, &env, base_amount, quote_amount)?;
+        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -808,7 +838,10 @@ fn swap(
         BALANCES.save(
             deps.storage,
             &pools[ask_ind].info,
-            &(pools[ask_ind].amount.to_uint(ask_asset_prec)? - return_amount - maker_fee),
+            &(pools[ask_ind].amount.to_uint(ask_asset_prec)?
+                - return_amount
+                - maker_fee
+                - fee_share_amount),
             env.block.height,
         )?;
     }
@@ -827,6 +860,7 @@ fn swap(
             swap_result.total_fee.to_uint(ask_asset_prec)?,
         ),
         attr("maker_fee_amount", maker_fee),
+        attr("fee_share_amount", fee_share_amount),
     ]))
 }
 
@@ -846,6 +880,8 @@ fn update_config(
     if info.sender != *owner {
         return Err(ContractError::Unauthorized {});
     }
+
+    let mut attrs: Vec<Attribute> = vec![];
 
     let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
@@ -876,10 +912,44 @@ fn update_config(
 
             "enable_asset_balances_tracking"
         }
+        ConcentratedPoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address,
+        } => {
+            // Enable fee sharing for this contract
+            // If fee sharing is already enabled, we should be able to overwrite
+            // the values currently set
+
+            // Ensure the fee share isn't 0 and doesn't exceed the maximum allowed value
+            if fee_share_bps == 0 || fee_share_bps > MAX_FEE_SHARE_BPS {
+                return Err(ContractError::FeeShareOutOfBounds {});
+            }
+
+            // Set sharing config
+            config.fee_share = Some(FeeShareConfig {
+                bps: fee_share_bps,
+                recipient: deps.api.addr_validate(&fee_share_address)?,
+            });
+
+            CONFIG.save(deps.storage, &config)?;
+
+            attrs.push(attr("fee_share_bps", fee_share_bps.to_string()));
+            attrs.push(attr("fee_share_address", fee_share_address));
+            "enable_fee_share"
+        }
+        ConcentratedPoolUpdateParams::DisableFeeShare => {
+            // Disable fee sharing for this contract by setting bps and
+            // address back to None
+            config.fee_share = None;
+            CONFIG.save(deps.storage, &config)?;
+            "disable_fee_share"
+        }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new().add_attribute("action", action))
+    Ok(Response::new()
+        .add_attribute("action", action)
+        .add_attributes(attrs))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

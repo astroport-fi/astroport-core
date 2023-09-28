@@ -7,7 +7,6 @@ use std::fmt::{Debug, Display};
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
-use astroport_mocks::cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_std::{
@@ -31,19 +30,36 @@ use astroport::pair_concentrated::{ConcentratedPoolParams, ConcentratedPoolUpdat
 use astroport::pair_concentrated_inj::{
     ConcentratedInjObParams, ExecuteMsg, OrderbookConfig, OrderbookStateResponse, QueryMsg,
 };
+use astroport_mocks::cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated_injective::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated_injective::migrate::migrate;
 use astroport_pair_concentrated_injective::orderbook::state::OrderbookState;
 use astroport_pair_concentrated_injective::orderbook::sudo::sudo;
 use astroport_pair_concentrated_injective::orderbook::utils::calc_market_ids;
 use astroport_pair_concentrated_injective::queries::query;
-use astroport_pair_concentrated_injective::state::Config;
+use astroport_pcl_common::state::Config;
 
 use crate::helper::mocks::{mock_inj_app, InjApp, InjAppExt};
 
 pub mod mocks;
 
 const INIT_BALANCE: u128 = u128::MAX;
+
+pub fn common_pcl_params() -> ConcentratedPoolParams {
+    ConcentratedPoolParams {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+        fee_share: None,
+    }
+}
 
 #[cw_serde]
 pub struct AmpGammaResponse {
@@ -417,6 +433,16 @@ impl Helper {
         offer_asset: &Asset,
         max_spread: Option<Decimal>,
     ) -> AnyResult<AppResponse> {
+        self.swap_full_params(sender, offer_asset, max_spread, None)
+    }
+
+    pub fn swap_full_params(
+        &mut self,
+        sender: &Addr,
+        offer_asset: &Asset,
+        max_spread: Option<Decimal>,
+        belief_price: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
         match &offer_asset.info {
             AssetInfo::Token { contract_addr } => {
                 let msg = Cw20ExecuteMsg::Send {
@@ -424,7 +450,7 @@ impl Helper {
                     amount: offer_asset.amount,
                     msg: to_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
-                        belief_price: None,
+                        belief_price,
                         max_spread,
                         to: None,
                     })
@@ -445,7 +471,7 @@ impl Helper {
                 let msg = ExecuteMsg::Swap {
                     offer_asset: offer_asset.clone(),
                     ask_asset_info: None,
-                    belief_price: None,
+                    belief_price,
                     max_spread,
                     to: None,
                 };

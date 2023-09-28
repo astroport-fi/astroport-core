@@ -19,8 +19,8 @@ use astroport::asset::{
 use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{
-    ConfigResponse, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, DEFAULT_SLIPPAGE,
-    MAX_ALLOWED_SLIPPAGE,
+    ConfigResponse, FeeShareConfig, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
 };
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
@@ -80,6 +80,7 @@ pub fn instantiate(
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
         track_asset_balances,
+        fee_share: None,
     };
 
     if track_asset_balances {
@@ -691,12 +692,39 @@ pub fn swap(
         messages.push(return_asset.into_msg(receiver.clone())?)
     }
 
+    // If this pool is configured to share fees, calculate the amount to send
+    // to the receiver and add the transfer message
+    // The calculation works as follows: We take the share percentage first,
+    // and the remainder is then split between LPs and maker
+    let mut fees_commission_amount = commission_amount;
+    let mut fee_share_amount = Uint128::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        // Calculate the fee share amount from the full commission amount
+        let share_fee_rate = Decimal::from_ratio(fee_share.bps, 10000u16);
+        fee_share_amount = fees_commission_amount * share_fee_rate;
+
+        if !fee_share_amount.is_zero() {
+            // Subtract the fee share amount from the commission
+            fees_commission_amount = fees_commission_amount.saturating_sub(fee_share_amount);
+
+            // Build send message for the shared amount
+            let fee_share_msg = Asset {
+                info: ask_pool.info.clone(),
+                amount: fee_share_amount,
+            }
+            .into_msg(fee_share.recipient)?;
+            messages.push(fee_share_msg);
+        }
+    }
+
     // Compute the Maker fee
     let mut maker_fee_amount = Uint128::zero();
     if let Some(fee_address) = fee_info.fee_address {
-        if let Some(f) =
-            calculate_maker_fee(&ask_pool.info, commission_amount, fee_info.maker_fee_rate)
-        {
+        if let Some(f) = calculate_maker_fee(
+            &ask_pool.info,
+            fees_commission_amount,
+            fee_info.maker_fee_rate,
+        ) {
             maker_fee_amount = f.amount;
             messages.push(f.into_msg(fee_address)?);
         }
@@ -712,7 +740,7 @@ pub fn swap(
         BALANCES.save(
             deps.storage,
             &ask_pool.info,
-            &(ask_pool.amount - return_amount - maker_fee_amount),
+            &(ask_pool.amount - return_amount - maker_fee_amount - fee_share_amount),
             env.block.height,
         )?;
     }
@@ -744,6 +772,7 @@ pub fn swap(
             attr("spread_amount", spread_amount),
             attr("commission_amount", commission_amount),
             attr("maker_fee_amount", maker_fee_amount),
+            attr("fee_share_amount", fee_share_amount),
         ]))
 }
 
@@ -786,6 +815,44 @@ pub fn update_config(
                 "asset_balances_tracking".to_owned(),
                 "enabled".to_owned(),
             ));
+        }
+        XYKPoolUpdateParams::EnableFeeShare {
+            fee_share_bps,
+            fee_share_address,
+        } => {
+            // Enable fee sharing for this contract
+            // If fee sharing is already enabled, we should be able to overwrite
+            // the values currently set
+
+            // Ensure the fee share isn't 0 and doesn't exceed the maximum allowed value
+            if fee_share_bps == 0 || fee_share_bps > MAX_FEE_SHARE_BPS {
+                return Err(ContractError::FeeShareOutOfBounds {});
+            }
+
+            // Set sharing config
+            config.fee_share = Some(FeeShareConfig {
+                bps: fee_share_bps,
+                recipient: deps.api.addr_validate(&fee_share_address)?,
+            });
+
+            CONFIG.save(deps.storage, &config)?;
+
+            response.attributes.push(attr("action", "enable_fee_share"));
+            response
+                .attributes
+                .push(attr("fee_share_bps", fee_share_bps.to_string()));
+            response
+                .attributes
+                .push(attr("fee_share_address", fee_share_address));
+        }
+        XYKPoolUpdateParams::DisableFeeShare => {
+            // Disable fee sharing for this contract by setting bps and
+            // address back to None
+            config.fee_share = None;
+            CONFIG.save(deps.storage, &config)?;
+            response
+                .attributes
+                .push(attr("action", "disable_fee_share"));
         }
     }
 
@@ -1069,6 +1136,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&XYKPoolConfig {
             track_asset_balances: config.track_asset_balances,
+            fee_share: config.fee_share,
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,

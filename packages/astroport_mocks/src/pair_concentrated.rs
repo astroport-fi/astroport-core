@@ -147,4 +147,15 @@ where
         };
         xyk.mint_allow_provide_and_stake(sender, assets);
     }
+
+    pub fn pair_info(&self) -> PairInfo {
+        let pair_info: PairInfo = self
+            .app
+            .borrow()
+            .wrap()
+            .query_wasm_smart(self.address.clone(), &QueryMsg::Pair {})
+            .unwrap();
+
+        pair_info
+    }
 }

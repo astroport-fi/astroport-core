@@ -10,7 +10,6 @@ use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport_circular_buffer::BufferManager;
 
-use crate::math::calc_d;
 use crate::orderbook::error::OrderbookError;
 use crate::orderbook::msg::SudoMsg;
 use crate::orderbook::state::OrderbookState;
@@ -18,8 +17,10 @@ use crate::orderbook::utils::{
     cancel_all_orders, compute_swap, get_subaccount_balances, leave_orderbook,
     process_cumulative_trade, update_spot_orders, SpotOrdersFactory,
 };
-use crate::state::{Precisions, CONFIG, OBSERVATIONS};
+use crate::state::{CONFIG, OBSERVATIONS};
 use crate::utils::query_pools;
+use astroport_pcl_common::calc_d;
+use astroport_pcl_common::state::Precisions;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn sudo(

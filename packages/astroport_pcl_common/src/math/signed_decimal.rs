@@ -1,4 +1,3 @@
-use astroport::cosmwasm_ext::AbsDiff;
 use cosmwasm_std::{Decimal256, StdError};
 use std::fmt::{Display, Formatter};
 use std::ops;
@@ -34,7 +33,7 @@ impl SignedDecimal256 {
     }
     pub fn diff(self, other: SignedDecimal256) -> Decimal256 {
         if self.neg == other.neg {
-            self.val.diff(other.val)
+            self.val.abs_diff(other.val)
         } else {
             self.val + other.val
         }

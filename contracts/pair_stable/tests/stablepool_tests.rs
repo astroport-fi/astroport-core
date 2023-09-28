@@ -464,7 +464,18 @@ fn check_pool_prices() {
             Some(helper.assets[&test_coins[0]].clone()),
         )
         .unwrap();
+
+    // One more swap to trigger price update in the next step
+    helper
+        .swap(
+            &owner,
+            &offer_asset,
+            Some(helper.assets[&test_coins[0]].clone()),
+        )
+        .unwrap();
+
     helper.app.next_block(86400);
+
     assert_eq!(
         helper.query_observe(0).unwrap(),
         OracleObservation {

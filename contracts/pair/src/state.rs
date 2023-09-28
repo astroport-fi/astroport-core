@@ -1,4 +1,7 @@
-use astroport::asset::{AssetInfo, PairInfo};
+use astroport::{
+    asset::{AssetInfo, PairInfo},
+    pair::FeeShareConfig,
+};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, SnapshotMap};
@@ -18,6 +21,8 @@ pub struct Config {
     pub price1_cumulative_last: Uint128,
     /// Whether asset balances are tracked over blocks or not.
     pub track_asset_balances: bool,
+    // The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// Stores the config struct at the given key

@@ -1,27 +1,29 @@
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt, DecimalAsset, PairInfo};
+use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::fmt::Debug;
+
 use cosmwasm_std::{
     Addr, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env, QuerierWrapper, Response,
     StdError, StdResult,
 };
-use std::cmp::Ordering;
-use std::collections::HashMap;
-use std::fmt::Debug;
-use tiny_keccak::Hasher;
-
-use crate::contract::LP_TOKEN_PRECISION;
-use crate::error::ContractError;
-use crate::math::calc_y;
-use crate::orderbook::consts::{GAS_FEE_DENOM, SUBACC_NONCE};
-use crate::orderbook::error::OrderbookError;
-use crate::orderbook::state::OrderbookState;
-use crate::state::{AmpGamma, Config, Precisions};
-use astroport::cosmwasm_ext::{AbsDiff, ConvertInto, IntegerToDecimal};
-use astroport::querier::{query_fee_info, query_supply};
 use injective_cosmwasm::{
     checked_address_to_subaccount_id, create_batch_update_orders_msg, create_withdraw_msg,
     FundingMode, InjectiveMsgWrapper, InjectiveQuerier, MarketId, OrderType, SpotOrder,
     SubaccountId,
 };
+use tiny_keccak::Hasher;
+
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt, DecimalAsset, PairInfo};
+use astroport::cosmwasm_ext::{AbsDiff, ConvertInto, IntegerToDecimal};
+use astroport::querier::{query_fee_info, query_supply};
+use astroport_pcl_common::calc_y;
+use astroport_pcl_common::state::{AmpGamma, Config, Precisions};
+
+use crate::contract::LP_TOKEN_PRECISION;
+use crate::error::ContractError;
+use crate::orderbook::consts::{GAS_FEE_DENOM, SUBACC_NONCE};
+use crate::orderbook::error::OrderbookError;
+use crate::orderbook::state::OrderbookState;
 
 /// Calculate hash from two binary slices.
 pub fn calc_hash(a1: &[u8], a2: &[u8]) -> String {
@@ -486,9 +488,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use astroport::asset::{native_asset_info, token_asset_info};
     use cosmwasm_std::Addr;
+
+    use astroport::asset::{native_asset_info, token_asset_info};
+
+    use super::*;
 
     #[test]
     fn test_calc_market_ids() {

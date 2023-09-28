@@ -1,3 +1,4 @@
+use astroport::cw20_ics20::TransferMsg;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::Addr;
 use cw20::Cw20ReceiveMsg;
@@ -44,21 +45,6 @@ pub enum ExecuteMsg {
     UpdateAdmin { admin: String },
     /// Update hook contract address (must be called by admin)
     UpdateHookAddress { new_address: String },
-}
-
-/// This is the message we accept via Receive
-#[cw_serde]
-pub struct TransferMsg {
-    /// The local channel to send the packets on
-    pub channel: String,
-    /// The remote address to send to.
-    /// Don't use HumanAddress as this will likely have a different Bech32 prefix than we use
-    /// and cannot be validated locally
-    pub remote_address: String,
-    /// How long the packet lives in seconds. If not specified, use default_timeout
-    pub timeout: Option<u64>,
-    /// An optional memo to add to the IBC transfer
-    pub memo: Option<String>,
 }
 
 #[cw_serde]

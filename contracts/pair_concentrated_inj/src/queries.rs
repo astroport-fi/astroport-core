@@ -14,15 +14,17 @@ use astroport::pair::{
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::pair_concentrated_inj::{OrderbookStateResponse, QueryMsg};
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
+use astroport_pcl_common::state::Precisions;
+use astroport_pcl_common::utils::{
+    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
+};
+use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
 use crate::orderbook::state::OrderbookState;
-use crate::state::{Precisions, CONFIG, OBSERVATIONS};
-use crate::utils::{
-    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, query_pools,
-};
+use crate::state::{CONFIG, OBSERVATIONS};
+use crate::utils::query_pools;
 
 /// Exposes all the queries available in the contract.
 ///
@@ -130,7 +132,7 @@ fn query_share(
     )?;
     let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let refund_assets =
-        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share)?;
+        get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
 
     let refund_assets = refund_assets
         .into_iter()
@@ -197,6 +199,7 @@ pub fn query_simulation(
         &config,
         &env,
         maker_fee_share,
+        Decimal256::zero(),
     )?;
 
     Ok(SimulationResponse {
@@ -303,7 +306,8 @@ where
             min_price_scale_delta: config.pool_params.min_price_scale_delta,
             price_scale,
             ma_half_time: config.pool_params.ma_half_time,
-            track_asset_balances: None,
+            track_asset_balances: Some(config.track_asset_balances),
+            fee_share: config.fee_share,
         })?),
         owner: config.owner.unwrap_or(factory_config.owner),
         factory_addr: config.factory_addr,
@@ -344,10 +348,11 @@ mod testing {
     use std::error::Error;
     use std::str::FromStr;
 
-    use astroport::observation::{query_observation, Observation, OracleObservation};
-    use astroport_circular_buffer::BufferManager;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::Timestamp;
+
+    use astroport::observation::{query_observation, Observation, OracleObservation};
+    use astroport_circular_buffer::BufferManager;
 
     use super::*;
 

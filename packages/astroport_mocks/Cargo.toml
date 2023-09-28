@@ -1,6 +1,6 @@
 [package]
 name = "astroport-mocks"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Mock Astroport contracts used for integration testing"
@@ -15,6 +15,7 @@ astroport = { path = "../astroport" }
 astroport-factory = { path = "../../contracts/factory" }
 astroport-generator = { path = "../../contracts/tokenomics/generator" }
 astroport-native-coin-registry = { path = "../../contracts/periphery/native_coin_registry" }
+astroport-shared-multisig = { path = "../../contracts/periphery/shared_multisig" }
 astroport-pair = { path = "../../contracts/pair" }
 astroport-pair-stable = { path = "../../contracts/pair_stable" }
 astroport-pair-concentrated = { path = "../../contracts/pair_concentrated" }
@@ -30,3 +31,7 @@ cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test.git", rev
 injective-cosmwasm = "0.2"
 schemars = "0.8.1"
 serde = "1.0"
+cw-utils = "1.0"
+cw20 = "0.15"
+anyhow = "1.0"
+cw3 = "1.0"

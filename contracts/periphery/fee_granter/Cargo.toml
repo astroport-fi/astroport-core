@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-astroport = { path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", version = "3" }
 cosmos-sdk-proto = { version = "0.19.0", default-features = false }
 cosmwasm-std = { version = "1.1", features = ["stargate"] }
 cw-storage-plus = "0.15"

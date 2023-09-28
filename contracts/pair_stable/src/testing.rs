@@ -775,6 +775,7 @@ fn try_native_to_token() {
             attr("spread_amount", 7593888.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("fee_share_amount", "0"),
         ]
     );
 
@@ -946,6 +947,7 @@ fn try_token_to_native() {
             attr("spread_amount", expected_spread_amount.to_string()),
             attr("commission_amount", expected_commission_amount.to_string()),
             attr("maker_fee_amount", expected_maker_fee_amount.to_string()),
+            attr("fee_share_amount", "0"),
         ]
     );
 

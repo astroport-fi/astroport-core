@@ -1,6 +1,7 @@
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::observation::Observation;
+use astroport::pair::FeeShareConfig;
 use astroport_circular_buffer::CircularBuffer;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{Addr, DepsMut, StdResult, Storage};
@@ -27,6 +28,8 @@ pub struct Config {
     pub next_amp_time: u64,
     /// The greatest precision of assets in the pool
     pub greatest_precision: u8,
+    // The config for swap fee sharing
+    pub fee_share: Option<FeeShareConfig>,
 }
 
 /// Circular buffer to store trade size observations

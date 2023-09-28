@@ -1,6 +1,6 @@
 [package]
 name = "astroport-shared-multisig"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Astroport, Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2021"
 
@@ -17,10 +17,15 @@ cosmwasm-schema = "1.1"
 cw-utils = "1.0"
 cw2 = "1.0"
 cw3 = "1.0"
+cw20 = "0.15"
 cw-storage-plus = "0.15"
 cosmwasm-std = "1.1"
 thiserror = "1.0"
-astroport = { path = "../../../packages/astroport" }
+itertools = "0.10"
+astroport = { path = "../../../packages/astroport", version = "3" }
 
 [dev-dependencies]
-cw-multi-test = "0.15"
+astroport-mocks = { path = "../../../packages/astroport_mocks"}
+astroport-pair = { path = "../../pair" }
+astroport-pair-concentrated = { path = "../../pair_concentrated" }
+astroport-generator = { path = "../../tokenomics/generator" }

@@ -1,7 +1,3 @@
-use astroport::outpost_handler::Cw20HookMsg;
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
-
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     attr, entry_point, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
@@ -9,6 +5,11 @@ use cosmwasm_std::{
     IbcEndpoint, IbcOrder, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
     IbcReceiveResponse, Reply, Response, SubMsg, SubMsgResult, Uint128, WasmMsg,
 };
+use cw20::Cw20ExecuteMsg;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+use astroport::outpost_handler::Cw20HookMsg;
 
 use crate::amount::Amount;
 use crate::error::{ContractError, Never};
@@ -16,7 +17,6 @@ use crate::state::{
     reduce_channel_balance, undo_reduce_channel_balance, ChannelInfo, ReplyArgs, ALLOW_LIST,
     CHANNEL_INFO, CONFIG, REPLY_ARGS,
 };
-use cw20::Cw20ExecuteMsg;
 
 pub const ICS20_VERSION: &str = "ics20-1";
 pub const ICS20_ORDERING: IbcOrder = IbcOrder::Unordered;
@@ -488,14 +488,17 @@ fn send_amount(amount: Amount, recipient: String) -> CosmosMsg {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::test_helpers::*;
-
-    use crate::contract::{execute, migrate, query_channel};
-    use crate::msg::{ExecuteMsg, MigrateMsg, TransferMsg};
     use cosmwasm_std::testing::{mock_env, mock_info};
     use cosmwasm_std::{coins, to_vec, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
     use cw20::Cw20ReceiveMsg;
+
+    use astroport::cw20_ics20::TransferMsg;
+
+    use crate::contract::{execute, migrate, query_channel};
+    use crate::msg::{ExecuteMsg, MigrateMsg};
+    use crate::test_helpers::*;
+
+    use super::*;
 
     #[test]
     fn check_ack_json() {

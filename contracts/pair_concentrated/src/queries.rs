@@ -17,14 +17,15 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
-use crate::math::{calc_d, get_xcp};
-
-use crate::state::{Precisions, BALANCES, CONFIG, OBSERVATIONS};
-
-use crate::utils::{
-    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets, pool_info,
-    query_pools,
+use astroport_pcl_common::state::Precisions;
+use astroport_pcl_common::utils::{
+    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
 };
+use astroport_pcl_common::{calc_d, get_xcp};
+
+use crate::state::{BALANCES, CONFIG, OBSERVATIONS};
+
+use crate::utils::{pool_info, query_pools};
 
 /// Exposes all the queries available in the contract.
 ///
@@ -161,6 +162,11 @@ pub fn query_simulation(
     if fee_info.fee_address.is_some() {
         maker_fee_share = fee_info.maker_fee_rate.into();
     }
+    // If this pool is configured to share fees
+    let mut share_fee_share = Decimal256::zero();
+    if let Some(fee_share) = config.fee_share.clone() {
+        share_fee_share = Decimal256::from_ratio(fee_share.bps, 10000u16);
+    }
 
     let swap_result = compute_swap(
         &xs,
@@ -169,6 +175,7 @@ pub fn query_simulation(
         &config,
         &env,
         maker_fee_share,
+        share_fee_share,
     )?;
 
     Ok(SimulationResponse {
@@ -246,7 +253,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     Ok(ConfigResponse {
-        block_time_last: config.block_time_last,
+        block_time_last: 0, // keeping this field for backwards compatibility
         params: Some(to_binary(&ConcentratedPoolConfig {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,
@@ -258,6 +265,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
             price_scale,
             ma_half_time: config.pool_params.ma_half_time,
             track_asset_balances: config.track_asset_balances,
+            fee_share: config.fee_share,
         })?),
         owner: config.owner.unwrap_or(factory_config.owner),
         factory_addr: config.factory_addr,
