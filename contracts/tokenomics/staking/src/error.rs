@@ -22,6 +22,9 @@ pub enum ContractError {
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
+
+    #[error("Failed to create new TokenFactory denom")]
+    FailedToCreateDenom {},
 }
 
 impl From<OverflowError> for ContractError {

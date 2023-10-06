@@ -1,9 +1,12 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, BankMsg, Binary, CosmosMsg,
+    CustomMsg, DenomMetadata, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw_utils::parse_instantiate_response_data;
+use neutron_sdk::bindings::msg::NeutronMsg;
+use neutron_sdk::bindings::query::NeutronQuery;
+use neutron_sdk::query::token_factory::{query_full_denom, FullDenomResponse};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -26,7 +29,7 @@ const TOKEN_NAME: &str = "Staked Astroport";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
-const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
+const INSTANTIATE_DENOM_REPLY_ID: u64 = 1;
 
 /// Minimum initial xastro share
 pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
@@ -38,44 +41,35 @@ pub fn instantiate(
     env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response> {
+) -> StdResult<Response<NeutronMsg>> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Store config
     CONFIG.save(
         deps.storage,
         &Config {
-            astro_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
-            xastro_token_addr: Addr::unchecked(""),
+            // TODO: Remove
+            // astro_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
+            // xastro_token_addr: Addr::unchecked(""),
+            astro_denom: "not-set".to_string(),
+            xastro_denom: "".to_string(),
         },
     )?;
 
-    // Create the xASTRO token
-    let sub_msg: Vec<SubMsg> = vec![SubMsg {
-        msg: WasmMsg::Instantiate {
-            admin: Some(msg.owner),
-            code_id: msg.token_code_id,
-            msg: to_binary(&TokenInstantiateMsg {
-                name: TOKEN_NAME.to_string(),
-                symbol: TOKEN_SYMBOL.to_string(),
-                decimals: 6,
-                initial_balances: vec![],
-                mint: Some(MinterResponse {
-                    minter: env.contract.address.to_string(),
-                    cap: None,
-                }),
-                marketing: msg.marketing,
-            })?,
-            funds: vec![],
-            label: String::from("Staked Astroport Token"),
+    // Create the xASTRO TokenFactory token
+    // TODO: After creating the TokenFactory token, also set the tracking contract
+
+    let sub_msg: SubMsg<NeutronMsg> = SubMsg {
+        id: INSTANTIATE_DENOM_REPLY_ID,
+        msg: NeutronMsg::CreateDenom {
+            subdenom: TOKEN_SYMBOL.to_string(),
         }
         .into(),
-        id: INSTANTIATE_TOKEN_REPLY_ID,
         gas_limit: None,
         reply_on: ReplyOn::Success,
-    }];
+    };
 
-    Ok(Response::new().add_submessages(sub_msg))
+    Ok(Response::new().add_submessage(sub_msg))
 }
 
 /// Exposes execute functions available in the contract.
@@ -97,29 +91,24 @@ pub fn execute(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg {
-        Reply {
-            id: INSTANTIATE_TOKEN_REPLY_ID,
-            result:
-                SubMsgResult::Ok(SubMsgResponse {
-                    data: Some(data), ..
-                }),
-        } => {
+pub fn reply(deps: DepsMut<NeutronQuery>, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg.id {
+        INSTANTIATE_DENOM_REPLY_ID => {
+            // Query the chain to get the final xASTRO denom
+            // Neutron does not respond with the created denom in the reply
+            // so msg.result.try_into()? has no value
+            let denom_response = query_full_denom(
+                deps.as_ref(),
+                env.contract.address,
+                TOKEN_SYMBOL.to_string(),
+            )
+            .map_err(|_| ContractError::FailedToCreateDenom {})?;
+
             let mut config = CONFIG.load(deps.storage)?;
-
-            if config.xastro_token_addr != Addr::unchecked("") {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            let init_response = parse_instantiate_response_data(data.as_slice())
-                .map_err(|e| StdError::generic_err(format!("{e}")))?;
-
-            config.xastro_token_addr = deps.api.addr_validate(&init_response.contract_address)?;
-
+            config.xastro_denom = denom_response.denom;
             CONFIG.save(deps.storage, &config)?;
 
-            Ok(Response::new())
+            Ok(Response::new().add_attribute("xastro_denom", config.xastro_denom))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }
@@ -134,109 +123,110 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    let config: Config = CONFIG.load(deps.storage)?;
+    Ok(Response::default())
+    // let config: Config = CONFIG.load(deps.storage)?;
 
-    let recipient = cw20_msg.sender;
-    let mut amount = cw20_msg.amount;
+    // let recipient = cw20_msg.sender;
+    // let mut amount = cw20_msg.amount;
 
-    let mut total_deposit = query_token_balance(
-        &deps.querier,
-        &config.astro_token_addr,
-        env.contract.address.clone(),
-    )?;
-    let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
+    // let mut total_deposit = query_token_balance(
+    //     &deps.querier,
+    //     &config.astro_token_addr,
+    //     env.contract.address.clone(),
+    // )?;
+    // let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
 
-    match from_binary(&cw20_msg.msg)? {
-        Cw20HookMsg::Enter {} => {
-            let mut messages = vec![];
-            if info.sender != config.astro_token_addr {
-                return Err(ContractError::Unauthorized {});
-            }
+    // match from_binary(&cw20_msg.msg)? {
+    //     Cw20HookMsg::Enter {} => {
+    //         let mut messages = vec![];
+    //         if info.sender != config.astro_token_addr {
+    //             return Err(ContractError::Unauthorized {});
+    //         }
 
-            // In a CW20 `send`, the total balance of the recipient is already increased.
-            // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
-            total_deposit -= amount;
-            let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
-                amount = amount
-                    .checked_sub(MINIMUM_STAKE_AMOUNT)
-                    .map_err(|_| ContractError::MinimumStakeAmountError {})?;
+    //         // In a CW20 `send`, the total balance of the recipient is already increased.
+    //         // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
+    //         total_deposit -= amount;
+    //         let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
+    //             amount = amount
+    //                 .checked_sub(MINIMUM_STAKE_AMOUNT)
+    //                 .map_err(|_| ContractError::MinimumStakeAmountError {})?;
 
-                // amount cannot become zero after minimum stake subtraction
-                if amount.is_zero() {
-                    return Err(ContractError::MinimumStakeAmountError {});
-                }
+    //             // amount cannot become zero after minimum stake subtraction
+    //             if amount.is_zero() {
+    //                 return Err(ContractError::MinimumStakeAmountError {});
+    //             }
 
-                messages.push(wasm_execute(
-                    config.xastro_token_addr.clone(),
-                    &Cw20ExecuteMsg::Mint {
-                        recipient: env.contract.address.to_string(),
-                        amount: MINIMUM_STAKE_AMOUNT,
-                    },
-                    vec![],
-                )?);
+    //             messages.push(wasm_execute(
+    //                 config.xastro_token_addr.clone(),
+    //                 &Cw20ExecuteMsg::Mint {
+    //                     recipient: env.contract.address.to_string(),
+    //                     amount: MINIMUM_STAKE_AMOUNT,
+    //                 },
+    //                 vec![],
+    //             )?);
 
-                amount
-            } else {
-                amount = amount
-                    .checked_mul(total_shares)?
-                    .checked_div(total_deposit)?;
+    //             amount
+    //         } else {
+    //             amount = amount
+    //                 .checked_mul(total_shares)?
+    //                 .checked_div(total_deposit)?;
 
-                if amount.is_zero() {
-                    return Err(ContractError::StakeAmountTooSmall {});
-                }
+    //             if amount.is_zero() {
+    //                 return Err(ContractError::StakeAmountTooSmall {});
+    //             }
 
-                amount
-            };
+    //             amount
+    //         };
 
-            messages.push(wasm_execute(
-                config.xastro_token_addr,
-                &Cw20ExecuteMsg::Mint {
-                    recipient: recipient.clone(),
-                    amount: mint_amount,
-                },
-                vec![],
-            )?);
+    //         messages.push(wasm_execute(
+    //             config.xastro_token_addr,
+    //             &Cw20ExecuteMsg::Mint {
+    //                 recipient: recipient.clone(),
+    //                 amount: mint_amount,
+    //             },
+    //             vec![],
+    //         )?);
 
-            Ok(Response::new().add_messages(messages).add_attributes(vec![
-                attr("action", "enter"),
-                attr("recipient", recipient),
-                attr("astro_amount", cw20_msg.amount),
-                attr("xastro_amount", mint_amount),
-            ]))
-        }
-        Cw20HookMsg::Leave {} => {
-            if info.sender != config.xastro_token_addr {
-                return Err(ContractError::Unauthorized {});
-            }
+    //         Ok(Response::new().add_messages(messages).add_attributes(vec![
+    //             attr("action", "enter"),
+    //             attr("recipient", recipient),
+    //             attr("astro_amount", cw20_msg.amount),
+    //             attr("xastro_amount", mint_amount),
+    //         ]))
+    //     }
+    //     Cw20HookMsg::Leave {} => {
+    //         if info.sender != config.xastro_token_addr {
+    //             return Err(ContractError::Unauthorized {});
+    //         }
 
-            let what = amount
-                .checked_mul(total_deposit)?
-                .checked_div(total_shares)?;
+    //         let what = amount
+    //             .checked_mul(total_deposit)?
+    //             .checked_div(total_shares)?;
 
-            // Burn share
-            let res = Response::new()
-                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: config.xastro_token_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-                    funds: vec![],
-                }))
-                .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-                    contract_addr: config.astro_token_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
-                        recipient: recipient.clone(),
-                        amount: what,
-                    })?,
-                    funds: vec![],
-                }));
+    //         // Burn share
+    //         let res = Response::new()
+    //             .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: config.xastro_token_addr.to_string(),
+    //                 msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+    //                 funds: vec![],
+    //             }))
+    //             .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
+    //                 contract_addr: config.astro_token_addr.to_string(),
+    //                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
+    //                     recipient: recipient.clone(),
+    //                     amount: what,
+    //                 })?,
+    //                 funds: vec![],
+    //             }));
 
-            Ok(res.add_attributes(vec![
-                attr("action", "leave"),
-                attr("recipient", recipient),
-                attr("xastro_amount", cw20_msg.amount),
-                attr("astro_amount", what),
-            ]))
-        }
-    }
+    //         Ok(res.add_attributes(vec![
+    //             attr("action", "leave"),
+    //             attr("recipient", recipient),
+    //             attr("xastro_amount", cw20_msg.amount),
+    //             attr("astro_amount", what),
+    //         ]))
+    //     }
+    // }
 }
 
 /// Exposes all the queries available in the contract.
@@ -252,15 +242,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
         QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
-            deposit_token_addr: config.astro_token_addr,
-            share_token_addr: config.xastro_token_addr,
+            deposit_denom: config.astro_denom,
+            share_denom: config.xastro_denom,
         })?),
-        QueryMsg::TotalShares {} => {
-            to_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
-        }
+        QueryMsg::TotalShares {} => to_binary(&query_supply(&deps.querier, &config.xastro_denom)?),
         QueryMsg::TotalDeposit {} => to_binary(&query_token_balance(
             &deps.querier,
-            &config.astro_token_addr,
+            &config.astro_denom,
             env.contract.address,
         )?),
     }

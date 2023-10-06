@@ -38,10 +38,10 @@ pub enum QueryMsg {
 
 #[cw_serde]
 pub struct ConfigResponse {
-    /// The ASTRO token address
-    pub deposit_token_addr: Addr,
-    /// The xASTRO token address
-    pub share_token_addr: Addr,
+    /// The ASTRO denom
+    pub deposit_denom: String,
+    /// The xASTRO denom
+    pub share_denom: String,
 }
 
 /// This structure describes a migration message.
