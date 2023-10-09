@@ -1,31 +1,29 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, BankMsg, Binary, CosmosMsg,
-    CustomMsg, DenomMetadata, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, coin, entry_point, to_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
+    ReplyOn, Response, StdResult, SubMsg, Uint128,
 };
-use cw_utils::parse_instantiate_response_data;
 use neutron_sdk::bindings::msg::NeutronMsg;
 use neutron_sdk::bindings::query::NeutronQuery;
-use neutron_sdk::query::token_factory::{query_full_denom, FullDenomResponse};
+use neutron_sdk::query::token_factory::query_full_denom;
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::staking::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakingResponse,
 };
-use cw2::{get_contract_version, set_contract_version};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use cw2::set_contract_version;
+use cw_utils::must_pay;
 
-use astroport::querier::{query_supply, query_token_balance};
-use astroport::xastro_token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::querier::query_balance;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-staking";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// xASTRO information.
-const TOKEN_NAME: &str = "Staked Astroport";
+/// xASTRO information
+/// TODO: Once Neutron allows setting metadata, add this as decimals
+const TOKEN_NAME: &str = "Staked Astroport Token";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
@@ -38,26 +36,26 @@ pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response<NeutronMsg>> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    // TODO: Validate that deposit_token_denom exists on chain
+
     // Store config
     CONFIG.save(
         deps.storage,
         &Config {
-            // TODO: Remove
-            // astro_token_addr: deps.api.addr_validate(&msg.deposit_token_addr)?,
-            // xastro_token_addr: Addr::unchecked(""),
-            astro_denom: "not-set".to_string(),
+            astro_denom: msg.deposit_token_denom,
             xastro_denom: "".to_string(),
         },
     )?;
 
     // Create the xASTRO TokenFactory token
     // TODO: After creating the TokenFactory token, also set the tracking contract
+    // we need a Neutron upgrade to enable that
 
     let sub_msg: SubMsg<NeutronMsg> = SubMsg {
         id: INSTANTIATE_DENOM_REPLY_ID,
@@ -75,17 +73,18 @@ pub fn instantiate(
 /// Exposes execute functions available in the contract.
 ///
 /// ## Variants
-/// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+/// * **ExecuteMsg::Enter** Stake the provided ASTRO tokens for xASTRO
+/// * **ExecuteMsg::Leave** Unstake the provided xASTRO tokens for ASTRO
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response, ContractError> {
+) -> Result<Response<NeutronMsg>, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Enter {} => execute_enter(deps, env, info),
+        ExecuteMsg::Leave {} => execute_leave(deps, env, info),
     }
 }
 
@@ -114,119 +113,153 @@ pub fn reply(deps: DepsMut<NeutronQuery>, env: Env, msg: Reply) -> Result<Respon
     }
 }
 
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-///
-/// * **cw20_msg** CW20 message to process.
-fn receive_cw20(
+/// Enter stakes TokenFactory ASTRO for xASTRO. xASTRO is minted to the sender
+fn execute_enter(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    Ok(Response::default())
-    // let config: Config = CONFIG.load(deps.storage)?;
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
 
-    // let recipient = cw20_msg.sender;
-    // let mut amount = cw20_msg.amount;
+    // Ensure that the correct token is sent. This will fail if
+    // zero tokens are sent.
+    let mut amount = must_pay(&info, &config.astro_denom)?;
 
-    // let mut total_deposit = query_token_balance(
-    //     &deps.querier,
-    //     &config.astro_token_addr,
-    //     env.contract.address.clone(),
-    // )?;
-    // let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
+    // Receiver of the xASTRO tokens
+    let recipient = info.sender;
 
-    // match from_binary(&cw20_msg.msg)? {
-    //     Cw20HookMsg::Enter {} => {
-    //         let mut messages = vec![];
-    //         if info.sender != config.astro_token_addr {
-    //             return Err(ContractError::Unauthorized {});
-    //         }
+    // Get the current deposits and shares held in the contract
+    let total_deposit = query_balance(
+        &deps.querier,
+        env.contract.address.clone(),
+        config.astro_denom.clone(),
+    )?;
+    let total_shares = deps
+        .querier
+        .query_supply(config.xastro_denom.clone())?
+        .amount;
 
-    //         // In a CW20 `send`, the total balance of the recipient is already increased.
-    //         // To properly calculate the total amount of ASTRO deposited in staking, we should subtract the user deposit from the pool
-    //         total_deposit -= amount;
-    //         let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
-    //             amount = amount
-    //                 .checked_sub(MINIMUM_STAKE_AMOUNT)
-    //                 .map_err(|_| ContractError::MinimumStakeAmountError {})?;
+    let mut messages = vec![];
 
-    //             // amount cannot become zero after minimum stake subtraction
-    //             if amount.is_zero() {
-    //                 return Err(ContractError::MinimumStakeAmountError {});
-    //             }
+    let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
+        amount = amount
+            .checked_sub(MINIMUM_STAKE_AMOUNT)
+            .map_err(|_| ContractError::MinimumStakeAmountError {})?;
 
-    //             messages.push(wasm_execute(
-    //                 config.xastro_token_addr.clone(),
-    //                 &Cw20ExecuteMsg::Mint {
-    //                     recipient: env.contract.address.to_string(),
-    //                     amount: MINIMUM_STAKE_AMOUNT,
-    //                 },
-    //                 vec![],
-    //             )?);
+        // There needs to be a minimum amount initially staked, thus the result
+        // cannot be zero if the amount if not enough
+        if amount.is_zero() {
+            return Err(ContractError::MinimumStakeAmountError {});
+        }
 
-    //             amount
-    //         } else {
-    //             amount = amount
-    //                 .checked_mul(total_shares)?
-    //                 .checked_div(total_deposit)?;
+        // Mint the xASTRO tokens to ourselves if this is the first stake
+        messages.push(NeutronMsg::MintTokens {
+            denom: config.xastro_denom.clone(),
+            amount: MINIMUM_STAKE_AMOUNT,
+            mint_to_address: env.contract.address.to_string(),
+        });
 
-    //             if amount.is_zero() {
-    //                 return Err(ContractError::StakeAmountTooSmall {});
-    //             }
+        amount
+    } else {
+        amount = amount
+            .checked_mul(total_shares)?
+            .checked_div(total_deposit)?;
 
-    //             amount
-    //         };
+        if amount.is_zero() {
+            return Err(ContractError::StakeAmountTooSmall {});
+        }
 
-    //         messages.push(wasm_execute(
-    //             config.xastro_token_addr,
-    //             &Cw20ExecuteMsg::Mint {
-    //                 recipient: recipient.clone(),
-    //                 amount: mint_amount,
-    //             },
-    //             vec![],
-    //         )?);
+        amount
+    };
 
-    //         Ok(Response::new().add_messages(messages).add_attributes(vec![
-    //             attr("action", "enter"),
-    //             attr("recipient", recipient),
-    //             attr("astro_amount", cw20_msg.amount),
-    //             attr("xastro_amount", mint_amount),
-    //         ]))
-    //     }
-    //     Cw20HookMsg::Leave {} => {
-    //         if info.sender != config.xastro_token_addr {
-    //             return Err(ContractError::Unauthorized {});
-    //         }
+    // Mint new xASTRO tokens to the sender
+    messages.push(NeutronMsg::MintTokens {
+        denom: config.xastro_denom,
+        amount: mint_amount,
+        mint_to_address: recipient.to_string(),
+    });
 
-    //         let what = amount
-    //             .checked_mul(total_deposit)?
-    //             .checked_div(total_shares)?;
+    // Set the data to be returned in set_data to easy integration with
+    // other contracts
+    let staking_response = to_binary(&StakingResponse {
+        astro_amount: amount,
+        xastro_amount: mint_amount,
+    })?;
 
-    //         // Burn share
-    //         let res = Response::new()
-    //             .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: config.xastro_token_addr.to_string(),
-    //                 msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-    //                 funds: vec![],
-    //             }))
-    //             .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
-    //                 contract_addr: config.astro_token_addr.to_string(),
-    //                 msg: to_binary(&Cw20ExecuteMsg::Transfer {
-    //                     recipient: recipient.clone(),
-    //                     amount: what,
-    //                 })?,
-    //                 funds: vec![],
-    //             }));
+    Ok(Response::new()
+        .add_messages(messages)
+        .set_data(staking_response)
+        .add_attributes(vec![
+            attr("action", "enter"),
+            attr("recipient", recipient),
+            attr("astro_amount", amount),
+            attr("xastro_amount", mint_amount),
+        ]))
+}
 
-    //         Ok(res.add_attributes(vec![
-    //             attr("action", "leave"),
-    //             attr("recipient", recipient),
-    //             attr("xastro_amount", cw20_msg.amount),
-    //             attr("astro_amount", what),
-    //         ]))
-    //     }
-    // }
+/// Leave unstakes TokenFactory xASTRO for ASTRO. xASTRO is burned and ASTRO
+/// returned to the sender
+fn execute_leave(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response<NeutronMsg>, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // Ensure that the correct token is sent. This will fail if
+    // zero tokens are sent.
+    let amount = must_pay(&info, &config.xastro_denom)?;
+
+    // Receiver of the xASTRO tokens
+    let recipient = info.sender;
+
+    // Get the current deposits and shares held in the contract
+    let total_deposit = query_balance(
+        &deps.querier,
+        env.contract.address,
+        config.astro_denom.clone(),
+    )?;
+    let total_shares = deps
+        .querier
+        .query_supply(config.xastro_denom.clone())?
+        .amount;
+
+    // Calculate the amount of ASTRO to return based on the ratios of
+    // deposit and shares
+    let return_amount = amount
+        .checked_mul(total_deposit)?
+        .checked_div(total_shares)?;
+
+    // Burn the received xASTRO tokens
+    let burn_msg = NeutronMsg::BurnTokens {
+        denom: config.xastro_denom,
+        amount,
+        burn_from_address: "".to_string(), // This needs to be "" for now
+    };
+
+    // Return the ASTRO tokens to the sender
+    let transfer_msg = BankMsg::Send {
+        to_address: recipient.to_string(),
+        amount: vec![coin(return_amount.u128(), config.astro_denom)],
+    };
+
+    // Set the data to be returned in set_data to easy integration with
+    // other contracts
+    let staking_response = to_binary(&StakingResponse {
+        astro_amount: return_amount,
+        xastro_amount: amount,
+    })?;
+
+    Ok(Response::new()
+        .add_message(burn_msg)
+        .add_message(transfer_msg)
+        .set_data(staking_response)
+        .add_attributes(vec![
+            attr("action", "leave"),
+            attr("recipient", recipient),
+            attr("xastro_amount", amount),
+            attr("astro_amount", return_amount),
+        ]))
 }
 
 /// Exposes all the queries available in the contract.
@@ -245,11 +278,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             deposit_denom: config.astro_denom,
             share_denom: config.xastro_denom,
         })?),
-        QueryMsg::TotalShares {} => to_binary(&query_supply(&deps.querier, &config.xastro_denom)?),
-        QueryMsg::TotalDeposit {} => to_binary(&query_token_balance(
+        QueryMsg::TotalShares {} => {
+            to_binary(&deps.querier.query_supply(config.xastro_denom)?.amount)
+        }
+        QueryMsg::TotalDeposit {} => to_binary(&query_balance(
             &deps.querier,
-            &config.astro_denom,
             env.contract.address,
+            config.astro_denom,
         )?),
     }
 }
@@ -263,22 +298,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 ///
 /// * **_msg** is the object of type [`MigrateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-staking" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.0.2" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    // No migration is possible to move from CW20 ASTRO and
+    // xASTRO to TokenFactory versions
+    Err(ContractError::MigrationError {})
 }

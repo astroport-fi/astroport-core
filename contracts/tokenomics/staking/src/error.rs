@@ -1,5 +1,6 @@
 use crate::contract::MINIMUM_STAKE_AMOUNT;
 use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 /// This enum describes staking contract errors
@@ -25,6 +26,9 @@ pub enum ContractError {
 
     #[error("Failed to create new TokenFactory denom")]
     FailedToCreateDenom {},
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 }
 
 impl From<OverflowError> for ContractError {
