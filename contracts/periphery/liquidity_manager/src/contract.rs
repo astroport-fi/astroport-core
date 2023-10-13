@@ -182,9 +182,10 @@ fn provide_liquidity(
             PairType::Xyk {} => {
                 let pools = pair_info.query_pools(&deps.querier, &pair_addr)?;
                 // Initial provide is always fair because initial LP dictates the price
-                if !(pools[0].amount * pools[1].amount).is_zero() {
+                if !pools[0].amount.is_zero() && !pools[1].amount.is_zero() {
                     let predicted_lp_amount = xyk_provide_simulation(
                         deps.querier,
+                        &pools,
                         &pair_info,
                         slippage_tolerance,
                         assets.clone(),

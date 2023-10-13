@@ -50,24 +50,26 @@ fn simulate_provide(
                 .query_wasm_smart(&pair_addr, &PairQueryMsg::Pair {})?;
             match &pair_info.pair_type {
                 PairType::Xyk {} => {
+                    let pools = pair_info.query_pools(&deps.querier, &pair_addr)?;
+
                     let mut predicted_lp_amount = xyk_provide_simulation(
                         deps.querier,
+                        &pools,
                         &pair_info,
                         slippage_tolerance,
                         assets.clone(),
                     )
                     .map_err(|err| StdError::generic_err(format!("{err}")))?;
 
-                    let pools = pair_info.query_pools(&deps.querier, &pair_addr)?;
-
                     // Initial provide is always fair because initial LP dictates the price
-                    if !(pools[0].amount * pools[1].amount).is_zero() {
+                    if !pools[0].amount.is_zero() && !pools[1].amount.is_zero() {
                         if pools[0].info.ne(&assets[0].info) {
                             assets.swap(0, 1);
                         }
 
                         // Add user's deposits
-                        let pools = pools
+                        let balances_with_deposit = pools
+                            .clone()
                             .into_iter()
                             .zip(assets.iter())
                             .map(|(mut pool, asset)| {
@@ -77,7 +79,7 @@ fn simulate_provide(
                             .collect::<Vec<_>>();
                         let total_share = query_supply(&deps.querier, &pair_info.liquidity_token)?;
                         let accrued_share = get_share_in_assets(
-                            &pools,
+                            &balances_with_deposit,
                             predicted_lp_amount,
                             total_share + predicted_lp_amount,
                         );
@@ -85,6 +87,7 @@ fn simulate_provide(
                         // Simulate provide again without excess tokens
                         predicted_lp_amount = xyk_provide_simulation(
                             deps.querier,
+                            &pools,
                             &pair_info,
                             slippage_tolerance,
                             accrued_share,
