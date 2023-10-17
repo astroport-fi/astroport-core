@@ -533,6 +533,7 @@ dependencies = [
  "astroport 3.8.0",
  "astroport-factory 1.6.0",
  "astroport-mocks",
+ "astroport-pair",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",

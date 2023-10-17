@@ -20,8 +20,8 @@ use astroport::factory::PairType;
 use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
 use astroport::pair::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
@@ -29,7 +29,10 @@ use cw_utils::parse_instantiate_response_data;
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
-use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked};
+use astroport::pair_xyk_sale_tax::{
+    MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked,
+};
+use astroport_pair::state::{Config as XykConfig, CONFIG as XYK_CONFIG};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -1315,7 +1318,38 @@ pub fn assert_slippage_tolerance(
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    // Read cw2 data
+    let contract_version = cw2::get_contract_version(deps.storage)?;
+
+    // If migrating from default xyk pair, we must make some state changes
+    if contract_version.contract == "astroport-pair" {
+        if contract_version.version != "1.4.0" {
+            return Err(StdError::generic_err(
+                "Incompatible version of astroport-pair. Only 1.4.0 supported.",
+            )
+            .into());
+        }
+
+        // Read old config
+        let old_config: XykConfig = XYK_CONFIG.load(deps.storage)?;
+
+        // Create and store new config
+        let new_config = Config {
+            tax_configs: msg
+                .tax_configs
+                .check(deps.api, &old_config.pair_info.asset_infos)?,
+            tax_config_admin: deps.api.addr_validate(&msg.tax_config_admin)?,
+            factory_addr: old_config.factory_addr,
+            block_time_last: old_config.block_time_last,
+            pair_info: old_config.pair_info,
+            price0_cumulative_last: old_config.price0_cumulative_last,
+            price1_cumulative_last: old_config.price1_cumulative_last,
+            track_asset_balances: old_config.track_asset_balances,
+        };
+        CONFIG.save(deps.storage, &new_config)?;
+    }
+
     Ok(Response::default())
 }
 

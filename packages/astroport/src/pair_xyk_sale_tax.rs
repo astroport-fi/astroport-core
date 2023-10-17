@@ -179,3 +179,12 @@ impl SaleTaxInitParams {
             .ok_or_else(|| StdError::generic_err("Missing Init params"))
     }
 }
+
+#[cw_serde]
+/// Message used when migrating the contract from the standard XYK pair.
+pub struct MigrateMsg {
+    /// The configs of the trade taxes for the pair.
+    pub tax_configs: TaxConfigs<String>,
+    /// The address that is allowed to updated the tax configs.
+    pub tax_config_admin: String,
+}
