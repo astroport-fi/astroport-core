@@ -41,6 +41,16 @@ impl From<TaxConfigsChecked> for TaxConfigsUnchecked {
         )
     }
 }
+impl From<Vec<(&str, TaxConfigUnchecked)>> for TaxConfigsUnchecked {
+    fn from(value: Vec<(&str, TaxConfigUnchecked)>) -> Self {
+        TaxConfigs(value.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    }
+}
+impl From<Vec<(&str, TaxConfigChecked)>> for TaxConfigsChecked {
+    fn from(value: Vec<(&str, TaxConfigChecked)>) -> Self {
+        TaxConfigs(value.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+    }
+}
 
 /// Implement default for TaxConfig. Useful for testing
 impl Default for TaxConfigChecked {
@@ -58,11 +68,7 @@ impl Default for TaxConfigUnchecked {
 }
 impl Default for TaxConfigsChecked {
     fn default() -> Self {
-        TaxConfigs(
-            vec![("uusd".to_string(), TaxConfigChecked::default())]
-                .into_iter()
-                .collect(),
-        )
+        vec![("uusd", TaxConfigChecked::default())].into()
     }
 }
 impl Default for TaxConfigsUnchecked {
@@ -133,6 +139,8 @@ impl TaxConfigsChecked {
 pub struct SaleTaxConfigUpdates {
     /// The new tax configs to apply to the pair.
     pub tax_configs: Option<TaxConfigsUnchecked>,
+    /// The new address that is allowed to updated the tax configs.
+    pub tax_config_admin: Option<String>,
     /// Whether asset balances are tracked over blocks or not.
     /// They will not be tracked if the parameter is ignored.
     /// It can not be disabled later once enabled.
@@ -141,14 +149,25 @@ pub struct SaleTaxConfigUpdates {
 
 /// Extra data embedded in the default pair InstantiateMsg
 #[cw_serde]
-#[derive(Default)]
 pub struct SaleTaxInitParams {
     /// The configs of the trade taxes for the pair.
     pub tax_configs: TaxConfigs<String>,
+    /// The address that is allowed to updated the tax configs.
+    pub tax_config_admin: String,
     /// Whether asset balances are tracked over blocks or not.
     /// They will not be tracked if the parameter is ignored.
     /// It can not be disabled later once enabled.
     pub track_asset_balances: bool,
+}
+
+impl Default for SaleTaxInitParams {
+    fn default() -> Self {
+        Self {
+            tax_config_admin: "addr0000".to_string(),
+            tax_configs: TaxConfigs::default(),
+            track_asset_balances: false,
+        }
+    }
 }
 
 impl SaleTaxInitParams {

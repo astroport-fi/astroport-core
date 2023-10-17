@@ -23,6 +23,8 @@ pub struct Config {
     pub track_asset_balances: bool,
     /// The configs of the sale taxes
     pub tax_configs: TaxConfigs<Addr>,
+    /// The address that is allowed to updated the tax configs
+    pub tax_config_admin: Addr,
 }
 
 /// Stores the config struct at the given key

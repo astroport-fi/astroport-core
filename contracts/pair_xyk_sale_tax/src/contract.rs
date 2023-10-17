@@ -73,6 +73,7 @@ pub fn instantiate(
         price1_cumulative_last: Uint128::zero(),
         track_asset_balances: init_params.track_asset_balances,
         tax_configs: init_params.tax_configs.check(deps.api, &msg.asset_infos)?,
+        tax_config_admin: deps.api.addr_validate(&init_params.tax_config_admin)?,
     };
 
     if init_params.track_asset_balances {
@@ -691,7 +692,7 @@ pub fn swap(
             messages.push(
                 BankMsg::Send {
                     to_address: tax_config.tax_recipient.to_string(),
-                    amount: coins(sale_tax.u128(), &offer_asset.info.to_string()),
+                    amount: coins(sale_tax.u128(), offer_asset.info.to_string()),
                 }
                 .into(),
             );
@@ -767,7 +768,7 @@ pub fn update_config(
     let mut config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-    if info.sender != factory_config.owner {
+    if info.sender != factory_config.owner && info.sender != config.tax_config_admin {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -777,6 +778,10 @@ pub fn update_config(
 
     let track_asset_balances = config_updates.track_asset_balances.unwrap_or_default();
     if track_asset_balances {
+        if info.sender != factory_config.owner {
+            return Err(ContractError::Unauthorized {});
+        }
+
         if config.track_asset_balances {
             return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
         }
@@ -796,7 +801,16 @@ pub fn update_config(
     }
 
     if let Some(new_tax_config) = config_updates.tax_configs {
+        if info.sender != config.tax_config_admin {
+            return Err(ContractError::Unauthorized {});
+        }
         config.tax_configs = new_tax_config.check(deps.api, &config.pair_info.asset_infos)?;
+    }
+    if let Some(new_tax_config_admin) = config_updates.tax_config_admin {
+        if info.sender != config.tax_config_admin {
+            return Err(ContractError::Unauthorized {});
+        }
+        config.tax_config_admin = deps.api.addr_validate(&new_tax_config_admin)?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -1088,6 +1102,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         params: Some(to_binary(&SaleTaxInitParams {
             track_asset_balances: config.track_asset_balances,
             tax_configs: config.tax_configs.into(),
+            tax_config_admin: config.tax_config_admin.to_string(),
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,

@@ -12,7 +12,9 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     TWAP_PRECISION,
 };
-use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigsUnchecked};
+use astroport::pair_xyk_sale_tax::{
+    SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked, TaxConfigsUnchecked,
+};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
@@ -1065,6 +1067,7 @@ fn asset_balances_tracking_works_correctly() {
             to_binary(&SaleTaxInitParams {
                 track_asset_balances: true,
                 tax_configs: TaxConfigsUnchecked::new(),
+                tax_config_admin: "tax_config_admin".to_string(),
             })
             .unwrap(),
         ),
@@ -1432,12 +1435,7 @@ fn update_pair_config() {
     };
     assert_eq!(
         router
-            .execute_contract(
-                Addr::unchecked("not_owner").clone(),
-                pair.clone(),
-                &msg,
-                &[]
-            )
+            .execute_contract(Addr::unchecked("not_owner"), pair.clone(), &msg, &[])
             .unwrap_err()
             .downcast_ref::<ContractError>()
             .unwrap(),
@@ -1445,7 +1443,134 @@ fn update_pair_config() {
     );
 
     router
-        .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+        .execute_contract(owner, pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair, &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&SaleTaxInitParams {
+                    track_asset_balances: true,
+                    ..Default::default()
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+}
+
+#[test]
+fn update_tax_configs() {
+    let owner = Addr::unchecked(OWNER);
+    let default_tax_config_admin = Addr::unchecked("addr0000");
+
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    let token_contract_code_id = store_token_code(&mut router);
+    let pair_contract_code_id = store_pair_code(&mut router);
+
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance.to_string(),
+        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            None,
+        )
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Config {})
+        .unwrap();
+
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+
+    // Update tax config admin
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&SaleTaxConfigUpdates {
+            tax_config_admin: Some("new_admin".to_string()),
+            ..Default::default()
+        })
+        .unwrap(),
+    };
+    assert_eq!(
+        router
+            .execute_contract(owner.clone(), pair.clone(), &msg, &[])
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::Unauthorized {}
+    );
+
+    router
+        .execute_contract(default_tax_config_admin, pair.clone(), &msg, &[])
         .unwrap();
 
     let res: ConfigResponse = router
@@ -1458,7 +1583,57 @@ fn update_pair_config() {
             block_time_last: 0,
             params: Some(
                 to_binary(&SaleTaxInitParams {
-                    track_asset_balances: true,
+                    tax_config_admin: "new_admin".to_string(),
+                    ..Default::default()
+                })
+                .unwrap()
+            ),
+            owner: Addr::unchecked("owner"),
+            factory_addr: Addr::unchecked("contract0")
+        }
+    );
+
+    // Update tax configs
+    let new_tax_configs: TaxConfigsUnchecked = vec![(
+        "uluna",
+        TaxConfigUnchecked {
+            tax_rate: Decimal::percent(42),
+            tax_recipient: "new_recipient".to_string(),
+        },
+    )]
+    .into();
+    let msg = ExecuteMsg::UpdateConfig {
+        params: to_binary(&SaleTaxConfigUpdates {
+            tax_configs: Some(new_tax_configs.clone()),
+            ..Default::default()
+        })
+        .unwrap(),
+    };
+    assert_eq!(
+        router
+            .execute_contract(owner, pair.clone(), &msg, &[])
+            .unwrap_err()
+            .downcast_ref::<ContractError>()
+            .unwrap(),
+        &ContractError::Unauthorized {}
+    );
+
+    router
+        .execute_contract(Addr::unchecked("new_admin"), pair.clone(), &msg, &[])
+        .unwrap();
+
+    let res: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair, &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        res,
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(
+                to_binary(&SaleTaxInitParams {
+                    tax_configs: new_tax_configs,
+                    tax_config_admin: "new_admin".to_string(),
                     ..Default::default()
                 })
                 .unwrap()
