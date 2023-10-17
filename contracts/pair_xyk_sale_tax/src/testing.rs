@@ -1,4 +1,4 @@
-use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked};
+use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked, TaxConfigsChecked};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
@@ -1443,7 +1443,7 @@ fn test_accumulate_prices() {
                 price0_cumulative_last: Uint128::new(case.last0),
                 price1_cumulative_last: Uint128::new(case.last1),
                 track_asset_balances: false,
-                tax_config: TaxConfigChecked::default(),
+                tax_configs: TaxConfigsChecked::default(),
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),
@@ -1492,11 +1492,7 @@ fn compute_swap_rounding() {
             ask_pool,
             &Asset::new(AssetInfo::native("uusd"), offer_amount),
             Decimal::zero(),
-            &TaxConfigChecked {
-                tax_denom: "uusd".to_string(),
-                tax_rate: Decimal::zero(),
-                tax_recipient: Addr::unchecked("addr0000")
-            }
+            None
         ),
         Ok((
             return_amount,
@@ -1528,7 +1524,7 @@ proptest! {
             ask_pool,
             &offer_asset,
             commission_amount,
-            &TaxConfigChecked::default(),
+            Some(&TaxConfigChecked::default()),
         ).unwrap();
     }
 }
@@ -1543,67 +1539,67 @@ fn ensure_useful_error_messages_are_given_on_swaps() {
     let offer_asset_info = AssetInfo::native("uusd");
     let offer_asset: Asset = Asset::new(offer_asset_info.clone(), AMOUNT);
     let zero_offer_asset: Asset = Asset::new(AssetInfo::native("uusd"), ZERO);
-    let tax: TaxConfigChecked = TaxConfigChecked::default();
+    let tax = Some(TaxConfigChecked::default());
 
     // Computing ask
     assert_eq!(
-        compute_swap(ZERO, ZERO, &zero_offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(ZERO, ZERO, &zero_offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ZERO, &offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(ZERO, ZERO, &offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ASK, &zero_offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(ZERO, ASK, &zero_offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(ZERO, ASK, &offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(ZERO, ASK, &offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ZERO, &zero_offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(OFFER, ZERO, &zero_offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ZERO, &offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(OFFER, ZERO, &offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_swap(OFFER, ASK, &zero_offer_asset, DZERO, &tax).unwrap_err(),
+        compute_swap(OFFER, ASK, &zero_offer_asset, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("Swap amount must not be zero")
     );
-    compute_swap(OFFER, ASK, &offer_asset, DZERO, &tax).unwrap();
+    compute_swap(OFFER, ASK, &offer_asset, DZERO, tax.as_ref()).unwrap();
 
     // Computing offer
     assert_eq!(
-        compute_offer_amount(ZERO, ZERO, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(ZERO, ZERO, ZERO, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(ZERO, ZERO, AMOUNT, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ASK, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(ZERO, ASK, ZERO, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(ZERO, ASK, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(ZERO, ASK, AMOUNT, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ZERO, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(OFFER, ZERO, ZERO, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(OFFER, ZERO, AMOUNT, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("One of the pools is empty")
     );
     assert_eq!(
-        compute_offer_amount(OFFER, ASK, ZERO, DZERO, &tax, &offer_asset_info).unwrap_err(),
+        compute_offer_amount(OFFER, ASK, ZERO, DZERO, tax.as_ref()).unwrap_err(),
         StdError::generic_err("Swap amount must not be zero")
     );
-    compute_offer_amount(OFFER, ASK, AMOUNT, DZERO, &tax, &offer_asset_info).unwrap();
+    compute_offer_amount(OFFER, ASK, AMOUNT, DZERO, tax.as_ref()).unwrap();
 }

@@ -12,7 +12,7 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     TWAP_PRECISION,
 };
-use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked};
+use astroport::pair_xyk_sale_tax::{SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigsUnchecked};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
@@ -855,10 +855,7 @@ fn asset_balances_tracking_works_correctly() {
         pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
         init_params: Some(
             to_binary(&SaleTaxInitParams {
-                tax_config: TaxConfigUnchecked {
-                    tax_denom: "test1".to_string(),
-                    ..Default::default()
-                },
+                tax_configs: TaxConfigsUnchecked::new(),
                 ..Default::default()
             })
             .unwrap(),
@@ -1067,10 +1064,7 @@ fn asset_balances_tracking_works_correctly() {
         init_params: Some(
             to_binary(&SaleTaxInitParams {
                 track_asset_balances: true,
-                tax_config: TaxConfigUnchecked {
-                    tax_rate: Decimal::zero(),
-                    ..Default::default()
-                },
+                tax_configs: TaxConfigsUnchecked::new(),
             })
             .unwrap(),
         ),

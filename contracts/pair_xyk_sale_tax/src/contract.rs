@@ -72,7 +72,7 @@ pub fn instantiate(
         price0_cumulative_last: Uint128::zero(),
         price1_cumulative_last: Uint128::zero(),
         track_asset_balances: init_params.track_asset_balances,
-        tax_config: init_params.tax_config.check(deps.api, &msg.asset_infos)?,
+        tax_configs: init_params.tax_configs.check(deps.api, &msg.asset_infos)?,
     };
 
     if init_params.track_asset_balances {
@@ -655,12 +655,14 @@ pub fn swap(
         config.pair_info.pair_type.clone(),
     )?;
 
+    let tax_config = config.tax_configs.get(&offer_asset.info.to_string());
+
     let (return_amount, spread_amount, commission_amount, offer_amount, sale_tax) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
         &offer_asset,
         fee_info.total_fee_rate,
-        &config.tax_config,
+        tax_config,
     )?;
 
     // Check the max spread limit (if it was specified)
@@ -684,14 +686,16 @@ pub fn swap(
     }
 
     // Add message to send tax
-    if !sale_tax.is_zero() {
-        messages.push(
-            BankMsg::Send {
-                to_address: config.tax_config.tax_recipient.to_string(),
-                amount: coins(sale_tax.u128(), &offer_asset.info.to_string()),
-            }
-            .into(),
-        );
+    if let Some(tax_config) = tax_config {
+        if !sale_tax.is_zero() {
+            messages.push(
+                BankMsg::Send {
+                    to_address: tax_config.tax_recipient.to_string(),
+                    amount: coins(sale_tax.u128(), &offer_asset.info.to_string()),
+                }
+                .into(),
+            );
+        }
     }
 
     // Compute the Maker fee
@@ -791,11 +795,9 @@ pub fn update_config(
         ));
     }
 
-    let new_tax_config =
-        config
-            .tax_config
-            .apply_updates(deps.api, &config.pair_info.asset_infos, config_updates)?;
-    config.tax_config = new_tax_config;
+    if let Some(new_tax_config) = config_updates.tax_configs {
+        config.tax_configs = new_tax_config.check(deps.api, &config.pair_info.asset_infos)?;
+    }
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -969,12 +971,14 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
         config.pair_info.pair_type,
     )?;
 
+    let tax_config = config.tax_configs.get(&offer_asset.info.to_string());
+
     let (return_amount, spread_amount, commission_amount, _offer_amount, _sale_tax) = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
         &offer_asset,
         fee_info.total_fee_rate,
-        &config.tax_config,
+        tax_config,
     )?;
 
     Ok(SimulationResponse {
@@ -1019,13 +1023,14 @@ pub fn query_reverse_simulation(
         config.pair_info.pair_type,
     )?;
 
+    let tax_config = config.tax_configs.get(&offer_pool.info.to_string());
+
     let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
         offer_pool.amount,
         ask_pool.amount,
         ask_asset.amount,
         fee_info.total_fee_rate,
-        &config.tax_config,
-        &offer_pool.info,
+        tax_config,
     )?;
 
     Ok(ReverseSimulationResponse {
@@ -1082,7 +1087,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         block_time_last: config.block_time_last,
         params: Some(to_binary(&SaleTaxInitParams {
             track_asset_balances: config.track_asset_balances,
-            tax_config: config.tax_config.into(),
+            tax_configs: config.tax_configs.into(),
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
@@ -1116,11 +1121,11 @@ pub fn compute_swap(
     ask_pool: Uint128,
     offer_asset: &Asset,
     commission_rate: Decimal,
-    tax_config: &TaxConfigChecked,
+    tax_config: Option<&TaxConfigChecked>,
 ) -> StdResult<(Uint128, Uint128, Uint128, Uint128, Uint128)> {
     // Deduct tax
     let mut offer_amount = offer_asset.amount;
-    let sale_tax = if offer_asset.info.to_string() == tax_config.tax_denom {
+    let sale_tax = if let Some(tax_config) = tax_config {
         let sale_tax = tax_config.tax_rate * offer_amount;
         offer_amount = offer_amount.checked_sub(sale_tax)?;
         sale_tax
@@ -1169,15 +1174,12 @@ pub fn compute_swap(
 /// * **commission_rate** total amount of fees charged for the swap.
 ///
 /// * **tax_config** tax configuration for the swap.
-///
-/// * **offer_asset_info** asset info for the offer asset.
 pub fn compute_offer_amount(
     offer_pool: Uint128,
     ask_pool: Uint128,
     ask_amount: Uint128,
     commission_rate: Decimal,
-    tax_config: &TaxConfigChecked,
-    offer_asset_info: &AssetInfo,
+    tax_config: Option<&TaxConfigChecked>,
 ) -> StdResult<(Uint128, Uint128, Uint128)> {
     // ask => offer
     check_swap_parameters(vec![offer_pool, ask_pool], ask_amount)?;
@@ -1205,7 +1207,7 @@ pub fn compute_offer_amount(
     let commission_amount = before_commission_deduction * Decimal256::from(commission_rate);
 
     // Add tax
-    if offer_asset_info.to_string() == tax_config.tax_denom {
+    if let Some(tax_config) = tax_config {
         offer_amount =
             offer_amount.mul_ceil(Decimal::one() / (Decimal::one() - tax_config.tax_rate));
     }
@@ -1334,11 +1336,10 @@ mod tests {
             ask_pool,
             &Asset::new(AssetInfo::native("uusd"), offer_amount),
             commission_rate,
-            &TaxConfig {
-                tax_denom: "uusd".to_string(),
+            Some(&TaxConfig {
                 tax_rate: Decimal::zero(),
                 tax_recipient: Addr::unchecked("tax_recipient"),
-            },
+            }),
         )
         .unwrap();
         assert_eq!(return_amount, Uint128::from(2u128));
