@@ -13,7 +13,7 @@ use astroport::pair::{
     TWAP_PRECISION,
 };
 use astroport::pair_xyk_sale_tax::{
-    SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked, TaxConfigsUnchecked,
+    MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked, TaxConfigsUnchecked,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
@@ -41,6 +41,19 @@ fn store_token_code(app: &mut App) -> u64 {
     app.store_code(astro_token_contract)
 }
 
+fn store_standard_xyk_pair_code(app: &mut App) -> u64 {
+    let pair_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair::contract::execute,
+            astroport_pair::contract::instantiate,
+            astroport_pair::contract::query,
+        )
+        .with_reply_empty(astroport_pair::contract::reply),
+    );
+
+    app.store_code(pair_contract)
+}
+
 fn store_pair_code(app: &mut App) -> u64 {
     let pair_contract = Box::new(
         ContractWrapper::new_with_empty(
@@ -48,6 +61,7 @@ fn store_pair_code(app: &mut App) -> u64 {
             astroport_pair_xyk_sale_tax::contract::instantiate,
             astroport_pair_xyk_sale_tax::contract::query,
         )
+        .with_migrate_empty(astroport_pair_xyk_sale_tax::contract::migrate)
         .with_reply_empty(astroport_pair_xyk_sale_tax::contract::reply),
     );
 
@@ -123,6 +137,75 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             &[],
             String::from("PAIR"),
             None,
+        )
+        .unwrap();
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
+        .unwrap();
+    assert_eq!("contract1", res.contract_addr);
+    assert_eq!("contract2", res.liquidity_token);
+
+    pair
+}
+
+fn instantiate_standard_xyk_pair(mut router: &mut App, owner: &Addr) -> Addr {
+    let token_contract_code_id = store_token_code(&mut router);
+
+    let pair_contract_code_id = store_standard_xyk_pair_code(&mut router);
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance.to_string(),
+        init_params: None,
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            Some(owner.to_string()),
         )
         .unwrap();
 
@@ -1791,4 +1874,57 @@ fn test_imbalanced_withdraw_is_disabled() {
         err.root_cause().to_string(),
         "Generic error: Imbalanced withdraw is currently disabled"
     );
+}
+
+#[test]
+fn test_migrate_from_standard_xyk() {
+    let owner = Addr::unchecked("owner");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    // Init pair
+    let pair_instance = instantiate_standard_xyk_pair(&mut router, &owner);
+
+    // Store xyk_sale_tax wasm
+    let xyk_sale_tax_code_id = store_pair_code(&mut router);
+
+    // Migrate pair
+    let msg = MigrateMsg {
+        tax_config_admin: "addr0000".to_string(),
+        tax_configs: TaxConfigsUnchecked::default(),
+    };
+    router
+        .migrate_contract(
+            owner.clone(),
+            pair_instance.clone(),
+            &msg,
+            xyk_sale_tax_code_id,
+        )
+        .unwrap();
+
+    // Query config
+    let config: ConfigResponse = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        config.clone(),
+        ConfigResponse {
+            block_time_last: 0,
+            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            owner,
+            factory_addr: config.factory_addr
+        }
+    )
 }
