@@ -15,12 +15,12 @@ use astroport::pair::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use crate::contract::compute_offer_amount;
 use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
     query_reverse_simulation, query_share, query_simulation,
 };
+use crate::contract::{compute_offer_amount, SwapResult};
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{Config, CONFIG};
@@ -1481,11 +1481,14 @@ fn mock_env_with_block_time(time: u64) -> Env {
 fn compute_swap_rounding() {
     let offer_pool = Uint128::from(5_000_000_000_000_u128);
     let ask_pool = Uint128::from(1_000_000_000_u128);
-    let return_amount = Uint128::from(0_u128);
-    let spread_amount = Uint128::from(0_u128);
-    let commission_amount = Uint128::from(0_u128);
     let offer_amount = Uint128::from(1_u128);
-    let sale_tax = Uint128::zero();
+    let swap_result = SwapResult {
+        return_amount: Uint128::zero(),
+        spread_amount: Uint128::zero(),
+        commission_amount: Uint128::zero(),
+        offer_amount,
+        sale_tax: Uint128::zero(),
+    };
 
     assert_eq!(
         compute_swap(
@@ -1495,13 +1498,7 @@ fn compute_swap_rounding() {
             Decimal::zero(),
             None
         ),
-        Ok((
-            return_amount,
-            spread_amount,
-            commission_amount,
-            offer_amount,
-            sale_tax
-        ))
+        Ok(swap_result)
     );
 }
 

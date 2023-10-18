@@ -2,6 +2,7 @@ use std::convert::TryInto;
 use std::str::FromStr;
 use std::vec;
 
+use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -661,7 +662,13 @@ pub fn swap(
 
     let tax_config = config.tax_configs.get(&offer_asset.info.to_string());
 
-    let (return_amount, spread_amount, commission_amount, offer_amount, sale_tax) = compute_swap(
+    let SwapResult {
+        return_amount,
+        spread_amount,
+        commission_amount,
+        offer_amount,
+        sale_tax,
+    } = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
         &offer_asset,
@@ -990,7 +997,12 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
 
     let tax_config = config.tax_configs.get(&offer_asset.info.to_string());
 
-    let (return_amount, spread_amount, commission_amount, _offer_amount, _sale_tax) = compute_swap(
+    let SwapResult {
+        return_amount,
+        spread_amount,
+        commission_amount,
+        ..
+    } = compute_swap(
         offer_pool.amount,
         ask_pool.amount,
         &offer_asset,
@@ -1123,6 +1135,16 @@ pub fn query_asset_balances_at(
     BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
 }
 
+/// Helper struct to represent the result of the function `compute_swap`.
+#[cw_serde]
+pub struct SwapResult {
+    pub return_amount: Uint128,
+    pub spread_amount: Uint128,
+    pub commission_amount: Uint128,
+    pub offer_amount: Uint128,
+    pub sale_tax: Uint128,
+}
+
 /// Returns the result of a swap.
 ///
 /// * **offer_pool** total amount of offer assets in the pool.
@@ -1140,7 +1162,7 @@ pub fn compute_swap(
     offer_asset: &Asset,
     commission_rate: Decimal,
     tax_config: Option<&TaxConfigChecked>,
-) -> StdResult<(Uint128, Uint128, Uint128, Uint128, Uint128)> {
+) -> StdResult<SwapResult> {
     // Deduct tax
     let mut offer_amount = offer_asset.amount;
     let sale_tax = if let Some(tax_config) = tax_config {
@@ -1172,13 +1194,13 @@ pub fn compute_swap(
 
     // The commision (minus the part that goes to the Maker contract) will be absorbed by the pool
     let return_amount: Uint256 = return_amount - commission_amount;
-    Ok((
-        return_amount.try_into()?,
-        spread_amount.try_into()?,
-        commission_amount.try_into()?,
-        offer_amount.try_into()?,
+    Ok(SwapResult {
+        return_amount: return_amount.try_into()?,
+        spread_amount: spread_amount.try_into()?,
+        commission_amount: commission_amount.try_into()?,
+        offer_amount: offer_amount.try_into()?,
         sale_tax,
-    ))
+    })
 }
 
 /// Returns an amount of offer assets for a specified amount of ask assets.
@@ -1372,7 +1394,7 @@ mod tests {
     };
     use cosmwasm_std::{Addr, Decimal, Uint128};
 
-    use crate::contract::compute_swap;
+    use crate::contract::{compute_swap, SwapResult};
 
     #[test]
     fn compute_swap_does_not_panic_on_spread_calc() {
@@ -1381,7 +1403,12 @@ mod tests {
         let offer_amount = Uint128::from(1000000000u128);
         let commission_rate = Decimal::permille(3);
 
-        let (return_amount, spread_amount, commission_amount, _, _) = compute_swap(
+        let SwapResult {
+            return_amount,
+            spread_amount,
+            commission_amount,
+            ..
+        } = compute_swap(
             offer_pool,
             ask_pool,
             &Asset::new(AssetInfo::native("uusd"), offer_amount),
