@@ -1325,7 +1325,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
     // If migrating from default xyk pair, we must make some state changes
     if contract_version.contract == "astroport-pair" {
         match contract_version.version.as_str() {
-            "1.3.0" | "1.3.1" | "1.4.0" => {}
+            "1.3.0" | "1.3.1" | "1.4.0" | "1.5.0" => {}
             _ => return Err(StdError::generic_err(
                 "Incompatible version of astroport-pair. Only 1.3.0, 1.3.1, and 1.4.0 supported.",
             )
