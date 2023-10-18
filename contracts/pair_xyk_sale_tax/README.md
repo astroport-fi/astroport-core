@@ -1,6 +1,8 @@
-# Astroport Constant Product Pair
+# Astroport Constant Product Pair with Sale Tax
 
 The constant product pool uses the widely known xy=k formula. More details around how the pool functions can be found [here](https://docs.astroport.fi/astroport/astroport/astro-pools/constant-product-pools).
+
+This is a modified version of the standard Astroport XYK pair which adds a configurable sale tax. The tax can be added on each of the assets in the pair and is taken on the offered asset before calculating the return amount.
 
 ---
 
@@ -29,18 +31,18 @@ As an example, let's say someone LPs in a pool and specifies a 1% slippage toler
 Astroport has two options to protect traders against slippage during swaps:
 
 1. Providing `max_spread`
-The spread is calculated as the difference between the ask amount (using the constant pool price) before and after the swap operation. Once `max_spread` is set, it will be compared against the actual swap spread. In case the swap spread exceeds the provided max limit, the swap will fail.
+   The spread is calculated as the difference between the ask amount (using the constant pool price) before and after the swap operation. Once `max_spread` is set, it will be compared against the actual swap spread. In case the swap spread exceeds the provided max limit, the swap will fail.
 
 Note that the spread is calculated before commission deduction in order to properly represent the pool's ratio change.
 
 2. Providing `max_spread` + `belief_price`
-If `belief_price` is provided in combination with `max_spread`, the pool will check the difference between the return amount (using `belief_price`) and the real pool price.
+   If `belief_price` is provided in combination with `max_spread`, the pool will check the difference between the return amount (using `belief_price`) and the real pool price.
 
 Please note that Astroport has the default value for the spread set to 0.5% and the max allowed spread set to 50%.
 
 ## InstantiateMsg
 
-Initializes a new x*y=k pair.
+Initializes a new x\*y=k pair.
 
 ```json
 {
@@ -82,65 +84,65 @@ Withdraws liquidity or assets that were swapped to (ask assets in a swap operati
 
 Provides liquidity by sending a user's native or token assets to the pool.
 
-__NOTE__: you should increase your token allowance for the pool before providing liquidity!
+**NOTE**: you should increase your token allowance for the pool before providing liquidity!
 
 1. Providing Liquidity Without Specifying Slippage Tolerance
 
 ```json
-  {
-    "provide_liquidity": {
-      "assets": [
-        {
-          "info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          },
-          "amount": "1000000"
+{
+  "provide_liquidity": {
+    "assets": [
+      {
+        "info": {
+          "token": {
+            "contract_addr": "terra..."
+          }
         },
-        {
-          "info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "amount": "1000000"
-        }
-      ],
-      "auto_stake": false,
-      "receiver": "terra..."
-    }
+        "amount": "1000000"
+      },
+      {
+        "info": {
+          "native_token": {
+            "denom": "uusd"
+          }
+        },
+        "amount": "1000000"
+      }
+    ],
+    "auto_stake": false,
+    "receiver": "terra..."
   }
+}
 ```
 
 2. Providing Liquidity With Slippage Tolerance
 
-  ```json
-  {
-    "provide_liquidity": {
-      "assets": [
-        {
-          "info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          },
-          "amount": "1000000"
+```json
+{
+  "provide_liquidity": {
+    "assets": [
+      {
+        "info": {
+          "token": {
+            "contract_addr": "terra..."
+          }
         },
-        {
-          "info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "amount": "1000000"
-        }
-      ],
-      "slippage_tolerance": "0.01",
-      "auto_stake": false,
-      "receiver": "terra..."
-    }
+        "amount": "1000000"
+      },
+      {
+        "info": {
+          "native_token": {
+            "denom": "uusd"
+          }
+        },
+        "amount": "1000000"
+      }
+    ],
+    "slippage_tolerance": "0.01",
+    "auto_stake": false,
+    "receiver": "terra..."
   }
+}
 ```
 
 ### `withdraw_liquidity`
@@ -148,9 +150,9 @@ __NOTE__: you should increase your token allowance for the pool before providing
 Burn LP tokens and withdraw liquidity from a pool. This call must be sent to a LP token contract associated with the pool from which you want to withdraw liquidity from.
 
 ```json
-  {
-    "withdraw_liquidity": {}
-  }
+{
+  "withdraw_liquidity": {}
+}
 ```
 
 ### `swap`
@@ -160,21 +162,21 @@ Perform a swap. `offer_asset` is your source asset and `to` is the address that 
 NOTE: You should increase token allowance before swap.
 
 ```json
-  {
-    "swap": {
-      "offer_asset": {
-        "info": {
-          "native_token": {
-            "denom": "uluna"
-          }
-        },
-        "amount": "123"
+{
+  "swap": {
+    "offer_asset": {
+      "info": {
+        "native_token": {
+          "denom": "uluna"
+        }
       },
-      "belief_price": "123",
-      "max_spread": "123",
-      "to": "terra..."
-    }
+      "amount": "123"
+    },
+    "belief_price": "123",
+    "max_spread": "123",
+    "to": "terra..."
   }
+}
 ```
 
 ### `update_config`
@@ -182,11 +184,11 @@ NOTE: You should increase token allowance before swap.
 The contract configuration cannot be updated.
 
 ```json
-  {
-    "update_config": {
-      "params": "<base64_encoded_json_string>"
-    }
+{
+  "update_config": {
+    "params": "<base64_encoded_json_string>"
   }
+}
 ```
 
 ## QueryMsg
@@ -298,4 +300,4 @@ Returns the balance of the specified asset that was in the pool just preceeding 
     "block_height": "12345678"
   }
 }
-
+```
