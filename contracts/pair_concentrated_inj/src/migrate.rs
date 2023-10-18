@@ -12,7 +12,7 @@ use crate::orderbook::state::OrderbookState;
 use crate::state::CONFIG;
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
-const MIGRATION_VERSION: &str = "2.2.0";
+const MIGRATION_VERSION: &str = "2.2.1";
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
