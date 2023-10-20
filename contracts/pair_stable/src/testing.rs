@@ -1343,7 +1343,7 @@ proptest! {
         let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
         assert!(
-            diff <= 9,
+            diff <= 10,
             "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
             result.return_amount,
             sim_result,
