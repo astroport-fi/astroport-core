@@ -26,7 +26,6 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use crate::error::ContractError;
 use crate::math::{calc_d, get_xcp};
-use crate::migration::{migrate_config, migrate_config_from_v140};
 use crate::state::{
     store_precisions, AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState, BALANCES,
     CONFIG, OWNERSHIP_PROPOSAL,
@@ -905,9 +904,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" | "1.1.1" | "1.1.2" => migrate_config(deps.storage)?,
-            "1.1.4" => migrate_config_from_v140(deps.storage)?,
-            "1.2.0" | "1.2.1" | "1.2.2" | "1.2.4" | "1.2.5" => {}
+            "1.2.6" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
