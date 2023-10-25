@@ -80,9 +80,10 @@ impl Default for TaxConfigsUnchecked {
 impl TaxConfigUnchecked {
     /// Checks that the params are valid and returns a `TaxConfigChecked`.
     pub fn check(self, api: &dyn Api) -> StdResult<TaxConfigChecked> {
-        // Tax rate cannot be more than 100%
-        if self.tax_rate > Decimal::one() {
-            return Err(StdError::generic_err("Tax rate cannot be more than 100%"));
+        // Tax rate cannot be more than 50% to avoid blocking swaps if set to 100% or errors if
+        // set to more than 100%.
+        if self.tax_rate > Decimal::percent(50) {
+            return Err(StdError::generic_err("Tax rate cannot be more than 50%"));
         }
 
         // Tax recipient must be a valid address
