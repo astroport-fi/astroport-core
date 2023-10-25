@@ -1378,7 +1378,18 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         .into());
     }
 
-    Ok(Response::default())
+    // Set new cw2 data
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default().add_attributes([
+        ("previous_contract_name", contract_version.contract.as_str()),
+        (
+            "previous_contract_version",
+            contract_version.version.as_str(),
+        ),
+        ("new_contract_name", CONTRACT_NAME),
+        ("new_contract_version", CONTRACT_VERSION),
+    ]))
 }
 
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
