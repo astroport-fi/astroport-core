@@ -92,7 +92,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         pair_configs: vec![PairConfig {
             code_id: pair_contract_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -531,7 +531,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -561,7 +561,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             },
             AssetInfo::native("uusd"),
         ],
-        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+        pair_type: PairType::Xyk {},
         init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
@@ -904,7 +904,7 @@ fn asset_balances_tracking_works_correctly() {
         pair_configs: vec![PairConfig {
             code_id: pair_code_id,
             maker_fee_bps: 0,
-            pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+            pair_type: PairType::Xyk {},
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
@@ -937,7 +937,7 @@ fn asset_balances_tracking_works_correctly() {
                 denom: "test2".to_string(),
             },
         ],
-        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+        pair_type: PairType::Xyk {},
         init_params: Some(
             to_binary(&SaleTaxInitParams {
                 tax_configs: TaxConfigsUnchecked::new(),
@@ -1145,7 +1145,7 @@ fn asset_balances_tracking_works_correctly() {
                 denom: "uusd".to_string(),
             },
         ],
-        pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
+        pair_type: PairType::Xyk {},
         init_params: Some(
             to_binary(&SaleTaxInitParams {
                 track_asset_balances: true,

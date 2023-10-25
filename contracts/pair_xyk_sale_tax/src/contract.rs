@@ -69,7 +69,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: Addr::unchecked(""),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
+            pair_type: PairType::Xyk {},
         },
         factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,
