@@ -1371,6 +1371,11 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             track_asset_balances: old_config.track_asset_balances,
         };
         CONFIG.save(deps.storage, &new_config)?;
+    } else {
+        return Err(StdError::generic_err(
+            "Incompatible contract name. Only astroport-pair supported.",
+        )
+        .into());
     }
 
     Ok(Response::default())
