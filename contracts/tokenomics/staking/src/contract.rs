@@ -1,10 +1,8 @@
 use cosmwasm_std::{
-    attr, coin, entry_point, to_binary, BankMsg, Binary, Deps, DepsMut, Env, MessageInfo, Reply,
-    ReplyOn, Response, StdResult, SubMsg, Uint128,
+    attr, coin, entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128,
 };
-use neutron_sdk::bindings::msg::NeutronMsg;
-use neutron_sdk::bindings::query::NeutronQuery;
-use neutron_sdk::query::token_factory::query_full_denom;
+use osmosis_std::types::osmosis::tokenfactory::v1beta1::{MsgBurn, MsgCreateDenom, MsgMint};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -36,10 +34,10 @@ pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<Response<NeutronMsg>> {
+) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // TODO: Validate that deposit_token_denom exists on chain
@@ -57,10 +55,11 @@ pub fn instantiate(
     // TODO: After creating the TokenFactory token, also set the tracking contract
     // we need a Neutron upgrade to enable that
 
-    let sub_msg: SubMsg<NeutronMsg> = SubMsg {
+    let sub_msg = SubMsg {
         id: INSTANTIATE_DENOM_REPLY_ID,
-        msg: NeutronMsg::CreateDenom {
-            subdenom: TOKEN_SYMBOL.to_string(),
+        msg: MsgCreateDenom {
+            sender: env.contract.address.to_string(),
+            subdenom: TOKEN_SYMBOL.to_owned(),
         }
         .into(),
         gas_limit: None,
@@ -81,7 +80,7 @@ pub fn execute(
     env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
-) -> Result<Response<NeutronMsg>, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Enter {} => execute_enter(deps, env, info),
         ExecuteMsg::Leave {} => execute_leave(deps, env, info),
@@ -90,21 +89,16 @@ pub fn execute(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut<NeutronQuery>, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INSTANTIATE_DENOM_REPLY_ID => {
-            // Query the chain to get the final xASTRO denom
-            // Neutron does not respond with the created denom in the reply
-            // so msg.result.try_into()? has no value
-            let denom_response = query_full_denom(
-                deps.as_ref(),
-                env.contract.address,
-                TOKEN_SYMBOL.to_string(),
-            )
-            .map_err(|_| ContractError::FailedToCreateDenom {})?;
+            // TODO: Once Neutron implements the same flow as Osmosis, we'll
+            // be able to get the created denom from the reply data
+            // For now, we reconstruct the denom from the contract address
+            let created_denom = format!("factory/{}/{}", env.contract.address, TOKEN_SYMBOL);
 
             let mut config = CONFIG.load(deps.storage)?;
-            config.xastro_denom = denom_response.denom;
+            config.xastro_denom = created_denom;
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new().add_attribute("xastro_denom", config.xastro_denom))
@@ -114,11 +108,7 @@ pub fn reply(deps: DepsMut<NeutronQuery>, env: Env, msg: Reply) -> Result<Respon
 }
 
 /// Enter stakes TokenFactory ASTRO for xASTRO. xASTRO is minted to the sender
-fn execute_enter(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response<NeutronMsg>, ContractError> {
+fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // Ensure that the correct token is sent. This will fail if
@@ -139,7 +129,7 @@ fn execute_enter(
         .query_supply(config.xastro_denom.clone())?
         .amount;
 
-    let mut messages = vec![];
+    let mut messages: Vec<CosmosMsg> = vec![];
 
     let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
         amount = amount
@@ -153,11 +143,14 @@ fn execute_enter(
         }
 
         // Mint the xASTRO tokens to ourselves if this is the first stake
-        messages.push(NeutronMsg::MintTokens {
-            denom: config.xastro_denom.clone(),
-            amount: MINIMUM_STAKE_AMOUNT,
-            mint_to_address: env.contract.address.to_string(),
-        });
+        messages.push(
+            MsgMint {
+                sender: env.contract.address.to_string(),
+                amount: Some(coin(MINIMUM_STAKE_AMOUNT.u128(), config.xastro_denom.clone()).into()),
+                mint_to_address: env.contract.address.to_string(),
+            }
+            .into(),
+        );
 
         amount
     } else {
@@ -172,12 +165,27 @@ fn execute_enter(
         amount
     };
 
+    let minted_coins = coin(mint_amount.u128(), config.xastro_denom);
+
     // Mint new xASTRO tokens to the sender
-    messages.push(NeutronMsg::MintTokens {
-        denom: config.xastro_denom,
-        amount: mint_amount,
-        mint_to_address: recipient.to_string(),
-    });
+    messages.push(
+        MsgMint {
+            sender: env.contract.address.to_string(),
+            amount: Some(minted_coins.clone().into()),
+            mint_to_address: env.contract.address.to_string(),
+        }
+        .into(),
+    );
+
+    // TokenFactory minting only allows minting to the sender for now, thus we
+    // need to send the minted tokens to the recipient
+    messages.push(
+        BankMsg::Send {
+            to_address: recipient.to_string(),
+            amount: vec![minted_coins],
+        }
+        .into(),
+    );
 
     // Set the data to be returned in set_data to easy integration with
     // other contracts
@@ -199,11 +207,7 @@ fn execute_enter(
 
 /// Leave unstakes TokenFactory xASTRO for ASTRO. xASTRO is burned and ASTRO
 /// returned to the sender
-fn execute_leave(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response<NeutronMsg>, ContractError> {
+fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // Ensure that the correct token is sent. This will fail if
@@ -216,7 +220,7 @@ fn execute_leave(
     // Get the current deposits and shares held in the contract
     let total_deposit = query_balance(
         &deps.querier,
-        env.contract.address,
+        env.contract.address.clone(),
         config.astro_denom.clone(),
     )?;
     let total_shares = deps
@@ -231,9 +235,9 @@ fn execute_leave(
         .checked_div(total_shares)?;
 
     // Burn the received xASTRO tokens
-    let burn_msg = NeutronMsg::BurnTokens {
-        denom: config.xastro_denom,
-        amount,
+    let burn_msg = MsgBurn {
+        sender: env.contract.address.to_string(),
+        amount: Some(coin(amount.u128(), config.xastro_denom).into()),
         burn_from_address: "".to_string(), // This needs to be "" for now
     };
 
