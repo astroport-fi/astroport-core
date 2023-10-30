@@ -9,4 +9,7 @@ pub enum ContractError {
 
     #[error("Invalid reply data")]
     InvalidReplyData {},
+
+    #[error("Invalid denom, expected {}", expected_denom)]
+    InvalidDenom { expected_denom: String },
 }
