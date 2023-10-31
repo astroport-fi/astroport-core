@@ -31,9 +31,9 @@ dependencies = [
 [[package]]
 name = "astro-satellite-package"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/astroport_ibc?branch=main#2b98128012c373d4ed1cb5459e69f38461e262e2"
+source = "git+https://github.com/astroport-fi/astroport_ibc#61f3cf90ac7e48de93224e906171ebe206d7f860"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=merge/release)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
  "cosmwasm-schema",
  "cosmwasm-std",
 ]
@@ -91,7 +91,7 @@ dependencies = [
  "anyhow",
  "astroport",
  "astroport-factory",
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
  "astroport-native-coin-registry",
  "astroport-nft",
  "astroport-pair",
@@ -147,7 +147,7 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "1.2.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=merge/release#f7381bb095c15a34c8cb4ba51911506f4d216462"
+source = "git+https://github.com/astroport-fi/astroport-governance#f0ef7c6dde76fc77ce360262923366a5cde3c3f8"
 dependencies = [
  "astroport",
  "cosmwasm-schema",
@@ -1089,9 +1089,9 @@ checksum = "c8cbd1169bd7b4a0a20d92b9af7a7e0422888bd38a6f5ec29c1fd8c1558a272e"
 [[package]]
 name = "generator-controller"
 version = "1.3.0"
-source = "git+https://github.com/astroport-fi/astroport-governance?branch=main#193a33d72f9ee608d7fcff6c1f0425b84e22777a"
+source = "git+https://github.com/astroport-fi/astroport-governance#f0ef7c6dde76fc77ce360262923366a5cde3c3f8"
 dependencies = [
- "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance?branch=main)",
+ "astroport-governance 1.2.0 (git+https://github.com/astroport-fi/astroport-governance)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",

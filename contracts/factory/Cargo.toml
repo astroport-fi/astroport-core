@@ -7,9 +7,9 @@ description = "Astroport factory contract - pair contract generator and director
 license = "MIT"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -25,7 +25,7 @@ library = []
 
 [dependencies]
 cosmwasm-std = "1.1"
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { path = "../../packages/astroport", version = "2.8" }
 cw-storage-plus = "0.15"
 cw2 = "0.15"
 thiserror = "1.0"

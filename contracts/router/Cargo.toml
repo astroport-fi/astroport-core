@@ -28,7 +28,7 @@ cw20 = "0.15"
 cosmwasm-std = "1.1"
 cw-storage-plus = "0.15"
 integer-sqrt = "0.1"
-astroport = { path = "../../packages/astroport", default-features = false }
+astroport = { path = "../../packages/astroport", version = "2.8" }
 thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 

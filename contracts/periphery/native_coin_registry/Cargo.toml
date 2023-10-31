@@ -28,7 +28,7 @@ cosmwasm-storage = "1.1"
 cw-storage-plus = "0.15"
 cw2 = "0.15"
 thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", version = "2.8" }
 
 [dev-dependencies]
 cw-multi-test = "0.15"
