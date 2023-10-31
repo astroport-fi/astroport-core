@@ -1,38 +1,43 @@
-use astroport::tokenfactory_tracker::QueryMsg;
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, Env, StdError, StdResult, Uint128, Uint64};
+use cosmwasm_std::{entry_point, to_binary, Binary, Deps, Env, Order, StdResult, Uint128, Uint64};
+use cw_storage_plus::Bound;
 
-use crate::{error::ContractError, state::BALANCES};
+use astroport::tokenfactory_tracker::QueryMsg;
+
+use crate::state::{BALANCES, TOTAL_SUPPLY_HISTORY};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::BalanceAt { address, timestamp } => balance_at(deps, env, address, timestamp),
-        QueryMsg::TotalSupplyAt { timestamp } => total_supply_at(deps, env, timestamp),
+        QueryMsg::BalanceAt { address, timestamp } => to_binary(&balance_at(
+            deps,
+            address,
+            timestamp.unwrap_or_else(|| Uint64::from(env.block.time.seconds())),
+        )?),
+        QueryMsg::TotalSupplyAt { timestamp } => to_binary(&total_supply_at(
+            deps,
+            timestamp.unwrap_or_else(|| Uint64::from(env.block.time.seconds())),
+        )?),
     }
 }
 
-fn balance_at(deps: Deps, env: Env, address: String, timestamp: Uint64) -> StdResult<Binary> {
+fn balance_at(deps: Deps, address: String, timestamp: Uint64) -> StdResult<Uint128> {
     let balance = BALANCES
         .may_load_at_height(deps.storage, &address, timestamp.u64())?
         .unwrap_or_default();
-    to_binary(&balance)
+    Ok(balance)
 }
 
-fn total_supply_at(deps: Deps, env: Env, timestamp: Uint64) -> StdResult<Binary> {
-    let amount = Uint128::one();
-    to_binary(&amount)
-}
+fn total_supply_at(deps: Deps, timestamp: Uint64) -> StdResult<Uint128> {
+    let end = Bound::inclusive(timestamp);
+    let last_value_up_to_timestamp = TOTAL_SUPPLY_HISTORY
+        .range(deps.storage, None, Some(end), Order::Descending)
+        .next();
 
-#[cfg(test)]
-mod tests {
-    use std::str::FromStr;
+    if let Some(value) = last_value_up_to_timestamp {
+        let (_, v) = value?;
+        return Ok(v);
+    }
 
-    use cosmwasm_std::{Addr, Decimal};
-
-    use super::*;
-
-    #[test]
-    fn query_amount() {}
+    Ok(Uint128::zero())
 }

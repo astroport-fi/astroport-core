@@ -1,158 +1,70 @@
 # Astroport TokenFactory Tracker
 
-TODO: Add README
-
 Tracks balances of TokenFactory token holders using timestamps
 
 ---
 
 ## InstantiateMsg
 
-Initializes the contract with the Astroport factory contract address.
+Initializes the contract with the TokenFactory denom to track as well as the
+TokenFactory module address.
+
+You can find the module address by using 
+
+```shell
+wasmd query auth module-account tokenfactory
+```
+
+Instantiate message
 
 ```json
 {
-  "astroport_factory": "wasm1..."
+  "tracked_denom": "factory/creator/denom",
+  "tokenfactory_module_address": "wasm19ejy8n9qsectrf4semdp9cpknflld0j6el50hx"
 }
+```
+
+Once the contract is instantiated it will only track the denom specified.
+Attach this contract to TokenFactory (only admin can do this)
+
+```shell
+wasmd tx tokenfactory set-beforesend-hook factory/creator/denom wasm1trackingcontract
 ```
 
 ## ExecuteMsg
 
-### `receive`
+This contract has no executable messages
 
-CW20 receive msg. Handles only withdraw messages which should come from Astroport LP tokens.
-
-```json
-{
-  "receive": {
-    "sender": "wasm...",
-    "amount": "123",
-    "msg": "<base64_encoded_json_string>"
-  }
-}
-```
-
-where <base64_encoded_json_string> is a base64 encoded json string of the following format:
-
-```json
-{
-  "withdraw_liquidity": {
-    "pair_msg": {
-      "withdraw_liquidity": {}
-    },
-    "min_assets_to_receive": [
-      {
-        "info": {
-          "native_token": {
-            "denom": "uusd"
-          }
-        },
-        "amount": "100000"
-      },
-      {
-        "info": {
-          "token": {
-            "contract_addr": "wasm1...cw20address"
-          }
-        },
-        "amount": "100000"
-      }
-    ]
-  }
-}
-```
-
-`min_assets_to_receive` enforces after-withdraw check that the user receives at least the specified amount of assets.
-
-### `provide_liquidity`
-
-Provides liquidity through Liquidity Manager with slippage limit enforcement. Handles XYK pair imbalanced provide and 
-returns excess assets to the user.
-
-```json
-{
-  "provide_liquidity": {
-    "pair_addr": "wasm1...",
-    "pair_msg": {
-      "provide_liquidity": {
-        "assets": [
-          {
-            "info": {
-              "native_token": {
-                "denom": "uusd"
-              }
-            },
-            "amount": "100000"
-          },
-          {
-            "info": {
-              "token": {
-                "contract_addr": "wasm1...cw20address"
-              }
-            },
-            "amount": "100000"
-          }
-        ],
-        "slippage_tolerance": "0.02",
-        "auto_stake": true,
-        "receiver": "wasm1...addr"
-      }
-    },
-    "min_lp_to_receive": "1000"
-  }
-}
-```
-
-`pair_msg` is equal to original Astroport provide message for all pools. `min_lp_to_receive` enforces after-provide check that the user receives at least the specified amount of LP tokens.
 
 ## QueryMsg
 
-### `simulate`
+### `balance_at`
 
-Simulates liquidity provide or withdraw.
-
-Provide simulation example: 
+Query the balance of an address at a given timestamp in seconds.
+If timestamp is not set, it will return the value at the current timestamp.
 
 ```json
 {
-  "simulate_provide": {
-    "pair_addr": "wasm1...addr",
-    "pair_msg": {
-      "provide_liquidity": {
-        "assets": [
-          {
-            "info": {
-              "native_token": {
-                "denom": "uusd"
-              }
-            },
-            "amount": "100000"
-          },
-          {
-            "info": {
-              "token": {
-                "contract_addr": "wasm1...cw20address"
-              }
-            },
-            "amount": "100000"
-          }
-        ],
-        "slippage_tolerance": "0.02",
-        "auto_stake": true,
-        "receiver": "wasm1...addr"
-      }
-    }
+  "balance_at": {
+    "address": "wasm1...addr",
+    "timestamp": "1698745413"
   }
 }
 ```
 
-Withdraw simulation example:
+### `total_supply_at`
+
+Query the total supply at a given timestamp in seconds.
+If timestamp is not set, it will return the value at the current timestamp.
 
 ```json
 {
-  "simulate_withdraw": {
-    "pair_addr": "wasm1...addr",
-    "lp_tokens": "1000"
+  "total_supply_at": {
+    "timestamp": "1698745413"
   }
 }
 ```
+
+## MigrateMsg
+
+This contract has no migrations

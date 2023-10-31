@@ -1,13 +1,14 @@
-use astroport::tokenfactory_tracker::{InstantiateMsg, SudoMsg};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{Coin, DepsMut, Env, MessageInfo, Response, StdResult};
-use osmosis_std::types::cosmos::auth::v1beta1::AuthQuerier;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult};
+use cw2::set_contract_version;
+
+use astroport::tokenfactory_tracker::{InstantiateMsg, SudoMsg};
 
 use crate::error::ContractError;
-use crate::state::{Config, BALANCES, CONFIG};
+use crate::state::{Config, BALANCES, CONFIG, TOTAL_SUPPLY_HISTORY};
 
-const CONTRACT_NAME: &str = "astroport-tokenfactory-tracker";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -17,25 +18,28 @@ pub fn instantiate(
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    CONFIG.save(
-        deps.storage,
-        &Config {
-            // Temporary save the module address until we can fetch on init
-            tokenfactory_module_address: msg.tokenfactory_module_address,
-            tracked_denom: msg.tracked_denom,
-        },
-    )?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // TODO: We need to get the module account for TokenFactory so we don't try and
-    // subtract from it when minting to an account
-    // This is a Stargate query
+    // TODO: There is a Stargate query that can be used to get the all the module
+    // addresses. Need to confirm that this will actually work on Neutron
     // let accounts = AuthQuerier::new(&deps.querier).module_accounts()?;
-    // type URL is
-    // /cosmos.auth.v1beta1.ModuleAccount
+    // type URL is /cosmos.auth.v1beta1.ModuleAccount
+
+    let config = Config {
+        tracked_denom: msg.tracked_denom.clone(),
+        // Temporary save the module address until we can fetch on init
+        tokenfactory_module_address: msg.tokenfactory_module_address,
+    };
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::default()
         .add_attribute("action", "instantiate")
-        .add_attribute("contract", CONTRACT_NAME))
+        .add_attribute("contract", CONTRACT_NAME)
+        .add_attribute("tracked_denom", config.tracked_denom)
+        .add_attribute(
+            "tokenfactory_module_address",
+            config.tokenfactory_module_address,
+        ))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -43,16 +47,14 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     match msg {
         // BlockBeforeSend is called before a send - if an error is returned the send
         // is cancelled
-        // TODO: Check if gas is charged for this, I suspect it might not according to the SDK code
         SudoMsg::BlockBeforeSend { .. } => Ok(Response::default()),
         // TrackBeforeSend is called before a send - if an error is returned it will
         // be ignored and the send will continue
         // Minting a token directly to an address is also tracked
-        // TODO: Check if gas is charged for this, I think gas is charged for this
         SudoMsg::TrackBeforeSend { from, to, amount } => {
             let config = CONFIG.load(deps.storage)?;
 
-            // TODO: Ensure the denom being sent is the tracked denom
+            // Ensure the denom being sent is the tracked denom
             // If this isn't checked, another token could be tracked with the same
             // contract and that will skew the real numbers
             if amount.denom != config.tracked_denom {
@@ -73,6 +75,14 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                         Ok(balance.unwrap_or_default().checked_sub(amount.amount)?)
                     },
                 )?;
+            } else {
+                TOTAL_SUPPLY_HISTORY.update(
+                    deps.storage,
+                    env.block.time.seconds(),
+                    |balance| -> StdResult<_> {
+                        Ok(balance.unwrap_or_default().checked_add(amount.amount)?)
+                    },
+                )?;
             }
 
             // When burning tokens, the receiver is the token factory module address
@@ -88,19 +98,15 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                     },
                 )?;
             } else {
-                BALANCES.update(
+                TOTAL_SUPPLY_HISTORY.update(
                     deps.storage,
-                    &to,
                     env.block.time.seconds(),
                     |balance| -> StdResult<_> {
-                        Ok(balance.unwrap_or_default().checked_add(amount.amount)?)
+                        Ok(balance.unwrap_or_default().checked_sub(amount.amount)?)
                     },
                 )?;
             }
 
-            // TODO: Update total supply
-
-            // No need to emit anything here
             Ok(Response::default())
         }
     }
@@ -111,7 +117,7 @@ mod tests {
 
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        to_binary, Uint128, Uint64,
+        to_binary, Coin, Uint128, Uint64,
     };
 
     use crate::query::query;
@@ -119,9 +125,8 @@ mod tests {
     use super::*;
 
     pub const OWNER: &str = "owner";
-    pub const MODULE_ADDRESS: &str = "tokenfactory_module";
-
     pub const DENOM: &str = "factory/contract0/token";
+    pub const MODULE_ADDRESS: &str = "tokenfactory_module";
 
     // Basic operations for testing calculations
     struct TestOperation {
@@ -137,6 +142,7 @@ mod tests {
         let info = mock_info(OWNER, &[]);
 
         let operations = vec![
+            // Simulate a mint
             TestOperation {
                 from: MODULE_ADDRESS.to_string(),
                 to: "user1".to_string(),
@@ -157,11 +163,25 @@ mod tests {
                 to: "user3".to_string(),
                 amount: Uint128::from(50u128),
             },
+            // Simulate a mint
+            TestOperation {
+                from: MODULE_ADDRESS.to_string(),
+                to: "user4".to_string(),
+                amount: Uint128::from(100u128),
+            },
+            // Simulate a burn
+            TestOperation {
+                from: "user4".to_string(),
+                to: MODULE_ADDRESS.to_string(),
+                amount: Uint128::from(99u128),
+            },
         ];
 
         let expected_user1_balance = Uint128::zero();
         let expected_user2_balance = Uint128::zero();
         let expected_user3_balance = Uint128::from(100u128);
+        let expected_user4_balance = Uint128::from(1u128);
+        let expected_total_supply = Uint128::from(101u128);
 
         instantiate(
             deps.as_mut(),
@@ -198,7 +218,7 @@ mod tests {
             env.clone(),
             astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
                 address: "user1".to_string(),
-                timestamp: Uint64::from(env.block.time.seconds()),
+                timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
         )
         .unwrap();
@@ -209,7 +229,7 @@ mod tests {
             env.clone(),
             astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
                 address: "user2".to_string(),
-                timestamp: Uint64::from(env.block.time.seconds()),
+                timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
         )
         .unwrap();
@@ -220,11 +240,51 @@ mod tests {
             env.clone(),
             astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
                 address: "user3".to_string(),
-                timestamp: Uint64::from(env.block.time.seconds()),
+                timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
         )
         .unwrap();
         assert_eq!(balance, to_binary(&expected_user3_balance).unwrap());
+
+        let balance = query(
+            deps.as_ref(),
+            env.clone(),
+            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+                address: "user3".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(balance, to_binary(&expected_user3_balance).unwrap());
+
+        let balance = query(
+            deps.as_ref(),
+            env.clone(),
+            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+                address: "user4".to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+        assert_eq!(balance, to_binary(&expected_user4_balance).unwrap());
+
+        let balance = query(
+            deps.as_ref(),
+            env.clone(),
+            astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt {
+                timestamp: Some(Uint64::from(env.block.time.seconds())),
+            },
+        )
+        .unwrap();
+        assert_eq!(balance, to_binary(&expected_total_supply).unwrap());
+
+        let balance = query(
+            deps.as_ref(),
+            env,
+            astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp: None },
+        )
+        .unwrap();
+        assert_eq!(balance, to_binary(&expected_total_supply).unwrap());
     }
 
     #[test]
@@ -274,7 +334,7 @@ mod tests {
             env.clone(),
             astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
                 address: "user1".to_string(),
-                timestamp: Uint64::from(env.block.time.seconds()),
+                timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
         )
         .unwrap();

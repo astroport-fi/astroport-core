@@ -588,7 +588,7 @@ dependencies = [
  "cw2 0.15.1",
  "derivative",
  "itertools 0.11.0",
- "osmosis-std 0.17.0-rc0",
+ "osmosis-std",
  "protobuf 3.2.0",
  "thiserror",
 ]
@@ -610,16 +610,11 @@ dependencies = [
 name = "astroport-tokenfactory-tracker"
 version = "1.0.0"
 dependencies = [
- "anyhow",
  "astroport",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
  "cw-storage-plus 1.1.0",
- "derivative",
- "itertools 0.10.5",
- "osmosis-std 0.20.1",
- "serde_json 1.0.107",
+ "cw2 1.1.1",
  "thiserror",
 ]
 
@@ -2070,23 +2065,7 @@ checksum = "c0b022b748710ecdf1adc6a124c3bef29f17ef05e7fa1260a08889d1d53f9cc5"
 dependencies = [
  "chrono",
  "cosmwasm-std",
- "osmosis-std-derive 0.16.2",
- "prost 0.11.9",
- "prost-types",
- "schemars",
- "serde 1.0.188",
- "serde-cw-value",
-]
-
-[[package]]
-name = "osmosis-std"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47d7aa053bc3fad557ac90a0377688b400c395e2537f0f1de3293a15cad2e970"
-dependencies = [
- "chrono",
- "cosmwasm-std",
- "osmosis-std-derive 0.20.1",
+ "osmosis-std-derive",
  "prost 0.11.9",
  "prost-types",
  "schemars",
@@ -2099,19 +2078,6 @@ name = "osmosis-std-derive"
 version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f47f0b2f22adb341bb59e5a3a1b464dde033181954bd055b9ae86d6511ba465b"
-dependencies = [
- "itertools 0.10.5",
- "proc-macro2",
- "prost-types",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "osmosis-std-derive"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5ebdfd1bc8ed04db596e110c6baa9b174b04f6ed1ec22c666ddc5cb3fa91bd7"
 dependencies = [
  "itertools 0.10.5",
  "proc-macro2",
