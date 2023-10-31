@@ -63,10 +63,9 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                 });
             }
 
-            // Temporary checks
             // If the token is minted directly to an address, we don't need to subtract
             // as the sender is the module address
-            if config.tokenfactory_module_address != from {
+            if from != config.tokenfactory_module_address {
                 BALANCES.update(
                     deps.storage,
                     &from,
@@ -76,6 +75,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                     },
                 )?;
             } else {
+                // Minted new tokens
                 TOTAL_SUPPLY_HISTORY.update(
                     deps.storage,
                     env.block.time.seconds(),
@@ -87,8 +87,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 
             // When burning tokens, the receiver is the token factory module address
             // Sending tokens to the module address isn't allowed by the chain
-            // Temporary checks
-            if config.tokenfactory_module_address != to {
+            if to != config.tokenfactory_module_address {
                 BALANCES.update(
                     deps.storage,
                     &to,
@@ -98,6 +97,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                     },
                 )?;
             } else {
+                // Burned tokens
                 TOTAL_SUPPLY_HISTORY.update(
                     deps.storage,
                     env.block.time.seconds(),
