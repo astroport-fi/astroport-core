@@ -2,6 +2,8 @@
 name = "astroport-liquidity-manager"
 version = "1.0.3-astroport-v2"
 edition = "2021"
+license = "MIT"
+description = "Astroport Liquidity Manager contract"
 
 [features]
 library = []

@@ -3,6 +3,8 @@ name = "astroport-oracle"
 version = "2.1.1"
 authors = ["Astroport"]
 edition = "2021"
+license = "MIT"
+description = "Astroport price oracle contract which works with Astroport pair contracts"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.

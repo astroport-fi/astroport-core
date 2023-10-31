@@ -3,6 +3,8 @@ name = "astroport-generator"
 version = "2.3.0"
 authors = ["Astroport"]
 edition = "2021"
+license = "MIT"
+description = "Astroport Generator"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
