@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "2.1.2"
+version = "2.1.3"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"

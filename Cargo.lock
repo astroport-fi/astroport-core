@@ -41,9 +41,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.8.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffbe52450e7812489ebeec13c9a95f17d7422e4cd397eba55644c3ee993ca36c"
+version = "2.9.0"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -57,6 +55,8 @@ dependencies = [
 [[package]]
 name = "astroport"
 version = "2.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78b863a982595743e181f89540d7aaeda35c60b6b5cac9c36c9be30cf11a5ece"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -154,7 +154,7 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72806ace350e81c4e1cab7e275ef91f05bad830275d697d67ad1bd4acc6f016d"
 dependencies = [
- "astroport 2.8.7",
+ "astroport 2.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -298,7 +298,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair"
-version = "1.3.1"
+version = "1.3.2"
 dependencies = [
  "astroport 2.9.0",
  "astroport-factory",
@@ -384,7 +384,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "2.1.2"
+version = "2.1.3"
 dependencies = [
  "anyhow",
  "astroport 2.9.0",
