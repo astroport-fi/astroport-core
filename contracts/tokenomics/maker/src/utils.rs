@@ -1,5 +1,9 @@
-use crate::error::ContractError;
-use crate::state::BRIDGES;
+use cosmwasm_std::{
+    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
+    QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+};
+use cw20::Cw20ExecuteMsg;
+
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::{
     Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, MAX_SECOND_RECEIVER_CUT,
@@ -7,11 +11,8 @@ use astroport::maker::{
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 
-use cosmwasm_std::{
-    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Env, QuerierWrapper,
-    StdError, StdResult, SubMsg, Uint128, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
+use crate::error::ContractError;
+use crate::state::BRIDGES;
 
 /// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
@@ -219,7 +220,7 @@ pub fn build_send_msg(
         })),
         AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
             recipient,
-            &astro_satellite_package::ExecuteMsg::TransferAstro {},
+            &astro_satellite_package::ExecuteMsg::<Empty>::TransferAstro {},
             coins(asset.amount.u128(), denom),
         )?)),
     }

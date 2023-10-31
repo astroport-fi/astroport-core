@@ -4,7 +4,7 @@ pub mod state;
 
 pub mod error;
 
-mod utils;
+pub mod utils;
 
 #[cfg(test)]
 mod testing;

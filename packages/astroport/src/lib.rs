@@ -1,3 +1,8 @@
+use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult, Uint128};
+
+pub use decimal_checked_ops::DecimalCheckedOps;
+pub use uints::U256;
+
 pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
@@ -19,6 +24,7 @@ pub mod token;
 pub mod vesting;
 pub mod xastro_token;
 
+pub mod liquidity_manager;
 #[cfg(test)]
 mod mock_querier;
 #[cfg(test)]
@@ -27,14 +33,17 @@ mod testing;
 #[allow(clippy::all)]
 mod uints {
     use uint::construct_uint;
+
     construct_uint! {
         pub struct U256(4);
     }
 }
 
 mod decimal_checked_ops {
-    use cosmwasm_std::{Decimal, Fraction, OverflowError, Uint128, Uint256};
     use std::convert::TryInto;
+
+    use cosmwasm_std::{Decimal, Fraction, OverflowError, Uint128, Uint256};
+
     pub trait DecimalCheckedOps {
         fn checked_add(self, other: Decimal) -> Result<Decimal, OverflowError>;
         fn checked_mul_uint128(self, other: Uint128) -> Result<Uint128, OverflowError>;
@@ -65,8 +74,6 @@ mod decimal_checked_ops {
     }
 }
 
-use cosmwasm_std::{Decimal, Decimal256, StdError, StdResult, Uint128};
-
 /// Converts [`Decimal256`] to [`Decimal`].
 pub fn to_decimal(value: Decimal256) -> StdResult<Decimal> {
     let atomics = Uint128::try_from(value.atomics())?;
@@ -74,6 +81,3 @@ pub fn to_decimal(value: Decimal256) -> StdResult<Decimal> {
         StdError::generic_err(format!("Failed to convert Decimal256 {} to Decimal", value))
     })
 }
-
-pub use decimal_checked_ops::DecimalCheckedOps;
-pub use uints::U256;
