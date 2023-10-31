@@ -3,6 +3,8 @@ name = "astroport-native-coin-registry"
 version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Native Coin Registry serves as a simple on-chain registry for native coin precisions which must be governed by trustfull parties like DAO."
+license = "MIT"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
