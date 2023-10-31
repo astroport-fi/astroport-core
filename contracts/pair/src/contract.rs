@@ -1,14 +1,18 @@
-use crate::error::ContractError;
-use crate::state::{Config, BALANCES, CONFIG};
 use std::convert::TryInto;
+use std::str::FromStr;
+use std::vec;
 
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
-    DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
-    StdResult, SubMsg, Uint128, Uint256, Uint64, WasmMsg,
+    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
+    Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, Uint256, Uint64, WasmMsg,
 };
+use cw2::{get_contract_version, set_contract_version};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use protobuf::Message;
 
-use crate::response::MsgInstantiateContractResponse;
 use astroport::asset::{
     addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
     PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
@@ -25,11 +29,10 @@ use astroport::pair::{
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
-use cw2::{get_contract_version, set_contract_version};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use protobuf::Message;
-use std::str::FromStr;
-use std::vec;
+
+use crate::error::ContractError;
+use crate::response::MsgInstantiateContractResponse;
+use crate::state::{Config, BALANCES, CONFIG};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-pair";
@@ -1217,7 +1220,7 @@ pub fn assert_max_spread(
 /// * **deposits** array with offer and ask amounts for a swap.
 ///
 /// * **pools** array with total amount of assets in the pool.
-fn assert_slippage_tolerance(
+pub fn assert_slippage_tolerance(
     slippage_tolerance: Option<Decimal>,
     deposits: &[Uint128; 2],
     pools: &[Asset],
