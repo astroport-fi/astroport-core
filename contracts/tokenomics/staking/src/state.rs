@@ -8,6 +8,10 @@ pub struct Config {
     pub astro_denom: String,
     /// The xASTRO token denom
     pub xastro_denom: String,
+    // TODO: Do we want this?
+    pub tracking_code_id: u64,
+    // TODO: Make addr?
+    pub tracking_contract_address: String,
 }
 
 /// Stores the contract config at the given key

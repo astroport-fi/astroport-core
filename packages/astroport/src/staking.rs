@@ -8,6 +8,8 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// The ASTRO token contract address
     pub deposit_token_denom: String,
+    // The Code ID of contract used to track the TokenFactory token balances
+    pub tracking_code_id: u64,
 }
 
 /// This structure describes the execute messages available in the contract.

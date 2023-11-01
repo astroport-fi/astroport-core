@@ -1,16 +1,20 @@
 use cosmwasm_std::{
     attr, coin, entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128,
+    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::{MsgBurn, MsgCreateDenom, MsgMint};
+use osmosis_std::types::cosmos::bank::v1beta1::{DenomUnit, Metadata};
+use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
+    MsgBurn, MsgCreateDenom, MsgMint, MsgSetBeforeSendHook, MsgSetDenomMetadata,
+};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 use astroport::staking::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakingResponse,
 };
+use astroport::tokenfactory_tracker::InstantiateMsg as TrackerInstantiateMsg;
 use cw2::set_contract_version;
-use cw_utils::must_pay;
+use cw_utils::{must_pay, parse_instantiate_response_data};
 
 use astroport::querier::query_balance;
 
@@ -26,6 +30,7 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_DENOM_REPLY_ID: u64 = 1;
+const INSTANTIATE_TRACKING_REPLY_ID: u64 = 2;
 
 /// Minimum initial xastro share
 pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
@@ -48,6 +53,8 @@ pub fn instantiate(
         &Config {
             astro_denom: msg.deposit_token_denom,
             xastro_denom: "".to_string(),
+            tracking_code_id: msg.tracking_code_id,
+            tracking_contract_address: "".to_string(),
         },
     )?;
 
@@ -92,16 +99,86 @@ pub fn execute(
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INSTANTIATE_DENOM_REPLY_ID => {
+            let mut config = CONFIG.load(deps.storage)?;
+
             // TODO: Once Neutron implements the same flow as Osmosis, we'll
             // be able to get the created denom from the reply data
             // For now, we reconstruct the denom from the contract address
+            // TODO: Use new TokenFactory abstraction
             let created_denom = format!("factory/{}/{}", env.contract.address, TOKEN_SYMBOL);
 
-            let mut config = CONFIG.load(deps.storage)?;
+            // Instantiate the tracking contract
+            let instantiate_tracker_msg: SubMsg = SubMsg {
+                msg: WasmMsg::Instantiate {
+                    code_id: config.tracking_code_id,
+                    msg: to_binary(&TrackerInstantiateMsg {
+                        tracked_denom: created_denom.clone(),
+                        // TODO: Get the correct module address
+                        tokenfactory_module_address: "osmo19ejy8n9qsectrf4semdp9cpknflld0j64mwamn"
+                            .to_string(),
+                    })?,
+                    funds: vec![],
+                    admin: None,
+                    label: String::from("xASTRO Tracking Contract"),
+                }
+                .into(),
+                id: INSTANTIATE_TRACKING_REPLY_ID,
+                gas_limit: None,
+                reply_on: ReplyOn::Success,
+            };
+
+            // TODO: Decide correct metadata
+            let denom_metadata_msg = MsgSetDenomMetadata {
+                sender: env.contract.address.to_string(),
+                metadata: Some(Metadata {
+                    symbol: TOKEN_SYMBOL.to_string(),
+                    name: TOKEN_NAME.to_string(),
+                    base: created_denom.clone(),
+                    display: TOKEN_SYMBOL.to_string(),
+                    denom_units: vec![
+                        DenomUnit {
+                            denom: created_denom.to_string(),
+                            exponent: 0,
+                            aliases: vec![],
+                        },
+                        DenomUnit {
+                            denom: TOKEN_SYMBOL.to_string(),
+                            exponent: 6,
+                            aliases: vec![],
+                        },
+                    ],
+                    description: TOKEN_NAME.to_string(),
+                }),
+            };
+
             config.xastro_denom = created_denom;
             CONFIG.save(deps.storage, &config)?;
 
-            Ok(Response::new().add_attribute("xastro_denom", config.xastro_denom))
+            Ok(Response::new()
+                .add_message(denom_metadata_msg)
+                .add_submessage(instantiate_tracker_msg)
+                .add_attribute("xastro_denom", config.xastro_denom))
+        }
+        INSTANTIATE_TRACKING_REPLY_ID => {
+            let mut config = CONFIG.load(deps.storage)?;
+
+            // TODO: Fix unwraps here
+            let init_response =
+                parse_instantiate_response_data(msg.result.unwrap().data.unwrap().as_slice())
+                    .map_err(|e| StdError::generic_err(format!("{e}")))?;
+
+            let set_hook_msg = MsgSetBeforeSendHook {
+                sender: env.contract.address.to_string(),
+                denom: config.xastro_denom.clone(),
+                cosmwasm_address: init_response.contract_address.clone(),
+            };
+
+            config.tracking_contract_address = init_response.contract_address;
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new()
+                .add_message(set_hook_msg)
+                .add_attribute("xastro_tracking_contract", config.tracking_contract_address))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }

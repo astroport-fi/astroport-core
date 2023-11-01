@@ -29,7 +29,7 @@ astroport = { path = "../../../packages/astroport", version = "3" }
 protobuf = "=3.2.0"
 cosmwasm-schema = { version = "1.1" }
 cw-utils = "1.0.1"
-osmosis-std = "0.17.0-rc0"
+osmosis-std = "0.20.1"
 
 [dev-dependencies]
 astroport-token = { path = "../../token" }
