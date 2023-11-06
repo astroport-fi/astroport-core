@@ -96,6 +96,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-cw20-tf-converter"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
+ "cw-storage-plus 0.15.1",
+ "cw2 1.1.1",
+ "cw20 0.15.1",
+ "schemars",
+ "serde 1.0.188",
+ "serde-json-wasm",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-escrow-fee-distributor"
 version = "1.0.2"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#19cf042770a787414a1966b321e05eb2548c7c16"

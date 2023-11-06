@@ -326,6 +326,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     // Set the data to be returned in set_data to easy integration with
     // other contracts
+    // TODO: Test if this works now
     let staking_response = to_binary(&StakingResponse {
         astro_amount: return_amount,
         xastro_amount: amount,
@@ -358,6 +359,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
             deposit_denom: config.astro_denom,
             share_denom: config.xastro_denom,
+            share_tracking_address: config.tracking_contract_address,
         })?),
         QueryMsg::TotalShares {} => {
             to_binary(&deps.querier.query_supply(config.xastro_denom)?.amount)

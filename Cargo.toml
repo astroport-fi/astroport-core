@@ -13,6 +13,7 @@ members = [
   "contracts/whitelist",
   "contracts/cw20_ics20",
   "templates/*",
+  "contracts/tokenomics/cw20_tf_converter",
   "contracts/tokenomics/generator",
   "contracts/tokenomics/maker",
   "contracts/tokenomics/staking",
