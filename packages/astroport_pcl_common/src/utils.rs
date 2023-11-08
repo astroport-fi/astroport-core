@@ -243,7 +243,7 @@ pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdRes
 /// Calculate swap result.
 pub fn compute_swap(
     xs: &[Decimal256],
-    mut offer_amount: Decimal256,
+    offer_amount: Decimal256,
     ask_ind: usize,
     config: &Config,
     env: &Env,
@@ -259,22 +259,22 @@ pub fn compute_swap(
     let d = calc_d(&ixs, &amp_gamma)?;
 
     if offer_ind == 1 {
-        offer_amount *= config.pool_state.price_state.price_scale;
+        ixs[offer_ind] += offer_amount * config.pool_state.price_state.price_scale;
+    } else {
+        ixs[offer_ind] += offer_amount;
     }
-
-    ixs[offer_ind] += offer_amount;
 
     let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
     let mut dy = ixs[ask_ind] - new_y;
     ixs[ask_ind] = new_y;
 
-    // Since price_scale moves slower than real price spread fee may become negative
-    let mut spread_fee = offer_amount.saturating_sub(dy);
-
-    if ask_ind == 1 {
+    // Derive spread using oracle price
+    let spread_fee = if ask_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
-        spread_fee /= config.pool_state.price_state.price_scale;
-    }
+        (offer_amount / config.pool_state.price_state.oracle_price).saturating_sub(dy)
+    } else {
+        offer_amount.saturating_sub(dy / config.pool_state.price_state.oracle_price)
+    };
 
     let fee_rate = config.pool_params.fee(&ixs);
     let total_fee = fee_rate * dy;
