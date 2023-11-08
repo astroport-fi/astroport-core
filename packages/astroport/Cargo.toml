@@ -1,6 +1,6 @@
 [package]
 name = "astroport"
-version = "2.9.0"
+version = "2.9.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Common Astroport types, queriers and other utils"
