@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     to_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256,
-    Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
+    Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
@@ -386,29 +386,6 @@ where
     astroport_factory::state::PAIRS
         .query(&querier, factory.clone(), &pair_key(asset_infos))
         .map(|inner| inner.is_some())
-}
-
-/// Internal function to calculate new moving average using Uint256.
-/// Overflow is possible only if new average order size is greater than 2^128 - 1 which is unlikely.
-pub fn safe_sma_calculation(
-    sma: Uint128,
-    oldest_amount: Uint128,
-    count: u32,
-    new_amount: Uint128,
-) -> StdResult<Uint128> {
-    let res = (sma.full_mul(count) + Uint256::from(new_amount) - Uint256::from(oldest_amount))
-        .checked_div(count.into())?;
-    res.try_into().map_err(StdError::from)
-}
-
-/// Same as [`safe_sma_calculation`] but is being used when buffer is not full yet.
-pub fn safe_sma_buffer_not_full(
-    sma: Uint128,
-    count: u32,
-    new_amount: Uint128,
-) -> StdResult<Uint128> {
-    let res = (sma.full_mul(count) + Uint256::from(new_amount)).checked_div((count + 1).into())?;
-    res.try_into().map_err(StdError::from)
 }
 
 #[cfg(test)]

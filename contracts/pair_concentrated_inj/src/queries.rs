@@ -379,7 +379,7 @@ mod testing {
         let array = (1..=CAPACITY * 3)
             .into_iter()
             .map(|i| Observation {
-                timestamp: ts + i as u64 * 1000,
+                ts: ts + i as u64 * 1000,
                 base_sma: Default::default(),
                 base_amount: (i * i).into(),
                 quote_sma: Default::default(),
@@ -441,7 +441,7 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
+                ts: env.block.time.seconds() + i * 1000,
                 base_sma: Default::default(),
                 base_amount: i.into(),
                 quote_sma: Default::default(),
@@ -491,7 +491,7 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
+                ts: env.block.time.seconds() + i * 1000,
                 base_sma: Default::default(),
                 base_amount: i.into(),
                 quote_sma: Default::default(),

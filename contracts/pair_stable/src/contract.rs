@@ -702,7 +702,7 @@ pub fn swap(
 
     // Store time series data in precommit observation.
     // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
-    // This data will be reflected in observations in the next action.
+    // This data will be reflected in observations on the next action.
     let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
     if offer_asset_dec.amount >= MIN_TRADE_SIZE
         && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
@@ -1237,120 +1237,4 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
     compute_d(amp, &pools)
         .map_err(|_| StdError::generic_err("Failed to calculate the D"))?
         .to_uint128_with_precision(config.greatest_precision)
-}
-
-#[cfg(test)]
-mod testing {
-    use std::error::Error;
-    use std::str::FromStr;
-
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::Timestamp;
-
-    use astroport::observation::{query_observation, Observation, OracleObservation};
-    use astroport_circular_buffer::BufferManager;
-
-    use super::*;
-
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
-
-    #[test]
-    fn observations_full_buffer() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        env.block.time = Timestamp::from_seconds(100_000);
-        BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
-
-        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
-
-        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
-        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
-
-        let array = (1..=30)
-            .into_iter()
-            .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
-            })
-            .collect_vec();
-        buffer.push_many(&array);
-        buffer.commit(&mut deps.storage).unwrap();
-
-        env.block.time = env.block.time.plus_seconds(30_000);
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 120_000,
-                price: f64_to_dec(20.0 / 400.0),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
-        );
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 124_411,
-                price: f64_to_dec(0.04098166666666694),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
-        );
-
-        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Generic error: Requested observation is too old. Last known observation is at 111000"
-        );
-    }
-
-    #[test]
-    fn observations_incomplete_buffer() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        env.block.time = Timestamp::from_seconds(100_000);
-        BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
-
-        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
-
-        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
-        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
-
-        let array = (1..=30)
-            .into_iter()
-            .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
-            })
-            .collect_vec();
-        buffer.push_many(&array);
-        buffer.commit(&mut deps.storage).unwrap();
-
-        env.block.time = env.block.time.plus_seconds(30_000);
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 120_000,
-                price: f64_to_dec(20.0 / 400.0),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
-        );
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 124_411,
-                price: f64_to_dec(0.04098166666666694),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
-        );
-    }
 }

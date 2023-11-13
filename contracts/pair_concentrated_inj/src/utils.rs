@@ -95,7 +95,7 @@ pub fn accumulate_swap_sizes(
         let new_observation;
         if let Some(last_obs) = buffer.read_last(storage)? {
             // Skip saving observation if it has been already saved
-            if last_obs.timestamp < precommit_ts {
+            if last_obs.ts < precommit_ts {
                 // Since this is circular buffer the next index contains the oldest value
                 let count = buffer.capacity();
                 if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
@@ -116,7 +116,7 @@ pub fn accumulate_swap_sizes(
                         quote_amount,
                         base_sma: new_base_sma,
                         quote_sma: new_quote_sma,
-                        timestamp: precommit_ts,
+                        ts: precommit_ts,
                     };
                 } else {
                     // Buffer is not full yet
@@ -129,7 +129,7 @@ pub fn accumulate_swap_sizes(
                         quote_amount,
                         base_sma,
                         quote_sma,
-                        timestamp: precommit_ts,
+                        ts: precommit_ts,
                     };
                 }
 
@@ -144,7 +144,7 @@ pub fn accumulate_swap_sizes(
             // Buffer is empty
             if env.block.time.seconds() > precommit_ts {
                 new_observation = Observation {
-                    timestamp: precommit_ts,
+                    ts: precommit_ts,
                     base_sma: base_amount,
                     base_amount,
                     quote_sma: quote_amount,
@@ -203,7 +203,7 @@ mod tests {
         let buffer = BufferManager::new(&store, OBSERVATIONS).unwrap();
 
         let obs = buffer.read_last(&store).unwrap().unwrap();
-        assert_eq!(obs.timestamp, 50);
+        assert_eq!(obs.ts, 50);
         assert_eq!(buffer.head(), 0);
         assert_eq!(obs.base_sma.u128(), 1000u128);
         assert_eq!(obs.quote_sma.u128(), 500u128);

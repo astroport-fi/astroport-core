@@ -480,7 +480,7 @@ fn check_pool_prices() {
         helper.query_observe(0).unwrap(),
         OracleObservation {
             timestamp: helper.app.block_info().time.seconds(),
-            price: Decimal::from_str("0.9994992083").unwrap()
+            price: Decimal::from_str("0.999999778261572849").unwrap()
         }
     );
 
