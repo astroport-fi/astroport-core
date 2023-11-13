@@ -28,10 +28,10 @@ pub const MAX_ITER: usize = 64;
 pub const TWAP_PRECISION_DEC: Decimal256 = Decimal256::raw((1e6 * 1e18) as u128);
 
 /// ## Validation constants
-/// 0.001
-pub const MIN_FEE: Decimal = Decimal::raw(1000000000000000);
-/// 0.5
-pub const MAX_FEE: Decimal = Decimal::raw(500000000000000000);
+/// 0.00005 (0.005%)
+pub const MIN_FEE: Decimal = Decimal::raw(50000000000000);
+/// 0.01 (1%)
+pub const MAX_FEE: Decimal = Decimal::raw(10000000000000000);
 
 /// 1e-8
 pub const FEE_GAMMA_MIN: Decimal = Decimal::raw(10000000000);
