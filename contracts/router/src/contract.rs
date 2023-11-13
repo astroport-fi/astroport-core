@@ -12,7 +12,7 @@ use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
+    SimulateSwapOperationsResponse, SwapOperation, SwapResponseData, MAX_SWAP_OPERATIONS,
 };
 
 use crate::error::ContractError;
@@ -234,7 +234,9 @@ fn assert_minimum_receive(
             amount: swap_amount,
         })
     } else {
-        Ok(Response::default())
+        Ok(Response::default().set_data(to_binary(&SwapResponseData {
+            return_amount: swap_amount,
+        })?))
     }
 }
 
@@ -277,7 +279,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" => {}
+            "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

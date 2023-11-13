@@ -76,6 +76,11 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+pub struct SwapResponseData {
+    pub return_amount: Uint128,
+}
+
+#[cw_serde]
 pub enum Cw20HookMsg {
     ExecuteSwapOperations {
         /// A vector of swap operations
