@@ -419,6 +419,16 @@ fn query_buy_with_routes() {
             amount: Uint128::from(1000000u128),
         }
     );
+
+    let msg = QueryMsg::SimulateSwapOperations {
+        offer_amount: Uint128::from(1000000u128),
+        operations: vec![SwapOperation::NativeSwap {
+            offer_denom: "ukrw".to_string(),
+            ask_denom: "test".to_string(),
+        }],
+    };
+    let err = query(deps.as_ref(), env.clone(), msg).unwrap_err();
+    assert_eq!(err, ContractError::NativeSwapNotSupported {});
 }
 
 #[test]

@@ -7,6 +7,7 @@ use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 use astroport::asset::{native_asset_info, token_asset_info};
 use astroport::factory::PairType;
 use astroport::router::{ExecuteMsg, InstantiateMsg, SwapOperation, SwapResponseData};
+use astroport_router::error::ContractError;
 
 use crate::factory_helper::{instantiate_token, mint, mint_native, FactoryHelper};
 
@@ -175,11 +176,80 @@ fn route_through_pairs_with_natives() {
         )
         .unwrap();
 
+    // Sanity checks
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperation {
+                operation: SwapOperation::AstroSwap {
+                    offer_asset_info: native_asset_info(denom_x.to_string()),
+                    ask_asset_info: native_asset_info(denom_y.to_string()),
+                },
+                to: None,
+                max_spread: None,
+                single: false,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: vec![SwapOperation::NativeSwap {
+                    offer_denom: denom_x.to_string(),
+                    ask_denom: denom_y.to_string(),
+                }],
+                to: None,
+                max_spread: None,
+                minimum_receive: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NativeSwapNotSupported {}
+    );
+
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: vec![SwapOperation::AstroSwap {
+                    offer_asset_info: native_asset_info(denom_x.to_string()),
+                    ask_asset_info: native_asset_info(denom_x.to_string()),
+                }],
+                to: None,
+                max_spread: None,
+                minimum_receive: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::DoublingAssetsPath {
+            offer_asset: denom_x.to_string(),
+            ask_asset: denom_x.to_string()
+        }
+    );
+
+    // End sanity checks
+
     mint_native(&mut app, &denom_x, 50_000_000000, &owner).unwrap();
     let resp = app
         .execute_contract(
             owner.clone(),
-            router,
+            router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
                 operations: vec![
                     SwapOperation::AstroSwap {
@@ -202,6 +272,38 @@ fn route_through_pairs_with_natives() {
     let resp_data: SwapResponseData = from_binary(&resp.data.unwrap()).unwrap();
 
     assert_eq!(resp_data.return_amount.u128(), 32_258_064515);
+
+    mint_native(&mut app, &denom_x, 50_000_000000, &owner).unwrap();
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            router,
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: vec![
+                    SwapOperation::AstroSwap {
+                        offer_asset_info: native_asset_info(denom_x.to_string()),
+                        ask_asset_info: native_asset_info(denom_y.to_string()),
+                    },
+                    SwapOperation::AstroSwap {
+                        offer_asset_info: native_asset_info(denom_y.to_string()),
+                        ask_asset_info: native_asset_info(denom_z.to_string()),
+                    },
+                ],
+                minimum_receive: Some(50_000_000000u128.into()), // <--- enforcing minimum receive with 1:1 rate (which practically impossible)
+                to: None,
+                max_spread: None,
+            },
+            &coins(50_000_000000, denom_x),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::AssertionMinimumReceive {
+            receive: 50_000_000000u128.into(),
+            amount: 15_360_983102u128.into()
+        }
+    );
 }
 
 #[test]
