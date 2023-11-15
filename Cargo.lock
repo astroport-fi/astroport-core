@@ -362,7 +362,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "1.2.9"
+version = "1.2.10"
 dependencies = [
  "anyhow",
  "astroport 2.9.4",
