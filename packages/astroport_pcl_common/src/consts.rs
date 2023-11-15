@@ -48,8 +48,8 @@ pub const AMP_MIN: Decimal = Decimal::raw(1e17 as u128);
 /// 100000
 pub const AMP_MAX: Decimal = Decimal::raw(1e23 as u128);
 
-/// 0.0000001
-pub const GAMMA_MIN: Decimal = Decimal::raw(100000000000);
+/// 0.00000001
+pub const GAMMA_MIN: Decimal = Decimal::raw(10000000000);
 /// 0.02
 pub const GAMMA_MAX: Decimal = Decimal::raw(20000000000000000);
 
