@@ -24,8 +24,6 @@ use astroport::pair::{
     migration_check, ConfigResponse, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE,
 };
-
-use crate::migration::migrate_config_to_v210;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, StablePoolConfig,
@@ -40,6 +38,7 @@ use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
+use crate::migration::migrate_config_to_v210;
 use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_prices, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
@@ -1072,10 +1071,14 @@ pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Respons
 
     match contract_version.contract.as_ref() {
         "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
+            // Terra 1.0.0-fix1
+            // Injective 1.1.1
+            // Sei 1.1.1
+            // Neutron 2.1.2
+            "1.0.0-fix1" | "1.1.1" => {
                 migrate_config_to_v210(deps.branch())?;
             }
-            "2.1.1" => {}
+            "2.1.2" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -382,7 +382,7 @@ fn provide_liquidity() {
     assert_eq!(
         res,
         ContractError::Std(StdError::generic_err(
-            "Native token balance mismatch between the argument and the transferred",
+            "Native token balance mismatch between the argument (50000000000000000000uusd) and the transferred (100000000000000000000uusd)",
         ))
     );
 
