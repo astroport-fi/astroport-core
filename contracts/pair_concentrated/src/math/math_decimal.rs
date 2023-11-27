@@ -6,8 +6,8 @@ use astroport::cosmwasm_ext::AbsDiff;
 use crate::consts::{HALFPOW_TOL, MAX_ITER, N, N_POW2, TOL};
 use crate::math::signed_decimal::SignedDecimal256;
 
-/// Internal constant to increase calculation accuracy. (1000.0)
-const PADDING: Decimal256 = Decimal256::raw(1000000000000000000000);
+/// Internal constant to increase calculation accuracy. (1_000_000_000.0)
+const PADDING: Decimal256 = Decimal256::raw(1000000000000000000000000000);
 
 pub fn geometric_mean(x: &[Decimal256]) -> Decimal256 {
     (x[0] * x[1]).sqrt()

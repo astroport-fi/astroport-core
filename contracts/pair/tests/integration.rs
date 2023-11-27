@@ -1367,3 +1367,93 @@ fn asset_balances_tracking_works_correctly() {
         .unwrap();
     assert_eq!(res.unwrap(), Uint128::new(499_749812));
 }
+
+#[test]
+fn test_provide_liquidity_without_funds() {
+    let owner = Addr::unchecked("owner");
+    let alice_address = Addr::unchecked("alice");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "cny".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    // Set Alice's balances
+    router
+        .send_tokens(
+            owner.clone(),
+            alice_address.clone(),
+            &[
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233_000_000u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(2_00_000_000u128),
+                },
+                Coin {
+                    denom: "cny".to_string(),
+                    amount: Uint128::from(100_000_000u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Init pair
+    let pair_instance = instantiate_pair(&mut router, &owner);
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
+        .unwrap();
+
+    assert_eq!(
+        res.asset_infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+    );
+
+    // provide some liquidity to assume contract have funds (to prevent underflow err)
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
+
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    // provide liquidity without funds
+    let err = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Native token balance mismatch between the argument (100000000uusd) and the transferred (0uusd)"
+    );
+}

@@ -31,6 +31,7 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 
 use crate::error::ContractError;
+use crate::migration;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{Config, BALANCES, CONFIG};
 
@@ -1253,15 +1254,18 @@ pub fn assert_slippage_tolerance(
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    use crate::migration;
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-pair" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {
+            // Terra 1.0.1
+            // Injective 1.1.0
+            // Sei 1.1.0
+            // Neutron 1.3.1
+            "1.0.1" | "1.1.0" => {
                 migration::add_asset_balances_tracking_flag(deps.storage)?;
             }
-            "1.3.0" => {}
+            "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -1,3 +1,22 @@
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{
+    attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
+    ReplyOn, Response, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
+};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use itertools::Itertools;
+use proptest::prelude::*;
+use prost::Message;
+use sim::StableSwapModel;
+
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::factory::PairType;
+use astroport::pair::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
+    TWAP_PRECISION,
+};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+
 use crate::contract::{
     assert_max_spread, execute, instantiate, query_pool, query_reverse_simulation, query_share,
     query_simulation, reply,
@@ -5,23 +24,8 @@ use crate::contract::{
 use crate::error::ContractError;
 use crate::math::AMP_PRECISION;
 use crate::mock_querier::mock_dependencies;
-
 use crate::state::{store_precisions, Config, CONFIG};
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo, PairInfo};
-
-use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, SimulationResponse, StablePoolParams,
-    TWAP_PRECISION,
-};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    attr, coin, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
-    ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
-};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use itertools::Itertools;
-use prost::Message;
+use crate::utils::{accumulate_prices, compute_swap, select_pools};
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {
@@ -398,13 +402,7 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "Native token balance mismatch between the argument and the transferred".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
+    assert_eq!(res.to_string(), "Generic error: Native token balance mismatch between the argument (50000000000000000000uusd) and the transferred (100000000000000000000uusd)");
 
     // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
@@ -1287,12 +1285,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
-use crate::utils::{accumulate_prices, compute_swap, select_pools};
 pub const NATIVE_TOKEN_PRECISION: u8 = 6;
-use astroport::factory::PairType;
-use proptest::prelude::*;
-use sim::StableSwapModel;
-
 proptest! {
     #[test]
     fn constant_product_swap_no_fee(
