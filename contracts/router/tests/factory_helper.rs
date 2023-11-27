@@ -1,9 +1,12 @@
+#![cfg(not(tarpaulin_include))]
+
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{PairConfig, PairType, QueryMsg};
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::{coins, Addr, Binary};
 use cw20::MinterResponse;
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
+
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{PairConfig, PairType, QueryMsg};
 
 pub struct FactoryHelper {
     pub owner: Addr,
@@ -118,50 +121,21 @@ impl FactoryHelper {
         router: &mut App,
         sender: &Addr,
         pair_type: PairType,
-        tokens: [&Addr; 2],
+        asset_infos: [AssetInfo; 2],
         init_params: Option<Binary>,
-    ) -> AnyResult<AppResponse> {
-        let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: tokens[0].clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: tokens[1].clone(),
-            },
-        ];
-
+    ) -> AnyResult<Addr> {
         let msg = astroport::factory::ExecuteMsg::CreatePair {
             pair_type,
-            asset_infos,
+            asset_infos: asset_infos.to_vec(),
             init_params,
         };
 
-        router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
-    }
-
-    pub fn create_pair_with_addr(
-        &mut self,
-        router: &mut App,
-        sender: &Addr,
-        pair_type: PairType,
-        tokens: [&Addr; 2],
-        init_params: Option<Binary>,
-    ) -> AnyResult<Addr> {
-        self.create_pair(router, sender, pair_type, tokens, init_params)?;
-
-        let asset_infos = vec![
-            AssetInfo::Token {
-                contract_addr: tokens[0].clone(),
-            },
-            AssetInfo::Token {
-                contract_addr: tokens[1].clone(),
-            },
-        ];
+        router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])?;
 
         let res: PairInfo = router.wrap().query_wasm_smart(
             self.factory.clone(),
             &QueryMsg::Pair {
-                asset_infos: asset_infos.clone(),
+                asset_infos: asset_infos.to_vec(),
             },
         )?;
 
@@ -215,4 +189,23 @@ pub fn mint(
         },
         &[],
     )
+}
+
+pub fn mint_native(
+    app: &mut App,
+    denom: &str,
+    amount: u128,
+    receiver: &Addr,
+) -> AnyResult<AppResponse> {
+    // .init_balance() erases previous balance thus we use such hack and create intermediate "denom admin"
+    let denom_admin = Addr::unchecked(format!("{denom}_admin"));
+    let coins_vec = coins(amount, denom);
+    app.init_modules(|router, _, storage| {
+        router
+            .bank
+            .init_balance(storage, &denom_admin, coins_vec.clone())
+    })
+    .unwrap();
+
+    app.send_tokens(denom_admin, receiver.clone(), &coins_vec)
 }

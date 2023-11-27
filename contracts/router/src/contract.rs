@@ -1,8 +1,6 @@
-use std::collections::HashSet;
-
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Api, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
+    entry_point, from_binary, to_binary, wasm_execute, Addr, Api, Binary, Decimal, Deps, DepsMut,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
@@ -12,17 +10,19 @@ use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
-    SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
+    SimulateSwapOperationsResponse, SwapOperation, SwapResponseData, MAX_SWAP_OPERATIONS,
 };
 
 use crate::error::ContractError;
 use crate::operations::execute_swap_operation;
-use crate::state::{Config, CONFIG};
+use crate::state::{Config, ReplyData, CONFIG, REPLY_DATA};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-router";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub const AFTER_SWAP_REPLY_ID: u64 = 1;
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -93,18 +93,6 @@ pub fn execute(
             max_spread,
             single,
         } => execute_swap_operation(deps, env, info, operation, to, max_spread, single),
-        ExecuteMsg::AssertMinimumReceive {
-            asset_info,
-            prev_balance,
-            minimum_receive,
-            receiver,
-        } => assert_minimum_receive(
-            deps.as_ref(),
-            asset_info,
-            prev_balance,
-            minimum_receive,
-            deps.api.addr_validate(&receiver)?,
-        ),
     }
 }
 
@@ -153,88 +141,88 @@ pub fn execute_swap_operations(
     to: Option<String>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
-    let operations_len = operations.len();
-    if operations_len == 0 {
-        return Err(ContractError::MustProvideOperations {});
-    }
-
-    if operations_len > MAX_SWAP_OPERATIONS {
-        return Err(ContractError::SwapLimitExceeded {});
-    }
-
-    // Assert the operations are properly set
     assert_operations(deps.api, &operations)?;
 
     let to = addr_opt_validate(deps.api, &to)?.unwrap_or(sender);
-
     let target_asset_info = operations.last().unwrap().get_target_asset_info();
+    let operations_len = operations.len();
 
-    let mut messages = operations
+    let messages = operations
         .into_iter()
         .enumerate()
         .map(|(operation_index, op)| {
-            Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr: env.contract.address.to_string(),
-                funds: vec![],
-                msg: to_binary(&ExecuteMsg::ExecuteSwapOperation {
-                    operation: op,
-                    to: if operation_index == operations_len - 1 {
-                        Some(to.to_string())
-                    } else {
-                        None
+            if operation_index == operations_len - 1 {
+                wasm_execute(
+                    env.contract.address.to_string(),
+                    &ExecuteMsg::ExecuteSwapOperation {
+                        operation: op,
+                        to: Some(to.to_string()),
+                        max_spread,
+                        single: operations_len == 1,
                     },
-                    max_spread,
-                    single: operations_len == 1,
-                })?,
-            }))
+                    vec![],
+                )
+                .map(|inner_msg| SubMsg::reply_on_success(inner_msg, AFTER_SWAP_REPLY_ID))
+            } else {
+                wasm_execute(
+                    env.contract.address.to_string(),
+                    &ExecuteMsg::ExecuteSwapOperation {
+                        operation: op,
+                        to: None,
+                        max_spread,
+                        single: operations_len == 1,
+                    },
+                    vec![],
+                )
+                .map(SubMsg::new)
+            }
         })
-        .collect::<StdResult<Vec<CosmosMsg>>>()?;
+        .collect::<StdResult<Vec<_>>>()?;
 
-    // Execute minimum amount assertion
-    if let Some(minimum_receive) = minimum_receive {
-        let receiver_balance = target_asset_info.query_pool(&deps.querier, &to)?;
-        messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            funds: vec![],
-            msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
-                asset_info: target_asset_info,
-                prev_balance: receiver_balance,
-                minimum_receive,
-                receiver: to.to_string(),
-            })?,
-        }));
-    }
+    let prev_balance = target_asset_info.query_pool(&deps.querier, &to)?;
+    REPLY_DATA.save(
+        deps.storage,
+        &ReplyData {
+            asset_info: target_asset_info,
+            prev_balance,
+            minimum_receive,
+            receiver: to.to_string(),
+        },
+    )?;
 
-    Ok(Response::new().add_messages(messages))
+    Ok(Response::new().add_submessages(messages))
 }
 
-/// Checks if an ask amount is equal to or above a minimum amount.
-///
-/// * **asset_info** asset to check the ask amount for.
-///
-/// * **prev_balance** previous balance that the swap receive had before getting `ask` assets.
-///
-/// * **minimum_receive** minimum amount of `ask` assets to receive.
-///
-/// * **receiver** address that received `ask` assets.
-fn assert_minimum_receive(
-    deps: Deps,
-    asset_info: AssetInfo,
-    prev_balance: Uint128,
-    minimum_receive: Uint128,
-    receiver: Addr,
-) -> Result<Response, ContractError> {
-    asset_info.check(deps.api)?;
-    let receiver_balance = asset_info.query_pool(&deps.querier, receiver)?;
-    let swap_amount = receiver_balance.checked_sub(prev_balance)?;
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match msg {
+        Reply {
+            id: AFTER_SWAP_REPLY_ID,
+            result: SubMsgResult::Ok(..),
+        } => {
+            let reply_data = REPLY_DATA.load(deps.storage)?;
+            let receiver_balance = reply_data
+                .asset_info
+                .query_pool(&deps.querier, reply_data.receiver)?;
+            let swap_amount = receiver_balance.checked_sub(reply_data.prev_balance)?;
 
-    if swap_amount < minimum_receive {
-        Err(ContractError::AssertionMinimumReceive {
-            receive: minimum_receive,
-            amount: swap_amount,
-        })
-    } else {
-        Ok(Response::default())
+            if let Some(minimum_receive) = reply_data.minimum_receive {
+                if swap_amount < minimum_receive {
+                    return Err(ContractError::AssertionMinimumReceive {
+                        receive: minimum_receive,
+                        amount: swap_amount,
+                    });
+                }
+            }
+
+            // Reply data makes sense ONLY if the first token in multi-hop swap is native.
+            let data = to_binary(&SwapResponseData {
+                return_amount: swap_amount,
+            })?;
+
+            Ok(Response::new().set_data(data))
+        }
+        _ => Err(StdError::generic_err("Failed to process reply").into()),
     }
 }
 
@@ -271,13 +259,14 @@ pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 }
 
 /// Manages contract migration.
+#[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.1.0" => {}
+            "1.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -304,21 +293,12 @@ fn simulate_swap_operations(
     offer_amount: Uint128,
     operations: Vec<SwapOperation>,
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    let astroport_factory = config.astroport_factory;
-
-    let operations_len = operations.len();
-    if operations_len == 0 {
-        return Err(ContractError::MustProvideOperations {});
-    }
-
-    if operations_len > MAX_SWAP_OPERATIONS {
-        return Err(ContractError::SwapLimitExceeded {});
-    }
-
     assert_operations(deps.api, &operations)?;
 
+    let config = CONFIG.load(deps.storage)?;
+    let astroport_factory = config.astroport_factory;
     let mut return_amount = offer_amount;
+
     for operation in operations.into_iter() {
         match operation {
             SwapOperation::AstroSwap {
@@ -359,7 +339,17 @@ fn simulate_swap_operations(
 ///
 /// * **operations** is a vector that contains objects of type [`SwapOperation`]. These are all the swap operations we check.
 fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), ContractError> {
-    let mut ask_asset_map: HashSet<String> = HashSet::new();
+    let operations_len = operations.len();
+    if operations_len == 0 {
+        return Err(ContractError::MustProvideOperations {});
+    }
+
+    if operations_len > MAX_SWAP_OPERATIONS {
+        return Err(ContractError::SwapLimitExceeded {});
+    }
+
+    let mut prev_ask_asset: Option<AssetInfo> = None;
+
     for operation in operations {
         let (offer_asset, ask_asset) = match operation {
             SwapOperation::AstroSwap {
@@ -370,15 +360,28 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
                 return Err(ContractError::NativeSwapNotSupported {})
             }
         };
+
         offer_asset.check(api)?;
         ask_asset.check(api)?;
 
-        ask_asset_map.remove(&offer_asset.to_string());
-        ask_asset_map.insert(ask_asset.to_string());
-    }
+        if offer_asset.equal(&ask_asset) {
+            return Err(ContractError::DoublingAssetsPath {
+                offer_asset: offer_asset.to_string(),
+                ask_asset: ask_asset.to_string(),
+            });
+        }
 
-    if ask_asset_map.len() != 1 {
-        return Err(StdError::generic_err("invalid operations; multiple output token").into());
+        if let Some(prev_ask_asset) = prev_ask_asset {
+            if prev_ask_asset != offer_asset {
+                return Err(ContractError::InvalidPathOperations {
+                    prev_ask_asset: prev_ask_asset.to_string(),
+                    next_offer_asset: offer_asset.to_string(),
+                    next_ask_asset: ask_asset.to_string(),
+                });
+            }
+        }
+
+        prev_ask_asset = Some(ask_asset);
     }
 
     Ok(())
@@ -417,7 +420,7 @@ mod testing {
                             denom: "uluna".to_string(),
                         },
                     },
-                ],
+                ]
             )
             .is_ok()
         );
@@ -452,7 +455,7 @@ mod testing {
                             contract_addr: Addr::unchecked("asset0002"),
                         },
                     },
-                ],
+                ]
             )
             .is_ok()
         );
@@ -487,7 +490,7 @@ mod testing {
                             contract_addr: Addr::unchecked("asset0002"),
                         },
                     },
-                ],
+                ]
             )
             .is_err()
         );
