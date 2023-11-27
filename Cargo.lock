@@ -172,7 +172,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-liquidity-manager"
-version = "1.0.3-astroport-v2"
+version = "1.0.4-astroport-v2"
 dependencies = [
  "anyhow",
  "astroport",
