@@ -28,9 +28,7 @@ use astroport_pair_concentrated::state::Config;
 use cosmwasm_schema::cw_serde;
 use derivative::Derivative;
 
-const NATIVE_TOKEN_PRECISION: u8 = 6;
-
-const INIT_BALANCE: u128 = 1_000_000_000000;
+const INIT_BALANCE: u128 = u128::MAX;
 
 #[cw_serde]
 pub struct AmpGammaResponse {
@@ -80,7 +78,7 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
         .iter()
         .filter_map(|test_coin| match test_coin {
             TestCoin::Native(name) => {
-                let init_balance = INIT_BALANCE * 10u128.pow(NATIVE_TOKEN_PRECISION as u32);
+                let init_balance = INIT_BALANCE;
                 Some(coin(init_balance, name))
             }
             _ => None,
@@ -195,7 +193,12 @@ impl Helper {
             owner.clone(),
             coin_registry_address.clone(),
             &astroport::native_coin_registry::ExecuteMsg::Add {
-                native_coins: vec![("uluna".to_owned(), 6), ("uusd".to_owned(), 6)],
+                native_coins: vec![
+                    ("uluna".to_owned(), 6),
+                    ("uusd".to_owned(), 6),
+                    ("wsteth".to_owned(), 18),
+                    ("eth".to_owned(), 18),
+                ],
             },
             &[],
         )
@@ -395,7 +398,7 @@ impl Helper {
         decimals: u8,
         owner: &Addr,
     ) -> Addr {
-        let init_balance = INIT_BALANCE * 10u128.pow(decimals as u32);
+        let init_balance = INIT_BALANCE;
         app.instantiate_contract(
             token_code,
             owner.clone(),
