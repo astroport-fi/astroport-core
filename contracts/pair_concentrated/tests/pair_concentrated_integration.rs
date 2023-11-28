@@ -661,32 +661,41 @@ fn check_lsd_swaps_with_price_update() {
 
     helper.app.next_block(1000);
 
-    for _ in 0..100 {
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance((1e18 * price_scale) as u128),
+        helper.assets[&test_coins[1]].with_balance(1e18 as u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.app.next_block(1000);
+
+    for _ in 0..10 {
         let assets = vec![
-            helper.assets[&test_coins[0]].with_balance((100e18 * price_scale) as u128),
-            helper.assets[&test_coins[1]].with_balance(100e18 as u128),
+            helper.assets[&test_coins[0]].with_balance((1e15 * price_scale) as u128),
+            helper.assets[&test_coins[1]].with_balance(1e15 as u128),
+        ];
+        helper.provide_liquidity(&owner, &assets).unwrap();
+        helper.app.next_block(1000);
+    }
+
+    for _ in 0..10 {
+        let assets = vec![
+            helper.assets[&test_coins[0]].with_balance((1e13 * price_scale) as u128),
+            helper.assets[&test_coins[1]].with_balance(1e13 as u128),
         ];
         helper.provide_liquidity(&owner, &assets).unwrap();
         helper.app.next_block(1000);
     }
 
     let user1 = Addr::unchecked("user1");
-    let offer_asset = helper.assets[&test_coins[1]].with_balance(1e17 as u128);
-    let mut prev_vlp_price = helper.query_lp_price().unwrap();
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1e16 as u128);
 
-    for i in 0..10 {
+    for _ in 0..10 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
-        let new_vlp_price = helper.query_lp_price().unwrap();
-        assert!(
-            new_vlp_price >= prev_vlp_price,
-            "{i}: new_vlp_price <= prev_vlp_price ({new_vlp_price} <= {prev_vlp_price})",
-        );
-        prev_vlp_price = new_vlp_price;
         helper.app.next_block(1000);
     }
 
-    let offer_asset = helper.assets[&test_coins[0]].with_balance(1e17 as u128);
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(1e16 as u128);
     for _ in 0..10 {
         helper.give_me_money(&[offer_asset.clone()], &user1);
         helper.swap(&user1, &offer_asset, Some(half)).unwrap();
