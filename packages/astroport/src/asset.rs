@@ -1,7 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 
-use crate::cosmwasm_ext::DecimalToInteger;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError, CosmosMsg,
@@ -13,6 +12,7 @@ use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
+use crate::cosmwasm_ext::DecimalToInteger;
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
@@ -227,12 +227,8 @@ pub trait CoinsExt {
 }
 
 impl CoinsExt for Vec<Coin> {
-    fn assert_coins_properly_sent(
-        &self,
-        input_assets: &[Asset],
-        pool_asset_infos: &[AssetInfo],
-    ) -> StdResult<()> {
-        let pool_coins = pool_asset_infos
+    fn assert_coins_properly_sent(&self, input: &[Asset], expected: &[AssetInfo]) -> StdResult<()> {
+        let expected_coins = expected
             .iter()
             .filter_map(|asset_info| match asset_info {
                 AssetInfo::NativeToken { denom } => Some(denom.to_string()),
@@ -240,20 +236,17 @@ impl CoinsExt for Vec<Coin> {
             })
             .collect::<HashSet<_>>();
 
-        let input_coins = input_assets
+        let input_coins = input
             .iter()
             .filter_map(|asset| match &asset.info {
                 AssetInfo::NativeToken { denom } => Some((denom.to_string(), asset.amount)),
                 _ => None,
             })
-            .map(|pair| {
-                if pool_coins.contains(&pair.0) {
-                    Ok(pair)
+            .map(|(denom, amount)| {
+                if expected_coins.contains(&denom) {
+                    Ok((denom, amount))
                 } else {
-                    Err(StdError::generic_err(format!(
-                        "Asset {} is not in the pool",
-                        pair.0
-                    )))
+                    Err(StdError::generic_err(format!("Unexpected asset {denom}",)))
                 }
             })
             .collect::<StdResult<HashMap<_, _>>>()?;
@@ -633,6 +626,29 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
     AssetInfo::Token { contract_addr }
 }
 
+/// This function tries to determine asset info from the given input.  
+///
+/// **NOTE**
+/// - this function relies on the fact that chain doesn't allow to mint native tokens in the form of bech32 addresses.
+/// For example, if it is allowed to mint native token `wasm1xxxxxxx` then [`AssetInfo`] will be determined incorrectly;
+/// - if you intend to test this functionality in cw-multi-test you must implement [`Api`] trait for your test App
+/// with conjunction with [AddressGenerator](https://docs.rs/cw-multi-test/0.17.0/cw_multi_test/trait.AddressGenerator.html)
+pub fn determine_asset_info(maybe_asset_info: &str, api: &dyn Api) -> StdResult<AssetInfo> {
+    if api.addr_validate(maybe_asset_info).is_ok() {
+        Ok(AssetInfo::Token {
+            contract_addr: Addr::unchecked(maybe_asset_info),
+        })
+    } else if validate_native_denom(maybe_asset_info).is_ok() {
+        Ok(AssetInfo::NativeToken {
+            denom: maybe_asset_info.to_string(),
+        })
+    } else {
+        Err(StdError::generic_err(format!(
+            "Cannot determine asset info from {maybe_asset_info}"
+        )))
+    }
+}
+
 /// Returns [`PairInfo`] by specified pool address.
 ///
 /// * **pool_addr** address of the pool.
@@ -759,10 +775,11 @@ impl Decimal256Ext for Decimal256 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use cosmwasm_std::testing::mock_info;
     use cosmwasm_std::{coin, coins};
     use test_case::test_case;
+
+    use super::*;
 
     fn mock_cw20() -> Asset {
         Asset {
@@ -831,10 +848,7 @@ mod tests {
         let err = vec![coin(1000, "uusd"), coin(100, "random")]
             .assert_coins_properly_sent(&assets, &pool_asset_infos)
             .unwrap_err();
-        assert_eq!(
-            err,
-            StdError::generic_err("Asset random is not in the pool")
-        );
+        assert_eq!(err, StdError::generic_err("Unexpected asset random"));
 
         let assets = [
             pool_asset_infos[0].with_balance(1000u16),

@@ -211,7 +211,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
+        "Generic error: Unexpected asset random-coin",
         err.root_cause().to_string()
     );
 
@@ -226,7 +226,7 @@ fn provide_and_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
+        "Generic error: Unexpected asset random-coin",
         err.root_cause().to_string()
     );
 
