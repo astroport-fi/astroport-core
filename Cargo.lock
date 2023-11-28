@@ -41,7 +41,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "2.9.4"
+version = "2.9.5"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -347,7 +347,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "1.2.12"
+version = "1.2.13"
 dependencies = [
  "anyhow",
  "astroport",
