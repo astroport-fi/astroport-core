@@ -3,7 +3,8 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult, Uint128,
+    attr, ensure, from_binary, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
 };
 use cw_utils::one_coin;
 use itertools::Itertools;
@@ -14,16 +15,16 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory;
 use astroport::factory::PairType;
+use astroport::incentives::{Cw20Msg, ExecuteMsg, IncentivizationFeeInfo};
 
 use crate::error::ContractError;
 use crate::state::{
     Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    claim_rewards, deactivate_blocked_pools, deactivate_pool, incentivize, is_pool_registered,
-    query_pair_info, remove_reward_from_pool,
+    asset_info_key, claim_orphaned_rewards, claim_rewards, deactivate_blocked_pools,
+    deactivate_pool, incentivize, is_pool_registered, query_pair_info, remove_reward_from_pool,
 };
-use astroport::incentives::{Cw20Msg, ExecuteMsg, IncentivizationFeeInfo};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -35,6 +36,12 @@ pub fn execute(
     match msg {
         ExecuteMsg::SetupPools { pools } => setup_pools(deps, env, info, pools),
         ExecuteMsg::ClaimRewards { lp_tokens } => {
+            // Check for duplicated pools
+            ensure!(
+                lp_tokens.iter().all_unique(),
+                ContractError::DuplicatedPoolFound {}
+            );
+
             // Collect in-memory mutable objects
             let mut tuples = lp_tokens
                 .into_iter()
@@ -103,6 +110,9 @@ pub fn execute(
             bypass_upcoming_schedules,
             receiver,
         ),
+        ExecuteMsg::ClaimOrphanedRewards { limit, receiver } => {
+            claim_orphaned_rewards(deps, info, limit, receiver)
+        }
         ExecuteMsg::UpdateConfig {
             vesting_contract,
             generator_controller,
@@ -166,7 +176,12 @@ fn deposit(
 
     let pair_info = query_pair_info(deps.as_ref(), &maybe_lp.info)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info)?;
+    is_pool_registered(
+        deps.querier,
+        &config,
+        &pair_info,
+        &maybe_lp.info.to_string(),
+    )?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &maybe_lp.info)?.unwrap_or_default();
     let mut user_info = UserInfo::may_load_position(deps.storage, &staker, &maybe_lp.info)?
@@ -249,15 +264,22 @@ pub fn setup_pools(
         return Err(ContractError::Unauthorized {});
     }
 
-    let pools_set: HashSet<_> = pools.clone().into_iter().map(|pc| pc.0).collect();
-    if pools_set.len() != pools.len() {
-        return Err(ContractError::DuplicatedPoolFound {});
+    let mut pools_set: HashSet<_> = Default::default();
+    for (pool, alloc_points) in &pools {
+        if alloc_points.is_zero() {
+            return Err(ContractError::ZeroAllocPoint {
+                lp_token: pool.to_owned(),
+            });
+        }
+
+        if !pools_set.insert(pool) {
+            return Err(ContractError::DuplicatedPoolFound {});
+        }
     }
 
     let blacklisted_pair_types: Vec<PairType> = deps
         .querier
         .query_wasm_smart(&config.factory, &factory::QueryMsg::BlacklistedPairTypes {})?;
-    let blocked_tokens = BLOCKED_TOKENS.load(deps.storage)?;
 
     let setup_pools = pools
         .into_iter()
@@ -265,11 +287,11 @@ pub fn setup_pools(
             let maybe_lp = determine_asset_info(&lp_token, deps.api)?;
             let pair_info = query_pair_info(deps.as_ref(), &maybe_lp)?;
 
-            is_pool_registered(deps.querier, &config, &pair_info)?;
+            is_pool_registered(deps.querier, &config, &pair_info, &lp_token)?;
 
             // check if assets in the blocked list
             for asset in &pair_info.asset_infos {
-                if blocked_tokens.contains(asset) {
+                if BLOCKED_TOKENS.has(deps.storage, &asset_info_key(asset)) {
                     return Err(ContractError::BlockedToken {
                         token: asset.to_string(),
                     });
@@ -409,19 +431,23 @@ fn update_blocked_pool_tokens(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut blocked = BLOCKED_TOKENS.load(deps.storage)?;
+    // Checking for duplicates
+    ensure!(
+        remove.iter().chain(add.iter()).all_unique(),
+        StdError::generic_err("Duplicated tokens found")
+    );
 
     // Remove tokens from blocklist
     for asset_info in remove {
-        let index = blocked
-            .iter()
-            .position(|x| *x == asset_info)
-            .ok_or_else(|| {
-                StdError::generic_err(format!(
-                    "Token {asset_info} wasn't found in the blocked list",
-                ))
-            })?;
-        blocked.remove(index);
+        let asset_info_key = asset_info_key(&asset_info);
+        ensure!(
+            BLOCKED_TOKENS.has(deps.storage, &asset_info_key),
+            StdError::generic_err(format!(
+                "Token {asset_info} wasn't found in the blocked list",
+            ))
+        );
+
+        BLOCKED_TOKENS.remove(deps.storage, &asset_info_key);
     }
 
     // Add tokens to blocklist
@@ -438,7 +464,8 @@ fn update_blocked_pool_tokens(
         let mut to_disable = vec![];
 
         for token_to_block in &add {
-            if !blocked.contains(token_to_block) {
+            let asset_info_key = asset_info_key(token_to_block);
+            if !BLOCKED_TOKENS.has(deps.storage, &asset_info_key) {
                 if token_to_block.eq(&config.astro_token) {
                     return Err(StdError::generic_err(format!(
                         "Blocking ASTRO token {token_to_block} is prohibited",
@@ -451,6 +478,8 @@ fn update_blocked_pool_tokens(
                         to_disable.push((lp_asset.clone(), alloc_points));
                     }
                 }
+
+                BLOCKED_TOKENS.save(deps.storage, &asset_info_key, &())?;
             } else {
                 return Err(StdError::generic_err(format!(
                     "Token {token_to_block} is already in the blocked list",
@@ -458,8 +487,6 @@ fn update_blocked_pool_tokens(
                 .into());
             }
         }
-
-        blocked.extend(add);
 
         if !to_disable.is_empty() {
             let mut reduce_total_alloc_points = Uint128::zero();
@@ -503,7 +530,6 @@ fn update_blocked_pool_tokens(
     }
 
     CONFIG.save(deps.storage, &config)?;
-    BLOCKED_TOKENS.save(deps.storage, &blocked)?;
 
     Ok(Response::new().add_attribute("action", "update_tokens_blocklist"))
 }

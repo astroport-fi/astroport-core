@@ -328,6 +328,18 @@ fn simulate_case(events: Vec<(Event, u64)>) {
             update_total_rewards(&resp.events, &lp_token, &mut rewards);
         }
     }
+
+    // Collect orphaned rewards.
+    match helper.claim_orphaned_rewards(None, dereg_rewards_receiver) {
+        Err(err) => {
+            let err = err.downcast::<ContractError>().unwrap();
+            match err {
+                ContractError::NoOrphanedRewards {} => {}
+                unexpected_err => panic!("Unexpected error: {unexpected_err:?}"),
+            }
+        }
+        _ => {}
+    }
 }
 
 fn generate_cases() -> impl Strategy<Value = Vec<(Event, u64)>> {

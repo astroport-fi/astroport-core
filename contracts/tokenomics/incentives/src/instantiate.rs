@@ -1,11 +1,12 @@
-use astroport::asset::{addr_opt_validate, validate_native_denom};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 
-use crate::error::ContractError;
-use crate::state::{ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG};
+use astroport::asset::{addr_opt_validate, validate_native_denom};
 use astroport::incentives::{Config, InstantiateMsg};
+
+use crate::error::ContractError;
+use crate::state::{ACTIVE_POOLS, CONFIG};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -23,7 +24,7 @@ pub fn instantiate(
 
     cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    if let Some(fee_info) = &msg.insentivization_fee_info {
+    if let Some(fee_info) = &msg.incentivization_fee_info {
         deps.api.addr_validate(fee_info.fee_receiver.as_str())?;
         validate_native_denom(&fee_info.fee.denom)?;
     }
@@ -39,11 +40,10 @@ pub fn instantiate(
             total_alloc_points: Uint128::zero(),
             vesting_contract: deps.api.addr_validate(&msg.vesting_contract)?,
             guardian: addr_opt_validate(deps.api, &msg.guardian)?,
-            incentivization_fee_info: msg.insentivization_fee_info,
+            incentivization_fee_info: msg.incentivization_fee_info,
         },
     )?;
     ACTIVE_POOLS.save(deps.storage, &vec![])?;
-    BLOCKED_TOKENS.save(deps.storage, &vec![])?;
 
     Ok(Response::new())
 }

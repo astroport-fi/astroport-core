@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, wasm_execute, Addr, Deps, DepsMut, Env, MessageInfo, QuerierWrapper, Response, StdError,
-    StdResult, Storage, Uint128,
+    attr, ensure, wasm_execute, Addr, Deps, DepsMut, Env, MessageInfo, Order, QuerierWrapper,
+    ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use itertools::Itertools;
 
@@ -8,11 +8,14 @@ use astroport::asset::{
     determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, CoinsExt, PairInfo,
 };
 use astroport::factory::PairType;
-use astroport::{factory, vesting};
+use astroport::incentives::{Config, IncentivesSchedule, InputSchedule, MAX_ORPHANED_REWARD_LIMIT};
+use astroport::{factory, pair, vesting};
 
 use crate::error::ContractError;
-use crate::state::{Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG};
-use astroport::incentives::{Config, IncentivesSchedule, InputSchedule};
+use crate::reply::POST_TRANSFER_REPLY_ID;
+use crate::state::{
+    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, ORPHANED_REWARDS,
+};
 
 /// Claim all rewards and compose [`Response`] object containing all attributes and messages.
 /// This function doesn't mutate the state but mutates in-memory objects.
@@ -33,6 +36,17 @@ pub fn claim_rewards(
 
         pool_info.update_rewards(storage, &env, lp_token_asset)?;
 
+        // Claim outstanding rewards from finished schedules
+        for finished_reward in pos.claim_finished_rewards(storage, lp_token_asset, pool_info)? {
+            if !finished_reward.amount.is_zero() {
+                attrs.push(attr("claimed_finished_reward", finished_reward.to_string()));
+                external_rewards.push(finished_reward);
+            }
+        }
+
+        // Reset user reward index for all finished schedules
+        pos.reset_user_index(storage, lp_token_asset, pool_info)?;
+
         for (is_external, reward_asset) in pool_info.calculate_rewards(pos) {
             attrs.push(attr("claimed_reward", reward_asset.to_string()));
 
@@ -42,14 +56,6 @@ pub fn claim_rewards(
                 } else {
                     protocol_reward_amount += reward_asset.amount;
                 }
-            }
-        }
-
-        // Claim outstanding rewards from finished schedules
-        for finished_reward in pos.claim_finished_rewards(storage, lp_token_asset, pool_info)? {
-            if !finished_reward.amount.is_zero() {
-                attrs.push(attr("claimed_finished_reward", finished_reward.to_string()));
-                external_rewards.push(finished_reward);
             }
         }
 
@@ -65,7 +71,8 @@ pub fn claim_rewards(
         .into_iter()
         .map(|(info, assets)| {
             let amount: Uint128 = assets.into_iter().map(|asset| asset.amount).sum();
-            info.with_balance(amount).into_msg(user)
+            info.with_balance(amount)
+                .into_submsg(user, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -76,20 +83,19 @@ pub fn claim_rewards(
         } else {
             CONFIG.load(storage)?.vesting_contract
         };
-        messages.push(
-            wasm_execute(
-                vesting_contract,
-                &vesting::ExecuteMsg::Claim {
-                    recipient: Some(user.to_string()),
-                    amount: Some(protocol_reward_amount),
-                },
-                vec![],
-            )?
-            .into(),
-        );
+        messages.push(SubMsg::new(wasm_execute(
+            vesting_contract,
+            &vesting::ExecuteMsg::Claim {
+                recipient: Some(user.to_string()),
+                amount: Some(protocol_reward_amount),
+            },
+            vec![],
+        )?));
     }
 
-    Ok(Response::new().add_attributes(attrs).add_messages(messages))
+    Ok(Response::new()
+        .add_attributes(attrs)
+        .add_submessages(messages))
 }
 
 /// Only factory can set the allocation points to zero for the specified pool.
@@ -107,42 +113,40 @@ pub fn deactivate_pool(
     }
 
     let lp_token_asset = determine_asset_info(&lp_token, deps.api)?;
-    let mut pool_info = PoolInfo::load(deps.storage, &lp_token_asset)?;
 
-    let mut response = Response::new();
+    match PoolInfo::may_load(deps.storage, &lp_token_asset)? {
+        Some(mut pool_info) if pool_info.is_active_pool() => {
+            let mut active_pools = ACTIVE_POOLS.load(deps.storage)?;
 
-    if pool_info.is_active_pool() {
-        let mut active_pools = ACTIVE_POOLS.load(deps.storage)?;
+            let (ind, _) = active_pools
+                .iter()
+                .find_position(|(lp_asset, _)| lp_asset == &lp_token_asset)
+                .unwrap();
+            let (_, alloc_points) = active_pools.swap_remove(ind);
 
-        let (ind, _) = active_pools
-            .iter()
-            .find_position(|(lp_asset, _)| lp_asset == &lp_token_asset)
-            .unwrap();
-        let (_, alloc_points) = active_pools.swap_remove(ind);
+            pool_info.update_rewards(deps.storage, &env, &lp_token_asset)?;
+            pool_info.disable_astro_rewards();
+            pool_info.save(deps.storage, &lp_token_asset)?;
 
-        pool_info.update_rewards(deps.storage, &env, &lp_token_asset)?;
-        pool_info.disable_astro_rewards();
-        pool_info.save(deps.storage, &lp_token_asset)?;
+            config.total_alloc_points = config.total_alloc_points.checked_sub(alloc_points)?;
 
-        config.total_alloc_points = config.total_alloc_points.checked_sub(alloc_points)?;
+            for (lp_asset, alloc_points) in &active_pools {
+                let mut pool_info = PoolInfo::load(deps.storage, lp_asset)?;
+                pool_info.update_rewards(deps.storage, &env, lp_asset)?;
+                pool_info.set_astro_rewards(&config, *alloc_points);
+                pool_info.save(deps.storage, lp_asset)?;
+            }
 
-        for (lp_asset, alloc_points) in &active_pools {
-            let mut pool_info = PoolInfo::load(deps.storage, lp_asset)?;
-            pool_info.update_rewards(deps.storage, &env, lp_asset)?;
-            pool_info.set_astro_rewards(&config, *alloc_points);
-            pool_info.save(deps.storage, lp_asset)?;
+            ACTIVE_POOLS.save(deps.storage, &active_pools)?;
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new().add_attributes([
+                attr("action", "deactivate_pool"),
+                attr("lp_token", lp_token),
+            ]))
         }
-
-        ACTIVE_POOLS.save(deps.storage, &active_pools)?;
-        CONFIG.save(deps.storage, &config)?;
-
-        response.attributes.extend([
-            attr("action", "deactivate_pool"),
-            attr("lp_token", lp_token),
-        ]);
+        _ => Ok(Response::new()),
     }
-
-    Ok(response)
 }
 
 /// Removes pools from active pools if their pair type is blocked.
@@ -216,8 +220,7 @@ pub fn incentivize(
     let lp_token_asset = determine_asset_info(&lp_token, deps.api)?;
 
     // Prohibit reward schedules with blocked token
-    let blocked_tokens = BLOCKED_TOKENS.load(deps.storage)?;
-    if blocked_tokens.contains(&schedule.reward_info) {
+    if BLOCKED_TOKENS.has(deps.storage, &asset_info_key(&schedule.reward_info)) {
         return Err(ContractError::BlockedToken {
             token: schedule.reward_info.to_string(),
         });
@@ -225,7 +228,7 @@ pub fn incentivize(
 
     let pair_info = query_pair_info(deps.as_ref(), &lp_token_asset)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info)?;
+    is_pool_registered(deps.querier, &config, &pair_info, &lp_token)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, &env, &lp_token_asset)?;
@@ -324,8 +327,10 @@ pub fn remove_reward_from_pool(
     // Send unclaimed rewards
     if !unclaimed.is_zero() {
         deps.api.addr_validate(&receiver)?;
-        let transfer_msg = reward_asset.with_balance(unclaimed).into_msg(receiver)?;
-        response = response.add_message(transfer_msg);
+        let transfer_msg = reward_asset
+            .with_balance(unclaimed)
+            .into_submsg(receiver, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))?;
+        response = response.add_submessage(transfer_msg);
     }
 
     Ok(response.add_attributes([
@@ -344,9 +349,10 @@ pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> 
         AssetInfo::NativeToken { denom } => {
             let parts = denom.split('/').collect_vec();
             if denom.starts_with("factory") && parts.len() >= 3 {
-                let lp_minter = denom.split('/').nth(1).unwrap();
+                let lp_minter = parts[1];
                 deps.api.addr_validate(lp_minter)?;
-                pair_info_by_pool(&deps.querier, lp_minter)
+                deps.querier
+                    .query_wasm_smart(lp_minter, &pair::QueryMsg::Pair {})
             } else {
                 Err(StdError::generic_err(format!(
                     "LP token {denom} doesn't follow token factory format: factory/{{lp_minter}}/{{token_name}}",
@@ -356,11 +362,13 @@ pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> 
     }
 }
 
-/// Checks if the pool with the following asset infos is registered in the factory contract.
+/// Checks if the pool with the following asset infos is registered in the factory contract and
+/// LP tokens address/denom matches the one registered in the factory.
 pub fn is_pool_registered(
     querier: QuerierWrapper,
     config: &Config,
     pair_info: &PairInfo,
+    lp_token_addr: &str,
 ) -> StdResult<()> {
     querier
         .query_wasm_smart::<PairInfo>(
@@ -376,13 +384,136 @@ pub fn is_pool_registered(
             ))
         })
         .map(|resp| {
-            if resp.contract_addr == pair_info.contract_addr {
+            // Eventually resp.liquidity_token will become just a String once token factory LP tokens are implemented
+            if resp.liquidity_token.as_str() == lp_token_addr {
                 Ok(())
             } else {
                 Err(StdError::generic_err(format!(
-                    "LP token minter (pair) {} doesn't match pair address registered in factory {}",
-                    pair_info.contract_addr, resp.contract_addr
+                    "LP token {lp_token_addr} doesn't match LP token registered in factory {}",
+                    resp.liquidity_token
                 )))
             }
         })?
+}
+
+pub fn claim_orphaned_rewards(
+    deps: DepsMut,
+    info: MessageInfo,
+    limit: Option<u8>,
+    receiver: String,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+
+    let receiver = deps.api.addr_validate(&receiver)?;
+    let limit = limit
+        .unwrap_or(MAX_ORPHANED_REWARD_LIMIT)
+        .min(MAX_ORPHANED_REWARD_LIMIT);
+
+    let orphaned_rewards = ORPHANED_REWARDS
+        .range(deps.storage, None, None, Order::Ascending)
+        .take(limit as usize)
+        .collect::<StdResult<Vec<_>>>()?;
+
+    if orphaned_rewards.is_empty() {
+        return Err(ContractError::NoOrphanedRewards {});
+    }
+
+    let mut messages = vec![];
+    let mut attrs = vec![
+        attr("action", "claim_orphaned_rewards"),
+        attr("receiver", &receiver),
+    ];
+
+    for (reward_info_binary, amount) in orphaned_rewards {
+        // Send orphaned rewards
+        if !amount.is_zero() {
+            ORPHANED_REWARDS.remove(deps.storage, &reward_info_binary);
+
+            let reward_info = from_key_to_asset_info(reward_info_binary)?;
+            let reward_asset = reward_info.with_balance(amount);
+
+            attrs.push(attr("claimed_orphaned_reward", reward_asset.to_string()));
+
+            let transfer_msg = reward_asset
+                .into_submsg(&receiver, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))?;
+            messages.push(transfer_msg);
+        }
+    }
+
+    Ok(Response::new().add_submessages(messages))
+}
+
+pub fn asset_info_key(asset_info: &AssetInfo) -> Vec<u8> {
+    let mut bytes = vec![];
+    match asset_info {
+        AssetInfo::NativeToken { denom } => {
+            bytes.push(0);
+            bytes.extend_from_slice(denom.as_bytes());
+        }
+        AssetInfo::Token { contract_addr } => {
+            bytes.push(1);
+            bytes.extend_from_slice(contract_addr.as_bytes());
+        }
+    }
+
+    bytes
+}
+
+pub fn from_key_to_asset_info(bytes: Vec<u8>) -> StdResult<AssetInfo> {
+    match bytes[0] {
+        0 => String::from_utf8(bytes[1..].to_vec())
+            .map_err(StdError::invalid_utf8)
+            .map(AssetInfo::native),
+        1 => String::from_utf8(bytes[1..].to_vec())
+            .map_err(StdError::invalid_utf8)
+            .map(AssetInfo::cw20_unchecked),
+        _ => Err(StdError::generic_err(
+            "Failed to deserialize asset info key",
+        )),
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use astroport::asset::AssetInfo;
+
+    use super::*;
+
+    #[test]
+    fn test_asset_info_binary_key() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let key = asset_info_key(&asset_info);
+            assert_eq!(from_key_to_asset_info(key).unwrap(), asset_info);
+        }
+    }
+
+    #[test]
+    fn test_deserialize_asset_info_from_malformed_data() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let mut key = asset_info_key(&asset_info);
+            key[0] = 2;
+
+            assert_eq!(
+                from_key_to_asset_info(key).unwrap_err(),
+                StdError::generic_err("Failed to deserialize asset info key")
+            );
+        }
+
+        let key = vec![0, u8::MAX];
+        assert_eq!(
+            from_key_to_asset_info(key).unwrap_err().to_string(),
+            "Cannot decode UTF8 bytes into string: invalid utf-8 sequence of 1 bytes from index 0"
+        );
+    }
 }

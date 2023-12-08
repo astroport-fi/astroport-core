@@ -211,7 +211,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
-        "Generic error: Unexpected asset random-coin",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -226,7 +226,7 @@ fn provide_and_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Unexpected asset random-coin",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -1747,4 +1747,48 @@ fn check_small_trades_18decimals() {
         "Internal PCL value is off. Relative_diff: {}",
         relative_diff
     );
+}
+
+#[test]
+fn test_provide_liquidity_without_funds() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let user1 = Addr::unchecked("user1");
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    // provide some liquidity
+    for _ in 0..3 {
+        helper.give_me_money(&assets, &user1);
+        helper.provide_liquidity(&user1, &assets).unwrap();
+    }
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: assets.clone().to_vec(),
+        slippage_tolerance: Some(f64_to_dec(0.5)),
+        auto_stake: None,
+        receiver: None,
+    };
+
+    let err = helper
+        .app
+        .execute_contract(user1.clone(), helper.pair_addr.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Native token balance mismatch between the argument (100000000000uluna) and the transferred (0uluna)"
+    )
 }

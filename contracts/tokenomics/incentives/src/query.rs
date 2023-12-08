@@ -4,13 +4,14 @@ use cosmwasm_std::{ensure, to_binary, Binary, Deps, Env, Order, StdError, StdRes
 use cw_storage_plus::Bound;
 use itertools::Itertools;
 
-use astroport::asset::{determine_asset_info, Asset, AssetInfoExt};
+use astroport::asset::{determine_asset_info, Asset, AssetInfo, AssetInfoExt};
 use astroport::incentives::{QueryMsg, RewardType, ScheduleResponse, MAX_PAGE_LIMIT};
 
 use crate::error::ContractError;
 use crate::state::{
     list_pool_stakers, PoolInfo, UserInfo, BLOCKED_TOKENS, CONFIG, EXTERNAL_REWARD_SCHEDULES,
 };
+use crate::utils::{asset_info_key, from_key_to_asset_info};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
@@ -31,7 +32,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             pool_info.update_rewards(deps.storage, &env, &lp_asset)?;
             Ok(to_binary(&pool_info.rewards)?)
         }
-        QueryMsg::BlockedTokensList {} => Ok(to_binary(&BLOCKED_TOKENS.load(deps.storage)?)?),
+        QueryMsg::BlockedTokensList { start_after, limit } => {
+            Ok(to_binary(&query_blocked_tokens(deps, start_after, limit)?)?)
+        }
         QueryMsg::PoolInfo { lp_token } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
             Ok(to_binary(
@@ -89,6 +92,28 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
     }
 }
 
+fn query_blocked_tokens(
+    deps: Deps,
+    start_after: Option<AssetInfo>,
+    limit: Option<u8>,
+) -> StdResult<Vec<AssetInfo>> {
+    let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+    if let Some(start_after) = start_after {
+        let asset_key = asset_info_key(&start_after);
+        BLOCKED_TOKENS.range(
+            deps.storage,
+            Some(Bound::exclusive(asset_key.as_slice())),
+            None,
+            Order::Ascending,
+        )
+    } else {
+        BLOCKED_TOKENS.range(deps.storage, None, None, Order::Ascending)
+    }
+    .take(limit)
+    .map(|item| item.map(|(k, _)| from_key_to_asset_info(k))?)
+    .collect()
+}
+
 pub fn query_pending_rewards(
     deps: Deps,
     env: Env,
@@ -102,13 +127,18 @@ pub fn query_pending_rewards(
     pool_info.update_rewards(deps.storage, &env, &lp_asset)?;
 
     let mut pos = UserInfo::load_position(deps.storage, &user_addr, &lp_asset)?;
+
+    let mut outstanding_rewards =
+        pos.claim_finished_rewards(deps.storage, &lp_asset, &pool_info)?;
+
+    // Reset user reward index for all finished schedules
+    pos.reset_user_index(deps.storage, &lp_asset, &pool_info)?;
+
     let active_rewards = pool_info
         .calculate_rewards(&mut pos)
         .into_iter()
         .map(|(_, asset)| asset);
 
-    let mut outstanding_rewards =
-        pos.claim_finished_rewards(deps.storage, &lp_asset, &pool_info)?;
     outstanding_rewards.extend(active_rewards);
 
     let aggregated = outstanding_rewards
@@ -143,7 +173,6 @@ pub fn query_external_reward_schedules(
     let (rps, end_ts) = pool_info
         .rewards
         .iter()
-        .filter(|x| x.reward.is_external())
         .find_map(|active| match &active.reward {
             RewardType::Ext {
                 info,

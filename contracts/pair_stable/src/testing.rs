@@ -4,8 +4,8 @@ use std::str::FromStr;
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coin, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal,
-    DepsMut, Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult,
-    Timestamp, Uint128, WasmMsg,
+    DepsMut, Env, Reply, ReplyOn, Response, SubMsg, SubMsgResponse, SubMsgResult, Timestamp,
+    Uint128, WasmMsg,
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use itertools::Itertools;
@@ -408,13 +408,7 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "Native token balance mismatch between the argument and the transferred".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
+    assert_eq!(res.to_string(), "Generic error: Native token balance mismatch between the argument (50000000000000000000uusd) and the transferred (100000000000000000000uusd)");
 
     // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(

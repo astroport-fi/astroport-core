@@ -18,13 +18,16 @@ pub const MAX_REWARD_TOKENS: u8 = 5;
 /// Max items per page in queries
 pub const MAX_PAGE_LIMIT: u8 = 50;
 
+/// Max number of orphaned rewards to claim at a time
+pub const MAX_ORPHANED_REWARD_LIMIT: u8 = 10;
+
 #[cw_serde]
 pub struct InstantiateMsg {
     pub owner: String,
     pub factory: String,
     pub astro_token: AssetInfo,
     pub vesting_contract: String,
-    pub insentivization_fee_info: Option<IncentivizationFeeInfo>,
+    pub incentivization_fee_info: Option<IncentivizationFeeInfo>,
     pub guardian: Option<String>,
 }
 
@@ -51,7 +54,7 @@ impl IncentivesSchedule {
     pub fn from_input(env: &Env, input: &InputSchedule) -> StdResult<Self> {
         if input.duration_periods > MAX_PERIODS || input.duration_periods == 0 {
             return Err(StdError::generic_err(format!(
-                "Duration must be more 0 and less than {MAX_PERIODS}",
+                "Duration must be more 0 and less than or equal to {MAX_PERIODS}",
             )));
         }
 
@@ -135,12 +138,21 @@ pub enum ExecuteMsg {
         lp_token: String,
         /// The reward token cw20 address or token factory denom
         reward: String,
-        /// If there is too much spam in the state, we can bypass upcoming schedules;
+        /// If there is too much spam in the state, owner can bypass upcoming schedules;
         /// Tokens from these schedules will stuck in Generator balance forever.
+        /// Set true only in emergency cases i.e. if deregistration message hits gas limit during simulation.
         /// Default: false
         #[serde(default)]
         bypass_upcoming_schedules: bool,
         /// Receiver of unclaimed rewards
+        receiver: String,
+    },
+    /// Claim all or up to the limit accumulated orphaned rewards.
+    /// Only the owner can execute this.
+    ClaimOrphanedRewards {
+        /// Number of assets to claim
+        limit: Option<u8>,
+        /// Receiver of orphaned rewards
         receiver: String,
     },
     /// Update config.
@@ -224,9 +236,12 @@ pub enum QueryMsg {
         start_after: Option<String>,
         limit: Option<u8>,
     },
-    /// Returns the list of blocked tokens
+    /// Returns paginated list of blocked tokens
     #[returns(Vec<AssetInfo>)]
-    BlockedTokensList {},
+    BlockedTokensList {
+        start_after: Option<AssetInfo>,
+        limit: Option<u8>,
+    },
     /// Checks whether fee expected for the specified pool if user wants to add new reward schedule
     #[returns(bool)]
     IsFeeExpected { lp_token: String, reward: String },
@@ -404,7 +419,9 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             err.to_string(),
-            format!("Generic error: Duration must be more 0 and less than {MAX_PERIODS}")
+            format!(
+                "Generic error: Duration must be more 0 and less than or equal to {MAX_PERIODS}"
+            )
         );
 
         let err = IncentivesSchedule::from_input(
@@ -417,7 +434,9 @@ mod tests {
         .unwrap_err();
         assert_eq!(
             err.to_string(),
-            format!("Generic error: Duration must be more 0 and less than {MAX_PERIODS}")
+            format!(
+                "Generic error: Duration must be more 0 and less than or equal to {MAX_PERIODS}"
+            )
         );
 
         let err = IncentivesSchedule::from_input(

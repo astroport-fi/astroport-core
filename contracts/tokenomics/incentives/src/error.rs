@@ -52,4 +52,13 @@ pub enum ContractError {
 
     #[error("Pair type {pair_type} is blocked")]
     BlockedPairType { pair_type: PairType },
+
+    #[error("Failed to parse or process reply message")]
+    FailedToParseReply {},
+
+    #[error("No orphaned rewards to claim")]
+    NoOrphanedRewards {},
+
+    #[error("Failed to set 0 alloc point for pool {lp_token}")]
+    ZeroAllocPoint { lp_token: String },
 }

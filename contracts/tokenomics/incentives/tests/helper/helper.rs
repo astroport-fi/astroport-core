@@ -16,6 +16,7 @@ use cw_multi_test::{
 };
 use itertools::Itertools;
 
+use crate::helper::broken_cw20;
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::{
@@ -83,12 +84,23 @@ fn token_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-fn generator_contract() -> Box<dyn Contract<Empty>> {
+fn broken_token_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
-        astroport_incentives::execute::execute,
-        astroport_incentives::instantiate::instantiate,
-        astroport_incentives::query::query,
+        broken_cw20::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ))
+}
+
+fn generator_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_incentives::execute::execute,
+            astroport_incentives::instantiate::instantiate,
+            astroport_incentives::query::query,
+        )
+        .with_reply_empty(astroport_incentives::reply::reply),
+    )
 }
 
 pub struct TestApi {
@@ -312,7 +324,7 @@ impl Helper {
                     factory: factory.to_string(),
                     astro_token: astro.clone(),
                     vesting_contract: vesting.to_string(),
-                    insentivization_fee_info: Some(IncentivizationFeeInfo {
+                    incentivization_fee_info: Some(IncentivizationFeeInfo {
                         fee_receiver: TestAddr::new("maker"),
                         fee: incentivization_fee.clone(),
                     }),
@@ -477,6 +489,23 @@ impl Helper {
         )
     }
 
+    pub fn update_blocklist(
+        &mut self,
+        from: &Addr,
+        add: &[AssetInfo],
+        remove: &[AssetInfo],
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            from.clone(),
+            self.generator.clone(),
+            &ExecuteMsg::UpdateBlockedTokenslist {
+                add: add.to_vec(),
+                remove: remove.to_vec(),
+            },
+            &[],
+        )
+    }
+
     pub fn block_pair_type(&mut self, from: &Addr, pair_type: PairType) -> AnyResult<AppResponse> {
         let pair_config = self
             .app
@@ -566,6 +595,30 @@ impl Helper {
             .unwrap()
     }
 
+    pub fn init_broken_cw20(&mut self, name: &str, decimals: Option<u8>) -> Addr {
+        let broken_cw20_code = self.app.store_code(broken_token_contract());
+        self.app
+            .instantiate_contract(
+                broken_cw20_code,
+                self.owner.clone(),
+                &cw20_base::msg::InstantiateMsg {
+                    name: name.to_string(),
+                    symbol: name.to_string(),
+                    decimals: decimals.unwrap_or(6),
+                    initial_balances: vec![],
+                    mint: Some(MinterResponse {
+                        minter: self.owner.to_string(),
+                        cap: None,
+                    }),
+                    marketing: None,
+                },
+                &[],
+                name,
+                None,
+            )
+            .unwrap()
+    }
+
     pub fn incentivize(
         &mut self,
         from: &Addr,
@@ -633,6 +686,22 @@ impl Helper {
                 reward: reward.to_string(),
                 bypass_upcoming_schedules,
                 receiver: receiver.to_string(),
+            },
+            &[],
+        )
+    }
+
+    pub fn claim_orphaned_rewards(
+        &mut self,
+        limit: Option<u8>,
+        receiver: impl Into<String>,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.generator.clone(),
+            &ExecuteMsg::ClaimOrphanedRewards {
+                limit,
+                receiver: receiver.into(),
             },
             &[],
         )
@@ -772,7 +841,13 @@ impl Helper {
     pub fn blocked_tokens(&self) -> Vec<AssetInfo> {
         self.app
             .wrap()
-            .query_wasm_smart(&self.generator, &QueryMsg::BlockedTokensList {})
+            .query_wasm_smart(
+                &self.generator,
+                &QueryMsg::BlockedTokensList {
+                    start_after: None,
+                    limit: None,
+                },
+            )
             .unwrap()
     }
 

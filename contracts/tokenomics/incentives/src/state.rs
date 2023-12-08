@@ -1,7 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Env, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal, Env, Order, StdError, StdResult, Storage, Uint128};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
 
@@ -9,10 +9,11 @@ use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::common::OwnershipProposal;
 use astroport::incentives::{Config, IncentivesSchedule};
 use astroport::incentives::{PoolInfoResponse, RewardInfo, RewardType};
+use astroport::incentives::{MAX_PAGE_LIMIT, MAX_REWARD_TOKENS};
 
 use crate::error::ContractError;
 use crate::traits::RewardInfoExt;
-use astroport::incentives::{MAX_PAGE_LIMIT, MAX_REWARD_TOKENS};
+use crate::utils::asset_info_key;
 
 /// General generator contract settings
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -21,8 +22,8 @@ pub const CONFIG: Item<Config> = Item::new("config");
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
 /// Pools which receive ASTRO emissions
 pub const ACTIVE_POOLS: Item<Vec<(AssetInfo, Uint128)>> = Item::new("active_pools");
-/// Prohibited tokens list
-pub const BLOCKED_TOKENS: Item<Vec<AssetInfo>> = Item::new("blocked_tokens");
+/// Prohibited tokens set. Key: binary representing [`AssetInfo`] converted with [`crate::utils::asset_info_key`].
+pub const BLOCKED_TOKENS: Map<&[u8], ()> = Map::new("blocked_tokens");
 
 /// Contains reward indexes for finished rewards. They are removed from [`PoolInfo`] and stored here.
 /// Next time user claims rewards they will be able to claim outstanding rewards from this index.
@@ -37,6 +38,12 @@ pub const USER_INFO: Map<(&AssetInfo, &Addr), UserInfo> = Map::new("user_info");
 /// key: (LP token asset, reward token asset, schedule end point), value: reward per second
 pub const EXTERNAL_REWARD_SCHEDULES: Map<(&AssetInfo, &AssetInfo, u64), Decimal> =
     Map::new("reward_schedules");
+
+/// Accumulates all orphaned rewards i.e. those which were added to a pool
+/// but this pool never received any LP tokens deposits.
+/// key: Key: binary representing [`AssetInfo`] converted with [`asset_info_key`],
+/// value: total amount of orphaned tokens
+pub const ORPHANED_REWARDS: Map<&[u8], Uint128> = Map::new("orphaned_rewards");
 
 impl RewardInfoExt for RewardInfo {
     /// This function is tightly coupled with [`UserInfo`] structure. It iterates over all user's
@@ -75,9 +82,10 @@ pub struct PoolInfo {
     /// Last time when reward indexes were updated
     pub last_update_ts: u64,
     /// Rewards to remove; In-memory hash map to avoid unnecessary state writes;
+    /// Key: reward type, value: (reward index, orphaned rewards)
     /// NOTE: this is not part of serialized structure in state!
     #[serde(skip)]
-    pub rewards_to_remove: HashMap<RewardType, Decimal>,
+    pub rewards_to_remove: HashMap<RewardType, (Decimal, Decimal)>,
 }
 
 impl PoolInfo {
@@ -164,8 +172,10 @@ impl PoolInfo {
             }
 
             if need_remove {
-                self.rewards_to_remove
-                    .insert(reward_info.reward.clone(), reward_info.index);
+                self.rewards_to_remove.insert(
+                    reward_info.reward.clone(),
+                    (reward_info.index, reward_info.orphaned),
+                );
             }
         }
 
@@ -360,8 +370,10 @@ impl PoolInfo {
             .iter()
             .find_position(|reward| matches!(&reward.reward, RewardType::Ext { info, .. } if info == reward_asset))
             .ok_or_else(|| ContractError::RewardNotFound { pool: lp_asset.to_string(), reward: reward_asset.to_string() })?;
-        self.rewards_to_remove
-            .insert(reward_info.reward.clone(), reward_info.index);
+        self.rewards_to_remove.insert(
+            reward_info.reward.clone(),
+            (reward_info.index, reward_info.orphaned),
+        );
         let reward_info = self.rewards.remove(pos);
 
         let next_update_ts = match &reward_info.reward {
@@ -418,16 +430,40 @@ impl PoolInfo {
     }
 
     /// Reflect changes to pool info in state. Save finished rewards indexes from in-memory hash map.
+    /// If reward schedule has orphaned rewards accumulate them in ORPHANED_REWARDS.
     /// This function consumes self just to make sure it becomes unusable after calling save().
     pub fn save(self, storage: &mut dyn Storage, lp_token: &AssetInfo) -> StdResult<()> {
         if !self.rewards_to_remove.is_empty() {
-            let finished = self
-                .rewards_to_remove
+            self.rewards_to_remove
                 .iter()
                 .map(|(reward, index)| (reward.asset_info().clone(), *index))
-                .collect_vec();
+                .group_by(|(_, (_, orphaned_amount))| orphaned_amount.is_zero())
+                .into_iter()
+                .try_for_each(|(is_zero, group)| {
+                    if is_zero {
+                        let finished_indexes = group
+                            .map(|(reward_asset_info, (index, _))| (reward_asset_info, index))
+                            .collect_vec();
+                        FINISHED_REWARD_INDEXES.save(
+                            storage,
+                            (lp_token, self.last_update_ts),
+                            &finished_indexes,
+                        )
+                    } else {
+                        // Processing finished schedules with orphaned rewards
+                        for (reward, (_, orphaned_amount)) in group {
+                            ORPHANED_REWARDS.update::<_, StdError>(
+                                storage,
+                                &asset_info_key(&reward),
+                                |amount| {
+                                    Ok(amount.unwrap_or_default() + orphaned_amount.to_uint_floor())
+                                },
+                            )?;
+                        }
 
-            FINISHED_REWARD_INDEXES.save(storage, (lp_token, self.last_update_ts), &finished)?;
+                        Ok(())
+                    }
+                })?;
         }
 
         POOLS.save(storage, lp_token, &self)
@@ -513,6 +549,50 @@ impl UserInfo {
         USER_INFO.may_load(storage, (lp_token, user))
     }
 
+    /// Reset user index for all finished rewards.
+    /// This function is called after processing finished schedules and before processing active
+    /// schedules for a specific user.
+    /// The idea is as follows:
+    /// - get all finished rewards from FINISHED_REWARDS_INDEXES which finished after last time when user claimed rewards
+    /// - merge them with rewards_to_remove
+    /// - iterate over all finished rewards and set user index to 0.
+    pub fn reset_user_index(
+        &mut self,
+        storage: &dyn Storage,
+        lp_token: &AssetInfo,
+        pool_info: &PoolInfo,
+    ) -> StdResult<()> {
+        let mut finished: HashSet<_> = FINISHED_REWARD_INDEXES
+            .prefix(lp_token)
+            .range(
+                storage,
+                Some(Bound::exclusive(self.last_claim_time)),
+                None,
+                Order::Ascending,
+            )
+            .map(|res| res.map(|(_, indexes)| indexes))
+            .collect::<StdResult<Vec<_>>>()?
+            .into_iter()
+            .flatten()
+            .map(|(reward_asset, _)| reward_asset)
+            .collect();
+
+        finished.extend(
+            pool_info
+                .rewards_to_remove
+                .keys()
+                .map(|reward| reward.asset_info().clone()),
+        );
+
+        for (reward, index) in self.last_rewards_index.iter_mut() {
+            if reward.is_external() && finished.contains(reward.asset_info()) {
+                *index = Decimal::zero();
+            }
+        }
+
+        Ok(())
+    }
+
     /// This function calculates all outstanding rewards from finished schedules for a specific user position.
     /// The idea is as follows:
     /// - get all finished rewards from FINISHED_REWARDS_INDEXES which were deregistered after last claim time
@@ -541,7 +621,7 @@ impl UserInfo {
         let to_remove_iter = pool_info
             .rewards_to_remove
             .iter()
-            .map(|(reward, index)| (reward.asset_info().clone(), *index));
+            .map(|(reward, (index, _))| (reward.asset_info().clone(), *index));
 
         finished_iter
             .chain(to_remove_iter)
