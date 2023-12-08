@@ -1,10 +1,5 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{from_binary, to_binary, Addr, Coin, ReplyOn, SubMsg, Uint128, WasmMsg};
-
-use crate::contract::{execute, instantiate, query};
-use crate::error::ContractError;
-use crate::testing::mock_querier::mock_dependencies;
-
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport::asset::{native_asset_info, AssetInfo};
@@ -12,6 +7,10 @@ use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
+
+use crate::contract::{execute, instantiate, query, AFTER_SWAP_REPLY_ID};
+use crate::error::ContractError;
+use crate::testing::mock_querier::mock_dependencies;
 
 #[test]
 fn proper_initialization() {
@@ -164,29 +163,10 @@ fn execute_swap_operations() {
                     .unwrap(),
                 }
                 .into(),
-                id: 0,
+                id: AFTER_SWAP_REPLY_ID,
                 gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
-            SubMsg {
-                msg: WasmMsg::Execute {
-                    contract_addr: String::from(MOCK_CONTRACT_ADDR),
-                    funds: vec![],
-                    msg: to_binary(&ExecuteMsg::AssertMinimumReceive {
-                        asset_info: AssetInfo::Token {
-                            contract_addr: Addr::unchecked("asset0002"),
-                        },
-                        prev_balance: Uint128::zero(),
-                        minimum_receive: Uint128::from(1000000u128),
-                        receiver: String::from("addr0000"),
-                    })
-                    .unwrap(),
-                }
-                .into(),
-                id: 0,
-                gas_limit: None,
-                reply_on: ReplyOn::Never,
-            },
+                reply_on: ReplyOn::Success,
+            }
         ]
     );
 
@@ -301,9 +281,9 @@ fn execute_swap_operations() {
                     .unwrap(),
                 }
                 .into(),
-                id: 0,
+                id: AFTER_SWAP_REPLY_ID,
                 gas_limit: None,
-                reply_on: ReplyOn::Never,
+                reply_on: ReplyOn::Success,
             }
         ]
     );
@@ -439,90 +419,16 @@ fn query_buy_with_routes() {
             amount: Uint128::from(1000000u128),
         }
     );
-}
 
-#[test]
-fn assert_minimum_receive_native_token() {
-    let mut deps = mock_dependencies(&[]);
-    deps.querier.with_balance(&[(
-        &String::from("addr0000"),
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(1000000u128),
+    let msg = QueryMsg::SimulateSwapOperations {
+        offer_amount: Uint128::from(1000000u128),
+        operations: vec![SwapOperation::NativeSwap {
+            offer_denom: "ukrw".to_string(),
+            ask_denom: "test".to_string(),
         }],
-    )]);
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    // Success
-    let msg = ExecuteMsg::AssertMinimumReceive {
-        asset_info: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        prev_balance: Uint128::zero(),
-        minimum_receive: Uint128::from(1000000u128),
-        receiver: String::from("addr0000"),
     };
-    let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // Assertion failed; native token
-    let msg = ExecuteMsg::AssertMinimumReceive {
-        asset_info: AssetInfo::NativeToken {
-            denom: "uusd".to_string(),
-        },
-        prev_balance: Uint128::zero(),
-        minimum_receive: Uint128::from(1000001u128),
-        receiver: String::from("addr0000"),
-    };
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(
-        res,
-        ContractError::AssertionMinimumReceive {
-            receive: Uint128::new(1000001),
-            amount: Uint128::new(1000000),
-        }
-    );
-}
-
-#[test]
-fn assert_minimum_receive_token() {
-    let mut deps = mock_dependencies(&[]);
-
-    deps.querier.with_token_balances(&[(
-        &String::from("token0000"),
-        &[(&String::from("addr0000"), &Uint128::from(1000000u128))],
-    )]);
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    // Success
-    let msg = ExecuteMsg::AssertMinimumReceive {
-        asset_info: AssetInfo::Token {
-            contract_addr: Addr::unchecked("token0000"),
-        },
-        prev_balance: Uint128::zero(),
-        minimum_receive: Uint128::from(1000000u128),
-        receiver: String::from("addr0000"),
-    };
-    let _res = execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // Assertion failed; native token
-    let msg = ExecuteMsg::AssertMinimumReceive {
-        asset_info: AssetInfo::Token {
-            contract_addr: Addr::unchecked("token0000"),
-        },
-        prev_balance: Uint128::zero(),
-        minimum_receive: Uint128::from(1000001u128),
-        receiver: String::from("addr0000"),
-    };
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    assert_eq!(
-        res,
-        ContractError::AssertionMinimumReceive {
-            receive: Uint128::new(1000001),
-            amount: Uint128::new(1000000),
-        }
-    );
+    let err = query(deps.as_ref(), env.clone(), msg).unwrap_err();
+    assert_eq!(err, ContractError::NativeSwapNotSupported {});
 }
 
 #[test]

@@ -19,7 +19,6 @@ astroport-shared-multisig = { path = "../../contracts/periphery/shared_multisig"
 astroport-pair = { path = "../../contracts/pair" }
 astroport-pair-stable = { path = "../../contracts/pair_stable" }
 astroport-pair-concentrated = { path = "../../contracts/pair_concentrated" }
-astroport-pair-concentrated-injective = { path = "../../contracts/pair_concentrated_inj" }
 astroport-staking = { path = "../../contracts/tokenomics/staking" }
 astroport-token = { path = "../../contracts/token" }
 astroport-vesting = { path = "../../contracts/tokenomics/vesting" }

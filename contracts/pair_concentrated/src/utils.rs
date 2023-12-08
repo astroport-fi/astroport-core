@@ -1,12 +1,12 @@
-use cosmwasm_std::{Addr, Env, QuerierWrapper, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal, Env, QuerierWrapper, StdResult, Storage, Uint128};
 
 use astroport::asset::{Asset, DecimalAsset};
+use astroport::observation::{safe_sma_buffer_not_full, safe_sma_calculation};
 use astroport::observation::{Observation, PrecommitObservation};
 use astroport::querier::query_supply;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 use astroport_pcl_common::state::{Config, Precisions};
-use astroport_pcl_common::utils::{safe_sma_buffer_not_full, safe_sma_calculation};
 
 use crate::error::ContractError;
 use crate::state::OBSERVATIONS;
@@ -43,7 +43,7 @@ pub(crate) fn query_pools(
         .collect()
 }
 
-/// Calculate and save moving averages of swap sizes.
+/// Calculate and save price moving average
 pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
     if let Some(PrecommitObservation {
         base_amount,
@@ -52,45 +52,35 @@ pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResu
     }) = PrecommitObservation::may_load(storage)?
     {
         let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+        let observed_price = Decimal::from_ratio(base_amount, quote_amount);
 
         let new_observation;
         if let Some(last_obs) = buffer.read_last(storage)? {
             // Skip saving observation if it has been already saved
-            if last_obs.timestamp < precommit_ts {
+            if last_obs.ts < precommit_ts {
                 // Since this is circular buffer the next index contains the oldest value
                 let count = buffer.capacity();
                 if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
-                    let new_base_sma = safe_sma_calculation(
-                        last_obs.base_sma,
-                        oldest_obs.base_amount,
+                    let price_sma = safe_sma_calculation(
+                        last_obs.price_sma,
+                        oldest_obs.price,
                         count,
-                        base_amount,
-                    )?;
-                    let new_quote_sma = safe_sma_calculation(
-                        last_obs.quote_sma,
-                        oldest_obs.quote_amount,
-                        count,
-                        quote_amount,
+                        observed_price,
                     )?;
                     new_observation = Observation {
-                        base_amount,
-                        quote_amount,
-                        base_sma: new_base_sma,
-                        quote_sma: new_quote_sma,
-                        timestamp: precommit_ts,
+                        ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
                     };
                 } else {
                     // Buffer is not full yet
                     let count = buffer.head();
-                    let base_sma = safe_sma_buffer_not_full(last_obs.base_sma, count, base_amount)?;
-                    let quote_sma =
-                        safe_sma_buffer_not_full(last_obs.quote_sma, count, quote_amount)?;
+                    let price_sma =
+                        safe_sma_buffer_not_full(last_obs.price_sma, count, observed_price)?;
                     new_observation = Observation {
-                        base_amount,
-                        quote_amount,
-                        base_sma,
-                        quote_sma,
-                        timestamp: precommit_ts,
+                        ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
                     };
                 }
 
@@ -100,11 +90,9 @@ pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResu
             // Buffer is empty
             if env.block.time.seconds() > precommit_ts {
                 new_observation = Observation {
-                    timestamp: precommit_ts,
-                    base_sma: base_amount,
-                    base_amount,
-                    quote_sma: quote_amount,
-                    quote_amount,
+                    ts: precommit_ts,
+                    price: observed_price,
+                    price_sma: observed_price,
                 };
 
                 buffer.instant_push(storage, &new_observation)?
@@ -117,10 +105,17 @@ pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResu
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
+    use std::str::FromStr;
+
     use cosmwasm_std::testing::{mock_env, MockStorage};
     use cosmwasm_std::{BlockInfo, Timestamp};
 
     use super::*;
+
+    pub fn dec_to_f64(val: impl Display) -> f64 {
+        f64::from_str(&val.to_string()).unwrap()
+    }
 
     #[test]
     fn test_swap_observations() {
@@ -144,9 +139,9 @@ mod tests {
         let buffer = BufferManager::new(&store, OBSERVATIONS).unwrap();
 
         let obs = buffer.read_last(&store).unwrap().unwrap();
-        assert_eq!(obs.timestamp, 50);
+        assert_eq!(obs.ts, 50);
         assert_eq!(buffer.head(), 0);
-        assert_eq!(obs.base_sma.u128(), 1000u128);
-        assert_eq!(obs.quote_sma.u128(), 500u128);
+        assert_eq!(dec_to_f64(obs.price_sma), 2.0);
+        assert_eq!(dec_to_f64(obs.price), 2.0);
     }
 }

@@ -26,22 +26,19 @@ pub const TWO: Decimal256 = Decimal256::raw(2000000000000000000);
 pub const MAX_ITER: usize = 64;
 
 /// ## Validation constants
-/// 0.001
-pub const MIN_FEE: Decimal = Decimal::raw(1000000000000000);
-/// 0.5
-pub const MAX_FEE: Decimal = Decimal::raw(500000000000000000);
+/// 0.00005 (0.005%)
+pub const MIN_FEE: Decimal = Decimal::raw(50000000000000);
+/// 0.01 (1%)
+pub const MAX_FEE: Decimal = Decimal::raw(10000000000000000);
 
-/// 1e-8
-pub const FEE_GAMMA_MIN: Decimal = Decimal::raw(10000000000);
-/// 0.02
-pub const FEE_GAMMA_MAX: Decimal = Decimal::raw(20000000000000000);
+pub const FEE_GAMMA_MIN: Decimal = Decimal::zero();
+pub const FEE_GAMMA_MAX: Decimal = Decimal::one();
 
 pub const REPEG_PROFIT_THRESHOLD_MIN: Decimal = Decimal::zero();
 /// 0.01
 pub const REPEG_PROFIT_THRESHOLD_MAX: Decimal = Decimal::raw(10000000000000000);
 
-/// 0.00000000001
-pub const PRICE_SCALE_DELTA_MIN: Decimal = Decimal::raw(10000000);
+pub const PRICE_SCALE_DELTA_MIN: Decimal = Decimal::zero();
 pub const PRICE_SCALE_DELTA_MAX: Decimal = Decimal::one();
 
 pub const MA_HALF_TIME_LIMITS: RangeInclusive<u64> = 1..=(7 * 86400);
@@ -51,8 +48,8 @@ pub const AMP_MIN: Decimal = Decimal::raw(1e17 as u128);
 /// 100000
 pub const AMP_MAX: Decimal = Decimal::raw(1e23 as u128);
 
-/// 0.0000001
-pub const GAMMA_MIN: Decimal = Decimal::raw(100000000000);
+/// 0.00000001
+pub const GAMMA_MIN: Decimal = Decimal::raw(10000000000);
 /// 0.02
 pub const GAMMA_MAX: Decimal = Decimal::raw(20000000000000000);
 

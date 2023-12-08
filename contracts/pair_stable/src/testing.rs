@@ -1,27 +1,37 @@
+use std::error::Error;
+use std::str::FromStr;
+
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
+use cosmwasm_std::{
+    attr, coin, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal,
+    DepsMut, Env, Reply, ReplyOn, Response, SubMsg, SubMsgResponse, SubMsgResult, Timestamp,
+    Uint128, WasmMsg,
+};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use itertools::Itertools;
+use proptest::prelude::*;
+use prost::Message;
+use sim::StableSwapModel;
+
+use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
+use astroport::observation::query_observation;
+use astroport::observation::Observation;
+use astroport::observation::OracleObservation;
+use astroport::pair::{
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
+    SimulationResponse, StablePoolParams,
+};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_circular_buffer::BufferManager;
+
 use crate::contract::{
     assert_max_spread, execute, instantiate, query, query_pool, query_reverse_simulation,
     query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
-
 use crate::state::{CONFIG, OBSERVATIONS};
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
-
-use astroport::pair::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
-    SimulationResponse, StablePoolParams,
-};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{
-    attr, coin, from_binary, to_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal,
-    DepsMut, Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult,
-    Timestamp, Uint128, WasmMsg,
-};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use itertools::Itertools;
-use prost::Message;
+use crate::utils::{compute_swap, select_pools};
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {
@@ -398,13 +408,7 @@ fn provide_liquidity() {
         }],
     );
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Std(StdError::GenericErr { msg, .. }) => assert_eq!(
-            msg,
-            "Native token balance mismatch between the argument and the transferred".to_string()
-        ),
-        _ => panic!("Must return generic error"),
-    }
+    assert_eq!(res.to_string(), "Generic error: Native token balance mismatch between the argument (50000000000000000000uusd) and the transferred (100000000000000000000uusd)");
 
     // Initialize token balances with a ratio of 1:1
     deps.querier.with_balance(&[(
@@ -1151,179 +1155,154 @@ fn test_query_share() {
     assert_eq!(res[1].amount, Uint128::new(500));
 }
 
-#[cfg(test)]
-mod testing {
-    use std::error::Error;
-    use std::str::FromStr;
+pub fn f64_to_dec<T>(val: f64) -> T
+where
+    T: FromStr,
+    T::Err: Error,
+{
+    T::from_str(&val.to_string()).unwrap()
+}
 
-    use astroport::observation::{query_observation, Observation, OracleObservation};
-    use astroport_circular_buffer::BufferManager;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::Timestamp;
+#[test]
+fn observations_full_buffer() {
+    let mut deps = mock_dependencies(&[]);
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(100_000);
+    BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
 
-    use super::*;
+    let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
 
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
+    let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Buffer is empty");
 
-    #[test]
-    fn observations_full_buffer() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        env.block.time = Timestamp::from_seconds(100_000);
-        BufferManager::init(&mut deps.storage, OBSERVATIONS, 20).unwrap();
+    let array = (1..=30)
+        .into_iter()
+        .map(|i| Observation {
+            ts: env.block.time.seconds() + i * 1000,
+            price: Default::default(),
+            price_sma: Decimal::from_ratio(i, i * i),
+        })
+        .collect_vec();
+    buffer.push_many(&array);
+    buffer.commit(&mut deps.storage).unwrap();
 
-        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+    env.block.time = env.block.time.plus_seconds(30_000);
 
-        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
-        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+    assert_eq!(
+        OracleObservation {
+            timestamp: 120_000,
+            price: f64_to_dec(20.0 / 400.0),
+        },
+        query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+    );
 
-        let array = (1..=30)
-            .into_iter()
-            .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
-            })
-            .collect_vec();
-        buffer.push_many(&array);
+    assert_eq!(
+        OracleObservation {
+            timestamp: 124_411,
+            price: f64_to_dec(0.04098166666666694),
+        },
+        query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+    );
+
+    let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Requested observation is too old. Last known observation is at 111000"
+    );
+}
+
+#[test]
+fn observations_incomplete_buffer() {
+    let mut deps = mock_dependencies(&[]);
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(100_000);
+    BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
+
+    let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+    let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
+    assert_eq!(err.to_string(), "Generic error: Buffer is empty");
+
+    let array = (1..=30)
+        .into_iter()
+        .map(|i| Observation {
+            ts: env.block.time.seconds() + i * 1000,
+            price: Default::default(),
+            price_sma: Decimal::from_ratio(i, i * i),
+        })
+        .collect_vec();
+    buffer.push_many(&array);
+    buffer.commit(&mut deps.storage).unwrap();
+
+    env.block.time = env.block.time.plus_seconds(30_000);
+
+    assert_eq!(
+        OracleObservation {
+            timestamp: 120_000,
+            price: f64_to_dec(20.0 / 400.0),
+        },
+        query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
+    );
+
+    assert_eq!(
+        OracleObservation {
+            timestamp: 124_411,
+            price: f64_to_dec(0.04098166666666694),
+        },
+        query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
+    );
+}
+
+#[test]
+fn observations_checking_triple_capacity_step_by_step() {
+    let mut deps = mock_dependencies(&[]);
+    let mut env = mock_env();
+    env.block.time = Timestamp::from_seconds(100_000);
+    const CAPACITY: u32 = 20;
+    BufferManager::init(&mut deps.storage, OBSERVATIONS, CAPACITY).unwrap();
+
+    let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
+
+    let ts = env.block.time.seconds();
+
+    let array = (1..=CAPACITY * 3)
+        .into_iter()
+        .map(|i| Observation {
+            ts: ts + i as u64 * 1000,
+            price: Default::default(),
+            price_sma: Decimal::from_ratio(i * i, i),
+        })
+        .collect_vec();
+
+    for (k, obs) in array.iter().enumerate() {
+        env.block.time = env.block.time.plus_seconds(1000);
+
+        buffer.push(&obs);
         buffer.commit(&mut deps.storage).unwrap();
+        let k1 = k as u32 + 1;
 
-        env.block.time = env.block.time.plus_seconds(30_000);
+        let from = k1.saturating_sub(CAPACITY) + 1;
+        let to = k1;
 
-        assert_eq!(
-            OracleObservation {
-                timestamp: 120_000,
-                price: f64_to_dec(20.0 / 400.0),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
-        );
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 124_411,
-                price: f64_to_dec(0.04098166666666694),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
-        );
-
-        let err = query_observation(deps.as_ref(), env, OBSERVATIONS, 35_000).unwrap_err();
-        assert_eq!(
-            err.to_string(),
-            "Generic error: Requested observation is too old. Last known observation is at 111000"
-        );
-    }
-
-    #[test]
-    fn observations_incomplete_buffer() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        env.block.time = Timestamp::from_seconds(100_000);
-        BufferManager::init(&mut deps.storage, OBSERVATIONS, 3000).unwrap();
-
-        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
-
-        let err = query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 11000).unwrap_err();
-        assert_eq!(err.to_string(), "Generic error: Buffer is empty");
-
-        let array = (1..=30)
-            .into_iter()
-            .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
-            })
-            .collect_vec();
-        buffer.push_many(&array);
-        buffer.commit(&mut deps.storage).unwrap();
-
-        env.block.time = env.block.time.plus_seconds(30_000);
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 120_000,
-                price: f64_to_dec(20.0 / 400.0),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 10000).unwrap()
-        );
-
-        assert_eq!(
-            OracleObservation {
-                timestamp: 124_411,
-                price: f64_to_dec(0.04098166666666694),
-            },
-            query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, 5589).unwrap()
-        );
-    }
-
-    #[test]
-    fn observations_checking_triple_capacity_step_by_step() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        env.block.time = Timestamp::from_seconds(100_000);
-        const CAPACITY: u32 = 20;
-        BufferManager::init(&mut deps.storage, OBSERVATIONS, CAPACITY).unwrap();
-
-        let mut buffer = BufferManager::new(&deps.storage, OBSERVATIONS).unwrap();
-
-        let ts = env.block.time.seconds();
-
-        let array = (1..=CAPACITY * 3)
-            .into_iter()
-            .map(|i| Observation {
-                timestamp: ts + i as u64 * 1000,
-                base_sma: Default::default(),
-                base_amount: (i * i).into(),
-                quote_sma: Default::default(),
-                quote_amount: i.into(),
-            })
-            .collect_vec();
-
-        for (k, obs) in array.iter().enumerate() {
-            env.block.time = env.block.time.plus_seconds(1000);
-
-            buffer.push(&obs);
-            buffer.commit(&mut deps.storage).unwrap();
-            let k1 = k as u32 + 1;
-
-            let from = k1.saturating_sub(CAPACITY) + 1;
-            let to = k1;
-
-            for i in from..=to {
-                let shift = (to - i) as u64;
-                if shift != 0 {
-                    assert_eq!(
-                        OracleObservation {
-                            timestamp: ts + i as u64 * 1000 + 500,
-                            price: f64_to_dec(i as f64 + 0.5),
-                        },
-                        query_observation(
-                            deps.as_ref(),
-                            env.clone(),
-                            OBSERVATIONS,
-                            shift * 1000 - 500
-                        )
-                        .unwrap()
-                    );
-                }
+        for i in from..=to {
+            let shift = (to - i) as u64;
+            if shift != 0 {
                 assert_eq!(
                     OracleObservation {
-                        timestamp: ts + i as u64 * 1000,
-                        price: f64_to_dec(i as f64),
+                        timestamp: ts + i as u64 * 1000 + 500,
+                        price: f64_to_dec(i as f64 + 0.5),
                     },
-                    query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000)
+                    query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000 - 500)
                         .unwrap()
                 );
             }
+            assert_eq!(
+                OracleObservation {
+                    timestamp: ts + i as u64 * 1000,
+                    price: f64_to_dec(i as f64),
+                },
+                query_observation(deps.as_ref(), env.clone(), OBSERVATIONS, shift * 1000).unwrap()
+            );
         }
     }
 }
@@ -1337,10 +1316,6 @@ fn mock_env_with_block_time(time: u64) -> Env {
     };
     env
 }
-
-use crate::utils::{compute_swap, select_pools};
-use proptest::prelude::*;
-use sim::StableSwapModel;
 
 proptest! {
     #[test]
@@ -1392,7 +1367,7 @@ proptest! {
         let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
 
         assert!(
-            diff <= 9,
+            diff <= 10,
             "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
             result.return_amount,
             sim_result,

@@ -1,5 +1,8 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{CustomQuery, Decimal, Deps, Env, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{
+    CustomQuery, Decimal, Decimal256, Deps, Env, Fraction, StdError, StdResult, Storage, Uint128,
+    Uint256,
+};
 use cw_storage_plus::Item;
 
 use astroport_circular_buffer::{BufferManager, CircularBuffer};
@@ -14,15 +17,12 @@ pub const OBSERVATIONS_SIZE: u32 = 3000;
 #[cw_serde]
 #[derive(Copy, Default)]
 pub struct Observation {
-    pub timestamp: u64,
-    /// Base asset simple moving average (mean)
-    pub base_sma: Uint128,
-    /// Base asset amount that was added at this observation
-    pub base_amount: Uint128,
-    /// Quote asset simple moving average (mean)
-    pub quote_sma: Uint128,
-    /// Quote asset amount that was added at this observation
-    pub quote_amount: Uint128,
+    /// Timestamp of the observation
+    pub ts: u64,
+    /// Observed price at this point
+    pub price: Decimal,
+    /// Price simple moving average (mean)
+    pub price_sma: Decimal,
 }
 
 #[cw_serde]
@@ -68,41 +68,41 @@ where
     }
 
     let newest_obs = buffer.read_single(deps.storage, newest_ind)?.unwrap();
-    if target >= newest_obs.timestamp {
+    if target >= newest_obs.ts {
         return Ok(OracleObservation {
             timestamp: target,
-            price: Decimal::from_ratio(newest_obs.base_amount, newest_obs.quote_amount),
+            price: newest_obs.price_sma,
         });
     }
     let oldest_obs = buffer.read_single(deps.storage, oldest_ind)?.unwrap();
-    if target == oldest_obs.timestamp {
+    if target == oldest_obs.ts {
         return Ok(OracleObservation {
             timestamp: target,
-            price: Decimal::from_ratio(oldest_obs.base_amount, oldest_obs.quote_amount),
+            price: oldest_obs.price_sma,
         });
     }
-    if target < oldest_obs.timestamp {
+    if target < oldest_obs.ts {
         return Err(StdError::generic_err(format!(
             "Requested observation is too old. Last known observation is at {}",
-            oldest_obs.timestamp
+            oldest_obs.ts
         )));
     }
 
     let (left, right) = binary_search(deps.storage, &buffer, target, oldest_ind, newest_ind)?;
 
-    let price_left = Decimal::from_ratio(left.base_amount, left.quote_amount);
-    let price_right = Decimal::from_ratio(right.base_amount, right.quote_amount);
-    let price = if left.timestamp == target {
+    let price_left = left.price_sma;
+    let price_right = right.price_sma;
+    let price = if left.ts == target {
         price_left
-    } else if right.timestamp == target {
+    } else if right.ts == target {
         price_right
     } else if price_left == price_right {
         price_left
     } else {
         // Interpolate.
-        let price_slope = price_right.diff(price_left)
-            * Decimal::from_ratio(1u8, right.timestamp - left.timestamp);
-        let time_interval = Decimal::from_ratio(target - left.timestamp, 1u8);
+        let price_slope =
+            price_right.diff(price_left) * Decimal::from_ratio(1u8, right.ts - left.ts);
+        let time_interval = Decimal::from_ratio(target - left.ts, 1u8);
         if price_left > price_right {
             price_left - price_slope * time_interval
         } else {
@@ -141,10 +141,10 @@ fn binary_search(
             ))
         })?;
 
-        if leftward_or_hit.timestamp <= target && target <= rightward_or_hit.timestamp {
+        if leftward_or_hit.ts <= target && target <= rightward_or_hit.ts {
             break Ok((leftward_or_hit, rightward_or_hit));
         }
-        if leftward_or_hit.timestamp > target {
+        if leftward_or_hit.ts > target {
             end = mid - 1;
         } else {
             start = mid + 1;
@@ -193,25 +193,65 @@ impl<'a> PrecommitObservation {
     }
 }
 
+pub fn try_dec256_into_dec(val: Decimal256) -> StdResult<Decimal> {
+    let numerator: Uint128 = val.numerator().try_into()?;
+
+    Ok(Decimal::from_ratio(numerator, Decimal::one().denominator()))
+}
+
+/// Internal function to calculate new moving average using Uint256.
+/// Overflow is possible only if new average price is greater than 2^128 - 1 which is unlikely.
+/// Formula: (sma * count + new_price - oldest_price) / count
+pub fn safe_sma_calculation(
+    price_sma: Decimal,
+    oldest_price: Decimal,
+    count: u32,
+    new_price: Decimal,
+) -> StdResult<Decimal> {
+    let sma_times_count = price_sma.numerator().full_mul(count);
+    let res = Decimal256::from_ratio(
+        sma_times_count + Uint256::from(new_price.numerator())
+            - Uint256::from(oldest_price.numerator()),
+        price_sma.denominator().full_mul(count),
+    );
+
+    try_dec256_into_dec(res)
+}
+
+/// Same as [`safe_sma_calculation`] but is being used when buffer is not full yet.
+/// Formula: (sma * count + new_price) / (count + 1)
+pub fn safe_sma_buffer_not_full(
+    price_sma: Decimal,
+    count: u32,
+    new_price: Decimal,
+) -> StdResult<Decimal> {
+    let sma_times_count = price_sma.numerator().full_mul(count);
+    let res = Decimal256::from_ratio(
+        sma_times_count + Uint256::from(new_price.numerator()),
+        price_sma.denominator().full_mul(count + 1),
+    );
+
+    try_dec256_into_dec(res)
+}
+
 #[cfg(test)]
 mod test {
-    use crate::observation::Observation;
     use cosmwasm_std::to_binary;
+
+    use crate::observation::Observation;
 
     #[test]
     fn check_observation_size() {
         // Checking [`Observation`] object size to estimate gas cost
 
         let obs = Observation {
-            timestamp: 0,
-            base_sma: Default::default(),
-            base_amount: Default::default(),
-            quote_sma: Default::default(),
-            quote_amount: Default::default(),
+            ts: 0,
+            price: Default::default(),
+            price_sma: Default::default(),
         };
 
-        let storage_bytes = std::mem::size_of_val(&to_binary(&obs).unwrap());
-        assert_eq!(storage_bytes, 24); // in storage
+        let storage_bytes = to_binary(&obs).unwrap().len();
+        assert_eq!(storage_bytes, 36); // in storage
 
         // https://github.com/cosmos/cosmos-sdk/blob/47f46643affd7ec7978329c42bac47275ac7e1cc/store/types/gas.go#L199
         println!("sdk gas cost per read {}", 1000 + storage_bytes * 3);
