@@ -23,7 +23,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 cw-storage-plus = "0.15"
 cw1-whitelist = { version = "0.15", features = ["library"] }
 thiserror = { version = "1.0" }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", version = "1" }
 protobuf = { version = "2", features = ["with-bytes"] }
 cosmwasm-std = "1.1"
 cw2 = "0.15"
@@ -33,7 +33,7 @@ cosmwasm-schema = "1.1"
 cw-utils = "1.0.1"
 
 [dev-dependencies]
-generator-controller = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+generator-controller = { git = "https://github.com/astroport-fi/astroport-governance" }
 astroport-mocks = { path = "../../../packages/astroport_mocks" }
 astroport-token = { path = "../../token" }
 astroport-vesting = { path = "../vesting" }
@@ -43,9 +43,9 @@ astroport-pair = { path = "../../pair" }
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-whitelist = { path = "../../whitelist" }
 anyhow = "1"
-voting-escrow = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-voting-escrow-delegation = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-astroport-nft = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+voting-escrow = { git = "https://github.com/astroport-fi/astroport-governance" }
+voting-escrow-delegation = { git = "https://github.com/astroport-fi/astroport-governance" }
+astroport-nft = { git = "https://github.com/astroport-fi/astroport-governance" }
 cw721-base = { version = "0.15", features = ["library"] }
 generator-proxy-to-vkr = { git = "https://github.com/astroport-fi/astro-generator-proxy-contracts", branch = "main" }
 valkyrie = { git = "https://github.com/astroport-fi/valkyrieprotocol", rev = "b5fcb666f17d7e291f40365756e50fc0d7b9bf54" }
