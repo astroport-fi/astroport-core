@@ -40,7 +40,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.7.0"
+version = "3.8.0"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
@@ -517,7 +517,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-router"
-version = "1.1.2"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "astroport",
