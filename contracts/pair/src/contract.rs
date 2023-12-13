@@ -5,9 +5,9 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
-    Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
+    attr, from_json, to_json_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut,
+    Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult,
+    SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -62,7 +62,7 @@ pub fn instantiate(
     let mut track_asset_balances = false;
 
     if let Some(init_params) = msg.init_params {
-        let params: XYKPoolParams = from_binary(&init_params)?;
+        let params: XYKPoolParams = from_json(&init_params)?;
         track_asset_balances = params.track_asset_balances.unwrap_or_default();
     }
 
@@ -97,7 +97,7 @@ pub fn instantiate(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         msg: WasmMsg::Instantiate {
             code_id: msg.token_code_id,
-            msg: to_binary(&TokenInstantiateMsg {
+            msg: to_json_binary(&TokenInstantiateMsg {
                 name: token_name,
                 symbol: "uLP".to_string(),
                 decimals: 6,
@@ -244,7 +244,7 @@ pub fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Swap {
             belief_price,
             max_spread,
@@ -355,7 +355,7 @@ pub fn provide_liquidity(
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::TransferFrom {
+                msg: to_json_binary(&Cw20ExecuteMsg::TransferFrom {
                     owner: info.sender.to_string(),
                     recipient: env.contract.address.to_string(),
                     amount: deposits[i],
@@ -473,7 +473,7 @@ fn mint_liquidity_token_message(
     if !auto_stake {
         return Ok(vec![CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Mint {
+            msg: to_json_binary(&Cw20ExecuteMsg::Mint {
                 recipient: recipient.to_string(),
                 amount,
             })?,
@@ -488,7 +488,7 @@ fn mint_liquidity_token_message(
         Ok(vec![
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Mint {
+                msg: to_json_binary(&Cw20ExecuteMsg::Mint {
                     recipient: contract_address.to_string(),
                     amount,
                 })?,
@@ -496,10 +496,10 @@ fn mint_liquidity_token_message(
             }),
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: lp_token.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
+                msg: to_json_binary(&Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&GeneratorHookMsg::DepositFor(recipient.to_string()))?,
+                    msg: to_json_binary(&GeneratorHookMsg::DepositFor(recipient.to_string()))?,
                 })?,
                 funds: vec![],
             }),
@@ -563,7 +563,7 @@ pub fn withdraw_liquidity(
         refund_assets[1].clone().into_msg(sender.clone())?,
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+            msg: to_json_binary(&Cw20ExecuteMsg::Burn { amount })?,
             funds: vec![],
         }),
     ];
@@ -794,7 +794,7 @@ pub fn update_config(
 
     let mut response = Response::default();
 
-    match from_binary::<XYKPoolUpdateParams>(&params)? {
+    match from_json::<XYKPoolUpdateParams>(&params)? {
         XYKPoolUpdateParams::EnableAssetBalancesTracking => {
             if config.track_asset_balances {
                 return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
@@ -950,21 +950,21 @@ pub fn calculate_maker_fee(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
-        QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
-        QueryMsg::Share { amount } => to_binary(&query_share(deps, amount)?),
+        QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
+        QueryMsg::Pool {} => to_json_binary(&query_pool(deps)?),
+        QueryMsg::Share { amount } => to_json_binary(&query_share(deps, amount)?),
         QueryMsg::Simulation { offer_asset, .. } => {
-            to_binary(&query_simulation(deps, offer_asset)?)
+            to_json_binary(&query_simulation(deps, offer_asset)?)
         }
         QueryMsg::ReverseSimulation { ask_asset, .. } => {
-            to_binary(&query_reverse_simulation(deps, ask_asset)?)
+            to_json_binary(&query_reverse_simulation(deps, ask_asset)?)
         }
-        QueryMsg::CumulativePrices {} => to_binary(&query_cumulative_prices(deps, env)?),
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::CumulativePrices {} => to_json_binary(&query_cumulative_prices(deps, env)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::AssetBalanceAt {
             asset_info,
             block_height,
-        } => to_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
+        } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
         _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
@@ -1134,7 +1134,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         block_time_last: config.block_time_last,
-        params: Some(to_binary(&XYKPoolConfig {
+        params: Some(to_json_binary(&XYKPoolConfig {
             track_asset_balances: config.track_asset_balances,
             fee_share: config.fee_share,
         })?),

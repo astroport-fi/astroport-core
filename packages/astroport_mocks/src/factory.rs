@@ -7,7 +7,7 @@ use astroport::{
     pair::StablePoolParams,
     pair_concentrated::ConcentratedPoolParams,
 };
-use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Decimal, Storage};
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Decimal, Storage};
 use cw_multi_test::{
     AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
 };
@@ -235,7 +235,9 @@ where
                 &ExecuteMsg::CreatePair {
                     pair_type: PairType::Stable {},
                     asset_infos: asset_infos.to_vec(),
-                    init_params: Some(to_binary(init_params.unwrap_or(&default_params)).unwrap()),
+                    init_params: Some(
+                        to_json_binary(init_params.unwrap_or(&default_params)).unwrap(),
+                    ),
                 },
                 &[],
             )
@@ -303,7 +305,9 @@ where
                 &ExecuteMsg::CreatePair {
                     pair_type: PairType::Custom("concentrated".to_owned()),
                     asset_infos: asset_infos.to_vec(),
-                    init_params: Some(to_binary(init_params.unwrap_or(&default_params)).unwrap()),
+                    init_params: Some(
+                        to_json_binary(init_params.unwrap_or(&default_params)).unwrap(),
+                    ),
                 },
                 &[],
             )

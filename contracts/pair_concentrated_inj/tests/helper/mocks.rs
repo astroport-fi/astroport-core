@@ -16,7 +16,7 @@ use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    attr, coin, coins, to_binary, Addr, Api, BankMsg, Binary, BlockInfo, Coin, CustomMsg,
+    attr, coin, coins, to_json_binary, Addr, Api, BankMsg, Binary, BlockInfo, Coin, CustomMsg,
     CustomQuery, Decimal256, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
     OverflowError, Querier, Reply, Response, StdError, Storage, SubMsgResponse, SubMsgResult,
 };
@@ -622,7 +622,7 @@ impl Module for InjMockModule {
                 if let Some((base_denom, quote_denom)) = markets.get(&market_id) {
                     // TODO: save min_quantity_tick_size and min_price_tick_size somewhere if needed
                     // as currently they are hardcoded
-                    Ok(to_binary(&SpotMarketResponse {
+                    Ok(to_json_binary(&SpotMarketResponse {
                         market: Some(SpotMarket {
                             ticker: base_denom.to_string() + "/" + quote_denom,
                             market_id,
@@ -638,7 +638,7 @@ impl Module for InjMockModule {
                         }),
                     })?)
                 } else {
-                    Ok(to_binary(&SpotMarketResponse { market: None })?)
+                    Ok(to_json_binary(&SpotMarketResponse { market: None })?)
                 }
             }
             InjectiveQuery::SubaccountDeposit {
@@ -661,7 +661,7 @@ impl Module for InjMockModule {
                             .unwrap_or_default()
                     })
                     .unwrap_or_default();
-                Ok(to_binary(&SubaccountDepositResponse {
+                Ok(to_json_binary(&SubaccountDepositResponse {
                     deposits: Deposit {
                         available_balance: FPDecimal::from(balance),
                         total_balance: FPDecimal::from(balance),
@@ -690,7 +690,7 @@ impl Module for InjMockModule {
                         })
                         .collect::<Vec<_>>()
                 });
-                Ok(to_binary(&TraderSpotOrdersResponse { orders })?)
+                Ok(to_json_binary(&TraderSpotOrdersResponse { orders })?)
             }
             InjectiveQuery::WasmxRegisteredContractInfo { contract_address } => {
                 let contract = self
@@ -715,7 +715,7 @@ impl Module for InjMockModule {
                             fund_mode: fund_mode.into(),
                         }
                     });
-                Ok(to_binary(&QueryContractRegistrationInfoResponse {
+                Ok(to_json_binary(&QueryContractRegistrationInfoResponse {
                     contract,
                 })?)
             }

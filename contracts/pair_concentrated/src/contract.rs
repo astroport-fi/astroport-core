@@ -3,7 +3,7 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, wasm_execute, wasm_instantiate, Addr, Attribute, Binary, CosmosMsg, Decimal,
+    attr, from_json, wasm_execute, wasm_instantiate, Addr, Attribute, Binary, CosmosMsg, Decimal,
     Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
@@ -68,7 +68,7 @@ pub fn instantiate(
 
     check_asset_infos(deps.api, &msg.asset_infos)?;
 
-    let params: ConcentratedPoolParams = from_binary(
+    let params: ConcentratedPoolParams = from_json(
         &msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
@@ -320,7 +320,7 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Swap {
             belief_price,
             max_spread,
@@ -883,7 +883,7 @@ fn update_config(
 
     let mut attrs: Vec<Attribute> = vec![];
 
-    let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
+    let action = match from_json::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
             config.pool_params.update_params(update_params)?;
             "update_params"

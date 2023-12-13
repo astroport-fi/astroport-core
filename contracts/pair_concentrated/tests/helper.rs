@@ -9,7 +9,7 @@ use std::str::FromStr;
 use anyhow::Result as AnyResult;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, from_slice, to_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
     Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
@@ -256,7 +256,7 @@ impl Helper {
         let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
             pair_type,
             asset_infos: asset_infos.clone(),
-            init_params: Some(to_binary(&params).unwrap()),
+            init_params: Some(to_json_binary(&params).unwrap()),
         };
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
@@ -314,7 +314,7 @@ impl Helper {
         let msg = Cw20ExecuteMsg::Send {
             contract: self.pair_addr.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
         };
 
         self.app
@@ -342,7 +342,7 @@ impl Helper {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&Cw20HookMsg::Swap {
+                    msg: to_json_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
                         belief_price,
                         max_spread,
@@ -484,7 +484,7 @@ impl Helper {
             .wrap()
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
-        from_slice(&binary)
+        from_json(&binary)
     }
 
     pub fn query_pool(&self) -> StdResult<PoolResponse> {
@@ -522,7 +522,7 @@ impl Helper {
             user.clone(),
             self.pair_addr.clone(),
             &ExecuteMsg::UpdateConfig {
-                params: to_binary(action).unwrap(),
+                params: to_json_binary(action).unwrap(),
             },
             &[],
         )
@@ -533,7 +533,7 @@ impl Helper {
             .app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
-        let params: ConcentratedPoolConfig = from_slice(
+        let params: ConcentratedPoolConfig = from_json(
             &config_resp
                 .params
                 .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,

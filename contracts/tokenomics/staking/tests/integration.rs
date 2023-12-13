@@ -2,7 +2,7 @@
 
 use astroport::staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg as xInstatiateMsg, QueryMsg};
 use astroport::token::InstantiateMsg;
-use cosmwasm_std::{attr, to_binary, Addr, QueryRequest, Uint128, WasmQuery};
+use cosmwasm_std::{attr, to_json_binary, Addr, QueryRequest, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -40,7 +40,7 @@ fn check_deflate_liquidity() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(1000u128),
     };
 
@@ -59,7 +59,7 @@ fn check_deflate_liquidity() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(1001u128),
     };
 
@@ -88,7 +88,7 @@ fn check_deflate_liquidity() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(2u128),
     };
 
@@ -105,7 +105,7 @@ fn check_deflate_liquidity() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -196,7 +196,7 @@ fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
         .wrap()
         .query::<ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: staking_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }))
         .unwrap();
 
@@ -256,7 +256,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -268,7 +268,7 @@ fn cw20receive_enter_and_leave() {
     // We can unstake ASTRO only by calling the xASTRO token.
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -285,7 +285,7 @@ fn cw20receive_enter_and_leave() {
     // Tru to stake Alice's 1100 ASTRO for 1100 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(1100u128),
     };
 
@@ -305,7 +305,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -321,7 +321,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -337,7 +337,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -349,7 +349,7 @@ fn cw20receive_enter_and_leave() {
     // We can stake tokens only by calling the ASTRO token.
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -366,7 +366,7 @@ fn cw20receive_enter_and_leave() {
     // Try to unstake Alice's 10 xASTRO for 10 ASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -386,7 +386,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -402,7 +402,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -418,7 +418,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -434,7 +434,7 @@ fn cw20receive_enter_and_leave() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -476,7 +476,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     // enter Alice's 2000 ASTRO for 1000 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(2000u128),
     };
 
@@ -496,7 +496,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -508,7 +508,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
     // Try to burn Alice's 2000 xASTRO and unstake
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(2000u128),
     };
 
@@ -566,7 +566,7 @@ fn should_work_with_more_than_one_participant() {
     // Stake Alice's 2000 ASTRO for 1000 xASTRO (subtract min liquid amount)
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(2000u128),
     };
 
@@ -582,7 +582,7 @@ fn should_work_with_more_than_one_participant() {
     // Stake Bob's 10 ASTRO for 10 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -597,7 +597,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -613,7 +613,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -629,7 +629,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -665,7 +665,7 @@ fn should_work_with_more_than_one_participant() {
     // Stake Alice's 10 ASTRO for 9 xASTRO: 10*2010/2030 = 9
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(10u128),
     };
 
@@ -685,7 +685,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -701,7 +701,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -713,7 +713,7 @@ fn should_work_with_more_than_one_participant() {
     // Burn Bob's 5 xASTRO and unstake: gets 5*2040/2019 = 5 ASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Leave {}).unwrap(),
         amount: Uint128::from(5u128),
     };
 
@@ -733,7 +733,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -749,7 +749,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -765,7 +765,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -781,7 +781,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -797,7 +797,7 @@ fn should_work_with_more_than_one_participant() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),
@@ -828,7 +828,7 @@ fn should_not_allow_directly_burn_from_xastro() {
     // enter Alice's 2000 ASTRO for 1000 xASTRO
     let msg = Cw20ExecuteMsg::Send {
         contract: staking_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
         amount: Uint128::from(2000u128),
     };
 
@@ -848,7 +848,7 @@ fn should_not_allow_directly_burn_from_xastro() {
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: x_astro_token_instance.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
     assert_eq!(
         res.unwrap(),

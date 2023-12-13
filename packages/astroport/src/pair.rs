@@ -1,10 +1,9 @@
-use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
-use crate::asset::{Asset, AssetInfo, PairInfo};
-
 use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
+
+use crate::asset::{Asset, AssetInfo, PairInfo};
+use crate::observation::OracleObservation;
 
 /// The default swap slippage
 pub const DEFAULT_SLIPPAGE: &str = "0.005";
@@ -275,9 +274,11 @@ pub enum StablePoolUpdateParams {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use cosmwasm_std::{from_json, to_json_binary};
+
     use crate::asset::native_asset_info;
-    use cosmwasm_std::{from_binary, from_slice, to_binary};
+
+    use super::*;
 
     #[cw_serde]
     pub struct LegacyInstantiateMsg {
@@ -307,17 +308,17 @@ mod tests {
             init_params: None,
         };
 
-        let ser_msg = to_binary(&inst_msg).unwrap();
+        let ser_msg = to_json_binary(&inst_msg).unwrap();
         // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
-        let _: InstantiateMsg = from_binary(&ser_msg).unwrap();
+        let _: InstantiateMsg = from_json(&ser_msg).unwrap();
     }
 
     #[test]
     fn test_config_response_compatability() {
-        let ser_msg = to_binary(&LegacyConfigResponse {
+        let ser_msg = to_json_binary(&LegacyConfigResponse {
             block_time_last: 12,
             params: Some(
-                to_binary(&StablePoolConfig {
+                to_json_binary(&StablePoolConfig {
                     amp: Decimal::one(),
                     fee_share: None,
                 })
@@ -328,12 +329,12 @@ mod tests {
         })
         .unwrap();
 
-        let _: ConfigResponse = from_binary(&ser_msg).unwrap();
+        let _: ConfigResponse = from_json(&ser_msg).unwrap();
     }
 
     #[test]
     fn check_empty_vec_deserialization() {
-        let variant: Cw20HookMsg = from_slice(br#"{"withdraw_liquidity": {} }"#).unwrap();
+        let variant: Cw20HookMsg = from_json(br#"{"withdraw_liquidity": {} }"#).unwrap();
         assert_eq!(variant, Cw20HookMsg::WithdrawLiquidity { assets: vec![] });
     }
 }

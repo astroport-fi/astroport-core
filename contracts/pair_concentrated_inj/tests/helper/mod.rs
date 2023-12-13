@@ -10,8 +10,8 @@ use anyhow::Result as AnyResult;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_std::{
-    coin, from_slice, to_binary, Addr, Coin, CustomMsg, CustomQuery, Decimal, Decimal256, StdError,
-    StdResult, Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, CustomMsg, CustomQuery, Decimal, Decimal256,
+    StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
@@ -323,7 +323,7 @@ impl Helper {
         let params = if with_orderbook {
             let market_id =
                 market_id.unwrap_or_else(|| calc_market_ids(&asset_infos).unwrap()[0].clone());
-            to_binary(&ConcentratedInjObParams {
+            to_json_binary(&ConcentratedInjObParams {
                 main_params: params,
                 orderbook_config: OrderbookConfig {
                     market_id,
@@ -333,7 +333,7 @@ impl Helper {
             })
             .unwrap()
         } else {
-            to_binary(&params).unwrap()
+            to_json_binary(&params).unwrap()
         };
 
         let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
@@ -420,7 +420,7 @@ impl Helper {
         let msg = Cw20ExecuteMsg::Send {
             contract: self.pair_addr.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
         };
 
         self.app
@@ -448,7 +448,7 @@ impl Helper {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&Cw20HookMsg::Swap {
+                    msg: to_json_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
                         belief_price,
                         max_spread,
@@ -523,7 +523,7 @@ impl Helper {
             .query_wasm_raw(&self.pair_addr, b"orderbook_config")?
             .unwrap();
 
-        from_slice(&bin)
+        from_json(&bin)
     }
 
     pub fn query_ob_config_smart(&self) -> StdResult<OrderbookStateResponse> {
@@ -615,7 +615,7 @@ impl Helper {
             .wrap()
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
-        from_slice(&binary)
+        from_json(&binary)
     }
 
     pub fn query_lp_price(&self) -> StdResult<Decimal256> {
@@ -633,7 +633,7 @@ impl Helper {
             user.clone(),
             self.pair_addr.clone(),
             &ExecuteMsg::UpdateConfig {
-                params: to_binary(action).unwrap(),
+                params: to_json_binary(action).unwrap(),
             },
             &[],
         )
@@ -644,7 +644,7 @@ impl Helper {
             .app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
-        let params: ConcentratedPoolParams = from_slice(
+        let params: ConcentratedPoolParams = from_json(
             &config_resp
                 .params
                 .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,

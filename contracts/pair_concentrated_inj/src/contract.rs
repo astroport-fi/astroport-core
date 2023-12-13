@@ -1,8 +1,8 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CustomMsg,
-    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    attr, entry_point, from_json, wasm_execute, wasm_instantiate, Addr, Binary, CustomMsg, Decimal,
+    Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
@@ -69,7 +69,7 @@ pub fn instantiate(
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
     }
 
-    let orderbook_params: ConcentratedInjObParams = from_binary(
+    let orderbook_params: ConcentratedInjObParams = from_json(
         &msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
@@ -325,7 +325,7 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response<InjectiveMsgWrapper>, ContractError> {
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
             deps,
             env,
@@ -891,7 +891,7 @@ fn update_config<T>(
         return Err(ContractError::Unauthorized {});
     }
 
-    let attributes = match from_binary::<ConcentratedObPoolUpdateParams>(&params)? {
+    let attributes = match from_json::<ConcentratedObPoolUpdateParams>(&params)? {
         ConcentratedObPoolUpdateParams::Update(update_params) => {
             let mut attrs = config.pool_params.update_params(update_params)?;
             attrs.push(attr("action", "update_params"));

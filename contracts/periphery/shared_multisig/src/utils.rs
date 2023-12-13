@@ -8,7 +8,7 @@ use astroport::generator::QueryMsg as GeneratorQueryMsg;
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::shared_multisig::{Config, PoolType, ProvideParams};
 use cosmwasm_std::{
-    attr, to_binary, Addr, Attribute, CosmosMsg, Decimal, QuerierWrapper, StdError, StdResult,
+    attr, to_json_binary, Addr, Attribute, CosmosMsg, Decimal, QuerierWrapper, StdError, StdResult,
     Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -63,9 +63,9 @@ pub(crate) fn prepare_withdraw_msg(
     Ok((
         CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
                 contract: pair.to_string(),
-                msg: to_binary(&PairCw20HookMsg::WithdrawLiquidity { assets: vec![] })?,
+                msg: to_json_binary(&PairCw20HookMsg::WithdrawLiquidity { assets: vec![] })?,
                 amount: burn_amount,
             })?,
             funds: vec![],
@@ -86,7 +86,7 @@ pub(crate) fn prepare_provide_msg(
             .iter()
             .map(|asset| asset.as_coin())
             .collect::<StdResult<_>>()?,
-        msg: to_binary(&PairExecuteMsg::ProvideLiquidity {
+        msg: to_json_binary(&PairExecuteMsg::ProvideLiquidity {
             assets,
             slippage_tolerance,
             auto_stake,

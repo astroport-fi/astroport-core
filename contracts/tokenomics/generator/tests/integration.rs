@@ -31,7 +31,7 @@ use astroport::pair::StablePoolParams;
 use astroport_generator::error::ContractError;
 use astroport_mocks::cw_multi_test::{next_block, App, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockToken, MockTokenBuilder};
-use cosmwasm_std::{from_slice, to_binary, Addr, Binary, StdResult, Uint128, Uint64};
+use cosmwasm_std::{from_json, to_json_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 use crate::test_utils::controller_helper::ControllerHelper;
@@ -1151,7 +1151,7 @@ fn disabling_pool() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1187,7 +1187,7 @@ fn disabling_pool() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1271,7 +1271,7 @@ fn generator_without_reward_proxies() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1944,7 +1944,7 @@ fn generator_with_vkr_reward_proxy() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -3341,7 +3341,7 @@ fn deactivate_pools_by_pair_types() {
         &factory_instance,
         Some(PairType::Stable {}),
         Some(
-            to_binary(&StablePoolParams {
+            to_json_binary(&StablePoolParams {
                 amp: 100,
                 owner: None,
             })
@@ -4053,7 +4053,7 @@ fn instantiate_generator(
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
-        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+        msg: to_json_binary(&VestingHookMsg::RegisterVestingAccounts {
             vesting_accounts: vec![VestingAccount {
                 address: generator_instance.to_string(),
                 schedules: vec![VestingSchedule {
@@ -4211,7 +4211,7 @@ fn deposit_lp_tokens_to_generator(
     for (token, amount) in lp_tokens {
         let msg = Cw20ExecuteMsg::Send {
             contract: generator_instance.to_string(),
-            msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+            msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
             amount: Uint128::from(amount.to_owned()),
         };
 
@@ -4445,7 +4445,7 @@ fn migrate_proxy() {
         )
         .unwrap();
 
-    let proxy_reward_holder: Addr = from_slice(
+    let proxy_reward_holder: Addr = from_json(
         &app.borrow()
             .wrap()
             .query_wasm_raw(generator.address.clone(), b"proxy_rewards_holder")

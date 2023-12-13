@@ -2,7 +2,7 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, coins, ensure, to_binary, wasm_execute, Addr, Api, BankMsg, Coin,
+    coin, coins, ensure, to_json_binary, wasm_execute, Addr, Api, BankMsg, Coin,
     ConversionOverflowError, CosmosMsg, CustomMsg, CustomQuery, Decimal256, Fraction, MessageInfo,
     QuerierWrapper, ReplyOn, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
@@ -170,7 +170,7 @@ impl Asset {
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient,
                     amount: self.amount,
                 })?,

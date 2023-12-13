@@ -1,4 +1,4 @@
-use cosmwasm_std::{to_binary, Decimal};
+use cosmwasm_std::{to_json_binary, Decimal};
 
 use astroport::asset::AssetInfo;
 use astroport::incentives::{RewardInfo, RewardType};
@@ -21,12 +21,12 @@ fn main() {
     let pool_info = PoolInfo::default();
 
     // https://github.com/cosmos/cosmos-sdk/blob/47f46643affd7ec7978329c42bac47275ac7e1cc/store/types/gas.go#L199
-    let reward_info_storage_bytes = to_binary(&reward_info).unwrap().len();
+    let reward_info_storage_bytes = to_json_binary(&reward_info).unwrap().len();
     println!("reward info storage bytes {reward_info_storage_bytes}");
     println!("sdk gas cost per read {}", reward_info_storage_bytes * 3);
     println!("sdk gas cost per write {}", reward_info_storage_bytes * 30);
 
-    let pool_info_storage_bytes = to_binary(&pool_info).unwrap().len();
+    let pool_info_storage_bytes = to_json_binary(&pool_info).unwrap().len();
     println!("pool info storage bytes {pool_info_storage_bytes}");
     println!("sdk gas cost per read {}", pool_info_storage_bytes * 3);
     println!("sdk gas cost per write {}", pool_info_storage_bytes * 30);
@@ -42,7 +42,7 @@ fn main() {
         last_rewards_index: Default::default(),
         last_claim_time: 0,
     };
-    let user_info_storage_bytes = to_binary(&user_info).unwrap().len();
+    let user_info_storage_bytes = to_json_binary(&user_info).unwrap().len();
     println!("user info storage bytes {user_info_storage_bytes}");
     println!("sdk gas cost per read {}", user_info_storage_bytes * 3);
     println!("sdk gas cost per write {}", user_info_storage_bytes * 30);
@@ -55,7 +55,7 @@ fn main() {
         },
         Decimal::zero(),
     );
-    let reward_entry_storage_bytes = to_binary(&reward_index_entry).unwrap().len();
+    let reward_entry_storage_bytes = to_json_binary(&reward_index_entry).unwrap().len();
     let user_storage_bytes = user_info_storage_bytes + 6 * reward_entry_storage_bytes;
     println!("user with 5 + 1 rewards storage bytes {user_storage_bytes}");
     println!("sdk gas cost per read {}", user_storage_bytes * 3);

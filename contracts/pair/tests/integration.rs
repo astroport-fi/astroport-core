@@ -17,7 +17,7 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair::error::ContractError;
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128, Uint64};
+use cosmwasm_std::{attr, to_json_binary, Addr, Coin, Decimal, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
@@ -290,7 +290,7 @@ fn test_provide_and_withdraw_liquidity() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
     // Try to send withdraw liquidity with FOO token
     let err = router
@@ -339,7 +339,7 @@ fn test_provide_and_withdraw_liquidity() {
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: false,
                     fee_share: None,
                 })
@@ -559,7 +559,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
+        msg: to_json_binary(&Cw20HookMsg::Swap {
             ask_asset_info: None,
             belief_price: None,
             max_spread: None,
@@ -604,7 +604,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
+        msg: to_json_binary(&Cw20HookMsg::Swap {
             ask_asset_info: None,
             belief_price: None,
             max_spread: None,
@@ -960,7 +960,7 @@ fn asset_balances_tracking_works_correctly() {
 
     // Enable asset balances tracking
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_json_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
     };
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
         .unwrap();
@@ -1103,7 +1103,7 @@ fn asset_balances_tracking_works_correctly() {
         ],
         pair_type: PairType::Xyk {},
         init_params: Some(
-            to_binary(&XYKPoolParams {
+            to_json_binary(&XYKPoolParams {
                 track_asset_balances: Some(true),
             })
             .unwrap(),
@@ -1164,7 +1164,7 @@ fn asset_balances_tracking_works_correctly() {
 
     // Check that enabling asset balances tracking can not be done if it is already enabled
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_json_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
     };
     assert_eq!(
         app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -1339,7 +1339,7 @@ fn asset_balances_tracking_works_correctly() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::new(500_000000),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
 
     app.execute_contract(owner.clone(), lp_token_address, &msg, &[])
@@ -1454,7 +1454,7 @@ fn update_pair_config() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: false,
                     fee_share: None,
                 })
@@ -1466,7 +1466,7 @@ fn update_pair_config() {
     );
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
+        params: to_json_binary(&XYKPoolUpdateParams::EnableAssetBalancesTracking).unwrap(),
     };
     assert_eq!(
         router
@@ -1495,7 +1495,7 @@ fn update_pair_config() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: true,
                     fee_share: None,
                 })
@@ -1585,7 +1585,7 @@ fn enable_disable_fee_sharing() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: false,
                     fee_share: None,
                 })
@@ -1598,7 +1598,7 @@ fn enable_disable_fee_sharing() {
 
     // Attemt to set fee sharing higher than maximum
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+        params: to_json_binary(&XYKPoolUpdateParams::EnableFeeShare {
             fee_share_bps: MAX_FEE_SHARE_BPS + 1,
             fee_share_address: "contract".to_string(),
         })
@@ -1615,7 +1615,7 @@ fn enable_disable_fee_sharing() {
 
     // Attemt to set fee sharing to 0
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+        params: to_json_binary(&XYKPoolUpdateParams::EnableFeeShare {
             fee_share_bps: 0,
             fee_share_address: "contract".to_string(),
         })
@@ -1634,7 +1634,7 @@ fn enable_disable_fee_sharing() {
     let fee_share_contract = "contract".to_string();
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+        params: to_json_binary(&XYKPoolUpdateParams::EnableFeeShare {
             fee_share_bps,
             fee_share_address: fee_share_contract.clone(),
         })
@@ -1654,7 +1654,7 @@ fn enable_disable_fee_sharing() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: false,
                     fee_share: Some(FeeShareConfig {
                         bps: fee_share_bps,
@@ -1670,7 +1670,7 @@ fn enable_disable_fee_sharing() {
 
     // Disable fee sharing
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::DisableFeeShare).unwrap(),
+        params: to_json_binary(&XYKPoolUpdateParams::DisableFeeShare).unwrap(),
     };
 
     router
@@ -1686,7 +1686,7 @@ fn enable_disable_fee_sharing() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&XYKPoolConfig {
+                to_json_binary(&XYKPoolConfig {
                     track_asset_balances: false,
                     fee_share: None,
                 })
@@ -1827,7 +1827,7 @@ fn test_imbalanced_withdraw_is_disabled() {
     let msg_imbalance = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity {
             assets: vec![Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -2013,7 +2013,7 @@ fn test_fee_share(
         ],
         pair_type: PairType::Xyk {},
         init_params: Some(
-            to_binary(&XYKPoolParams {
+            to_json_binary(&XYKPoolParams {
                 track_asset_balances: Some(true),
             })
             .unwrap(),
@@ -2087,7 +2087,7 @@ fn test_fee_share(
     let fee_share_address = "contract_receiver".to_string();
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&XYKPoolUpdateParams::EnableFeeShare {
+        params: to_json_binary(&XYKPoolUpdateParams::EnableFeeShare {
             fee_share_bps,
             fee_share_address: fee_share_address.clone(),
         })
@@ -2099,7 +2099,7 @@ fn test_fee_share(
 
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
+        msg: to_json_binary(&Cw20HookMsg::Swap {
             ask_asset_info: None,
             belief_price: None,
             max_spread: None,

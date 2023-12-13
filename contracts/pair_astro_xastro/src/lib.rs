@@ -9,7 +9,7 @@ use astroport::pair_bonded::{ExecuteMsg, QueryMsg};
 use astroport_pair_bonded::base::PairBonded;
 use astroport_pair_bonded::error::ContractError;
 use cosmwasm_std::{
-    entry_point, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, from_json, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 
@@ -22,7 +22,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     if let Some(ser_init_params) = &msg.init_params {
-        let init_params: InitParams = from_binary(ser_init_params)?;
+        let init_params: InitParams = from_json(ser_init_params)?;
         let contract = Contract::new("params");
         contract
             .params

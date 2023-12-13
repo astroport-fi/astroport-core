@@ -14,7 +14,7 @@ use astroport::staking::{
 use astroport::pair_bonded::{ExecuteMsg, QueryMsg};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_astro_xastro::state::Params;
-use cosmwasm_std::{to_binary, Addr, Coin, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, Coin, Uint128};
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, ContractWrapper, Executor};
 
@@ -190,7 +190,7 @@ fn instantiate_astroport(mut router: &mut App, owner: &Addr) -> AstroportContrac
         token_code_id: 123,
         factory_addr: factory_instance.to_string(),
         init_params: Some(
-            to_binary(&Params {
+            to_json_binary(&Params {
                 astro_addr: token_instance.clone(),
                 xastro_addr: xastro_instance.clone(),
                 staking_addr: staking_instance.clone(),
@@ -301,7 +301,7 @@ fn test_pair_instantiation() {
         token_code_id: 123,
         factory_addr: factory_instance.to_string(),
         init_params: Some(
-            to_binary(&Params {
+            to_json_binary(&Params {
                 astro_addr: token_instance.clone(),
                 xastro_addr: xastro_instance.clone(),
                 staking_addr: staking_instance.clone(),
@@ -409,7 +409,7 @@ fn test_pair_swap() {
             &Cw20ExecuteMsg::Send {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(10_000u64),
-                msg: to_binary(&Cw20HookMsg::Swap {
+                msg: to_json_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
@@ -429,7 +429,7 @@ fn test_pair_swap() {
             &Cw20ExecuteMsg::Send {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(30_000u64),
-                msg: to_binary(&Cw20HookMsg::Swap {
+                msg: to_json_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
@@ -542,7 +542,7 @@ fn test_pair_swap() {
             &Cw20ExecuteMsg::Send {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(9_000u64),
-                msg: to_binary(&Cw20HookMsg::Swap {
+                msg: to_json_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,
@@ -562,7 +562,7 @@ fn test_pair_swap() {
             &Cw20ExecuteMsg::Send {
                 contract: contracts.pair_instance.clone().to_string(),
                 amount: Uint128::from(30_000u64),
-                msg: to_binary(&Cw20HookMsg::Swap {
+                msg: to_json_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: None,
                     belief_price: None,
                     max_spread: None,

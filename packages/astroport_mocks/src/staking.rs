@@ -4,7 +4,7 @@ use astroport::{
     staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg, QueryMsg},
     token::ExecuteMsg,
 };
-use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Storage, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Storage, Uint128};
 use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -148,7 +148,7 @@ where
                 astro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+                    msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],
@@ -179,7 +179,7 @@ where
                 xastro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+                    msg: to_json_binary(&Cw20HookMsg::Leave {}).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],

@@ -1,8 +1,8 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Addr, Binary, Coin, ContractResult, Empty, OwnedDeps,
-    Querier, QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    from_json, to_json_binary, Addr, Binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
+    QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
 use std::collections::HashMap;
 
@@ -97,7 +97,7 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &String)]) -> HashMap<String, Stri
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_json(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -132,11 +132,11 @@ impl WasmMockQuerier {
     }
 
     fn handle_default(&self, msg: &Binary) -> QuerierResult {
-        match from_binary(&msg).unwrap() {
+        match from_json(&msg).unwrap() {
             QueryMsg::Pair { asset_infos } => {
                 let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                 match self.astroport_factory_querier.pairs.get(&key) {
-                    Some(v) => SystemResult::Ok(ContractResult::from(to_binary(&PairInfo {
+                    Some(v) => SystemResult::Ok(ContractResult::from(to_json_binary(&PairInfo {
                         contract_addr: Addr::unchecked(v),
                         liquidity_token: Addr::unchecked("liquidity"),
                         asset_infos: vec![
@@ -156,7 +156,7 @@ impl WasmMockQuerier {
                 }
             }
             QueryMsg::Simulation { offer_asset, .. } => {
-                SystemResult::Ok(ContractResult::from(to_binary(&SimulationResponse {
+                SystemResult::Ok(ContractResult::from(to_json_binary(&SimulationResponse {
                     return_amount: offer_asset.amount,
                     commission_amount: Uint128::zero(),
                     spread_amount: Uint128::zero(),
@@ -166,7 +166,7 @@ impl WasmMockQuerier {
     }
 
     fn handle_cw20(&self, contract_addr: &String, msg: &Binary) -> QuerierResult {
-        match from_binary(&msg).unwrap() {
+        match from_json(&msg).unwrap() {
             Cw20QueryMsg::TokenInfo {} => {
                 let balances: &HashMap<String, Uint128> =
                     match self.token_querier.balances.get(contract_addr) {
@@ -182,7 +182,7 @@ impl WasmMockQuerier {
                     total_supply += *balance.1;
                 }
 
-                SystemResult::Ok(ContractResult::from(to_binary(&TokenInfoResponse {
+                SystemResult::Ok(ContractResult::from(to_json_binary(&TokenInfoResponse {
                     name: "mAPPL".to_string(),
                     symbol: "mAPPL".to_string(),
                     decimals: 6,
@@ -205,7 +205,7 @@ impl WasmMockQuerier {
                     }
                 };
 
-                SystemResult::Ok(ContractResult::from(to_binary(&BalanceResponse {
+                SystemResult::Ok(ContractResult::from(to_json_binary(&BalanceResponse {
                     balance: *balance,
                 })))
             }
