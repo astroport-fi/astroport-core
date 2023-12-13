@@ -144,7 +144,7 @@ where
     C: CustomQuery,
 {
     if let Some(res) = querier.query_wasm_raw(factory_contract, b"config".as_slice())? {
-        let res = from_json(&res)?;
+        let res = from_json(res)?;
         Ok(res)
     } else {
         Err(StdError::generic_err("The factory config not found!"))

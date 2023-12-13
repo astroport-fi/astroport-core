@@ -132,7 +132,7 @@ impl KeyDeserialize for &MultisigRole {
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        from_json(&value)
+        from_json(value)
     }
 }
 

@@ -509,7 +509,7 @@ pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
             "1.2.0" | "1.2.1" => {
-                let msg: migration::MigrationMsg = from_json(&msg.params)?;
+                let msg: migration::MigrationMsg = from_json(msg.params)?;
                 migrate_configs(&mut deps, &msg)?;
             }
             "1.3.0" | "1.5.1" => {}
