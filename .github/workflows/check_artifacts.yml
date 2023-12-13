@@ -115,4 +115,4 @@ jobs:
         run: cargo install --debug --version 1.4.0 cosmwasm-check
       - name: Cosmwasm check
         run: |
-          cosmwasm-check $GITHUB_WORKSPACE/artifacts/*.wasm --available-capabilities staking,cosmwasm_1_1,injective,iterator,stargate
+          cosmwasm-check $GITHUB_WORKSPACE/artifacts/*.wasm --available-capabilities staking,cosmwasm_1_1,injective,iterator,stargate,neutron
