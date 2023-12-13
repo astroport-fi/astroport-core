@@ -66,7 +66,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.8.0"
+version = "3.9.0"
 dependencies = [
  "astroport-circular-buffer",
  "cosmwasm-schema",
