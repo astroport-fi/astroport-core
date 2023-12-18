@@ -904,7 +904,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.2.6" | "1.2.7" | "1.2.10" | "1.2.11" | "1.2.12" => {}
+            "1.2.6" | "1.2.7" | "1.2.10" | "1.2.11" | "1.2.12" | "1.2.13" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
