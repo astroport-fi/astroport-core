@@ -5,9 +5,9 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
-    Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint256, Uint64, WasmMsg,
+    attr, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
+    DepsMut, Env, Fraction, Isqrt, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -31,7 +31,6 @@ use astroport::querier::{query_factory_config, query_fee_info, query_supply};
 use astroport::{token::InstantiateMsg as TokenInstantiateMsg, U256};
 
 use crate::error::ContractError;
-use crate::migration;
 use crate::response::MsgInstantiateContractResponse;
 use crate::state::{Config, BALANCES, CONFIG};
 
@@ -1255,17 +1254,68 @@ pub fn assert_slippage_tolerance(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
+    let mut messages = vec![];
 
     match contract_version.contract.as_ref() {
         "astroport-pair" => match contract_version.version.as_ref() {
-            // Terra 1.0.1
-            // Injective 1.1.0
-            // Sei 1.1.0
-            // Neutron 1.3.1
-            "1.0.1" | "1.1.0" => {
-                migration::add_asset_balances_tracking_flag(deps.storage)?;
+            "1.3.3" => {
+                let config = CONFIG.load(deps.storage)?;
+                let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+                let pools = config
+                    .pair_info
+                    .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
+                let true_lp_amount = (pools[0].amount * pools[1].amount).isqrt();
+
+                let mut start_after = None;
+                for _ in 0..10 {
+                    let accs = deps
+                        .querier
+                        .query_wasm_smart::<cw20::AllAccountsResponse>(
+                            &config.pair_info.liquidity_token,
+                            &cw20::Cw20QueryMsg::AllAccounts {
+                                start_after: start_after.clone(),
+                                limit: Some(30),
+                            },
+                        )?
+                        .accounts;
+
+                    for acc in &accs {
+                        let cur_balance = deps
+                            .querier
+                            .query_wasm_smart::<cw20::BalanceResponse>(
+                                &config.pair_info.liquidity_token,
+                                &cw20::Cw20QueryMsg::Balance {
+                                    address: acc.clone(),
+                                },
+                            )?
+                            .balance;
+
+                        if !cur_balance.is_zero() {
+                            let adjusted_balance = true_lp_amount
+                                .multiply_ratio(cur_balance, total_share)
+                                - cur_balance;
+
+                            let msg = wasm_execute(
+                                &config.pair_info.liquidity_token,
+                                &Cw20ExecuteMsg::Mint {
+                                    recipient: acc.to_owned(),
+                                    amount: adjusted_balance,
+                                },
+                                vec![],
+                            )?;
+
+                            messages.push(CosmosMsg::from(msg));
+                        }
+                    }
+
+                    if accs.len() < 30 {
+                        break;
+                    } else {
+                        // unwrap to ensure we don't loop forever
+                        start_after = Some(accs.last().unwrap().clone());
+                    }
+                }
             }
-            "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -1273,15 +1323,17 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::default().add_attributes([
-        ("previous_contract_name", contract_version.contract.as_str()),
-        (
-            "previous_contract_version",
-            contract_version.version.as_str(),
-        ),
-        ("new_contract_name", CONTRACT_NAME),
-        ("new_contract_version", CONTRACT_VERSION),
-    ]))
+    Ok(Response::default()
+        .add_attributes([
+            ("previous_contract_name", contract_version.contract.as_str()),
+            (
+                "previous_contract_version",
+                contract_version.version.as_str(),
+            ),
+            ("new_contract_name", CONTRACT_NAME),
+            ("new_contract_version", CONTRACT_VERSION),
+        ])
+        .add_messages(messages))
 }
 
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.

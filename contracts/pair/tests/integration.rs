@@ -1,17 +1,22 @@
+use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw_multi_test::{App, ContractWrapper, Executor};
+use std::collections::HashMap;
+
 use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
+use astroport::cosmwasm_ext::AbsDiff;
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
-    XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, TWAP_PRECISION,
+    ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg,
+    PoolResponse, QueryMsg, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams, TWAP_PRECISION,
 };
+use astroport::querier::query_token_balance;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_pair::contract::migrate;
 use astroport_pair::error::ContractError;
-use cosmwasm_std::{attr, to_binary, Addr, Coin, Decimal, Uint128};
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
@@ -39,10 +44,89 @@ fn store_pair_code(app: &mut App) -> u64 {
             astroport_pair::contract::instantiate,
             astroport_pair::contract::query,
         )
-        .with_reply_empty(astroport_pair::contract::reply),
+        .with_reply_empty(astroport_pair::contract::reply)
+        .with_migrate_empty(migrate),
     );
 
     app.store_code(pair_contract)
+}
+
+fn instantiate_pair_v133(mut router: &mut App, owner: &Addr) -> Addr {
+    let token_contract_code_id = store_token_code(&mut router);
+
+    let pair_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair_133::contract::execute,
+            astroport_pair_133::contract::instantiate,
+            astroport_pair_133::contract::query,
+        )
+        .with_reply_empty(astroport_pair_133::contract::reply),
+    );
+    let pair_contract_code_id = router.store_code(pair_contract);
+
+    let factory_code_id = store_factory_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            is_disabled: false,
+            is_generator_disabled: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: Some(String::from("generator")),
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let msg = InstantiateMsg {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        token_code_id: token_contract_code_id,
+        factory_addr: factory_instance.to_string(),
+        init_params: None,
+    };
+
+    let pair = router
+        .instantiate_contract(
+            pair_contract_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            String::from("PAIR"),
+            Some(owner.to_string()),
+        )
+        .unwrap();
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
+        .unwrap();
+    assert_eq!("contract1", res.contract_addr);
+    assert_eq!("contract2", res.liquidity_token);
+
+    pair
 }
 
 fn store_factory_code(app: &mut App) -> u64 {
@@ -1456,4 +1540,141 @@ fn test_provide_liquidity_without_funds() {
         err.root_cause().to_string(),
         "Generic error: Native token balance mismatch between the argument (100000000uusd) and the transferred (0uusd)"
     );
+}
+
+#[test]
+fn test_migration_after_burned_lps() {
+    let owner = Addr::unchecked("owner");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::MAX,
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::MAX,
+            },
+        ],
+    );
+
+    let pair_instance = instantiate_pair_v133(&mut router, &owner);
+
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000_000000),
+        Uint128::new(100_000_000_000000),
+        None,
+        None,
+    );
+    router
+        .execute_contract(owner.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    let pair_info = router
+        .wrap()
+        .query_wasm_smart::<PairInfo>(pair_instance.to_string(), &QueryMsg::Pair {})
+        .unwrap();
+    let lp_balance =
+        query_token_balance(&router.wrap(), &pair_info.liquidity_token, &owner).unwrap();
+    // Burn all owner's LPs
+    router
+        .execute_contract(
+            owner.clone(),
+            pair_info.liquidity_token.clone(),
+            &Cw20ExecuteMsg::Burn { amount: lp_balance },
+            &[],
+        )
+        .unwrap();
+
+    let test_case = [
+        (100000_000000u128, 100000_000000u128),
+        (120000_000000u128, 120000_000000u128),
+        (500000_000000u128, 500000_000000u128),
+        (1_000_000_000000u128, 1_000_000_000000u128),
+        (2_000_000_000000u128, 2_000_000_000000u128),
+    ];
+
+    let mut user_balances = HashMap::new();
+
+    for (i, (amnt1, amnt2)) in test_case.into_iter().enumerate() {
+        let user = Addr::unchecked(format!("user{i}"));
+        let cns = [
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(amnt1),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(amnt2),
+            },
+        ];
+        router
+            .send_tokens(owner.clone(), user.clone(), &cns)
+            .unwrap();
+
+        let (msg, coins) =
+            provide_liquidity_msg(Uint128::new(amnt1), Uint128::new(amnt2), None, None);
+
+        router
+            .execute_contract(user.clone(), pair_instance.clone(), &msg, &coins)
+            .unwrap();
+
+        let lp_amount =
+            query_token_balance(&router.wrap(), &pair_info.liquidity_token, &user).unwrap();
+        let assets = router
+            .wrap()
+            .query_wasm_smart::<Vec<Asset>>(
+                pair_instance.to_string(),
+                &QueryMsg::Share { amount: lp_amount },
+            )
+            .unwrap();
+
+        user_balances.insert(user, assets);
+    }
+
+    let pool_info = router
+        .wrap()
+        .query_wasm_smart::<PoolResponse>(pair_instance.to_string(), &QueryMsg::Pool {})
+        .unwrap();
+
+    // Ridiculously small LP amount due to correct share was burned
+    assert_eq!(pool_info.total_share.u128(), 1034);
+
+    // migrate contract
+    let new_pair_code = store_pair_code(&mut router);
+
+    router
+        .migrate_contract(
+            owner.clone(),
+            pair_instance.clone(),
+            &MigrateMsg {},
+            new_pair_code,
+        )
+        .unwrap();
+
+    for i in 0..test_case.len() {
+        let user = Addr::unchecked(format!("user{i}"));
+        let lp_amount =
+            query_token_balance(&router.wrap(), &pair_info.liquidity_token, &user).unwrap();
+        let assets = router
+            .wrap()
+            .query_wasm_smart::<Vec<Asset>>(
+                pair_instance.to_string(),
+                &QueryMsg::Share { amount: lp_amount },
+            )
+            .unwrap();
+
+        let pre_upgrade_bal = user_balances.get(&user).unwrap();
+
+        assets
+            .iter()
+            .zip(pre_upgrade_bal.iter())
+            .for_each(|(a, b)| {
+                assert!(
+                    (a.amount.diff(b.amount).u128() as f64 / b.amount.u128() as f64) < 0.004,
+                    "{user} got more 0.4% share. before {b} after {a}"
+                )
+            });
+    }
 }
