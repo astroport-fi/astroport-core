@@ -38,6 +38,7 @@ thiserror = "1.0"
 cosmwasm-schema = "1.1"
 itertools = "0.10"
 cw-utils = "0.15"
+astroport-pair-concentrated_v1 = { package = "astroport-pair-concentrated", version = "1.2.13", features = ["library"] }
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
