@@ -958,7 +958,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.1.0" => migrate_config(deps.storage)?,
+            "1.1.0" | "1.2.13" => migrate_config(deps.storage)?,
             "1.2.4" => {
                 BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
             }
