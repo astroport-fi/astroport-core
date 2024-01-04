@@ -20,6 +20,16 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    init(deps, env, info, msg)
+}
+
+pub fn init(
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
@@ -53,8 +63,6 @@ pub fn instantiate(
             outpost_burn_params: msg.outpost_burn_params,
         },
     )?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::default().add_attributes(attrs))
 }

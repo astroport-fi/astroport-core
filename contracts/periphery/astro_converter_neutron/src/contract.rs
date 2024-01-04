@@ -29,7 +29,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    astro_token_converter::contract::instantiate(deps, env, info, msg)
+    astro_token_converter::contract::init(deps, env, info, msg)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
