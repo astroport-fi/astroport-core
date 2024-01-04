@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    attr, coin, ensure, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
 };
 use cw2::set_contract_version;
 use cw_utils::nonpayable;
@@ -14,7 +14,7 @@ use astro_token_converter::contract::{burn, convert, cw20_receive};
 use astro_token_converter::error::ContractError;
 use astro_token_converter::state::CONFIG;
 use astroport::asset::AssetInfo;
-use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, DEFAULT_TIMEOUT};
+use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,6 +49,11 @@ pub fn execute(
         }
         ExecuteMsg::Burn {} => burn(deps.into_empty().querier, env, info, config),
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    astro_token_converter::contract::query(deps, env, msg)
 }
 
 pub fn ibc_transfer_for_burning(

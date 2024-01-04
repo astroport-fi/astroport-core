@@ -1,15 +1,16 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, coins, ensure, wasm_execute, BankMsg, CosmosMsg, CustomMsg, DepsMut, Env, IbcMsg,
-    IbcTimeout, MessageInfo, QuerierWrapper, Response, StdError,
+    attr, coin, coins, ensure, to_json_binary, wasm_execute, BankMsg, Binary, CosmosMsg, CustomMsg,
+    Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, QuerierWrapper, Response, StdError,
+    StdResult,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::{must_pay, nonpayable};
 
 use astroport::asset::{validate_native_denom, AssetInfo};
-use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, DEFAULT_TIMEOUT};
+use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT};
 
 use crate::error::ContractError;
 use crate::state::CONFIG;
@@ -211,6 +212,13 @@ pub fn burn<M: CustomMsg>(
     }
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+    }
+}
+
 #[cfg(test)]
 mod testing {
     use cosmwasm_std::testing::{
@@ -256,6 +264,21 @@ mod testing {
         });
 
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        let config_data = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+        let config = from_json::<Config>(&config_data).unwrap();
+
+        assert_eq!(
+            config,
+            Config {
+                old_astro_asset_info: AssetInfo::native("ibc/old_astro"),
+                new_astro_denom: "uastro".to_string(),
+                outpost_burn_params: Some(OutpostBurnParams {
+                    terra_burn_addr: "terra1xxx".to_string(),
+                    old_astro_transfer_channel: "channel-1".to_string(),
+                }),
+            }
+        );
     }
 
     #[test]
