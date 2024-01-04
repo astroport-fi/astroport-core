@@ -32,15 +32,20 @@ pub struct InstantiateMsg {
     pub outpost_burn_params: Option<OutpostBurnParams>,
 }
 
+#[cw_serde]
+pub struct Cw20HookMsg {
+    pub receiver: Option<String>,
+}
+
 /// Available contract execute messages.
-/// - `Convert` is used to convert old ASTRO to new ASTRO on outposts.
+/// - `Convert` is used to convert old ASTRO to new ASTRO on outposts. New ASTRO sent to `receiver` if specified.
 /// - `Receive` is used to process cw20 send hook from old cw20 ASTRO and release new ASTRO token on the old Hub.
-/// cw20 hook message is ignored thus can be any format (for example '{}').
+/// Custom `receiver` is forwarded within Cw20HookMsg.
 /// - `TransferForBurning` is used to send old ASTRO to the old Hub for burning. Is meant to be used by outposts.
 /// - `Burn` is used to burn old cw20 ASTRO on the old Hub.
 #[cw_serde]
 pub enum ExecuteMsg {
-    Convert {},
+    Convert { receiver: Option<String> },
     Receive(Cw20ReceiveMsg),
     TransferForBurning { timeout: Option<u64> },
     Burn {},

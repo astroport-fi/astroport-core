@@ -1,16 +1,18 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, coins, ensure, to_json_binary, wasm_execute, BankMsg, Binary, CosmosMsg, CustomMsg,
-    Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, QuerierWrapper, Response, StdError,
-    StdResult,
+    attr, coin, coins, ensure, from_json, to_json_binary, wasm_execute, Api, BankMsg, Binary,
+    CosmosMsg, CustomMsg, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, QuerierWrapper,
+    Response, StdError, StdResult,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::{must_pay, nonpayable};
 
-use astroport::asset::{validate_native_denom, AssetInfo};
-use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT};
+use astroport::asset::{addr_opt_validate, validate_native_denom, AssetInfo};
+use astroport::astro_converter::{
+    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT,
+};
 
 use crate::error::ContractError;
 use crate::state::CONFIG;
@@ -78,8 +80,8 @@ pub fn execute(
     let config = CONFIG.load(deps.storage)?;
 
     match msg {
-        ExecuteMsg::Receive(cw20_msg) => cw20_receive(config, info, cw20_msg),
-        ExecuteMsg::Convert {} => convert(config, info),
+        ExecuteMsg::Receive(cw20_msg) => cw20_receive(deps.api, config, info, cw20_msg),
+        ExecuteMsg::Convert { receiver } => convert(deps.api, config, info, receiver),
         ExecuteMsg::TransferForBurning { timeout } => {
             ibc_transfer_for_burning(deps.querier, env, info, config, timeout)
         }
@@ -88,6 +90,7 @@ pub fn execute(
 }
 
 pub fn cw20_receive<M: CustomMsg>(
+    api: &dyn Api,
     config: Config,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
@@ -97,8 +100,11 @@ pub fn cw20_receive<M: CustomMsg>(
     match config.old_astro_asset_info {
         AssetInfo::Token { contract_addr } => {
             if info.sender == contract_addr {
+                let receiver = from_json::<Cw20HookMsg>(&cw20_msg.msg)?.receiver;
+                addr_opt_validate(api, &receiver)?;
+
                 let bank_msg = BankMsg::Send {
-                    to_address: cw20_msg.sender.to_string(),
+                    to_address: receiver.unwrap_or_else(|| cw20_msg.sender.to_string()),
                     amount: coins(cw20_msg.amount.u128(), config.new_astro_denom),
                 };
 
@@ -116,15 +122,18 @@ pub fn cw20_receive<M: CustomMsg>(
 }
 
 pub fn convert<M: CustomMsg>(
+    api: &dyn Api,
     config: Config,
     info: MessageInfo,
+    receiver: Option<String>,
 ) -> Result<Response<M>, ContractError> {
     match config.old_astro_asset_info {
         AssetInfo::NativeToken { denom } => {
             let amount = must_pay(&info, &denom)?;
+            addr_opt_validate(api, &receiver)?;
 
             let bank_msg = BankMsg::Send {
-                to_address: info.sender.to_string(),
+                to_address: receiver.unwrap_or_else(|| info.sender.to_string()),
                 amount: coins(amount.u128(), config.new_astro_denom),
             };
 
@@ -222,7 +231,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 #[cfg(test)]
 mod testing {
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info, MockQuerier,
+        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info, MockApi,
+        MockQuerier,
     };
     use cosmwasm_std::{
         from_json, to_json_binary, Addr, ContractResult, Empty, SubMsg, SystemResult, Uint128,
@@ -288,13 +298,15 @@ mod testing {
             new_astro_denom: "ibc/astro".to_string(),
             outpost_burn_params: None,
         };
+        let mock_api = MockApi::default();
 
-        let cw20_msg = Cw20ReceiveMsg {
+        let mut cw20_msg = Cw20ReceiveMsg {
             sender: "sender".to_string(),
             amount: 100u128.into(),
-            msg: Default::default(),
+            msg: to_json_binary(&Empty {}).unwrap(),
         };
         let err = cw20_receive::<Empty>(
+            &mock_api,
             config.clone(),
             mock_info("random_cw20", &[]),
             cw20_msg.clone(),
@@ -305,6 +317,7 @@ mod testing {
         config.old_astro_asset_info = AssetInfo::cw20_unchecked("terra1xxx");
 
         let err = cw20_receive::<Empty>(
+            &mock_api,
             config.clone(),
             mock_info("random_cw20", &[]),
             cw20_msg.clone(),
@@ -316,6 +329,7 @@ mod testing {
         );
 
         let res = cw20_receive::<Empty>(
+            &mock_api,
             config.clone(),
             mock_info("terra1xxx", &[]),
             cw20_msg.clone(),
@@ -325,7 +339,27 @@ mod testing {
         assert_eq!(
             res.messages,
             [SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
-                to_address: cw20_msg.sender,
+                to_address: cw20_msg.sender.clone(),
+                amount: coins(cw20_msg.amount.u128(), config.new_astro_denom.clone())
+            }))]
+        );
+
+        cw20_msg.msg = to_json_binary(&Cw20HookMsg {
+            receiver: Some("receiver".to_string()),
+        })
+        .unwrap();
+        let res = cw20_receive::<Empty>(
+            &mock_api,
+            config.clone(),
+            mock_info("terra1xxx", &[]),
+            cw20_msg.clone(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            res.messages,
+            [SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+                to_address: "receiver".to_string(),
                 amount: coins(cw20_msg.amount.u128(), config.new_astro_denom)
             }))]
         );
@@ -338,30 +372,46 @@ mod testing {
             new_astro_denom: "ibc/astro".to_string(),
             outpost_burn_params: None,
         };
+        let mock_api = MockApi::default();
 
         let info = mock_info("sender", &[]);
-        let err = convert::<Empty>(config.clone(), info).unwrap_err();
+        let err = convert::<Empty>(&mock_api, config.clone(), info, None).unwrap_err();
         assert_eq!(err, ContractError::InvalidEndpoint {});
 
         config.old_astro_asset_info = AssetInfo::native("ibc/old_astro");
 
         let info = mock_info("sender", &[]);
-        let err = convert::<Empty>(config.clone(), info).unwrap_err();
+        let err = convert::<Empty>(&mock_api, config.clone(), info, None).unwrap_err();
         assert_eq!(err, ContractError::PaymentError(NoFunds {}));
 
         let info = mock_info("sender", &coins(100, "random_coin"));
-        let err = convert::<Empty>(config.clone(), info).unwrap_err();
+        let err = convert::<Empty>(&mock_api, config.clone(), info, None).unwrap_err();
         assert_eq!(
             err,
             ContractError::PaymentError(MissingDenom("ibc/old_astro".to_string()))
         );
 
         let info = mock_info("sender", &coins(100, "ibc/old_astro"));
-        let res = convert::<Empty>(config.clone(), info.clone()).unwrap();
+        let res = convert::<Empty>(&mock_api, config.clone(), info.clone(), None).unwrap();
         assert_eq!(
             res.messages,
             [SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
                 to_address: info.sender.to_string(),
+                amount: coins(100, config.new_astro_denom.clone())
+            }))]
+        );
+
+        let res = convert::<Empty>(
+            &mock_api,
+            config.clone(),
+            info.clone(),
+            Some("receiver".to_string()),
+        )
+        .unwrap();
+        assert_eq!(
+            res.messages,
+            [SubMsg::new(CosmosMsg::Bank(BankMsg::Send {
+                to_address: "receiver".to_string(),
                 amount: coins(100, config.new_astro_denom)
             }))]
         );

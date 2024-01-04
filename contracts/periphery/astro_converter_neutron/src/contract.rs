@@ -42,8 +42,8 @@ pub fn execute(
     let config = CONFIG.load(deps.storage)?;
 
     match msg {
-        ExecuteMsg::Receive(cw20_msg) => cw20_receive(config, info, cw20_msg),
-        ExecuteMsg::Convert {} => convert(config, info),
+        ExecuteMsg::Receive(cw20_msg) => cw20_receive(deps.api, config, info, cw20_msg),
+        ExecuteMsg::Convert { receiver } => convert(deps.api, config, info, receiver),
         ExecuteMsg::TransferForBurning { timeout } => {
             ibc_transfer_for_burning(deps.as_ref(), env, info, config, timeout)
         }
