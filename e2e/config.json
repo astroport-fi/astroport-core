@@ -1,0 +1,13 @@
+{
+  "astro_token": "terra14hj2tavq8fpesdwxxcu44rty3hh90vhujrvcmstl4zr3txmfvw9ssrc8au",
+  "cw20_ics20": "terra1nc5tatafv6eyq7llkr2gv50ff9e22mnf70qgjlv737ktmt4eswrquka9l6",
+  "terra_channel": "channel-0",
+  "neutron_channel": "channel-0",
+  "astro_ibc_denom": "ibc/6D3429933F47206818AA820561427CC415EC5A36C6B197A236EE95F871BAFDBE",
+  "new_terra_channel": "channel-1",
+  "new_neutron_channel": "channel-1",
+  "astro_tf_denom": "factory/neutron1cv7zgkg3dq3hge5js9l903f9zzte3jnm5wvnhy/uastro",
+  "astro_tf_ibc_denom": "ibc/30FF601E790C8A18B8FC3351953E673E3823D824543EC08DC43E3FADEF608537",
+  "terra_converter": "terra17p9rzwnnfxcjp32un9ug7yhhzgtkhvl9jfksztgw5uh69wac2pgsydrqk7",
+  "neutron_converter": "neutron1nxshmmwrvxa2cp80nwvf03t8u5kvl2ttr8m8f43vamudsqrdvs8qqvfwpj"
+}
