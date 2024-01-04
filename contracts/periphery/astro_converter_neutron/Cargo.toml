@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-neutron-sdk = "0.7.0"
+neutron-sdk = "0.8.0"
 astroport = { path = "../../../packages/astroport", version = "3" }
 astro-token-converter = { path = "../astro_converter", version = "0.1", features = ["library"] }
 cosmwasm-std = "1.5"
