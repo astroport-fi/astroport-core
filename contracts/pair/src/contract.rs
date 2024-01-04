@@ -62,7 +62,7 @@ pub fn instantiate(
     let mut track_asset_balances = false;
 
     if let Some(init_params) = msg.init_params {
-        let params: XYKPoolParams = from_json(&init_params)?;
+        let params: XYKPoolParams = from_json(init_params)?;
         track_asset_balances = params.track_asset_balances.unwrap_or_default();
     }
 

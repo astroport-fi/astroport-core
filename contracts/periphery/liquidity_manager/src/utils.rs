@@ -247,7 +247,7 @@ pub fn convert_config(
     querier: QuerierWrapper,
     config_data: Vec<u8>,
 ) -> StdResult<PairStableConfig> {
-    let compat_config: CompatPairStableConfig = from_json(&config_data)?;
+    let compat_config: CompatPairStableConfig = from_json(config_data)?;
 
     let greatest_precision = if let Some(prec) = compat_config.greatest_precision {
         prec
