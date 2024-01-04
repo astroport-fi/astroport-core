@@ -19,3 +19,4 @@ target/
 #/scripts/package-lock.json
 /artifacts/
 /contracts/**/schema/
+/e2e/config.json
