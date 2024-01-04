@@ -555,10 +555,16 @@ pub fn withdraw_liquidity(
     let (pools, total_share) = pool_info(deps.querier, &config)?;
     let refund_assets = get_share_in_assets(&pools, amount, total_share);
 
-    let mut messages = refund_assets
-        .clone()
-        .into_iter()
-        .map(|asset| asset.into_msg(&sender))
+    // Filter out assets with zero amount which could happen due to rounding errors
+    let mut messages: Vec<CosmosMsg> = refund_assets
+        .iter()
+        .filter_map(|a| {
+            if a.amount.is_zero() {
+                None
+            } else {
+                Some(a.clone().into_msg(&sender))
+            }
+        })
         .collect::<StdResult<Vec<_>>>()?;
     messages.push(
         wasm_execute(

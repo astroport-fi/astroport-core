@@ -5,9 +5,9 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps, DepsMut, Env,
-    Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint256, Uint64, WasmMsg,
+    attr, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Decimal256, Deps,
+    DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, ReplyOn, Response, StdError,
+    StdResult, SubMsg, Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
@@ -553,16 +553,25 @@ pub fn withdraw_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    // Update the pool info
-    let messages: Vec<CosmosMsg> = vec![
-        refund_assets[0].clone().into_msg(sender.clone())?,
-        refund_assets[1].clone().into_msg(sender.clone())?,
-        CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: config.pair_info.liquidity_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
-            funds: vec![],
-        }),
-    ];
+    // Filter out assets with zero amount which could happen due to rounding errors
+    let mut messages: Vec<CosmosMsg> = refund_assets
+        .iter()
+        .filter_map(|a| {
+            if a.amount.is_zero() {
+                None
+            } else {
+                Some(a.clone().into_msg(&sender))
+            }
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+    messages.push(
+        wasm_execute(
+            &config.pair_info.liquidity_token,
+            &Cw20ExecuteMsg::Burn { amount },
+            vec![],
+        )?
+        .into(),
+    );
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),

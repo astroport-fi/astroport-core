@@ -656,11 +656,17 @@ fn withdraw_liquidity(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
+    // Filter out assets with zero amount which could happen due to rounding errors
     messages.extend(
         refund_assets
             .iter()
-            .cloned()
-            .map(|asset| asset.into_msg(&sender))
+            .filter_map(|a| {
+                if a.amount.is_zero() {
+                    None
+                } else {
+                    Some(a.clone().into_msg(&sender))
+                }
+            })
             .collect::<StdResult<Vec<_>>>()?,
     );
     messages.push(
