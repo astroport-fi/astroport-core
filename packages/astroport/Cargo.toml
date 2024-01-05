@@ -26,6 +26,7 @@ cosmwasm-schema = "1.1"
 astroport-circular-buffer = { version = "0.1", path = "../circular_buffer" }
 cw-utils = "1.0"
 cw3 = "1.0"
+cw-asset = "3.0.0"
 
 # optional
 injective-math = { version = "0.1", optional = true }
