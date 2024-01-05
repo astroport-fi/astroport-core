@@ -533,6 +533,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-converter"
+version = "1.0.0"
+dependencies = [
+ "astroport 3.9.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.1",
+ "cw2 1.1.0",
+ "cw20 0.15.1",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "3.4.0"
 dependencies = [
