@@ -21,6 +21,7 @@ use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilde
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use cosmwasm_std::{attr, coin, to_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use test_case::test_case;
 
 const OWNER: &str = "owner";
 
@@ -41,17 +42,35 @@ fn store_token_code(app: &mut App) -> u64 {
     app.store_code(astro_token_contract)
 }
 
-fn store_standard_xyk_pair_code(app: &mut App) -> u64 {
-    let pair_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_pair::contract::execute,
-            astroport_pair::contract::instantiate,
-            astroport_pair::contract::query,
-        )
-        .with_reply_empty(astroport_pair::contract::reply),
-    );
+fn store_standard_xyk_pair_code(app: &mut App, version: &str) -> u64 {
+    let code_id = match version {
+        "1.3.1" => {
+            let code = Box::new(
+                ContractWrapper::new_with_empty(
+                    astroport_pair_1_3_1::contract::execute,
+                    astroport_pair_1_3_1::contract::instantiate,
+                    astroport_pair_1_3_1::contract::query,
+                )
+                .with_migrate_empty(astroport_pair_1_3_1::contract::migrate)
+                .with_reply_empty(astroport_pair_1_3_1::contract::reply),
+            );
+            app.store_code(code)
+        }
+        "1.5.0" => {
+            let code = Box::new(
+                ContractWrapper::new_with_empty(
+                    astroport_pair::contract::execute,
+                    astroport_pair::contract::instantiate,
+                    astroport_pair::contract::query,
+                )
+                .with_reply_empty(astroport_pair::contract::reply),
+            );
+            app.store_code(code)
+        }
+        _ => panic!("Unsupported version"),
+    };
 
-    app.store_code(pair_contract)
+    code_id
 }
 
 fn store_pair_code(app: &mut App) -> u64 {
@@ -150,10 +169,10 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
     pair
 }
 
-fn instantiate_standard_xyk_pair(mut router: &mut App, owner: &Addr) -> Addr {
+fn instantiate_standard_xyk_pair(mut router: &mut App, owner: &Addr, version: &str) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
-    let pair_contract_code_id = store_standard_xyk_pair_code(&mut router);
+    let pair_contract_code_id = store_standard_xyk_pair_code(&mut router, version);
     let factory_code_id = store_factory_code(&mut router);
 
     let init_msg = FactoryInstantiateMsg {
@@ -1876,8 +1895,9 @@ fn test_imbalanced_withdraw_is_disabled() {
     );
 }
 
-#[test]
-fn test_migrate_from_standard_xyk() {
+#[test_case("1.3.1"; "v1.3.1")]
+#[test_case("1.5.0"; "v1.5.0")]
+fn test_migrate_from_standard_xyk(old_version: &str) {
     let owner = Addr::unchecked("owner");
     let mut router = mock_app(
         owner.clone(),
@@ -1894,7 +1914,7 @@ fn test_migrate_from_standard_xyk() {
     );
 
     // Init pair
-    let pair_instance = instantiate_standard_xyk_pair(&mut router, &owner);
+    let pair_instance = instantiate_standard_xyk_pair(&mut router, &owner, old_version);
 
     // Store xyk_sale_tax wasm
     let xyk_sale_tax_code_id = store_pair_code(&mut router);
