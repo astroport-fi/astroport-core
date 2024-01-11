@@ -10,7 +10,7 @@ use neutron_sdk::bindings::query::NeutronQuery;
 use neutron_sdk::query::min_ibc_fee::query_min_ibc_fee;
 use neutron_sdk::sudo::msg::{RequestPacketTimeoutHeight, TransferSudoMsg};
 
-use astro_token_converter::contract::{burn, convert, cw20_receive};
+use astro_token_converter::contract::{convert, cw20_receive};
 use astro_token_converter::error::ContractError;
 use astro_token_converter::state::CONFIG;
 use astroport::asset::AssetInfo;
@@ -47,7 +47,7 @@ pub fn execute(
         ExecuteMsg::TransferForBurning { timeout } => {
             ibc_transfer_for_burning(deps.as_ref(), env, info, config, timeout)
         }
-        ExecuteMsg::Burn {} => burn(deps.into_empty().querier, env, info, config),
+        ExecuteMsg::Burn {} => ContractError::BurnError {}, // burn is only available on Terra
     }
 }
 

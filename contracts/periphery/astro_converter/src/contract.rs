@@ -95,21 +95,21 @@ pub fn cw20_receive<M: CustomMsg>(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response<M>, ContractError> {
-    nonpayable(&info)?;
-
     match config.old_astro_asset_info {
         AssetInfo::Token { contract_addr } => {
             if info.sender == contract_addr {
                 let receiver = from_json::<Cw20HookMsg>(&cw20_msg.msg)?.receiver;
                 addr_opt_validate(api, &receiver)?;
 
+                let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
                 let bank_msg = BankMsg::Send {
-                    to_address: receiver.unwrap_or_else(|| cw20_msg.sender.to_string()),
+                    to_address: receiver.clone(),
                     amount: coins(cw20_msg.amount.u128(), config.new_astro_denom),
                 };
 
                 Ok(Response::new().add_message(bank_msg).add_attributes([
                     attr("action", "convert"),
+                    attr("receiver", receiver),
                     attr("type", "cw20:astro"),
                     attr("amount", cw20_msg.amount),
                 ]))
@@ -132,13 +132,15 @@ pub fn convert<M: CustomMsg>(
             let amount = must_pay(&info, &denom)?;
             addr_opt_validate(api, &receiver)?;
 
+            let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
             let bank_msg = BankMsg::Send {
-                to_address: receiver.unwrap_or_else(|| info.sender.to_string()),
+                to_address: receiver.clone(),
                 amount: coins(amount.u128(), config.new_astro_denom),
             };
 
             Ok(Response::new().add_message(bank_msg).add_attributes([
                 attr("action", "convert"),
+                attr("receiver", receiver),
                 attr("type", "ibc:astro"),
                 attr("amount", amount),
             ]))
