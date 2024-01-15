@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256,
-    Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
+    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal,
+    Decimal256, Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
@@ -101,7 +101,7 @@ where
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },

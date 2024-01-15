@@ -3,8 +3,8 @@ use astroport::cw20_ics20::TransferMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, IbcMsg, IbcQuery, MessageInfo, Order,
-    PortIdResponse, Response, StdError, StdResult,
+    from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, IbcMsg, IbcQuery, MessageInfo,
+    Order, PortIdResponse, Response, StdError, StdResult,
 };
 use semver::Version;
 
@@ -91,7 +91,7 @@ pub fn execute_receive(
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
 
-    let msg: TransferMsg = from_binary(&wrapper.msg)?;
+    let msg: TransferMsg = from_json(&wrapper.msg)?;
     let amount = Amount::Cw20(Cw20Coin {
         address: info.sender.to_string(),
         amount: wrapper.amount,
@@ -153,7 +153,7 @@ pub fn execute_transfer(
     // prepare ibc message
     let msg = IbcMsg::SendPacket {
         channel_id: msg.channel,
-        data: to_binary(&packet)?,
+        data: to_json_binary(&packet)?,
         timeout: timeout.into(),
     };
 
@@ -294,15 +294,15 @@ fn from_semver(err: semver::Error) -> StdError {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Port {} => to_binary(&query_port(deps)?),
-        QueryMsg::ListChannels {} => to_binary(&query_list(deps)?),
-        QueryMsg::Channel { id } => to_binary(&query_channel(deps, id)?),
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::Allowed { contract } => to_binary(&query_allowed(deps, contract)?),
+        QueryMsg::Port {} => to_json_binary(&query_port(deps)?),
+        QueryMsg::ListChannels {} => to_json_binary(&query_list(deps)?),
+        QueryMsg::Channel { id } => to_json_binary(&query_channel(deps, id)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
+        QueryMsg::Allowed { contract } => to_json_binary(&query_allowed(deps, contract)?),
         QueryMsg::ListAllowed { start_after, limit } => {
-            to_binary(&list_allowed(deps, start_after, limit)?)
+            to_json_binary(&list_allowed(deps, start_after, limit)?)
         }
-        QueryMsg::Admin {} => to_binary(&ADMIN.query_admin(deps)?),
+        QueryMsg::Admin {} => to_json_binary(&ADMIN.query_admin(deps)?),
     }
 }
 
@@ -416,7 +416,7 @@ mod test {
         let deps = setup(&["channel-3", "channel-7"], &[]);
 
         let raw_list = query(deps.as_ref(), mock_env(), QueryMsg::ListChannels {}).unwrap();
-        let list_res: ListChannelsResponse = from_binary(&raw_list).unwrap();
+        let list_res: ListChannelsResponse = from_json(&raw_list).unwrap();
         assert_eq!(2, list_res.channels.len());
         assert_eq!(mock_channel_info("channel-3"), list_res.channels[0]);
         assert_eq!(mock_channel_info("channel-7"), list_res.channels[1]);
@@ -429,7 +429,7 @@ mod test {
             },
         )
         .unwrap();
-        let chan_res: ChannelResponse = from_binary(&raw_channel).unwrap();
+        let chan_res: ChannelResponse = from_json(&raw_channel).unwrap();
         assert_eq!(chan_res.info, mock_channel_info("channel-3"));
         assert_eq!(0, chan_res.total_sent.len());
         assert_eq!(0, chan_res.balances.len());
@@ -475,7 +475,7 @@ mod test {
             let expected_timeout = mock_env().block.time.plus_seconds(DEFAULT_TIMEOUT);
             assert_eq!(timeout, &expected_timeout.into());
             assert_eq!(channel_id.as_str(), send_channel);
-            let msg: Ics20Packet = from_binary(data).unwrap();
+            let msg: Ics20Packet = from_json(data).unwrap();
             assert_eq!(msg.amount, Uint128::new(1234567));
             assert_eq!(msg.denom.as_str(), "ucosm");
             assert_eq!(msg.sender.as_str(), "foobar");
@@ -524,7 +524,7 @@ mod test {
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "my-account".into(),
             amount: Uint128::new(888777666),
-            msg: to_binary(&transfer).unwrap(),
+            msg: to_json_binary(&transfer).unwrap(),
         });
 
         // works with proper funds
@@ -541,7 +541,7 @@ mod test {
             let expected_timeout = mock_env().block.time.plus_seconds(7777);
             assert_eq!(timeout, &expected_timeout.into());
             assert_eq!(channel_id.as_str(), send_channel);
-            let msg: Ics20Packet = from_binary(data).unwrap();
+            let msg: Ics20Packet = from_json(data).unwrap();
             assert_eq!(msg.amount, Uint128::new(888777666));
             assert_eq!(msg.denom, format!("cw20:{}", cw20_addr));
             assert_eq!(msg.sender.as_str(), "my-account");
@@ -571,7 +571,7 @@ mod test {
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "my-account".into(),
             amount: Uint128::new(888777666),
-            msg: to_binary(&transfer).unwrap(),
+            msg: to_json_binary(&transfer).unwrap(),
         });
 
         // rejected as not on allow list
@@ -648,7 +648,7 @@ mod test {
             let expected_timeout = mock_env().block.time.plus_seconds(DEFAULT_TIMEOUT);
             assert_eq!(timeout, &expected_timeout.into());
             assert_eq!(channel_id.as_str(), send_channel);
-            let msg: Ics20Packet = from_binary(data).unwrap();
+            let msg: Ics20Packet = from_json(data).unwrap();
             assert_eq!(msg.amount, Uint128::new(1234567));
             assert_eq!(msg.denom.as_str(), "ucosm");
             assert_eq!(msg.sender.as_str(), "foobar");
@@ -677,7 +677,7 @@ mod test {
     #[test]
     fn memo_is_backwards_compatible() {
         let mut deps = setup(&["channel-5", "channel-10"], &[]);
-        let transfer: TransferMsg = cosmwasm_std::from_slice(
+        let transfer: TransferMsg = cosmwasm_std::from_json(
             br#"{"channel": "channel-5", "remote_address": "foreign-address"}"#,
         )
         .unwrap();
@@ -692,7 +692,7 @@ mod test {
             timeout: _,
         }) = &res.messages[0].msg
         {
-            let msg: Ics20Packet = from_binary(data).unwrap();
+            let msg: Ics20Packet = from_json(data).unwrap();
             assert_eq!(msg.memo, None);
 
             // This is the old version of the Ics20Packet. Deserializing into it
@@ -705,7 +705,7 @@ mod test {
                 pub receiver: String,
             }
 
-            let _msg: Ics20PacketNoMemo = from_binary(data).unwrap();
+            let _msg: Ics20PacketNoMemo = from_json(data).unwrap();
         } else {
             panic!("Unexpected return message: {:?}", res.messages[0]);
         }

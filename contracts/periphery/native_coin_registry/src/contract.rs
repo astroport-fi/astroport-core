@@ -1,7 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
+    StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Bound;
@@ -156,10 +157,12 @@ pub fn remove(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&CONFIG.load(deps.storage)?)?),
-        QueryMsg::NativeToken { denom } => Ok(to_binary(&COINS_INFO.load(deps.storage, denom)?)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?)?),
+        QueryMsg::NativeToken { denom } => {
+            Ok(to_json_binary(&COINS_INFO.load(deps.storage, denom)?)?)
+        }
         QueryMsg::NativeTokens { start_after, limit } => {
-            to_binary(&query_native_tokens(deps, start_after, limit)?)
+            to_json_binary(&query_native_tokens(deps, start_after, limit)?)
         }
     }
 }

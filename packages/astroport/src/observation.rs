@@ -236,7 +236,7 @@ pub fn safe_sma_buffer_not_full(
 
 #[cfg(test)]
 mod test {
-    use cosmwasm_std::to_binary;
+    use cosmwasm_std::to_json_binary;
 
     use crate::observation::Observation;
 
@@ -250,7 +250,7 @@ mod test {
             price_sma: Default::default(),
         };
 
-        let storage_bytes = to_binary(&obs).unwrap().len();
+        let storage_bytes = to_json_binary(&obs).unwrap().len();
         assert_eq!(storage_bytes, 36); // in storage
 
         // https://github.com/cosmos/cosmos-sdk/blob/47f46643affd7ec7978329c42bac47275ac7e1cc/store/types/gas.go#L199

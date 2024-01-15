@@ -9,7 +9,7 @@ use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 
 use cosmwasm_std::{
-    coins, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
+    coins, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
     QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -66,7 +66,7 @@ pub fn build_swap_msg(
 
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: pool.contract_addr.to_string(),
-            msg: to_binary(&astroport::pair::ExecuteMsg::Swap {
+            msg: to_json_binary(&astroport::pair::ExecuteMsg::Swap {
                 offer_asset: offer_asset.clone(),
                 ask_asset_info: to.cloned(),
                 belief_price: None,
@@ -78,10 +78,10 @@ pub fn build_swap_msg(
     } else {
         Ok(SubMsg::new(WasmMsg::Execute {
             contract_addr: from.to_string(),
-            msg: to_binary(&cw20::Cw20ExecuteMsg::Send {
+            msg: to_json_binary(&cw20::Cw20ExecuteMsg::Send {
                 contract: pool.contract_addr.to_string(),
                 amount: amount_in,
-                msg: to_binary(&Cw20HookMsg::Swap {
+                msg: to_json_binary(&Cw20HookMsg::Swap {
                     ask_asset_info: to.cloned(),
                     belief_price: None,
                     max_spread: Some(max_spread),
@@ -107,7 +107,7 @@ pub fn build_distribute_msg(
         // Swap bridge assets
         SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::SwapBridgeAssets {
+            msg: to_json_binary(&ExecuteMsg::SwapBridgeAssets {
                 assets: bridge_assets,
                 depth,
             })?,
@@ -117,7 +117,7 @@ pub fn build_distribute_msg(
         // Update balances and distribute rewards
         SubMsg::new(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
-            msg: to_binary(&ExecuteMsg::DistributeAstro {})?,
+            msg: to_json_binary(&ExecuteMsg::DistributeAstro {})?,
             funds: vec![],
         })
     };
@@ -211,7 +211,7 @@ pub fn build_send_msg(
     match &asset.info {
         AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: contract_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
                 contract: recipient,
                 amount: asset.amount,
                 msg: msg.unwrap_or_default(),

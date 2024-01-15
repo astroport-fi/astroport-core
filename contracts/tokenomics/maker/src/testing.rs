@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr, Decimal, Uint128, Uint64};
+use cosmwasm_std::{from_json, Addr, Decimal, Uint128, Uint64};
 
 use crate::contract::{execute, instantiate, query};
 use crate::state::CONFIG;
@@ -142,6 +142,6 @@ fn update_owner() {
 
     // Let's query the state
     let config: ConfigResponse =
-        from_binary(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
     assert_eq!(new_owner, config.owner);
 }
