@@ -101,7 +101,7 @@ pub fn cw20_receive<M: CustomMsg>(
                 let receiver = from_json::<Cw20HookMsg>(&cw20_msg.msg)?.receiver;
                 addr_opt_validate(api, &receiver)?;
 
-                let receiver = receiver.unwrap_or_else(|| info.sender.to_string());
+                let receiver = receiver.unwrap_or_else(|| cw20_msg.sender);
                 let bank_msg = BankMsg::Send {
                     to_address: receiver.clone(),
                     amount: coins(cw20_msg.amount.u128(), config.new_astro_denom),

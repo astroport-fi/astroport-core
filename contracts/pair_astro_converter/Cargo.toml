@@ -33,3 +33,13 @@ thiserror = { version = "1.0" }
 cosmwasm-schema = "1.1"
 cw-utils = "1.0.1"
 serde = { version = "1.0.193", features = ["derive"] }
+
+[dev-dependencies]
+anyhow = "1"
+derivative = "2.2"
+itertools = "0.12"
+cw-multi-test = "0.20.0"
+astroport-token = { path = "../token" }
+astroport-factory = { path = "../factory" }
+astroport-pair = "~1.3.3"
+astro-token-converter = { path = "../periphery/astro_converter" }

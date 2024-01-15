@@ -1,19 +1,20 @@
 use std::vec;
 
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
-use astroport::pair::{Cw20HookMsg, ExecuteMsg};
-use astroport::querier::query_fee_info;
-use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, Addr, Decimal, DepsMut, Empty, Env, MessageInfo, Response, StdResult, Uint128,
+    attr, coins, ensure, from_json, to_json_binary, wasm_execute, Addr, DepsMut, Empty, Env,
+    MessageInfo, Response,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
+use astroport::astro_converter;
+use astroport::pair::{Cw20HookMsg, ExecuteMsg};
+
 use crate::error::ContractError;
-use crate::migration::migrate_config;
+use crate::migration::{migrate_config, sanity_checks, MigrateMsg};
 use crate::state::CONFIG;
 
 /// Contract name that is used for migration.
@@ -35,17 +36,8 @@ pub fn instantiate(
 /// Exposes all the execute functions available in the contract.
 ///
 /// ## Variants
-/// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
-///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 /// it depending on the received template.
-///
-/// * **ExecuteMsg::ProvideLiquidity {
-///             assets,
-///             slippage_tolerance,
-///             auto_stake,
-///             receiver,
-///         }** Provides liquidity in the pair with the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
@@ -56,23 +48,23 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
+        ExecuteMsg::Receive(msg) => receive_cw20(deps, info, msg),
         ExecuteMsg::Swap {
             offer_asset, to, ..
         } => {
-            offer_asset.info.check(deps.api)?;
-            if !offer_asset.is_native_token() {
-                return Err(ContractError::Cw20DirectSwap {});
-            }
+            ensure!(
+                offer_asset.is_native_token(),
+                ContractError::Cw20DirectSwap {}
+            );
+            offer_asset.assert_sent_native_token_balance(&info)?;
+            let sender = info.sender.clone();
 
-            let to_addr = addr_opt_validate(deps.api, &to)?;
-
-            swap(deps, env, info.clone(), info.sender, offer_asset, to_addr)
+            swap(deps, sender, offer_asset, to)
         }
         _ => Err(ContractError::NotSupported {}),
     }
@@ -83,202 +75,78 @@ pub fn execute(
 /// * **cw20_msg** is the CW20 message that has to be processed.
 pub fn receive_cw20(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
     match from_json(&cw20_msg.msg)? {
-        Cw20HookMsg::Swap { to, .. } => {
-            // Only asset contract can execute this message
-            let config = CONFIG.load(deps.storage)?;
-
-            let authorized = config.pair_info.asset_infos.iter().any(|asset_info| {
-                matches!(
-                    asset_info,
-                    AssetInfo::Token { contract_addr, .. } if contract_addr == &info.sender
-                )
-            });
-            if !authorized {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            let to_addr = addr_opt_validate(deps.api, &to)?;
-            let contract_addr = info.sender.clone();
-
-            swap(
-                deps,
-                env,
-                info,
-                Addr::unchecked(cw20_msg.sender),
-                Asset {
-                    info: AssetInfo::Token { contract_addr },
-                    amount: cw20_msg.amount,
-                },
-                to_addr,
-            )
-        }
+        Cw20HookMsg::Swap { to, .. } => swap(
+            deps,
+            Addr::unchecked(cw20_msg.sender),
+            AssetInfo::cw20_unchecked(info.sender).with_balance(cw20_msg.amount),
+            to,
+        ),
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 
-/// Performs an swap operation with the specified parameters. The trader must approve the
-/// pool contract to transfer offer assets from their wallet.
+/// Performs swap operation with the specified parameters.
 ///
 /// * **sender** is the sender of the swap operation.
 ///
 /// * **offer_asset** proposed asset for swapping.
 ///
-/// * **belief_price** is used to calculate the maximum swap spread.
-///
-/// * **max_spread** sets the maximum spread of the swap operation.
-///
-/// * **to** sets the recipient of the swap operation.
+/// * **to_addr** sets the recipient of the swap operation.
 pub fn swap(
     deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
     sender: Addr,
     offer_asset: Asset,
-    to: Option<Addr>,
+    to_addr: Option<String>,
 ) -> Result<Response, ContractError> {
-    offer_asset.assert_sent_native_token_balance(&info)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    let mut config = CONFIG.load(deps.storage)?;
+    ensure!(
+        offer_asset.info == config.from,
+        ContractError::AssetMismatch {
+            old: config.from.to_string(),
+            new: config.to.to_string()
+        }
+    );
 
-    // If the asset balance is already increased, we should subtract the user deposit from the pool amount
-    let pools = config
-        .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?
-        .into_iter()
-        .map(|mut p| {
-            if p.info.equal(&offer_asset.info) {
-                p.amount = p.amount.checked_sub(offer_asset.amount)?;
-            }
-            Ok(p)
-        })
-        .collect::<StdResult<Vec<_>>>()?;
+    let receiver = addr_opt_validate(deps.api, &to_addr)?.unwrap_or_else(|| sender.clone());
 
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-
-    if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = pools[0].clone();
-        ask_pool = pools[1].clone();
-    } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = pools[1].clone();
-        ask_pool = pools[0].clone();
-    } else {
-        return Err(ContractError::AssetMismatch {});
-    }
-
-    // Get fee info from the factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        &config.factory_addr,
-        config.pair_info.pair_type.clone(),
-    )?;
-
-    let offer_amount = offer_asset.amount;
-
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
-        offer_pool.amount,
-        ask_pool.amount,
-        offer_amount,
-        fee_info.total_fee_rate,
-    )?;
-
-    // Check the max spread limit (if it was specified)
-    assert_max_spread(
-        belief_price,
-        max_spread,
-        offer_amount,
-        return_amount + commission_amount,
-        spread_amount,
-    )?;
-
-    let return_asset = Asset {
-        info: ask_pool.info.clone(),
-        amount: return_amount,
+    let convert_msg = match &config.from {
+        AssetInfo::Token { contract_addr } => wasm_execute(
+            contract_addr,
+            &cw20::Cw20ExecuteMsg::Send {
+                contract: config.converter_contract.to_string(),
+                amount: offer_asset.amount,
+                msg: to_json_binary(&astro_converter::Cw20HookMsg {
+                    receiver: Some(receiver.to_string()),
+                })?,
+            },
+            vec![],
+        )?,
+        AssetInfo::NativeToken { denom } => wasm_execute(
+            &config.converter_contract,
+            &astro_converter::ExecuteMsg::Convert {
+                receiver: Some(receiver.to_string()),
+            },
+            coins(offer_asset.amount.u128(), denom),
+        )?,
     };
 
-    let receiver = to.unwrap_or_else(|| sender.clone());
-    let mut messages = vec![];
-    if !return_amount.is_zero() {
-        messages.push(return_asset.into_msg(receiver.clone())?)
-    }
-
-    // If this pool is configured to share fees, calculate the amount to send
-    // to the receiver and add the transfer message
-    // The calculation works as follows: We take the share percentage first,
-    // and the remainder is then split between LPs and maker
-    let mut fees_commission_amount = commission_amount;
-    let mut fee_share_amount = Uint128::zero();
-    if let Some(fee_share) = config.fee_share.clone() {
-        // Calculate the fee share amount from the full commission amount
-        let share_fee_rate = Decimal::from_ratio(fee_share.bps, 10000u16);
-        fee_share_amount = fees_commission_amount * share_fee_rate;
-
-        if !fee_share_amount.is_zero() {
-            // Subtract the fee share amount from the commission
-            fees_commission_amount = fees_commission_amount.saturating_sub(fee_share_amount);
-
-            // Build send message for the shared amount
-            let fee_share_msg = Asset {
-                info: ask_pool.info.clone(),
-                amount: fee_share_amount,
-            }
-            .into_msg(fee_share.recipient)?;
-            messages.push(fee_share_msg);
-        }
-    }
-
-    // Compute the Maker fee
-    let mut maker_fee_amount = Uint128::zero();
-    if let Some(fee_address) = fee_info.fee_address {
-        if let Some(f) = calculate_maker_fee(
-            &ask_pool.info,
-            fees_commission_amount,
-            fee_info.maker_fee_rate,
-        ) {
-            maker_fee_amount = f.amount;
-            messages.push(f.into_msg(fee_address)?);
-        }
-    }
-
-    // Accumulate prices for the assets in the pool
-    if let Some((price0_cumulative_new, price1_cumulative_new, block_time)) =
-        accumulate_prices(env, &config, pools[0].amount, pools[1].amount)?
-    {
-        config.price0_cumulative_last = price0_cumulative_new;
-        config.price1_cumulative_last = price1_cumulative_new;
-        config.block_time_last = block_time;
-        CONFIG.save(deps.storage, &config)?;
-    }
-
-    Ok(Response::new()
-        .add_messages(
-            // 1. send collateral tokens from the contract to a user
-            // 2. send inactive commission fees to the Maker contract
-            messages,
-        )
-        .add_attributes(vec![
-            attr("action", "swap"),
-            attr("sender", sender),
-            attr("receiver", receiver),
-            attr("offer_asset", offer_asset.info.to_string()),
-            attr("ask_asset", ask_pool.info.to_string()),
-            attr("offer_amount", offer_amount),
-            attr("return_amount", return_amount),
-            attr("spread_amount", spread_amount),
-            attr("commission_amount", commission_amount),
-            attr("maker_fee_amount", maker_fee_amount),
-            attr("fee_share_amount", fee_share_amount),
-        ]))
-}
-
-// TODO: move somewhere else
-#[cw_serde]
-pub struct MigrateMsg {
-    pub converter_contract: String,
+    Ok(Response::new().add_message(convert_msg).add_attributes([
+        attr("action", "swap"),
+        attr("receiver", receiver),
+        attr("offer_asset", config.from.to_string()),
+        attr("ask_asset", config.to.to_string()),
+        attr("offer_amount", offer_asset.amount),
+        attr("return_amount", offer_asset.amount),
+        attr("spread_amount", "0"),
+        attr("commission_amount", "0"),
+        attr("maker_fee_amount", "0"),
+        attr("fee_share_amount", "0"),
+    ]))
 }
 
 /// Manages the contract migration.
@@ -286,18 +154,27 @@ pub struct MigrateMsg {
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
+    // phoenix-1: v1.0.1
+    // pisco-1, injective-1, neutron-1: v1.3.3
+    // injective-888: v1.1.0
+    // pion-1: v1.3.0
     match (
         contract_version.contract.as_ref(),
         contract_version.version.as_ref(),
     ) {
-        ("astroport-pair", "???" | "???") => {
+        ("astroport-pair", "1.0.1" | "1.1.0" | "1.3.0" | "1.3.3") => {
             let converter_addr = deps.api.addr_validate(&msg.converter_contract)?;
-            let config = migrate_config(deps.storage, converter_addr)?;
+            let converter_config = deps.querier.query_wasm_smart::<astro_converter::Config>(
+                &converter_addr,
+                &astro_converter::QueryMsg::Config {},
+            )?;
+            let config = migrate_config(deps.storage, converter_addr, &converter_config)?;
+            sanity_checks(&config, &converter_config)?;
         }
         _ => {
             return Err(ContractError::MigrationError {
-                expected: "astroport-pair:?|?...".to_string(),
-                actual: format!("{}:{}", contract_version.contract, contract_version.version),
+                expected: "astroport-pair:1.0.1|1.1.0|1.3.0|1.3.3".to_string(),
+                current: format!("{}:{}", contract_version.contract, contract_version.version),
             })
         }
     }

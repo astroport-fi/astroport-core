@@ -1,196 +1,95 @@
-use cosmwasm_std::{entry_point, to_json_binary, Binary, Deps, Env, StdError, StdResult};
-
-use astroport::asset::{Asset, PairInfo};
-use astroport::pair::{
-    ConfigResponse, CumulativePricesResponse, PoolResponse, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse, XYKPoolConfig,
+use cosmwasm_std::{
+    ensure, entry_point, to_json_binary, Binary, Deps, Env, StdResult, Storage, Uint128,
 };
-use astroport::querier::{query_factory_config, query_fee_info};
 
+use astroport::asset::{Asset, AssetInfoExt};
+use astroport::pair::{
+    ConfigResponse, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+};
+use astroport::querier::query_factory_config;
+
+use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
 
-/// Exposes all the queries available in the contract.
-///
-/// ## Queries
-/// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
-///
-/// * **QueryMsg::Pool {}** Returns information about the amount of assets in the pair contract as
-/// well as the amount of LP tokens issued using an object of type [`PoolResponse`].
-///
-/// * **QueryMsg::Share { amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
-///
-/// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
-///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
-/// a [`ReverseSimulationResponse`] object.
-///
-/// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
-/// pool using a [`CumulativePricesResponse`] object.
-///
-/// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
-        QueryMsg::Pool {} => to_json_binary(&PoolResponse {
-            assets: vec![],
-            total_share: Default::default(),
-        }),
-        QueryMsg::Share { .. } => to_json_binary(&[]),
+        QueryMsg::Pair {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?.pair_info)?),
+        QueryMsg::Pool {} => Ok(to_json_binary(&query_pool(deps.storage)?)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
+        QueryMsg::Share { .. } => Ok(to_json_binary(&empty_share(deps.storage)?)?),
         QueryMsg::Simulation { offer_asset, .. } => {
-            to_json_binary(&query_simulation(deps, offer_asset)?)
+            let config = CONFIG.load(deps.storage)?;
+            ensure!(
+                offer_asset.info == config.from,
+                ContractError::AssetMismatch {
+                    old: config.from.to_string(),
+                    new: config.to.to_string()
+                }
+            );
+
+            Ok(to_json_binary(&SimulationResponse {
+                return_amount: offer_asset.amount,
+                spread_amount: Uint128::zero(),
+                commission_amount: Uint128::zero(),
+            })?)
         }
         QueryMsg::ReverseSimulation { ask_asset, .. } => {
-            to_json_binary(&query_reverse_simulation(deps, ask_asset)?)
+            let config = CONFIG.load(deps.storage)?;
+
+            // Assert ask_asset belongs to the pair
+            let in_pair = config.pair_info.asset_infos.contains(&ask_asset.info);
+
+            ensure!(
+                in_pair && ask_asset.info != config.from,
+                ContractError::AssetMismatch {
+                    old: config.from.to_string(),
+                    new: config.to.to_string()
+                }
+            );
+
+            Ok(to_json_binary(&ReverseSimulationResponse {
+                offer_amount: ask_asset.amount,
+                spread_amount: Uint128::zero(),
+                commission_amount: Uint128::zero(),
+            })?)
         }
-        QueryMsg::CumulativePrices {} => to_json_binary(&query_cumulative_prices(deps, env)?),
-        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
-        _ => Err(StdError::generic_err("Query is not supported")),
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 
-/// Returns information about a swap simulation in a [`SimulationResponse`] object.
-///
-/// * **offer_asset** is the asset to swap as well as an amount of the said asset.
-pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationResponse> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let pools = config
-        .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if offer_asset.info.equal(&pools[0].info) {
-        offer_pool = pools[0].clone();
-        ask_pool = pools[1].clone();
-    } else if offer_asset.info.equal(&pools[1].info) {
-        offer_pool = pools[1].clone();
-        ask_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given offer asset does not belong in the pair",
-        ));
-    }
-
-    // Get fee info from the factory contract
-    let fee_info = query_fee_info(
-        &deps.querier,
-        config.factory_addr,
-        config.pair_info.pair_type,
-    )?;
-
-    let (return_amount, spread_amount, commission_amount) = compute_swap(
-        offer_pool.amount,
-        ask_pool.amount,
-        offer_asset.amount,
-        fee_info.total_fee_rate,
-    )?;
-
-    Ok(SimulationResponse {
-        return_amount,
-        spread_amount,
-        commission_amount,
-    })
-}
-
-/// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
-///
-/// * **ask_asset** is the asset to swap to as well as the desired amount of ask
-/// assets to receive from the swap.
-pub fn query_reverse_simulation(
-    deps: Deps,
-    ask_asset: Asset,
-) -> StdResult<ReverseSimulationResponse> {
-    let config = CONFIG.load(deps.storage)?;
-
-    let pools = config
-        .pair_info
-        .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-    let offer_pool: Asset;
-    let ask_pool: Asset;
-    if ask_asset.info.equal(&pools[0].info) {
-        ask_pool = pools[0].clone();
-        offer_pool = pools[1].clone();
-    } else if ask_asset.info.equal(&pools[1].info) {
-        ask_pool = pools[1].clone();
-        offer_pool = pools[0].clone();
-    } else {
-        return Err(StdError::generic_err(
-            "Given ask asset doesn't belong to pairs",
-        ));
-    }
-
-    // Get fee info from factory
-    let fee_info = query_fee_info(
-        &deps.querier,
-        config.factory_addr,
-        config.pair_info.pair_type,
-    )?;
-
-    let (offer_amount, spread_amount, commission_amount) = compute_offer_amount(
-        offer_pool.amount,
-        ask_pool.amount,
-        ask_asset.amount,
-        fee_info.total_fee_rate,
-    )?;
-
-    Ok(ReverseSimulationResponse {
-        offer_amount,
-        spread_amount,
-        commission_amount,
-    })
-}
-
-/// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
-pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    let (assets, total_share) = pool_info(deps.querier, &config)?;
-
-    let mut price0_cumulative_last = config.price0_cumulative_last;
-    let mut price1_cumulative_last = config.price1_cumulative_last;
-
-    if let Some((price0_cumulative_new, price1_cumulative_new, _)) =
-        accumulate_prices(env, &config, assets[0].amount, assets[1].amount)?
-    {
-        price0_cumulative_last = price0_cumulative_new;
-        price1_cumulative_last = price1_cumulative_new;
-    }
-
-    let cumulative_prices = vec![
-        (
-            assets[0].info.clone(),
-            assets[1].info.clone(),
-            price0_cumulative_last,
-        ),
-        (
-            assets[1].info.clone(),
-            assets[0].info.clone(),
-            price1_cumulative_last,
-        ),
-    ];
-
-    let resp = CumulativePricesResponse {
-        assets,
-        total_share,
-        cumulative_prices,
+/// Returns the amounts of assets in the pair contract as well as the amount of LP
+/// tokens currently minted in an object of type [`PoolResponse`].
+pub fn query_pool(storage: &dyn Storage) -> StdResult<PoolResponse> {
+    let resp = PoolResponse {
+        assets: empty_share(storage)?,
+        total_share: Uint128::zero(),
     };
 
     Ok(resp)
 }
 
 /// Returns the pair contract configuration in a [`ConfigResponse`] object.
-pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
-
+pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+    let config: Config = CONFIG.load(deps.storage)?;
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     Ok(ConfigResponse {
-        block_time_last: env.block.time.seconds(),
+        block_time_last: 0,
         params: None,
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
     })
+}
+
+pub fn empty_share(storage: &dyn Storage) -> StdResult<Vec<Asset>> {
+    let share = CONFIG
+        .load(storage)?
+        .pair_info
+        .asset_infos
+        .iter()
+        .map(|asset_info| asset_info.with_balance(0u128))
+        .collect();
+
+    Ok(share)
 }

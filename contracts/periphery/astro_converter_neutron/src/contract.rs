@@ -47,7 +47,7 @@ pub fn execute(
         ExecuteMsg::TransferForBurning { timeout } => {
             ibc_transfer_for_burning(deps.as_ref(), env, info, config, timeout)
         }
-        ExecuteMsg::Burn {} => ContractError::BurnError {}, // burn is only available on Terra
+        ExecuteMsg::Burn {} => Err(ContractError::BurnError {}), // burn is only available on Terra
     }
 }
 
