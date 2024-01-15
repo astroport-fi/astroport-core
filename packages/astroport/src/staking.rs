@@ -40,6 +40,8 @@ pub struct ConfigResponse {
     pub deposit_denom: String,
     /// The xASTRO denom
     pub share_denom: String,
+    // TODO: Comments
+    pub share_tracking_address: String,
 }
 
 // The structure returned as part of set_data when staking or unstaking

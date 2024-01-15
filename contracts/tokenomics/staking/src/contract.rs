@@ -1,3 +1,4 @@
+use astroport::tokenfactory_tracker::{block_before_send, track_before_send, SudoMsg};
 use cosmwasm_std::{
     attr, coin, entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
@@ -12,7 +13,7 @@ use crate::state::{Config, CONFIG};
 use astroport::staking::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakingResponse,
 };
-use astroport::tokenfactory_tracker::InstantiateMsg as TrackerInstantiateMsg;
+// use astroport::tokenfactory_tracker::InstantiateMsg as TrackerInstantiateMsg;
 use cw2::set_contract_version;
 use cw_utils::{must_pay, parse_instantiate_response_data};
 
@@ -30,7 +31,6 @@ const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
 const INSTANTIATE_DENOM_REPLY_ID: u64 = 1;
-const INSTANTIATE_TRACKING_REPLY_ID: u64 = 2;
 
 /// Minimum initial xastro share
 pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
@@ -94,6 +94,27 @@ pub fn execute(
     }
 }
 
+/// Exposes execute functions called by the chain's TokenFactory module
+///
+/// ## Variants
+/// * **SudoMsg::BlockBeforeSend** Called before sending a token, error fails the transaction
+/// * **SudoMsg::TrackBeforeSend** Called before sending a token, error is ignored
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
+    match msg {
+        // For xASTRO we don't implement any blocking, but is still required
+        // to be implemented
+        SudoMsg::BlockBeforeSend { .. } => Ok(Response::default()),
+        // TrackBeforeSend is called before a send - if an error is returned it will
+        // be ignored and the send will continue
+        // Minting a token directly to an address is also tracked
+        SudoMsg::TrackBeforeSend { from, to, amount } => {
+            //let config = CONFIG.load(deps.storage)?;
+            // Get the module address
+            track_before_send(deps, env, from, to, amount).map_err(Into::into)
+        }
+    }
+}
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
@@ -107,26 +128,6 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             // TODO: Use new TokenFactory abstraction
             let created_denom = format!("factory/{}/{}", env.contract.address, TOKEN_SYMBOL);
 
-            // Instantiate the tracking contract
-            let instantiate_tracker_msg: SubMsg = SubMsg {
-                msg: WasmMsg::Instantiate {
-                    code_id: config.tracking_code_id,
-                    msg: to_binary(&TrackerInstantiateMsg {
-                        tracked_denom: created_denom.clone(),
-                        // TODO: Get the correct module address
-                        tokenfactory_module_address: "osmo19ejy8n9qsectrf4semdp9cpknflld0j64mwamn"
-                            .to_string(),
-                    })?,
-                    funds: vec![],
-                    admin: None,
-                    label: String::from("xASTRO Tracking Contract"),
-                }
-                .into(),
-                id: INSTANTIATE_TRACKING_REPLY_ID,
-                gas_limit: None,
-                reply_on: ReplyOn::Success,
-            };
-
             // TODO: Decide correct metadata
             let denom_metadata_msg = MsgSetDenomMetadata {
                 sender: env.contract.address.to_string(),
@@ -138,7 +139,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                     denom_units: vec![
                         DenomUnit {
                             denom: created_denom.to_string(),
-                            exponent: 0,
+                            exponent: 12,
                             aliases: vec![],
                         },
                         DenomUnit {
@@ -152,33 +153,20 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             };
 
             config.xastro_denom = created_denom;
-            CONFIG.save(deps.storage, &config)?;
 
-            Ok(Response::new()
-                .add_message(denom_metadata_msg)
-                .add_submessage(instantiate_tracker_msg)
-                .add_attribute("xastro_denom", config.xastro_denom))
-        }
-        INSTANTIATE_TRACKING_REPLY_ID => {
-            let mut config = CONFIG.load(deps.storage)?;
-
-            // TODO: Fix unwraps here
-            let init_response =
-                parse_instantiate_response_data(msg.result.unwrap().data.unwrap().as_slice())
-                    .map_err(|e| StdError::generic_err(format!("{e}")))?;
-
+            // Enable balance tracking for xASTRO
             let set_hook_msg = MsgSetBeforeSendHook {
                 sender: env.contract.address.to_string(),
                 denom: config.xastro_denom.clone(),
-                cosmwasm_address: init_response.contract_address.clone(),
+                cosmwasm_address: env.contract.address.to_string(),
             };
 
-            config.tracking_contract_address = init_response.contract_address;
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new()
                 .add_message(set_hook_msg)
-                .add_attribute("xastro_tracking_contract", config.tracking_contract_address))
+                .add_message(denom_metadata_msg)
+                .add_attribute("xastro_denom", config.xastro_denom))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }
