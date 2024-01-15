@@ -62,9 +62,8 @@ pub fn execute(
                 ContractError::Cw20DirectSwap {}
             );
             offer_asset.assert_sent_native_token_balance(&info)?;
-            let sender = info.sender.clone();
 
-            swap(deps, sender, offer_asset, to)
+            swap(deps, info.sender, offer_asset, to)
         }
         _ => Err(ContractError::NotSupported {}),
     }
