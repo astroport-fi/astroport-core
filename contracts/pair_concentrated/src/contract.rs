@@ -512,11 +512,11 @@ pub fn provide_liquidity(
 
     // calculate accrued share
     let share_ratio = share / (total_share + share);
-    let balanced_share = vec![
+    let balanced_share = [
         new_xp[0] * share_ratio,
         new_xp[1] * share_ratio / config.pool_state.price_state.price_scale,
     ];
-    let assets_diff = vec![
+    let assets_diff = [
         deposits[0].diff(balanced_share[0]),
         deposits[1].diff(balanced_share[1]),
     ];

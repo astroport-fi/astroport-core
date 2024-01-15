@@ -375,6 +375,14 @@ fn test_incentives() {
         )
         .unwrap();
 
+    // Check maker received incentivization fee
+    let maker_amount = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert_eq!(maker_amount.amount, incentivization_fee.amount);
+
     helper.app.update_block(|block| {
         block.time = Timestamp::from_seconds(internal_sch.next_epoch_start_ts)
     });
@@ -1470,25 +1478,11 @@ fn test_queries() {
     assert_eq!(helper.query_deposit(&lp_token, &user).unwrap(), 100000);
 
     let random = TestAddr::new("random");
-    let err = helper.query_deposit(&lp_token, &random).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        format!(
-            "Generic error: Querier contract error: User {} doesn't have position in {}",
-            random.as_str(),
-            &lp_token
-        )
-    );
+    let amount = helper.query_deposit(&lp_token, &random).unwrap();
+    assert_eq!(amount, 0);
 
-    let err = helper.query_deposit(random.as_str(), &user).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        format!(
-            "Generic error: Querier contract error: User {} doesn't have position in {}",
-            user.as_str(),
-            random.as_str()
-        )
-    );
+    let amount = helper.query_deposit(random.as_str(), &user).unwrap();
+    assert_eq!(amount, 0);
 
     // This Lp doesn't exist
     helper.pool_info(random.as_str()).unwrap_err();
