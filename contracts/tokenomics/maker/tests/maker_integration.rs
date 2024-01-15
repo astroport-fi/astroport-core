@@ -1,21 +1,24 @@
 #![cfg(not(tarpaulin_include))]
 
-use astroport::asset::{
-    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
-};
-use astroport::factory::{PairConfig, PairType, UpdateAddr};
-use astroport::maker::{
-    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
-    SecondReceiverConfig, SecondReceiverParams,
-};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use std::str::FromStr;
+
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
     attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
-use std::str::FromStr;
+
+use astroport::asset::{
+    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
+};
+use astroport::factory::{PairConfig, PairType, UpdateAddr};
+use astroport::maker::{
+    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
+    SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
+};
+use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_maker::error::ContractError;
 
 const OWNER: &str = "owner";
 
@@ -93,6 +96,7 @@ fn instantiate_contracts(
     max_spread: Option<Decimal>,
     pair_type: Option<PairType>,
     second_receiver_params: Option<SecondReceiverParams>,
+    collect_cooldown: Option<u64>,
 ) -> (Addr, Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_token::contract::execute,
@@ -238,6 +242,7 @@ fn instantiate_contracts(
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread,
         second_receiver_params,
+        collect_cooldown,
     };
     let maker_instance = router
         .instantiate_contract(
@@ -478,6 +483,7 @@ fn update_config() {
             None,
             None,
             None,
+            None,
         );
 
     let msg = QueryMsg::Config {};
@@ -508,6 +514,7 @@ fn update_config() {
         basic_asset: None,
         max_spread: Some(new_max_spread),
         second_receiver_params: None,
+        collect_cooldown: None,
     };
 
     // Assert cannot update with improper owner
@@ -549,6 +556,7 @@ fn update_config() {
             second_fee_receiver: "second_fee_receiver".to_string(),
             second_receiver_cut: Default::default(),
         }),
+        collect_cooldown: None,
     };
 
     let err = router
@@ -567,6 +575,7 @@ fn update_config() {
             second_fee_receiver: "second_fee_receiver".to_string(),
             second_receiver_cut: Uint64::new(10),
         }),
+        collect_cooldown: None,
     };
 
     router
@@ -586,6 +595,63 @@ fn update_config() {
             second_receiver_cut: Uint64::new(10)
         })
     );
+
+    let msg = ExecuteMsg::UpdateConfig {
+        governance_percent: None,
+        governance_contract: None,
+        staking_contract: None,
+        factory_contract: None,
+        basic_asset: None,
+        max_spread: None,
+        second_receiver_params: None,
+        collect_cooldown: Some(*COOLDOWN_LIMITS.start() - 1),
+    };
+
+    let err = router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncorrectCooldown {
+            min: *COOLDOWN_LIMITS.start(),
+            max: *COOLDOWN_LIMITS.end()
+        }
+    );
+
+    let msg = ExecuteMsg::UpdateConfig {
+        governance_percent: None,
+        governance_contract: None,
+        staking_contract: None,
+        factory_contract: None,
+        basic_asset: None,
+        max_spread: None,
+        second_receiver_params: None,
+        collect_cooldown: Some(*COOLDOWN_LIMITS.end() + 1),
+    };
+    let err = router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncorrectCooldown {
+            min: *COOLDOWN_LIMITS.start(),
+            max: *COOLDOWN_LIMITS.end()
+        }
+    );
+
+    let msg = ExecuteMsg::UpdateConfig {
+        governance_percent: None,
+        governance_contract: None,
+        staking_contract: None,
+        factory_contract: None,
+        basic_asset: None,
+        max_spread: None,
+        second_receiver_params: None,
+        collect_cooldown: Some((*COOLDOWN_LIMITS.end() - *COOLDOWN_LIMITS.start()) / 2),
+    };
+    router
+        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
+        .unwrap();
 }
 
 fn test_maker_collect(
@@ -743,6 +809,7 @@ fn collect_all() {
         staking.clone(),
         governance_percent,
         Some(max_spread),
+        None,
         None,
         None,
     );
@@ -906,6 +973,7 @@ fn collect_maxdepth_test() {
         Some(max_spread),
         None,
         None,
+        None,
     );
 
     let usdc_token_instance = instantiate_token(
@@ -1040,6 +1108,7 @@ fn collect_err_no_swap_pair() {
         None,
         None,
         None,
+        None,
     );
 
     let uusd_asset = String::from("uusd");
@@ -1162,6 +1231,7 @@ fn update_bridges() {
         owner.clone(),
         staking.clone(),
         governance_percent,
+        None,
         None,
         None,
         None,
@@ -1325,6 +1395,7 @@ fn collect_with_asset_limit() {
             staking.clone(),
             governance_percent,
             Some(max_spread),
+            None,
             None,
             None,
         );
@@ -1642,6 +1713,7 @@ fn collect_with_second_receiver() {
                 second_fee_receiver: "second_receiver".to_string(),
                 second_receiver_cut: Uint64::new(50),
             }),
+            None,
         );
 
     let usdc_token_instance = instantiate_token(
@@ -1902,6 +1974,101 @@ fn collect_with_second_receiver() {
     );
 }
 
+#[test]
+fn test_collect_cooldown() {
+    let asset0 = "asset0";
+    let asset1 = "asset1";
+    let owner = Addr::unchecked("owner");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            coin(100_000_000_000u128, asset0),
+            coin(100_000_000_000u128, asset1),
+        ],
+    );
+
+    let (_, factory_instance, maker_instance, _) = instantiate_contracts(
+        &mut router,
+        owner.clone(),
+        Addr::unchecked("staking"),
+        10u64.into(),
+        Some(Decimal::from_str("0.5").unwrap()),
+        None,
+        None,
+        Some(300),
+    );
+
+    // Moving block time to be able to collect
+    router.update_block(|block| block.time = block.time.plus_seconds(300));
+
+    let asset_infos = [AssetInfo::native(asset0), AssetInfo::native(asset1)];
+
+    // Create pair in factory
+    router
+        .execute_contract(
+            owner.clone(),
+            factory_instance.clone(),
+            &astroport::factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
+                asset_infos: asset_infos.to_vec(),
+                init_params: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Set assets to swap
+    let assets = vec![AssetWithLimit {
+        info: AssetInfo::native(asset0),
+        limit: None,
+    }];
+
+    // First collect works
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+    let next_collect_ts = router.block_info().time.plus_seconds(300).seconds();
+
+    // Cooldown is 300 sec. We can't collect again
+    router.update_block(|block| block.time = block.time.plus_seconds(100));
+
+    let err = router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Cooldown { next_collect_ts }
+    );
+
+    // In 200 seconds cooldown should be expired
+    router.update_block(|block| block.time = block.time.plus_seconds(200));
+    router
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::Collect {
+                assets: assets.clone(),
+            },
+            &[],
+        )
+        .unwrap();
+}
+
 struct CheckDistributedAstro {
     maker_amount: Uint128,
     governance_amount: Uint128,
@@ -1968,6 +2135,7 @@ fn distribute_initially_accrued_fees() {
             owner.clone(),
             staking.clone(),
             governance_percent,
+            None,
             None,
             None,
             None,
@@ -2382,6 +2550,7 @@ fn collect_3pools() {
         Default::default(),
         Some(max_spread),
         Some(PairType::Stable {}),
+        None,
         None,
     );
 
