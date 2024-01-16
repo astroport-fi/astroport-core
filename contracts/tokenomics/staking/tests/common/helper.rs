@@ -21,8 +21,8 @@ use astroport::token::Cw20Coin;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, coins, from_slice, to_binary, Addr, Coin, Decimal, Decimal256, Empty, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, StdError, StdResult, Storage, Uint128,
+    coin, coins, from_slice, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, GovMsg,
+    IbcMsg, IbcQuery, MemoryStorage, StdError, StdResult, Storage, Uint128,
 };
 use cw_multi_test::{
     AddressGenerator, App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper,

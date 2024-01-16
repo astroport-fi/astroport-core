@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, Env, Order, StdResult, Uint128, Uint64};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult, Uint128, Uint64};
 use cw_storage_plus::Bound;
 
 use astroport::tokenfactory_tracker::QueryMsg;
@@ -10,12 +10,12 @@ use crate::state::{BALANCES, TOTAL_SUPPLY_HISTORY};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::BalanceAt { address, timestamp } => to_binary(&balance_at(
+        QueryMsg::BalanceAt { address, timestamp } => to_json_binary(&balance_at(
             deps,
             address,
             timestamp.unwrap_or_else(|| Uint64::from(env.block.time.seconds())),
         )?),
-        QueryMsg::TotalSupplyAt { timestamp } => to_binary(&total_supply_at(
+        QueryMsg::TotalSupplyAt { timestamp } => to_json_binary(&total_supply_at(
             deps,
             timestamp.unwrap_or_else(|| Uint64::from(env.block.time.seconds())),
         )?),

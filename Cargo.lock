@@ -107,7 +107,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "itertools 0.10.5",
- "protobuf",
+ "protobuf 2.28.0",
  "thiserror",
 ]
 
@@ -128,7 +128,7 @@ dependencies = [
  "cw20 0.15.1",
  "itertools 0.10.5",
  "prost 0.11.9",
- "protobuf",
+ "protobuf 2.28.0",
  "thiserror",
 ]
 
@@ -174,7 +174,7 @@ dependencies = [
  "cw721-base",
  "generator-controller",
  "generator-proxy-to-vkr",
- "protobuf",
+ "protobuf 2.28.0",
  "thiserror",
  "valkyrie",
  "valkyrie-lp-staking",
@@ -414,26 +414,7 @@ dependencies = [
  "integer-sqrt",
  "proptest",
  "prost 0.11.9",
- "protobuf",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-pair-astro-xastro"
-version = "1.0.3"
-dependencies = [
- "astroport 3.8.0",
- "astroport-factory 1.7.0",
- "astroport-pair-bonded",
- "astroport-staking",
- "astroport-token",
- "astroport-xastro-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test 0.15.1",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
+ "protobuf 2.28.0",
  "thiserror",
 ]
 
@@ -607,19 +588,22 @@ dependencies = [
 
 [[package]]
 name = "astroport-staking"
-version = "1.1.0"
+version = "2.0.0"
 dependencies = [
+ "anyhow",
  "astroport 3.8.0",
  "astroport-token",
  "astroport-xastro-token",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-multi-test 0.15.1",
+ "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test?branch=astroport_cozy_fork)",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.3",
  "cw2 0.15.1",
- "cw20 0.15.1",
- "protobuf",
+ "derivative",
+ "itertools 0.11.0",
+ "osmosis-std",
+ "protobuf 3.2.0",
  "thiserror",
 ]
 
@@ -634,6 +618,18 @@ dependencies = [
  "cw20 0.15.1",
  "cw20-base 0.15.1",
  "snafu",
+]
+
+[[package]]
+name = "astroport-tokenfactory-tracker"
+version = "1.0.0"
+dependencies = [
+ "astroport 3.8.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "thiserror",
 ]
 
 [[package]]
@@ -820,6 +816,15 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "chrono"
+version = "0.4.31"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f2c685bad3eb3d45a01354cedb7d5faa66194d1d58ba6e267a8de788f79db38"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "cloudabi"
@@ -2007,6 +2012,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
+name = "osmosis-std"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d7aa053bc3fad557ac90a0377688b400c395e2537f0f1de3293a15cad2e970"
+dependencies = [
+ "chrono",
+ "cosmwasm-std",
+ "osmosis-std-derive",
+ "prost 0.11.9",
+ "prost-types",
+ "schemars",
+ "serde",
+ "serde-cw-value",
+]
+
+[[package]]
+name = "osmosis-std-derive"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5ebdfd1bc8ed04db596e110c6baa9b174b04f6ed1ec22c666ddc5cb3fa91bd7"
+dependencies = [
+ "itertools 0.10.5",
+ "proc-macro2",
+ "prost-types",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2199,6 +2233,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 dependencies = [
  "bytes",
+]
+
+[[package]]
+name = "protobuf"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b55bad9126f378a853655831eb7363b7b01b81d19f8cb1218861086ca4a1a61e"
+dependencies = [
+ "once_cell",
+ "protobuf-support",
+ "thiserror",
+]
+
+[[package]]
+name = "protobuf-support"
+version = "3.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5d4d7b8601c814cfb36bcebb79f0e61e45e1e93640cf778837833bbed05c372"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
@@ -2502,6 +2556,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63261df402c67811e9ac6def069e4786148c4563f4b50fd4bf30aa370d626b02"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde-cw-value"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a75d32da6b8ed758b7d850b6c3c08f1d7df51a4df3cb201296e63e34a78e99d4"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

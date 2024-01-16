@@ -253,7 +253,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     // Set the data to be returned in set_data to easy integration with
     // other contracts
-    let staking_response = to_binary(&StakingResponse {
+    let staking_response = to_json_binary(&StakingResponse {
         astro_amount: amount,
         xastro_amount: mint_amount,
     })?;
@@ -314,7 +314,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     // Set the data to be returned in set_data to easy integration with
     // other contracts
     // TODO: Test if this works now
-    let staking_response = to_binary(&StakingResponse {
+    let staking_response = to_json_binary(&StakingResponse {
         astro_amount: return_amount,
         xastro_amount: amount,
     })?;
@@ -349,7 +349,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             share_tracking_address: config.tracking_contract_address,
         })?),
         QueryMsg::TotalShares {} => {
-            to_json_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
+            // to_json_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
+            todo!("TotalShares query not implemented")
         }
         QueryMsg::TotalDeposit {} => to_json_binary(&query_balance(
             &deps.querier,

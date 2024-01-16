@@ -148,7 +148,7 @@ where
                 astro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&()).unwrap(),
+                    msg: to_json_binary(&()).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],
@@ -179,7 +179,7 @@ where
                 xastro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&()).unwrap(),
+                    msg: to_json_binary(&()).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],

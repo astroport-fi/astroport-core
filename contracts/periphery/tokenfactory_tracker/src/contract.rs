@@ -117,7 +117,7 @@ mod tests {
 
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
-        to_binary, Coin, Uint128, Uint64,
+        to_json_binary, Coin, Uint128, Uint64,
     };
 
     use crate::query::query;
@@ -222,7 +222,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_user1_balance).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_user1_balance).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -233,7 +233,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_user2_balance).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_user2_balance).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -244,7 +244,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_user3_balance).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_user3_balance).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -255,7 +255,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_user3_balance).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_user3_balance).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -266,7 +266,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_user4_balance).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_user4_balance).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -276,7 +276,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_total_supply).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_total_supply).unwrap());
 
         let balance = query(
             deps.as_ref(),
@@ -284,7 +284,7 @@ mod tests {
             astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp: None },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&expected_total_supply).unwrap());
+        assert_eq!(balance, to_json_binary(&expected_total_supply).unwrap());
     }
 
     #[test]
@@ -338,6 +338,6 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(balance, to_binary(&Uint128::zero()).unwrap());
+        assert_eq!(balance, to_json_binary(&Uint128::zero()).unwrap());
     }
 }
