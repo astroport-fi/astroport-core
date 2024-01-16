@@ -78,6 +78,7 @@ fn test_instantiate_tokenfactory() {
     let msg = InstantiateMsg {
         owner: owner.to_string(),
         deposit_token_denom: ASTRO_DENOM.to_string(),
+        tracking_code_id: 0, // TODO: store tracker code id
     };
     let staking_instance = app
         .instantiate_contract(

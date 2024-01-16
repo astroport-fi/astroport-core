@@ -1,23 +1,22 @@
-use astroport::tokenfactory_tracker::{block_before_send, track_before_send, SudoMsg};
 use cosmwasm_std::{
     attr, coin, entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128,
 };
+use cw2::set_contract_version;
+use cw_utils::must_pay;
 use osmosis_std::types::cosmos::bank::v1beta1::{DenomUnit, Metadata};
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
     MsgBurn, MsgCreateDenom, MsgMint, MsgSetBeforeSendHook, MsgSetDenomMetadata,
 };
 
-use crate::error::ContractError;
-use crate::state::{Config, CONFIG};
+use astroport::querier::query_balance;
 use astroport::staking::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakingResponse,
 };
-// use astroport::tokenfactory_tracker::InstantiateMsg as TrackerInstantiateMsg;
-use cw2::set_contract_version;
-use cw_utils::{must_pay, parse_instantiate_response_data};
+use astroport::tokenfactory_tracker::{track_before_send, SudoMsg};
 
-use astroport::querier::query_balance;
+use crate::error::ContractError;
+use crate::state::{Config, CONFIG};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-staking";

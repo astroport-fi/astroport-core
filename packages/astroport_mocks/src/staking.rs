@@ -1,13 +1,14 @@
 use std::fmt::Debug;
 
-use astroport::{
-    staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg, QueryMsg},
-    token::ExecuteMsg,
-};
 use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Storage, Uint128};
 use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
+
+use astroport::{
+    staking::{ConfigResponse, InstantiateMsg, QueryMsg},
+    token::ExecuteMsg,
+};
 
 use crate::{
     astroport_address, token::MockTokenOpt, MockToken, MockTokenBuilder, WKApp, ASTROPORT,
@@ -90,9 +91,8 @@ where
                 astroport,
                 &InstantiateMsg {
                     owner: ASTROPORT.to_owned(),
-                    marketing: None,
-                    token_code_id,
-                    deposit_token_addr: astro_token.address.to_string(),
+                    deposit_token_denom: "".to_string(),
+                    tracking_code_id: 0,
                 },
                 &[],
                 "Astroport Staking",
@@ -135,7 +135,7 @@ where
 
         MockToken {
             app: self.app.clone(),
-            address: config.deposit_token_addr,
+            address: Addr::unchecked(config.deposit_denom),
         }
     }
 
@@ -148,7 +148,7 @@ where
                 astro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&Cw20HookMsg::Enter {}).unwrap(),
+                    msg: to_binary(&()).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],
@@ -166,7 +166,7 @@ where
 
         MockToken {
             app: self.app.clone(),
-            address: config.share_token_addr,
+            address: Addr::unchecked(config.share_denom),
         }
     }
 
@@ -179,7 +179,7 @@ where
                 xastro_token.address,
                 &ExecuteMsg::Send {
                     amount,
-                    msg: to_binary(&Cw20HookMsg::Leave {}).unwrap(),
+                    msg: to_binary(&()).unwrap(),
                     contract: self.address.to_string(),
                 },
                 &[],

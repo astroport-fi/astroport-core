@@ -1,5 +1,6 @@
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{entry_point, to_binary, Binary, Deps, Env, Order, StdResult, Uint128, Uint64};
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_binary, Binary, Deps, Env, Order, StdResult, Uint128, Uint64};
 use cw_storage_plus::Bound;
 
 use astroport::tokenfactory_tracker::QueryMsg;

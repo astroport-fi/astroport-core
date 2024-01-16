@@ -1,7 +1,13 @@
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{
-    attr, Addr, Api, Coin, CustomQuery, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
-};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Coin, CustomQuery, DepsMut, Env, Response, StdResult, Uint128, Uint64};
+
+#[cw_serde]
+pub struct InstantiateMsg {
+    // The address of the token factory module
+    pub tokenfactory_module_address: String,
+    // The denom of the token being tracked
+    pub tracked_denom: String,
+}
 
 #[cw_serde]
 pub enum SudoMsg {
@@ -25,6 +31,18 @@ pub enum SudoMsg {
         // The amount and denom being sent
         amount: Coin,
     },
+}
+
+#[cw_serde]
+#[derive(QueryResponses)]
+pub enum QueryMsg {
+    #[returns(Uint128)]
+    BalanceAt {
+        address: String,
+        timestamp: Option<Uint64>,
+    },
+    #[returns(Uint128)]
+    TotalSupplyAt { timestamp: Option<Uint64> },
 }
 
 // Sudo endpoint called by chain before sending tokens
