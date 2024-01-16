@@ -12,7 +12,6 @@ members = [
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
-    #  "contracts/cw20_ics20", # contract is being deprecated
     "templates/*",
     "contracts/tokenomics/*",
     "contracts/periphery/*",

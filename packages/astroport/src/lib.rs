@@ -1,7 +1,6 @@
 pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
-pub mod cw20_ics20;
 pub mod factory;
 pub mod fee_granter;
 pub mod generator;
