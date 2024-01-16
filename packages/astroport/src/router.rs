@@ -65,14 +65,11 @@ pub enum ExecuteMsg {
         max_spread: Option<Decimal>,
         single: bool,
     },
-    /// Internal use
-    /// AssertMinimumReceive checks that a receiver will get a minimum amount of tokens from a swap
-    AssertMinimumReceive {
-        asset_info: AssetInfo,
-        prev_balance: Uint128,
-        minimum_receive: Uint128,
-        receiver: String,
-    },
+}
+
+#[cw_serde]
+pub struct SwapResponseData {
+    pub return_amount: Uint128,
 }
 
 #[cw_serde]

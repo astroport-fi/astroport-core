@@ -1748,3 +1748,115 @@ fn check_small_trades_18decimals() {
         relative_diff
     );
 }
+
+#[test]
+fn check_lsd_swaps_with_price_update() {
+    let owner = Addr::unchecked("owner");
+    let half = Decimal::from_ratio(1u8, 2u8);
+    let price_scale = 0.87;
+
+    let test_coins = vec![TestCoin::native("wsteth"), TestCoin::native("eth")];
+
+    // checking swaps in PCL pair with LSD params
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(500_f64),
+        gamma: f64_to_dec(0.00000001),
+        mid_fee: f64_to_dec(0.0003),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.3),
+        repeg_profit_threshold: f64_to_dec(0.00000001),
+        min_price_scale_delta: f64_to_dec(0.0000055),
+        price_scale: f64_to_dec(price_scale),
+        ma_half_time: 600,
+        track_asset_balances: None,
+        fee_share: None,
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    helper.app.next_block(1000);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance((1e18 * price_scale) as u128),
+        helper.assets[&test_coins[1]].with_balance(1e18 as u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.app.next_block(1000);
+
+    for _ in 0..10 {
+        let assets = vec![
+            helper.assets[&test_coins[0]].with_balance((1e15 * price_scale) as u128),
+            helper.assets[&test_coins[1]].with_balance(1e15 as u128),
+        ];
+        helper.provide_liquidity(&owner, &assets).unwrap();
+        helper.app.next_block(1000);
+    }
+
+    for _ in 0..10 {
+        let assets = vec![
+            helper.assets[&test_coins[0]].with_balance((1e13 * price_scale) as u128),
+            helper.assets[&test_coins[1]].with_balance(1e13 as u128),
+        ];
+        helper.provide_liquidity(&owner, &assets).unwrap();
+        helper.app.next_block(1000);
+    }
+
+    let user1 = Addr::unchecked("user1");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1e16 as u128);
+
+    for _ in 0..10 {
+        helper.give_me_money(&[offer_asset.clone()], &user1);
+        helper.swap(&user1, &offer_asset, Some(half)).unwrap();
+        helper.app.next_block(1000);
+    }
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(1e16 as u128);
+    for _ in 0..10 {
+        helper.give_me_money(&[offer_asset.clone()], &user1);
+        helper.swap(&user1, &offer_asset, Some(half)).unwrap();
+        helper.app.next_block(1000);
+    }
+}
+
+#[test]
+fn test_provide_liquidity_without_funds() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let user1 = Addr::unchecked("user1");
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    // provide some liquidity
+    for _ in 0..3 {
+        helper.give_me_money(&assets, &user1);
+        helper.provide_liquidity(&user1, &assets).unwrap();
+    }
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: assets.clone().to_vec(),
+        slippage_tolerance: Some(f64_to_dec(0.5)),
+        auto_stake: None,
+        receiver: None,
+    };
+
+    let err = helper
+        .app
+        .execute_contract(user1.clone(), helper.pair_addr.clone(), &msg, &[])
+        .unwrap_err();
+
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Native token balance mismatch between the argument (100000000000uluna) and the transferred (0uluna)"
+    )
+}

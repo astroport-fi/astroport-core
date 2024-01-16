@@ -70,6 +70,8 @@ Swap UST => mABNB
 ### `execute_swap_operations`
 
 Performs multi-hop swap operations for native & Astroport tokens. Swaps execute one-by-one and the last swap will return the ask token. This function is public (can be called by anyone).
+Contract sets total 'return_amount' in response data after all routes are processed. See `SwapResponseData` type for more info.
+Note: Response data makes sense ONLY if the first token in multi-hop swap is native. Otherwise, cw20::send message resets response data.
 
 ### Example
 

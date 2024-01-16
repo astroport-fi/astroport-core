@@ -1,24 +1,21 @@
 [workspace]
 resolver = "2"
 members = [
-  "packages/*",
-  "contracts/factory",
-  "contracts/pair",
-  "contracts/pair_stable",
-  "contracts/pair_concentrated",
-  "contracts/pair_concentrated_inj",
-  "contracts/router",
-  "contracts/token",
-  "contracts/whitelist",
-  "contracts/cw20_ics20",
-  "templates/*",
-  "contracts/tokenomics/generator",
-  "contracts/tokenomics/maker",
-  "contracts/tokenomics/staking",
-  "contracts/tokenomics/vesting",
-  "contracts/tokenomics/xastro_token",
-  "contracts/tokenomics/xastro_outpost_token",
-  "contracts/periphery/*",
+    "packages/*",
+    "contracts/factory",
+    "contracts/pair",
+    "contracts/pair_stable",
+    "contracts/pair_concentrated",
+    "contracts/pair_transmuter",
+    #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
+    "contracts/pair_astro_xastro",
+    "contracts/router",
+    "contracts/token",
+    "contracts/whitelist",
+    #  "contracts/cw20_ics20", # contract is being deprecated
+    "templates/*",
+    "contracts/tokenomics/*",
+    "contracts/periphery/*",
 ]
 
 [profile.release]

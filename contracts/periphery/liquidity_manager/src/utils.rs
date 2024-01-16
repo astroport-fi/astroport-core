@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    from_slice, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
+    from_json, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
 };
 
 use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
@@ -56,20 +56,20 @@ pub fn query_cw20_minter(querier: QuerierWrapper, lp_token_addr: Addr) -> StdRes
 
 pub fn xyk_provide_simulation(
     querier: QuerierWrapper,
+    pool_balances: &[Asset],
     pair_info: &PairInfo,
     slippage_tolerance: Option<Decimal>,
     deposits: Vec<Asset>,
 ) -> Result<Uint128, PairContractError> {
-    let pools = pair_info.query_pools(&querier, &pair_info.contract_addr)?;
     let deposits = [
         deposits
             .iter()
-            .find(|a| a.info.equal(&pools[0].info))
+            .find(|a| a.info.equal(&pool_balances[0].info))
             .map(|a| a.amount)
             .expect("Wrong asset info is given"),
         deposits
             .iter()
-            .find(|a| a.info.equal(&pools[1].info))
+            .find(|a| a.info.equal(&pool_balances[1].info))
             .map(|a| a.amount)
             .expect("Wrong asset info is given"),
     ];
@@ -97,7 +97,7 @@ pub fn xyk_provide_simulation(
         share
     } else {
         // Assert slippage tolerance
-        assert_slippage_tolerance(slippage_tolerance, &deposits, &pools)?;
+        assert_slippage_tolerance(slippage_tolerance, &deposits, pool_balances)?;
 
         // min(1, 2)
         // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_0))
@@ -105,8 +105,8 @@ pub fn xyk_provide_simulation(
         // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1))
         // == deposit_1 * total_share / pool_1
         std::cmp::min(
-            deposits[0].multiply_ratio(total_share, pools[0].amount),
-            deposits[1].multiply_ratio(total_share, pools[1].amount),
+            deposits[0].multiply_ratio(total_share, pool_balances[0].amount),
+            deposits[1].multiply_ratio(total_share, pool_balances[1].amount),
         )
     };
 
@@ -247,7 +247,7 @@ pub fn convert_config(
     querier: QuerierWrapper,
     config_data: Vec<u8>,
 ) -> StdResult<PairStableConfig> {
-    let compat_config: CompatPairStableConfig = from_slice(&config_data)?;
+    let compat_config: CompatPairStableConfig = from_json(config_data)?;
 
     let greatest_precision = if let Some(prec) = compat_config.greatest_precision {
         prec

@@ -11,3 +11,5 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 
 /// Stores bridge tokens used to swap fee tokens to ASTRO
 pub const BRIDGES: Map<String, AssetInfo> = Map::new("bridges");
+/// Stores the latest timestamp when fees were collected
+pub const LAST_COLLECT_TS: Item<u64> = Item::new("last_collect_ts");

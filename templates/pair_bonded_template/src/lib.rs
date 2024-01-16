@@ -11,7 +11,7 @@ use astroport::pair_bonded::{ExecuteMsg, QueryMsg};
 use astroport_pair_bonded::base::PairBonded;
 use astroport_pair_bonded::error::ContractError;
 use cosmwasm_std::{
-    entry_point, from_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    entry_point, from_json, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 /// Creates a new contract with the specified parameters in [`InstantiateMsg`].
@@ -27,10 +27,9 @@ pub fn instantiate(
     }
 
     let contract = Contract::new("params");
-    contract.params.save(
-        deps.storage,
-        &from_binary(msg.init_params.as_ref().unwrap())?,
-    )?;
+    contract
+        .params
+        .save(deps.storage, &from_json(msg.init_params.as_ref().unwrap())?)?;
     contract.instantiate(deps, env, info, msg)
 }
 

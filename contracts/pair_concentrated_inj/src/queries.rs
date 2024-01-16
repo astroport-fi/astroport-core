@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, CustomQuery, Decimal, Decimal256, Deps, Env, StdError,
+    entry_point, to_json_binary, Binary, CustomQuery, Decimal, Decimal256, Deps, Env, StdError,
     StdResult, Uint128,
 };
 use injective_cosmwasm::InjectiveQueryWrapper;
@@ -49,33 +49,33 @@ use crate::utils::query_pools;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps<InjectiveQueryWrapper>, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
-        QueryMsg::Pool {} => {
-            to_binary(&query_pool(deps, env).map_err(|err| StdError::generic_err(err.to_string()))?)
-        }
-        QueryMsg::Share { amount } => to_binary(
+        QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
+        QueryMsg::Pool {} => to_json_binary(
+            &query_pool(deps, env).map_err(|err| StdError::generic_err(err.to_string()))?,
+        ),
+        QueryMsg::Share { amount } => to_json_binary(
             &query_share(deps, amount).map_err(|err| StdError::generic_err(err.to_string()))?,
         ),
-        QueryMsg::Simulation { offer_asset, .. } => to_binary(
+        QueryMsg::Simulation { offer_asset, .. } => to_json_binary(
             &query_simulation(deps, env, offer_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::ReverseSimulation { ask_asset, .. } => to_binary(
+        QueryMsg::ReverseSimulation { ask_asset, .. } => to_json_binary(
             &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
-        QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps, env)?),
-        QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
+        QueryMsg::LpPrice {} => to_json_binary(&query_lp_price(deps, env)?),
+        QueryMsg::ComputeD {} => to_json_binary(&query_compute_d(deps, env)?),
         QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
             stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
         )),
         QueryMsg::Observe { seconds_ago } => {
-            to_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
+            to_json_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
         }
         QueryMsg::OrderbookState {} => {
             let resp: OrderbookStateResponse = OrderbookState::load(deps.storage)?.into();
-            to_binary(&resp)
+            to_json_binary(&resp)
         }
     }
 }
@@ -296,7 +296,7 @@ where
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
     Ok(ConfigResponse {
         block_time_last: 0, // keeping this field for backwards compatibility
-        params: Some(to_binary(&ConcentratedPoolParams {
+        params: Some(to_json_binary(&ConcentratedPoolParams {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,
             mid_fee: config.pool_params.mid_fee,
@@ -379,7 +379,7 @@ mod testing {
         let array = (1..=CAPACITY * 3)
             .into_iter()
             .map(|i| Observation {
-                timestamp: ts + i as u64 * 1000,
+                ts: ts + i as u64 * 1000,
                 base_sma: Default::default(),
                 base_amount: (i * i).into(),
                 quote_sma: Default::default(),
@@ -441,7 +441,7 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
+                ts: env.block.time.seconds() + i * 1000,
                 base_sma: Default::default(),
                 base_amount: i.into(),
                 quote_sma: Default::default(),
@@ -491,7 +491,7 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
+                ts: env.block.time.seconds() + i * 1000,
                 base_sma: Default::default(),
                 base_amount: i.into(),
                 quote_sma: Default::default(),

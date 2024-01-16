@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256,
-    Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128, Uint256,
+    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal,
+    Decimal256, Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
@@ -101,7 +101,7 @@ where
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },
@@ -258,27 +258,23 @@ pub fn compute_swap(
     let amp_gamma = config.pool_state.get_amp_gamma(env);
     let d = calc_d(&ixs, &amp_gamma)?;
 
-    let offer_amount = if offer_ind == 1 {
-        offer_amount * config.pool_state.price_state.price_scale
+    if offer_ind == 1 {
+        ixs[offer_ind] += offer_amount * config.pool_state.price_state.price_scale;
     } else {
-        offer_amount
-    };
-
-    ixs[offer_ind] += offer_amount;
+        ixs[offer_ind] += offer_amount;
+    }
 
     let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
     let mut dy = ixs[ask_ind] - new_y;
     ixs[ask_ind] = new_y;
 
-    let price = if ask_ind == 1 {
+    // Derive spread using oracle price
+    let spread_fee = if ask_ind == 1 {
         dy /= config.pool_state.price_state.price_scale;
-        config.pool_state.price_state.price_scale.inv().unwrap()
+        (offer_amount / config.pool_state.price_state.oracle_price).saturating_sub(dy)
     } else {
-        config.pool_state.price_state.price_scale
+        offer_amount.saturating_sub(dy / config.pool_state.price_state.oracle_price)
     };
-
-    // Since price_scale moves slower than real price spread fee may become negative
-    let spread_fee = (offer_amount * price).saturating_sub(dy);
 
     let fee_rate = config.pool_params.fee(&ixs);
     let total_fee = fee_rate * dy;
@@ -390,29 +386,6 @@ where
     astroport_factory::state::PAIRS
         .query(&querier, factory.clone(), &pair_key(asset_infos))
         .map(|inner| inner.is_some())
-}
-
-/// Internal function to calculate new moving average using Uint256.
-/// Overflow is possible only if new average order size is greater than 2^128 - 1 which is unlikely.
-pub fn safe_sma_calculation(
-    sma: Uint128,
-    oldest_amount: Uint128,
-    count: u32,
-    new_amount: Uint128,
-) -> StdResult<Uint128> {
-    let res = (sma.full_mul(count) + Uint256::from(new_amount) - Uint256::from(oldest_amount))
-        .checked_div(count.into())?;
-    res.try_into().map_err(StdError::from)
-}
-
-/// Same as [`safe_sma_calculation`] but is being used when buffer is not full yet.
-pub fn safe_sma_buffer_not_full(
-    sma: Uint128,
-    count: u32,
-    new_amount: Uint128,
-) -> StdResult<Uint128> {
-    let res = (sma.full_mul(count) + Uint256::from(new_amount)).checked_div((count + 1).into())?;
-    res.try_into().map_err(StdError::from)
 }
 
 #[cfg(test)]

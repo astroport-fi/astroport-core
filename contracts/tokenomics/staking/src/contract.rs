@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, coin, entry_point, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    attr, coin, entry_point, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128,
 };
 use cw2::set_contract_version;
@@ -343,15 +343,15 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
+        QueryMsg::Config {} => Ok(to_json_binary(&ConfigResponse {
             deposit_denom: config.astro_denom,
             share_denom: config.xastro_denom,
             share_tracking_address: config.tracking_contract_address,
         })?),
         QueryMsg::TotalShares {} => {
-            to_binary(&deps.querier.query_supply(config.xastro_denom)?.amount)
+            to_json_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
         }
-        QueryMsg::TotalDeposit {} => to_binary(&query_balance(
+        QueryMsg::TotalDeposit {} => to_json_binary(&query_balance(
             &deps.querier,
             env.contract.address,
             config.astro_denom,

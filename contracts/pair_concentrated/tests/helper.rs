@@ -9,7 +9,7 @@ use std::str::FromStr;
 use anyhow::Result as AnyResult;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, from_slice, to_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
     Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
@@ -31,9 +31,7 @@ use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pcl_common::state::Config;
 
-const NATIVE_TOKEN_PRECISION: u8 = 6;
-
-const INIT_BALANCE: u128 = 1_000_000_000000;
+const INIT_BALANCE: u128 = u128::MAX;
 
 pub fn common_pcl_params() -> ConcentratedPoolParams {
     ConcentratedPoolParams {
@@ -99,7 +97,7 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
         .iter()
         .filter_map(|test_coin| match test_coin {
             TestCoin::Native(name) => {
-                let init_balance = INIT_BALANCE * 10u128.pow(NATIVE_TOKEN_PRECISION as u32);
+                let init_balance = INIT_BALANCE;
                 Some(coin(init_balance, name))
             }
             _ => None,
@@ -214,7 +212,12 @@ impl Helper {
             owner.clone(),
             coin_registry_address.clone(),
             &astroport::native_coin_registry::ExecuteMsg::Add {
-                native_coins: vec![("uluna".to_owned(), 6), ("uusd".to_owned(), 6)],
+                native_coins: vec![
+                    ("uluna".to_owned(), 6),
+                    ("uusd".to_owned(), 6),
+                    ("wsteth".to_owned(), 18),
+                    ("eth".to_owned(), 18),
+                ],
             },
             &[],
         )
@@ -228,6 +231,7 @@ impl Helper {
                 pair_type: pair_type.clone(),
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id,
             generator_address: None,
@@ -253,7 +257,7 @@ impl Helper {
         let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
             pair_type,
             asset_infos: asset_infos.clone(),
-            init_params: Some(to_binary(&params).unwrap()),
+            init_params: Some(to_json_binary(&params).unwrap()),
         };
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
@@ -292,7 +296,7 @@ impl Helper {
             assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
 
         let msg = ExecuteMsg::ProvideLiquidity {
-            assets: assets.clone().to_vec(),
+            assets: assets.to_vec(),
             slippage_tolerance,
             auto_stake: None,
             receiver: None,
@@ -311,7 +315,7 @@ impl Helper {
         let msg = Cw20ExecuteMsg::Send {
             contract: self.pair_addr.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
         };
 
         self.app
@@ -339,7 +343,7 @@ impl Helper {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&Cw20HookMsg::Swap {
+                    msg: to_json_binary(&Cw20HookMsg::Swap {
                         ask_asset_info: None,
                         belief_price,
                         max_spread,
@@ -414,7 +418,7 @@ impl Helper {
         decimals: u8,
         owner: &Addr,
     ) -> Addr {
-        let init_balance = INIT_BALANCE * 10u128.pow(decimals as u32);
+        let init_balance = INIT_BALANCE;
         app.instantiate_contract(
             token_code,
             owner.clone(),
@@ -481,7 +485,7 @@ impl Helper {
             .wrap()
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
-        from_slice(&binary)
+        from_json(&binary)
     }
 
     pub fn query_pool(&self) -> StdResult<PoolResponse> {
@@ -519,7 +523,7 @@ impl Helper {
             user.clone(),
             self.pair_addr.clone(),
             &ExecuteMsg::UpdateConfig {
-                params: to_binary(action).unwrap(),
+                params: to_json_binary(action).unwrap(),
             },
             &[],
         )
@@ -530,7 +534,7 @@ impl Helper {
             .app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
-        let params: ConcentratedPoolConfig = from_slice(
+        let params: ConcentratedPoolConfig = from_json(
             &config_resp
                 .params
                 .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,

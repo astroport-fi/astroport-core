@@ -1,14 +1,16 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
+    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Env, QuerierWrapper, StdResult,
     Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
-use astroport::observation::{Observation, PrecommitObservation};
+use astroport::observation::{
+    safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
+};
 use astroport::querier::query_factory_config;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -204,7 +206,7 @@ pub(crate) fn mint_liquidity_token_message(
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },
@@ -291,7 +293,7 @@ pub(crate) fn compute_swap(
     })
 }
 
-/// Calculate and save moving averages of swap sizes.
+/// Calculate and save price moving average
 pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
     if let Some(PrecommitObservation {
         base_amount,
@@ -300,32 +302,50 @@ pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResu
     }) = PrecommitObservation::may_load(storage)?
     {
         let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+        let observed_price = Decimal::from_ratio(base_amount, quote_amount);
 
+        let new_observation;
         if let Some(last_obs) = buffer.read_last(storage)? {
             // Skip saving observation if it has been already saved
-            if last_obs.timestamp < precommit_ts {
-                buffer.instant_push(
-                    storage,
-                    &Observation {
-                        base_amount,
-                        quote_amount,
-                        timestamp: precommit_ts,
-                        ..Default::default()
-                    },
-                )?
+            if last_obs.ts < precommit_ts {
+                // Since this is circular buffer the next index contains the oldest value
+                let count = buffer.capacity();
+                if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
+                    let price_sma = safe_sma_calculation(
+                        last_obs.price_sma,
+                        oldest_obs.price,
+                        count,
+                        observed_price,
+                    )?;
+                    new_observation = Observation {
+                        ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
+                    };
+                } else {
+                    // Buffer is not full yet
+                    let count = buffer.head();
+                    let price_sma =
+                        safe_sma_buffer_not_full(last_obs.price_sma, count, observed_price)?;
+                    new_observation = Observation {
+                        ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
+                    };
+                }
+
+                buffer.instant_push(storage, &new_observation)?
             }
         } else {
             // Buffer is empty
             if env.block.time.seconds() > precommit_ts {
-                buffer.instant_push(
-                    storage,
-                    &Observation {
-                        timestamp: precommit_ts,
-                        base_amount,
-                        quote_amount,
-                        ..Default::default()
-                    },
-                )?
+                new_observation = Observation {
+                    ts: precommit_ts,
+                    price: observed_price,
+                    price_sma: observed_price,
+                };
+
+                buffer.instant_push(storage, &new_observation)?
             }
         }
     }

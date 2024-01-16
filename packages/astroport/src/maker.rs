@@ -2,6 +2,10 @@ use crate::asset::{Asset, AssetInfo};
 use crate::factory::UpdateAddr;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
+use std::ops::RangeInclusive;
+
+/// Validations limits for cooldown period. From 30 to 600 seconds.
+pub const COOLDOWN_LIMITS: RangeInclusive<u64> = 30..=600;
 
 /// This structure stores the main parameters for the Maker contract.
 #[cw_serde]
@@ -34,6 +38,8 @@ pub struct Config {
     pub pre_upgrade_astro_amount: Uint128,
     /// Parameters that describe the second receiver of fees
     pub second_receiver_cfg: Option<SecondReceiverConfig>,
+    /// If set defines the period when maker collect can be called
+    pub collect_cooldown: Option<u64>,
 }
 
 /// This structure stores general parameters for the contract.
@@ -57,6 +63,8 @@ pub struct InstantiateMsg {
     pub max_spread: Option<Decimal>,
     /// The second receiver parameters of fees
     pub second_receiver_params: Option<SecondReceiverParams>,
+    /// If set defines the period when maker collect can be called
+    pub collect_cooldown: Option<u64>,
 }
 
 /// This structure describes the functions that can be executed in this contract.
@@ -83,6 +91,8 @@ pub enum ExecuteMsg {
         max_spread: Option<Decimal>,
         /// The second receiver parameters of fees
         second_receiver_params: Option<SecondReceiverParams>,
+        /// Defines the period when maker collect can be called
+        collect_cooldown: Option<u64>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
@@ -158,8 +168,8 @@ pub struct BalancesResponse {
 /// This structure describes a migration message.
 #[cw_serde]
 pub struct MigrateMsg {
-    pub default_bridge: Option<AssetInfo>,
     pub second_receiver_params: Option<SecondReceiverParams>,
+    pub collect_cooldown: Option<u64>,
 }
 
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.

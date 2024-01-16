@@ -1,14 +1,13 @@
-use crate::error::ContractError;
-use crate::state::{BRIDGES, CONFIG, OWNERSHIP_PROPOSAL};
 use std::cmp::min;
+use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 
-use crate::migration::{migrate_from_v1, migrate_from_v120};
-
-use crate::utils::{
-    build_distribute_msg, build_send_msg, build_swap_msg, try_build_swap_msg,
-    update_second_receiver_cfg, validate_bridge, BRIDGES_EXECUTION_MAX_DEPTH,
-    BRIDGES_INITIAL_DEPTH,
+use cosmwasm_std::{
+    attr, entry_point, to_json_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
 };
+use cw2::{get_contract_version, set_contract_version};
+
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
@@ -17,13 +16,15 @@ use astroport::maker::{
     MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
-use cosmwasm_std::{
-    attr, entry_point, to_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+
+use crate::error::ContractError;
+use crate::migration::migrate_from_v120_plus;
+use crate::state::{BRIDGES, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL};
+use crate::utils::{
+    build_distribute_msg, build_send_msg, build_swap_msg, try_build_swap_msg,
+    update_second_receiver_cfg, validate_bridge, validate_cooldown, BRIDGES_EXECUTION_MAX_DEPTH,
+    BRIDGES_INITIAL_DEPTH,
 };
-use cw2::{get_contract_version, set_contract_version};
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-maker";
@@ -36,7 +37,7 @@ const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     _info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
@@ -72,6 +73,9 @@ pub fn instantiate(
         default_bridge.check(deps.api)?
     }
 
+    validate_cooldown(msg.collect_cooldown)?;
+    LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
+
     let mut cfg = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
         default_bridge: msg.default_bridge,
@@ -87,6 +91,7 @@ pub fn instantiate(
         governance_percent,
         max_spread,
         second_receiver_cfg: None,
+        collect_cooldown: msg.collect_cooldown,
     };
 
     update_second_receiver_cfg(deps.as_ref(), &mut cfg, &msg.second_receiver_params)?;
@@ -183,6 +188,7 @@ pub fn execute(
             basic_asset,
             max_spread,
             second_receiver_params,
+            collect_cooldown,
         } => update_config(
             deps,
             info,
@@ -193,6 +199,7 @@ pub fn execute(
             basic_asset,
             max_spread,
             second_receiver_params,
+            collect_cooldown,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
         ExecuteMsg::SwapBridgeAssets { assets, depth } => {
@@ -268,6 +275,16 @@ fn collect(
     assets: Vec<AssetWithLimit>,
 ) -> Result<Response, ContractError> {
     let mut cfg = CONFIG.load(deps.storage)?;
+
+    // Allowing collect only once per cooldown period
+    LAST_COLLECT_TS.update(deps.storage, |last_ts| match cfg.collect_cooldown {
+        Some(cd_period) if env.block.time.seconds() < last_ts + cd_period => {
+            Err(ContractError::Cooldown {
+                next_collect_ts: last_ts + cd_period,
+            })
+        }
+        _ => Ok(env.block.time.seconds()),
+    })?;
 
     let astro = cfg.astro_token.clone();
 
@@ -677,6 +694,7 @@ fn update_config(
     default_bridge_opt: Option<AssetInfo>,
     max_spread: Option<Decimal>,
     second_receiver_params: Option<SecondReceiverParams>,
+    collect_cooldown: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -756,6 +774,12 @@ fn update_config(
         ));
     }
 
+    if let Some(collect_cooldown) = collect_cooldown {
+        validate_cooldown(Some(collect_cooldown))?;
+        config.collect_cooldown = Some(collect_cooldown);
+        attributes.push(attr("collect_cooldown", collect_cooldown.to_string()));
+    }
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(attributes))
@@ -830,9 +854,9 @@ fn update_bridges(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_get_config(deps)?),
-        QueryMsg::Balances { assets } => to_binary(&query_get_balances(deps, env, assets)?),
-        QueryMsg::Bridges {} => to_binary(&query_bridges(deps)?),
+        QueryMsg::Config {} => to_json_binary(&query_get_config(deps)?),
+        QueryMsg::Balances { assets } => to_json_binary(&query_get_balances(deps, env, assets)?),
+        QueryMsg::Bridges {} => to_json_binary(&query_bridges(deps)?),
     }
 }
 
@@ -887,16 +911,17 @@ fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-maker" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" => {
-                migrate_from_v1(deps.branch(), &msg)?;
+            // atlantic-2, injective-1, injective-888, pisco-1: 1.2.0
+            // neutron-1, pion-1, phoenix-1: 1.3.1
+            "1.2.0" | "1.3.1" => {
+                migrate_from_v120_plus(deps.branch(), msg)?;
+                LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
             }
-            "1.2.0" => migrate_from_v120(deps.branch(), msg)?,
-            "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

@@ -1,4 +1,4 @@
-use astroport::factory::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use astroport::factory::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_schema::write_api;
 
 fn main() {
@@ -6,6 +6,5 @@ fn main() {
         instantiate: InstantiateMsg,
         query: QueryMsg,
         execute: ExecuteMsg,
-        migrate: MigrateMsg,
     }
 }

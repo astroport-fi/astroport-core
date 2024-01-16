@@ -7,6 +7,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
@@ -40,10 +43,4 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
-}
-
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
 }

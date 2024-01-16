@@ -32,6 +32,7 @@ pub mod xastro_token;
 #[cfg(test)]
 mod mock_querier;
 
+pub mod incentives;
 pub mod liquidity_manager;
 #[cfg(test)]
 mod testing;

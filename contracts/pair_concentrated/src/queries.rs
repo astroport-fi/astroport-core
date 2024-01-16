@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128, Uint64,
+    to_json_binary, Binary, Decimal, Decimal256, Deps, Env, StdError, StdResult, Uint128, Uint64,
 };
 use itertools::Itertools;
 
@@ -53,16 +53,16 @@ use crate::utils::{pool_info, query_pools};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Pair {} => to_binary(&CONFIG.load(deps.storage)?.pair_info),
-        QueryMsg::Pool {} => to_binary(&query_pool(deps)?),
-        QueryMsg::Share { amount } => to_binary(
+        QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
+        QueryMsg::Pool {} => to_json_binary(&query_pool(deps)?),
+        QueryMsg::Share { amount } => to_json_binary(
             &query_share(deps, amount).map_err(|err| StdError::generic_err(err.to_string()))?,
         ),
-        QueryMsg::Simulation { offer_asset, .. } => to_binary(
+        QueryMsg::Simulation { offer_asset, .. } => to_json_binary(
             &query_simulation(deps, env, offer_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::ReverseSimulation { ask_asset, .. } => to_binary(
+        QueryMsg::ReverseSimulation { ask_asset, .. } => to_json_binary(
             &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
@@ -70,15 +70,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
         )),
         QueryMsg::Observe { seconds_ago } => {
-            to_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
+            to_json_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
         }
-        QueryMsg::Config {} => to_binary(&query_config(deps, env)?),
-        QueryMsg::LpPrice {} => to_binary(&query_lp_price(deps, env)?),
-        QueryMsg::ComputeD {} => to_binary(&query_compute_d(deps, env)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
+        QueryMsg::LpPrice {} => to_json_binary(&query_lp_price(deps, env)?),
+        QueryMsg::ComputeD {} => to_json_binary(&query_compute_d(deps, env)?),
         QueryMsg::AssetBalanceAt {
             asset_info,
             block_height,
-        } => to_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
+        } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
     }
 }
 
@@ -254,7 +254,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 
     Ok(ConfigResponse {
         block_time_last: 0, // keeping this field for backwards compatibility
-        params: Some(to_binary(&ConcentratedPoolConfig {
+        params: Some(to_json_binary(&ConcentratedPoolConfig {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,
             mid_fee: config.pool_params.mid_fee,
@@ -339,11 +339,9 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
+                ts: env.block.time.seconds() + i * 1000,
+                price_sma: Decimal::from_ratio(i, i * i),
+                price: Default::default(),
             })
             .collect_vec();
         buffer.push_many(&array);
@@ -389,11 +387,9 @@ mod testing {
         let array = (1..=30)
             .into_iter()
             .map(|i| Observation {
-                timestamp: env.block.time.seconds() + i * 1000,
-                base_sma: Default::default(),
-                base_amount: i.into(),
-                quote_sma: Default::default(),
-                quote_amount: (i * i).into(),
+                ts: env.block.time.seconds() + i * 1000,
+                price: Default::default(),
+                price_sma: Decimal::from_ratio(i, i * i),
             })
             .collect_vec();
         buffer.push_many(&array);
@@ -433,11 +429,9 @@ mod testing {
         let array = (1..=CAPACITY * 3)
             .into_iter()
             .map(|i| Observation {
-                timestamp: ts + i as u64 * 1000,
-                base_sma: Default::default(),
-                base_amount: (i * i).into(),
-                quote_sma: Default::default(),
-                quote_amount: i.into(),
+                ts: ts + i as u64 * 1000,
+                price: Default::default(),
+                price_sma: Decimal::from_ratio(i * i, i),
             })
             .collect_vec();
 

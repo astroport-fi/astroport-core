@@ -1,0 +1,31 @@
+[package]
+name = "astroport-pair-transmuter"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport constant sum pair contract implementation"
+license = "GPL-3"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+library = []
+
+[dependencies]
+astroport = { path = "../../packages/astroport", version = "3" }
+cosmwasm-std = "1.5.0"
+cw-storage-plus = "1.2.0"
+cosmwasm-schema = "1.5.0"
+thiserror = "1"
+cw2 = "1"
+cw20 = "0.15"
+cw-utils = "1"
+itertools = "0.12.0"
+
+[dev-dependencies]
+anyhow = "1"
+derivative = "2"
+astroport-token = { path = "../token" }
+cw-multi-test = "0.20.0"
+astroport-factory = { path = "../factory" }

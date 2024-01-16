@@ -7,7 +7,7 @@ use astroport::{
     pair::StablePoolParams,
     pair_concentrated::ConcentratedPoolParams,
 };
-use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Decimal, Storage};
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Decimal, Storage};
 use cw_multi_test::{
     AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
 };
@@ -82,6 +82,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 30,
                 maker_fee_bps: 3333,
+                permissioned: false,
             },
             PairConfig {
                 code_id: stable_code_id,
@@ -90,6 +91,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 5,
                 maker_fee_bps: 5000,
+                permissioned: false,
             },
             PairConfig {
                 code_id: concentrated_code_id,
@@ -98,6 +100,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 30,
                 maker_fee_bps: 3333,
+                permissioned: false,
             },
         ];
 
@@ -235,7 +238,9 @@ where
                 &ExecuteMsg::CreatePair {
                     pair_type: PairType::Stable {},
                     asset_infos: asset_infos.to_vec(),
-                    init_params: Some(to_binary(init_params.unwrap_or(&default_params)).unwrap()),
+                    init_params: Some(
+                        to_json_binary(init_params.unwrap_or(&default_params)).unwrap(),
+                    ),
                 },
                 &[],
             )
@@ -303,7 +308,9 @@ where
                 &ExecuteMsg::CreatePair {
                     pair_type: PairType::Custom("concentrated".to_owned()),
                     asset_infos: asset_infos.to_vec(),
-                    init_params: Some(to_binary(init_params.unwrap_or(&default_params)).unwrap()),
+                    init_params: Some(
+                        to_json_binary(init_params.unwrap_or(&default_params)).unwrap(),
+                    ),
                 },
                 &[],
             )
