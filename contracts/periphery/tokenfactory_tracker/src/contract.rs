@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError, StdResult};
+use cosmwasm_std::{Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw2::set_contract_version;
 use osmosis_std::types::cosmos::auth::v1beta1::{AuthQuerier, ModuleAccount};
 
@@ -22,6 +22,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
+    // TODO: requires a chain to whitelist Stargate query /cosmos.auth.v1beta1.Query/ModuleAccountByName
     // Determine tokenfactory module address
     let ModuleAccount { base_account, .. } = AuthQuerier::new(&deps.querier)
         .module_account_by_name(TOKEN_FACTORY_MODULE_NAME.to_string())?
@@ -35,7 +36,7 @@ pub fn instantiate(
 
     let config = Config {
         tracked_denom: msg.tracked_denom.clone(),
-        tokenfactory_module_address,
+        tokenfactory_module_address: Addr::unchecked(&tokenfactory_module_address), // We fetched the address from the chain, so we know it's valid
     };
     CONFIG.save(deps.storage, &config)?;
 

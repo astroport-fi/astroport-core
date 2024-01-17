@@ -1,11 +1,11 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Addr, Uint128};
 use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
 
 #[cw_serde]
 pub struct Config {
     pub tracked_denom: String,
-    pub tokenfactory_module_address: String,
+    pub tokenfactory_module_address: Addr,
 }
 
 pub const CONFIG: Item<Config> = Item::new("config");

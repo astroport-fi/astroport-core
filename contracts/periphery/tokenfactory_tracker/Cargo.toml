@@ -17,3 +17,7 @@ cosmwasm-schema = "1.5"
 thiserror = "1.0"
 astroport = { path = "../../../packages/astroport", version = "3" }
 osmosis-std = "0.22.0"
+
+[dev-dependencies]
+osmosis-test-tube = "21.0.0"
+test-tube = "0.3.0"
