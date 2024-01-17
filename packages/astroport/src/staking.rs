@@ -52,7 +52,3 @@ pub struct StakingResponse {
     /// The xASTRO denom
     pub xastro_amount: Uint128,
 }
-
-/// This structure describes a migration message.
-#[cw_serde]
-pub struct MigrateMsg {}

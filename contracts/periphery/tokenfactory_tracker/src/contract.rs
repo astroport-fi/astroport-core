@@ -114,11 +114,12 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 
 #[cfg(test)]
 mod tests {
-
     use cosmwasm_std::{
         testing::{mock_dependencies, mock_env, mock_info},
         to_json_binary, Coin, Uint128, Uint64,
     };
+
+    use astroport::tokenfactory_tracker::QueryMsg;
 
     use crate::query::query;
 
@@ -187,24 +188,23 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             info,
-            astroport::tokenfactory_tracker::InstantiateMsg {
+            InstantiateMsg {
                 tracked_denom: DENOM.to_string(),
                 tokenfactory_module_address: MODULE_ADDRESS.to_string(),
-                // owner: OWNER.to_string(),
             },
         )
         .unwrap();
 
-        for operation in operations {
+        for TestOperation { from, to, amount } in operations {
             sudo(
                 deps.as_mut(),
                 env.clone(),
-                astroport::tokenfactory_tracker::SudoMsg::TrackBeforeSend {
-                    from: operation.from,
-                    to: operation.to,
+                SudoMsg::TrackBeforeSend {
+                    from,
+                    to,
                     amount: Coin {
                         denom: DENOM.to_string(),
-                        amount: operation.amount,
+                        amount,
                     },
                 },
             )
@@ -216,7 +216,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user1".to_string(),
                 timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
@@ -227,7 +227,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user2".to_string(),
                 timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
@@ -238,7 +238,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user3".to_string(),
                 timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
@@ -249,7 +249,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user3".to_string(),
                 timestamp: None,
             },
@@ -260,7 +260,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user4".to_string(),
                 timestamp: None,
             },
@@ -271,7 +271,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt {
+            QueryMsg::TotalSupplyAt {
                 timestamp: Some(Uint64::from(env.block.time.seconds())),
             },
         )
@@ -281,7 +281,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env,
-            astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp: None },
+            QueryMsg::TotalSupplyAt { timestamp: None },
         )
         .unwrap();
         assert_eq!(balance, to_json_binary(&expected_total_supply).unwrap());
@@ -297,10 +297,9 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             info,
-            astroport::tokenfactory_tracker::InstantiateMsg {
+            InstantiateMsg {
                 tracked_denom: DENOM.to_string(),
                 tokenfactory_module_address: MODULE_ADDRESS.to_string(),
-                // owner: OWNER.to_string(),
             },
         )
         .unwrap();
@@ -310,7 +309,7 @@ mod tests {
         let err = sudo(
             deps.as_mut(),
             env.clone(),
-            astroport::tokenfactory_tracker::SudoMsg::TrackBeforeSend {
+            SudoMsg::TrackBeforeSend {
                 from: MODULE_ADDRESS.to_string(),
                 to: "user1".to_string(),
                 amount: Coin {
@@ -332,7 +331,7 @@ mod tests {
         let balance = query(
             deps.as_ref(),
             env.clone(),
-            astroport::tokenfactory_tracker::QueryMsg::BalanceAt {
+            QueryMsg::BalanceAt {
                 address: "user1".to_string(),
                 timestamp: Some(Uint64::from(env.block.time.seconds())),
             },

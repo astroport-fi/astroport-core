@@ -6,7 +6,8 @@ use cw2::set_contract_version;
 use cw_utils::must_pay;
 use osmosis_std::types::cosmos::bank::v1beta1::{DenomUnit, Metadata};
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
-    MsgBurn, MsgCreateDenom, MsgMint, MsgSetBeforeSendHook, MsgSetDenomMetadata,
+    MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
+    MsgSetDenomMetadata,
 };
 
 use astroport::querier::query_balance;
@@ -44,7 +45,10 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // TODO: Validate that deposit_token_denom exists on chain
+    // TODO: figure out how to set initial staking ratio
+
+    // Validate that deposit_token_denom exists on chain
+    deps.querier.query_supply(&msg.deposit_token_denom)?;
 
     // Store config
     CONFIG.save(
@@ -61,16 +65,13 @@ pub fn instantiate(
     // TODO: After creating the TokenFactory token, also set the tracking contract
     // we need a Neutron upgrade to enable that
 
-    let sub_msg = SubMsg {
-        id: INSTANTIATE_DENOM_REPLY_ID,
-        msg: MsgCreateDenom {
+    let sub_msg = SubMsg::reply_on_success(
+        MsgCreateDenom {
             sender: env.contract.address.to_string(),
             subdenom: TOKEN_SYMBOL.to_owned(),
-        }
-        .into(),
-        gas_limit: None,
-        reply_on: ReplyOn::Success,
-    };
+        },
+        INSTANTIATE_DENOM_REPLY_ID,
+    );
 
     Ok(Response::new().add_submessage(sub_msg))
 }
@@ -119,13 +120,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
         INSTANTIATE_DENOM_REPLY_ID => {
-            let mut config = CONFIG.load(deps.storage)?;
-
-            // TODO: Once Neutron implements the same flow as Osmosis, we'll
-            // be able to get the created denom from the reply data
-            // For now, we reconstruct the denom from the contract address
-            // TODO: Use new TokenFactory abstraction
-            let created_denom = format!("factory/{}/{}", env.contract.address, TOKEN_SYMBOL);
+            let MsgCreateDenomResponse { new_token_denom } = msg.result.try_into()?;
 
             // TODO: Decide correct metadata
             let denom_metadata_msg = MsgSetDenomMetadata {
@@ -133,11 +128,11 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 metadata: Some(Metadata {
                     symbol: TOKEN_SYMBOL.to_string(),
                     name: TOKEN_NAME.to_string(),
-                    base: created_denom.clone(),
+                    base: new_token_denom.clone(),
                     display: TOKEN_SYMBOL.to_string(),
                     denom_units: vec![
                         DenomUnit {
-                            denom: created_denom.to_string(),
+                            denom: new_token_denom.clone(),
                             exponent: 12,
                             aliases: vec![],
                         },
@@ -151,7 +146,9 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 }),
             };
 
-            config.xastro_denom = created_denom;
+            let mut config = CONFIG.load(deps.storage)?;
+
+            config.xastro_denom = new_token_denom;
 
             // Enable balance tracking for xASTRO
             let set_hook_msg = MsgSetBeforeSendHook {
@@ -358,19 +355,4 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             config.astro_denom,
         )?),
     }
-}
-
-/// ## Description
-/// Used for migration of contract. Returns the default object of type [`Response`].
-/// ## Params
-/// * **_deps** is the object of type [`DepsMut`].
-///
-/// * **_env** is the object of type [`Env`].
-///
-/// * **_msg** is the object of type [`MigrateMsg`].
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    // No migration is possible to move from CW20 ASTRO and
-    // xASTRO to TokenFactory versions
-    Err(ContractError::MigrationError {})
 }

@@ -107,7 +107,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
  "itertools 0.10.5",
- "protobuf 2.28.0",
+ "protobuf",
  "thiserror",
 ]
 
@@ -128,7 +128,7 @@ dependencies = [
  "cw20 0.15.1",
  "itertools 0.10.5",
  "prost 0.11.9",
- "protobuf 2.28.0",
+ "protobuf",
  "thiserror",
 ]
 
@@ -174,7 +174,7 @@ dependencies = [
  "cw721-base",
  "generator-controller",
  "generator-proxy-to-vkr",
- "protobuf 2.28.0",
+ "protobuf",
  "thiserror",
  "valkyrie",
  "valkyrie-lp-staking",
@@ -414,7 +414,7 @@ dependencies = [
  "integer-sqrt",
  "proptest",
  "prost 0.11.9",
- "protobuf 2.28.0",
+ "protobuf",
  "thiserror",
 ]
 
@@ -603,7 +603,6 @@ dependencies = [
  "derivative",
  "itertools 0.11.0",
  "osmosis-std",
- "protobuf 3.2.0",
  "thiserror",
 ]
 
@@ -848,7 +847,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73c9d2043a9e617b0d602fbc0a0ecd621568edbf3a9774890a6d562389bd8e1c"
 dependencies = [
  "prost 0.11.9",
- "prost-types",
+ "prost-types 0.11.9",
  "tendermint-proto",
 ]
 
@@ -2013,15 +2012,15 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "osmosis-std"
-version = "0.20.1"
+version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47d7aa053bc3fad557ac90a0377688b400c395e2537f0f1de3293a15cad2e970"
+checksum = "8641c376f01f5af329dc2a34e4f5527eaeb0bde18cda8d86fed958d04c86159c"
 dependencies = [
  "chrono",
  "cosmwasm-std",
  "osmosis-std-derive",
- "prost 0.11.9",
- "prost-types",
+ "prost 0.12.3",
+ "prost-types 0.12.3",
  "schemars",
  "serde",
  "serde-cw-value",
@@ -2035,7 +2034,7 @@ checksum = "c5ebdfd1bc8ed04db596e110c6baa9b174b04f6ed1ec22c666ddc5cb3fa91bd7"
 dependencies = [
  "itertools 0.10.5",
  "proc-macro2",
- "prost-types",
+ "prost-types 0.11.9",
  "quote",
  "syn 1.0.109",
 ]
@@ -2227,32 +2226,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost-types"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "193898f59edcf43c26227dcd4c8427f00d99d61e95dcde58dabd49fa291d470e"
+dependencies = [
+ "prost 0.12.3",
+]
+
+[[package]]
 name = "protobuf"
 version = "2.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 dependencies = [
  "bytes",
-]
-
-[[package]]
-name = "protobuf"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b55bad9126f378a853655831eb7363b7b01b81d19f8cb1218861086ca4a1a61e"
-dependencies = [
- "once_cell",
- "protobuf-support",
- "thiserror",
-]
-
-[[package]]
-name = "protobuf-support"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5d4d7b8601c814cfb36bcebb79f0e61e45e1e93640cf778837833bbed05c372"
-dependencies = [
- "thiserror",
 ]
 
 [[package]]
@@ -2807,7 +2795,7 @@ dependencies = [
  "num-derive",
  "num-traits",
  "prost 0.11.9",
- "prost-types",
+ "prost-types 0.11.9",
  "serde",
  "serde_bytes",
  "subtle-encoding",
