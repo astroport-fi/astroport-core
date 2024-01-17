@@ -46,22 +46,28 @@ pub fn instantiate(
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
         // BlockBeforeSend is called before a send - if an error is returned the send
-        // is cancelled
-        SudoMsg::BlockBeforeSend { .. } => Ok(Response::default()),
-        // TrackBeforeSend is called before a send - if an error is returned it will
-        // be ignored and the send will continue
-        // Minting a token directly to an address is also tracked
-        SudoMsg::TrackBeforeSend { from, to, amount } => {
+        // is cancelled. This call is NOT gas metered.
+        // NOTE: Contract logic relies on the fact SudoMsg::BlockBeforeSend is always called before SudoMsg::TrackBeforeSend.
+        // Ref: https://github.com/osmosis-labs/cosmos-sdk/blob/55b53a127b6937d66a40084e9f7383a3762ea7f5/x/bank/keeper/send.go#L210-L223
+        SudoMsg::BlockBeforeSend { amount, .. } => {
             let config = CONFIG.load(deps.storage)?;
 
             // Ensure the denom being sent is the tracked denom
             // If this isn't checked, another token could be tracked with the same
             // contract and that will skew the real numbers
             if amount.denom != config.tracked_denom {
-                return Err(ContractError::InvalidDenom {
+                Err(ContractError::InvalidDenom {
                     expected_denom: config.tracked_denom,
-                });
+                })
+            } else {
+                Ok(Response::default())
             }
+        }
+        // TrackBeforeSend is called before a send - if an error is returned it will
+        // be ignored and the send will continue
+        // Minting a token directly to an address is also tracked
+        SudoMsg::TrackBeforeSend { from, to, amount } => {
+            let config = CONFIG.load(deps.storage)?;
 
             // If the token is minted directly to an address, we don't need to subtract
             // as the sender is the module address
@@ -309,7 +315,7 @@ mod tests {
         let err = sudo(
             deps.as_mut(),
             env.clone(),
-            SudoMsg::TrackBeforeSend {
+            SudoMsg::BlockBeforeSend {
                 from: MODULE_ADDRESS.to_string(),
                 to: "user1".to_string(),
                 amount: Coin {
