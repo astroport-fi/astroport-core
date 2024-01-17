@@ -3,8 +3,6 @@ use cosmwasm_std::{Coin, CustomQuery, DepsMut, Env, Response, StdResult, Uint128
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    // The address of the token factory module
-    pub tokenfactory_module_address: String,
     // The denom of the token being tracked
     pub tracked_denom: String,
 }

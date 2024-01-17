@@ -1,13 +1,15 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdResult};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError, StdResult};
 use cw2::set_contract_version;
+use osmosis_std::types::cosmos::auth::v1beta1::{AuthQuerier, ModuleAccount};
 
 use astroport::tokenfactory_tracker::{InstantiateMsg, SudoMsg};
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG, TOTAL_SUPPLY_HISTORY};
 
+const TOKEN_FACTORY_MODULE_NAME: &str = "tokenfactory";
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -20,15 +22,20 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // TODO: There is a Stargate query that can be used to get the all the module
-    // addresses. Need to confirm that this will actually work on Neutron
-    // let accounts = AuthQuerier::new(&deps.querier).module_accounts()?;
-    // type URL is /cosmos.auth.v1beta1.ModuleAccount
+    // Determine tokenfactory module address
+    let ModuleAccount { base_account, .. } = AuthQuerier::new(&deps.querier)
+        .module_account_by_name(TOKEN_FACTORY_MODULE_NAME.to_string())?
+        .account
+        .expect("tokenfactory module account not found")
+        .try_into()
+        .map_err(|_| StdError::generic_err("Failed to decode tokenfactory module account"))?;
+    let tokenfactory_module_address = base_account
+        .expect("tokenfactory base account not found")
+        .address;
 
     let config = Config {
         tracked_denom: msg.tracked_denom.clone(),
-        // Temporary save the module address until we can fetch on init
-        tokenfactory_module_address: msg.tokenfactory_module_address,
+        tokenfactory_module_address,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -120,9 +127,17 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
+    use cosmwasm_std::testing::{MockApi, MockStorage};
     use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        to_json_binary, Coin, Uint128, Uint64,
+        from_json,
+        testing::{mock_env, mock_info},
+        to_json_binary, Coin, ContractResult, Empty, OwnedDeps, Querier, QuerierResult,
+        QueryRequest, SystemError, SystemResult, Uint128, Uint64,
+    };
+    use osmosis_std::types::cosmos::auth::v1beta1::{
+        BaseAccount, QueryModuleAccountByNameResponse,
     };
 
     use astroport::tokenfactory_tracker::QueryMsg;
@@ -131,9 +146,64 @@ mod tests {
 
     use super::*;
 
-    pub const OWNER: &str = "owner";
-    pub const DENOM: &str = "factory/contract0/token";
-    pub const MODULE_ADDRESS: &str = "tokenfactory_module";
+    const OWNER: &str = "owner";
+    const DENOM: &str = "factory/contract0/token";
+    const MODULE_ADDRESS: &str = "tokenfactory_module";
+
+    struct CustomMockQuerier;
+
+    impl CustomMockQuerier {
+        pub fn handle_query(&self, request: &QueryRequest<Empty>) -> QuerierResult {
+            match &request {
+                QueryRequest::Stargate { path, .. }
+                    if path == "/cosmos.auth.v1beta1.Query/ModuleAccountByName" =>
+                {
+                    let module_account = ModuleAccount {
+                        base_account: Some(BaseAccount {
+                            address: MODULE_ADDRESS.to_string(),
+                            pub_key: None,
+                            account_number: 0,
+                            sequence: 0,
+                        }),
+                        name: TOKEN_FACTORY_MODULE_NAME.to_string(),
+                        permissions: vec![],
+                    };
+                    let response = QueryModuleAccountByNameResponse {
+                        account: Some(module_account.to_any()),
+                    };
+
+                    SystemResult::Ok(ContractResult::Ok(to_json_binary(&response).unwrap()))
+                }
+                _ => SystemResult::Err(SystemError::UnsupportedRequest {
+                    kind: "Unsupported".to_string(),
+                }),
+            }
+        }
+    }
+
+    impl Querier for CustomMockQuerier {
+        fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
+            let request: QueryRequest<Empty> = match from_json(bin_request) {
+                Ok(v) => v,
+                Err(e) => {
+                    return SystemResult::Err(SystemError::InvalidRequest {
+                        error: format!("Parsing query request: {e}"),
+                        request: bin_request.into(),
+                    })
+                }
+            };
+            self.handle_query(&request)
+        }
+    }
+
+    fn mock_custom_dependencies() -> OwnedDeps<MockStorage, MockApi, CustomMockQuerier, Empty> {
+        OwnedDeps {
+            storage: MockStorage::default(),
+            api: MockApi::default(),
+            querier: CustomMockQuerier,
+            custom_query_type: PhantomData,
+        }
+    }
 
     // Basic operations for testing calculations
     struct TestOperation {
@@ -144,7 +214,7 @@ mod tests {
 
     #[test]
     fn track_token_balances() {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_custom_dependencies();
         let mut env = mock_env();
         let info = mock_info(OWNER, &[]);
 
@@ -196,7 +266,6 @@ mod tests {
             info,
             InstantiateMsg {
                 tracked_denom: DENOM.to_string(),
-                tokenfactory_module_address: MODULE_ADDRESS.to_string(),
             },
         )
         .unwrap();
@@ -295,7 +364,7 @@ mod tests {
 
     #[test]
     fn no_track_other_token() {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_custom_dependencies();
         let env = mock_env();
         let info = mock_info(OWNER, &[]);
 
@@ -305,7 +374,6 @@ mod tests {
             info,
             InstantiateMsg {
                 tracked_denom: DENOM.to_string(),
-                tokenfactory_module_address: MODULE_ADDRESS.to_string(),
             },
         )
         .unwrap();

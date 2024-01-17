@@ -16,3 +16,4 @@ cw-storage-plus = "1.2"
 cosmwasm-schema = "1.5"
 thiserror = "1.0"
 astroport = { path = "../../../packages/astroport", version = "3" }
+osmosis-std = "0.22.0"
