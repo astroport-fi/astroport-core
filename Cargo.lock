@@ -652,7 +652,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
- "osmosis-std 0.22.0",
+ "osmosis-std 0.21.0",
  "osmosis-test-tube",
  "test-tube",
  "thiserror",

@@ -47,7 +47,7 @@ If timestamp is not set, it will return the value at the current timestamp.
 {
   "balance_at": {
     "address": "wasm1...addr",
-    "timestamp": "1698745413"
+    "timestamp": 1698745413
   }
 }
 ```
@@ -60,11 +60,7 @@ If timestamp is not set, it will return the value at the current timestamp.
 ```json
 {
   "total_supply_at": {
-    "timestamp": "1698745413"
+    "timestamp": 1698745413
   }
 }
 ```
-
-## MigrateMsg
-
-This contract has no migrations

@@ -1,22 +1,21 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Uint128};
-use cw_storage_plus::{Item, Map, SnapshotMap, Strategy};
+use cosmwasm_std::Uint128;
+use cw_storage_plus::{Item, SnapshotItem, SnapshotMap, Strategy};
 
 #[cw_serde]
 pub struct Config {
-    pub tracked_denom: String,
-    pub tokenfactory_module_address: Addr,
+    /// Tracked denom
+    pub d: String,
+    /// Token factory module address
+    pub m: String,
 }
 
-pub const CONFIG: Item<Config> = Item::new("config");
+pub const CONFIG: Item<Config> = Item::new("c");
 
 /// Contains snapshotted balances at every block.
-pub const BALANCES: SnapshotMap<&String, Uint128> = SnapshotMap::new(
-    "balance",
-    "balance__checkpoints",
-    "balance__changelog",
-    Strategy::EveryBlock,
-);
+pub const BALANCES: SnapshotMap<&str, Uint128> =
+    SnapshotMap::new("b", "b_chpts", "b_chlg", Strategy::EveryBlock);
 
 /// Contains the history of the total supply of the tracked denom
-pub const TOTAL_SUPPLY_HISTORY: Map<u64, Uint128> = Map::new("total_supply_history");
+pub const TOTAL_SUPPLY_HISTORY: SnapshotItem<Uint128> =
+    SnapshotItem::new("t", "t_chpts", "t_chlg", Strategy::EveryBlock);
