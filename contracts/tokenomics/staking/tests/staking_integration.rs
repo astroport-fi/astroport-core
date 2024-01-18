@@ -1,232 +1,87 @@
 #![cfg(not(tarpaulin_include))]
 
-use astroport::staking::{ConfigResponse, InstantiateMsg, QueryMsg};
-use common::neutron_ext::NeutronStargate;
-use cosmwasm_schema::{schemars::JsonSchema, serde::de::DeserializeOwned};
-use cosmwasm_std::{
-    attr, testing::MockApi, to_json_binary, Addr, Api, CustomQuery, Empty, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, Querier, QueryRequest, Storage, Uint128, WasmQuery,
-};
-use std::fmt::Debug;
-// use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{
-    custom_app, App, AppBuilder, BankKeeper, BasicApp, BasicAppBuilder, Contract, ContractWrapper,
-    DistributionKeeper, Executor, FailingModule, Router, StakeKeeper, StargateMsg, StargateQuery,
-    WasmKeeper,
-};
+use cosmwasm_std::Addr;
 
-use common::helper::{dec_to_f64, f64_to_dec, init_native_coins, AppExtension, Helper, TestCoin};
+use astroport::staking::{Config, QueryMsg, TrackerData};
+
+use crate::common::helper::{Helper, ASTRO_DENOM};
+use crate::common::neutron_ext::TOKEN_FACTORY_MODULE;
 
 mod common;
 
-const OWNER: &str = "owner";
 const ALICE: &str = "alice";
 const BOB: &str = "bob";
 const CAROL: &str = "carol";
 const ATTACKER: &str = "attacker";
 const VICTIM: &str = "victim";
 
-const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
-
-#[allow(clippy::type_complexity)]
-fn mock_app() -> App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    NeutronStargate,
-> {
-    let owner = Addr::unchecked(OWNER);
-
-    let test_coins = vec![TestCoin::native("untrn"), TestCoin::native(ASTRO_DENOM)];
-
-    BasicAppBuilder::new()
-            .with_stargate(NeutronStargate::default())
-            .with_wasm::<FailingModule<Empty, Empty, Empty>, WasmKeeper<Empty, Empty>>(
-                WasmKeeper::new(),
-            )
-            .build(|router, _, storage| {
-                router
-                    .bank
-                    .init_balance(storage, &owner, init_native_coins(&test_coins))
-                    .unwrap()
-            })
-}
-
 #[test]
 fn test_instantiate_tokenfactory() {
-    let owner = Addr::unchecked(OWNER);
+    let owner = Addr::unchecked("owner");
 
-    let mut app = mock_app();
+    let helper = Helper::new(&owner).unwrap();
 
-    let staking_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_staking::contract::execute,
-            astroport_staking::contract::instantiate,
-            astroport_staking::contract::query,
-        )
-        .with_reply_empty(astroport_staking::contract::reply),
+    let response: Config = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        response,
+        Config {
+            astro_denom: ASTRO_DENOM.to_string(),
+            xastro_denom: format!("factory/{}/xASTRO", &helper.staking)
+        }
     );
 
-    let staking_code_id = app.store_code(staking_contract);
-
-    let msg = InstantiateMsg {
-        owner: owner.to_string(),
-        deposit_token_denom: ASTRO_DENOM.to_string(),
-        tracking_code_id: 0, // TODO: store tracker code id
-    };
-    let staking_instance = app
-        .instantiate_contract(
-            staking_code_id,
-            owner,
-            &msg,
-            &[],
-            String::from("Astroport Staking"),
-            None,
-        )
-        .unwrap();
-
-    let response: ConfigResponse = app
+    let response: TrackerData = helper
+        .app
         .wrap()
-        .query_wasm_smart(staking_instance.clone(), &QueryMsg::Config {})
+        .query_wasm_smart(&helper.staking, &QueryMsg::TrackerConfig {})
         .unwrap();
-
-    assert_eq!(response.deposit_denom, ASTRO_DENOM.to_string());
-    // xASTRO created should be factory/contract_address/xASTRO
     assert_eq!(
-        response.share_denom,
-        format!("factory/{}/xASTRO", staking_instance)
+        response,
+        TrackerData {
+            code_id: 2,
+            admin: owner.to_string(),
+            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
+            tracker_addr: "contract1".to_string(),
+        }
     );
 }
-
-// fn instantiate_contracts(router: &mut App, owner: Addr) -> (Addr, Addr, Addr) {
-//     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-//         astroport_token::contract::execute,
-//         astroport_token::contract::instantiate,
-//         astroport_token::contract::query,
-//     ));
-
-//     let astro_token_code_id = router.store_code(astro_token_contract);
-
-//     let x_astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-//         astroport_xastro_token::contract::execute,
-//         astroport_xastro_token::contract::instantiate,
-//         astroport_xastro_token::contract::query,
-//     ));
-
-//     let x_astro_token_code_id = router.store_code(x_astro_token_contract);
-
-//     let msg = InstantiateMsg {
-//         name: String::from("Astro token"),
-//         symbol: String::from("ASTRO"),
-//         decimals: 6,
-//         initial_balances: vec![],
-//         mint: Some(MinterResponse {
-//             minter: owner.to_string(),
-//             cap: None,
-//         }),
-//         marketing: None,
-//     };
-
-//     let astro_token_instance = router
-//         .instantiate_contract(
-//             astro_token_code_id,
-//             owner.clone(),
-//             &msg,
-//             &[],
-//             String::from("ASTRO"),
-//             None,
-//         )
-//         .unwrap();
-
-//     let staking_contract = Box::new(
-//         ContractWrapper::new_with_empty(
-//             astroport_staking::contract::execute,
-//             astroport_staking::contract::instantiate,
-//             astroport_staking::contract::query,
-//         )
-//         .with_reply_empty(astroport_staking::contract::reply),
-//     );
-
-//     let staking_code_id = router.store_code(staking_contract);
-
-//     let msg = xInstatiateMsg {
-//         owner: owner.to_string(),
-//         token_code_id: x_astro_token_code_id,
-//         deposit_token_addr: astro_token_instance.to_string(),
-//         marketing: None,
-//     };
-//     let staking_instance = router
-//         .instantiate_contract(
-//             staking_code_id,
-//             owner,
-//             &msg,
-//             &[],
-//             String::from("xASTRO"),
-//             None,
-//         )
-//         .unwrap();
-
-//     let msg = QueryMsg::Config {};
-//     let res = router
-//         .wrap()
-//         .query::<ConfigResponse>(&QueryRequest::Wasm(WasmQuery::Smart {
-//             contract_addr: staking_instance.to_string(),
-//             msg: to_json_binary(&msg).unwrap(),
-//         }))
-//         .unwrap();
-
-//     // In multitest, contract names are named in the order in which contracts are created.
-//     assert_eq!("contract0", astro_token_instance);
-//     assert_eq!("contract1", staking_instance);
-//     assert_eq!("contract2", res.share_token_addr);
-
-//     let x_astro_token_instance = res.share_token_addr;
-
-//     (
-//         astro_token_instance,
-//         staking_instance,
-//         x_astro_token_instance,
-//     )
-// }
-
+//
 // #[test]
 // fn check_deflate_liquidity() {
 //     let mut router = mock_app();
-
+//
 //     let owner = Addr::unchecked("owner");
-
+//
 //     let (astro_token_instance, staking_instance, _) =
 //         instantiate_contracts(&mut router, owner.clone());
-
+//
 //     mint_some_astro(
 //         &mut router,
 //         owner.clone(),
 //         astro_token_instance.clone(),
 //         ATTACKER,
 //     );
-
+//
 //     mint_some_astro(
 //         &mut router,
 //         owner.clone(),
 //         astro_token_instance.clone(),
 //         VICTIM,
 //     );
-
+//
 //     let attacker_address = Addr::unchecked(ATTACKER);
 //     let victim_address = Addr::unchecked(VICTIM);
-
+//
 //     let msg = Cw20ExecuteMsg::Send {
 //         contract: staking_instance.to_string(),
 //         msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
 //         amount: Uint128::from(1000u128),
 //     };
-
+//
 //     let err = router
 //         .execute_contract(
 //             attacker_address.clone(),
@@ -239,13 +94,13 @@ fn test_instantiate_tokenfactory() {
 //         err.root_cause().to_string(),
 //         "Initial stake amount must be more than 1000"
 //     );
-
+//
 //     let msg = Cw20ExecuteMsg::Send {
 //         contract: staking_instance.to_string(),
 //         msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
 //         amount: Uint128::from(1001u128),
 //     };
-
+//
 //     router
 //         .execute_contract(
 //             attacker_address.clone(),
@@ -254,12 +109,12 @@ fn test_instantiate_tokenfactory() {
 //             &[],
 //         )
 //         .unwrap();
-
+//
 //     let msg = Cw20ExecuteMsg::Transfer {
 //         recipient: staking_instance.to_string(),
 //         amount: Uint128::from(5000u128),
 //     };
-
+//
 //     router
 //         .execute_contract(
 //             attacker_address.clone(),
@@ -268,13 +123,13 @@ fn test_instantiate_tokenfactory() {
 //             &[],
 //         )
 //         .unwrap();
-
+//
 //     let msg = Cw20ExecuteMsg::Send {
 //         contract: staking_instance.to_string(),
 //         msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
 //         amount: Uint128::from(2u128),
 //     };
-
+//
 //     let err = router
 //         .execute_contract(
 //             victim_address.clone(),
@@ -283,15 +138,15 @@ fn test_instantiate_tokenfactory() {
 //             &[],
 //         )
 //         .unwrap_err();
-
+//
 //     assert_eq!(err.root_cause().to_string(), "Insufficient amount of Stake");
-
+//
 //     let msg = Cw20ExecuteMsg::Send {
 //         contract: staking_instance.to_string(),
 //         msg: to_json_binary(&Cw20HookMsg::Enter {}).unwrap(),
 //         amount: Uint128::from(10u128),
 //     };
-
+//
 //     router
 //         .execute_contract(
 //             victim_address.clone(),

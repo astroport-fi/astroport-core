@@ -4,12 +4,14 @@ use cosmwasm_std::Uint128;
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// The contract owner address
-    pub owner: String,
     /// The ASTRO token contract address
     pub deposit_token_denom: String,
+    /// Tracking contract admin
+    pub tracking_admin: String,
     // The Code ID of contract used to track the TokenFactory token balances
     pub tracking_code_id: u64,
+    /// Token factory module address. Contract creator must ensure that the address is exact token factory module address.
+    pub token_factory_addr: String,
 }
 
 /// This structure describes the execute messages available in the contract.
@@ -25,23 +27,37 @@ pub enum ExecuteMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Config returns the contract configuration specified in a custom [`ConfigResponse`] structure
-    #[returns(ConfigResponse)]
+    /// Config returns the contract configuration specified in a custom [`Config`] structure
+    #[returns(Config)]
     Config {},
     #[returns(Uint128)]
     TotalShares {},
     #[returns(Uint128)]
     TotalDeposit {},
+    #[returns(TrackerData)]
+    TrackerConfig {},
 }
 
+/// This structure stores the main parameters for the staking contract.
 #[cw_serde]
-pub struct ConfigResponse {
-    /// The ASTRO denom
-    pub deposit_denom: String,
-    /// The xASTRO denom
-    pub share_denom: String,
-    // TODO: Comments
-    pub share_tracking_address: String,
+pub struct Config {
+    /// The ASTRO token denom
+    pub astro_denom: String,
+    /// The xASTRO token denom
+    pub xastro_denom: String,
+}
+
+/// This structure stores the tracking contract data.
+#[cw_serde]
+pub struct TrackerData {
+    /// Tracking contract code id
+    pub code_id: u64,
+    /// Tracking contract admin
+    pub admin: String,
+    /// Token factory module address
+    pub token_factory_addr: String,
+    /// Tracker contract address
+    pub tracker_addr: String,
 }
 
 // The structure returned as part of set_data when staking or unstaking

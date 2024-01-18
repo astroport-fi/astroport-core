@@ -1,26 +1,24 @@
 use cosmwasm_std::{
     attr, coin, entry_point, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, ReplyOn, Response, StdResult, SubMsg, Uint128,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
-use cw_utils::must_pay;
+use cw_utils::{must_pay, parse_reply_instantiate_data, MsgInstantiateContractResponse};
 use osmosis_std::types::cosmos::bank::v1beta1::{DenomUnit, Metadata};
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
     MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
     MsgSetDenomMetadata,
 };
 
-use astroport::querier::query_balance;
 use astroport::staking::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, StakingResponse,
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg, StakingResponse, TrackerData,
 };
-use astroport::tokenfactory_tracker::{track_before_send, SudoMsg};
 
 use crate::error::ContractError;
-use crate::state::{Config, CONFIG};
+use crate::state::{CONFIG, TRACKER_DATA};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-staking";
+const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -30,7 +28,22 @@ const TOKEN_NAME: &str = "Staked Astroport Token";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
 /// A `reply` call code ID used for sub-messages.
-const INSTANTIATE_DENOM_REPLY_ID: u64 = 1;
+enum ReplyIds {
+    InstantiateDenom = 1,
+    InstantiateTrackingContract = 2,
+}
+
+impl TryFrom<u64> for ReplyIds {
+    type Error = ContractError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(ReplyIds::InstantiateDenom),
+            2 => Ok(ReplyIds::InstantiateTrackingContract),
+            _ => Err(ContractError::FailedToParseReply {}),
+        }
+    }
+}
 
 /// Minimum initial xastro share
 pub(crate) const MINIMUM_STAKE_AMOUNT: Uint128 = Uint128::new(1_000);
@@ -50,30 +63,38 @@ pub fn instantiate(
     // Validate that deposit_token_denom exists on chain
     deps.querier.query_supply(&msg.deposit_token_denom)?;
 
-    // Store config
+    // Validate addresses
+    deps.api.addr_validate(&msg.token_factory_addr)?;
+    deps.api.addr_validate(&msg.tracking_admin)?;
+
     CONFIG.save(
         deps.storage,
         &Config {
             astro_denom: msg.deposit_token_denom,
             xastro_denom: "".to_string(),
-            tracking_code_id: msg.tracking_code_id,
-            tracking_contract_address: "".to_string(),
         },
     )?;
 
-    // Create the xASTRO TokenFactory token
-    // TODO: After creating the TokenFactory token, also set the tracking contract
-    // we need a Neutron upgrade to enable that
+    // Store tracker data
+    TRACKER_DATA.save(
+        deps.storage,
+        &TrackerData {
+            code_id: msg.tracking_code_id,
+            admin: msg.tracking_admin,
+            token_factory_addr: msg.token_factory_addr,
+            tracker_addr: "".to_string(),
+        },
+    )?;
 
-    let sub_msg = SubMsg::reply_on_success(
+    let create_denom_msg = SubMsg::reply_on_success(
         MsgCreateDenom {
             sender: env.contract.address.to_string(),
             subdenom: TOKEN_SYMBOL.to_owned(),
         },
-        INSTANTIATE_DENOM_REPLY_ID,
+        ReplyIds::InstantiateDenom as u64,
     );
 
-    Ok(Response::new().add_submessage(sub_msg))
+    Ok(Response::new().add_submessage(create_denom_msg))
 }
 
 /// Exposes execute functions available in the contract.
@@ -94,32 +115,11 @@ pub fn execute(
     }
 }
 
-/// Exposes execute functions called by the chain's TokenFactory module
-///
-/// ## Variants
-/// * **SudoMsg::BlockBeforeSend** Called before sending a token, error fails the transaction
-/// * **SudoMsg::TrackBeforeSend** Called before sending a token, error is ignored
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
-    match msg {
-        // For xASTRO we don't implement any blocking, but is still required
-        // to be implemented
-        SudoMsg::BlockBeforeSend { .. } => Ok(Response::default()),
-        // TrackBeforeSend is called before a send - if an error is returned it will
-        // be ignored and the send will continue
-        // Minting a token directly to an address is also tracked
-        SudoMsg::TrackBeforeSend { from, to, amount } => {
-            //let config = CONFIG.load(deps.storage)?;
-            // Get the module address
-            track_before_send(deps, env, from, to, amount).map_err(Into::into)
-        }
-    }
-}
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg.id {
-        INSTANTIATE_DENOM_REPLY_ID => {
+    match ReplyIds::try_from(msg.id)? {
+        ReplyIds::InstantiateDenom => {
             let MsgCreateDenomResponse { new_token_denom } = msg.result.try_into()?;
 
             // TODO: Decide correct metadata
@@ -143,28 +143,59 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                         },
                     ],
                     description: TOKEN_NAME.to_string(),
+                    uri: "".to_string(),
+                    uri_hash: "".to_string(),
                 }),
             };
 
-            let mut config = CONFIG.load(deps.storage)?;
+            CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                config.xastro_denom = new_token_denom.clone();
+                Ok(config)
+            })?;
 
-            config.xastro_denom = new_token_denom;
+            let tracker_data = TRACKER_DATA.load(deps.storage)?;
+
+            let init_tracking_contract = SubMsg::reply_on_success(
+                WasmMsg::Instantiate {
+                    admin: Some(tracker_data.admin),
+                    code_id: tracker_data.code_id,
+                    msg: to_json_binary(&astroport::tokenfactory_tracker::InstantiateMsg {
+                        tokenfactory_module_address: tracker_data.token_factory_addr,
+                        tracked_denom: new_token_denom.clone(),
+                    })?,
+                    funds: vec![],
+                    label: format!("{TOKEN_SYMBOL} balances tracker"),
+                },
+                ReplyIds::InstantiateTrackingContract as u64,
+            );
+
+            Ok(Response::new()
+                .add_submessages([SubMsg::new(denom_metadata_msg), init_tracking_contract])
+                .add_attribute("xastro_denom", new_token_denom))
+        }
+        ReplyIds::InstantiateTrackingContract => {
+            let MsgInstantiateContractResponse {
+                contract_address, ..
+            } = parse_reply_instantiate_data(msg)?;
+
+            let config = CONFIG.load(deps.storage)?;
+
+            TRACKER_DATA.update::<_, StdError>(deps.storage, |mut tracker_data| {
+                tracker_data.tracker_addr = contract_address.clone();
+                Ok(tracker_data)
+            })?;
 
             // Enable balance tracking for xASTRO
             let set_hook_msg = MsgSetBeforeSendHook {
                 sender: env.contract.address.to_string(),
-                denom: config.xastro_denom.clone(),
-                cosmwasm_address: env.contract.address.to_string(),
+                denom: config.xastro_denom,
+                cosmwasm_address: contract_address.clone(),
             };
-
-            CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new()
                 .add_message(set_hook_msg)
-                .add_message(denom_metadata_msg)
-                .add_attribute("xastro_denom", config.xastro_denom))
+                .add_attribute("tracker_contract", contract_address))
         }
-        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 
@@ -172,34 +203,22 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Ensure that the correct token is sent. This will fail if
-    // zero tokens are sent.
-    let mut amount = must_pay(&info, &config.astro_denom)?;
-
-    // Receiver of the xASTRO tokens
-    let recipient = info.sender;
+    // Ensure that the correct token is sent. Sending zero tokens is prohibited on chain level
+    let amount = must_pay(&info, &config.astro_denom)?;
 
     // Get the current deposits and shares held in the contract
-    let total_deposit = query_balance(
-        &deps.querier,
-        env.contract.address.clone(),
-        config.astro_denom.clone(),
-    )?;
-    let total_shares = deps
+    let total_deposit = deps
         .querier
-        .query_supply(config.xastro_denom.clone())?
+        .query_balance(&env.contract.address, &config.astro_denom)?
         .amount;
+    let total_shares = deps.querier.query_supply(&config.xastro_denom)?.amount;
 
     let mut messages: Vec<CosmosMsg> = vec![];
 
-    let mint_amount: Uint128 = if total_shares.is_zero() || total_deposit.is_zero() {
-        amount = amount
-            .checked_sub(MINIMUM_STAKE_AMOUNT)
-            .map_err(|_| ContractError::MinimumStakeAmountError {})?;
-
+    let mint_amount = if total_shares.is_zero() || total_deposit.is_zero() {
         // There needs to be a minimum amount initially staked, thus the result
-        // cannot be zero if the amount if not enough
-        if amount.is_zero() {
+        // cannot be zero if the amount is not enough
+        if amount.saturating_sub(MINIMUM_STAKE_AMOUNT).is_zero() {
             return Err(ContractError::MinimumStakeAmountError {});
         }
 
@@ -207,23 +226,15 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         messages.push(
             MsgMint {
                 sender: env.contract.address.to_string(),
-                amount: Some(coin(MINIMUM_STAKE_AMOUNT.u128(), config.xastro_denom.clone()).into()),
+                amount: Some(coin(MINIMUM_STAKE_AMOUNT.u128(), &config.xastro_denom).into()),
                 mint_to_address: env.contract.address.to_string(),
             }
             .into(),
         );
 
-        amount
+        amount - MINIMUM_STAKE_AMOUNT
     } else {
-        amount = amount
-            .checked_mul(total_shares)?
-            .checked_div(total_deposit)?;
-
-        if amount.is_zero() {
-            return Err(ContractError::StakeAmountTooSmall {});
-        }
-
-        amount
+        amount.multiply_ratio(total_shares, total_deposit)
     };
 
     let minted_coins = coin(mint_amount.u128(), config.xastro_denom);
@@ -242,7 +253,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     // need to send the minted tokens to the recipient
     messages.push(
         BankMsg::Send {
-            to_address: recipient.to_string(),
+            to_address: info.sender.to_string(),
             amount: vec![minted_coins],
         }
         .into(),
@@ -260,7 +271,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .set_data(staking_response)
         .add_attributes(vec![
             attr("action", "enter"),
-            attr("recipient", recipient),
+            attr("recipient", info.sender),
             attr("astro_amount", amount),
             attr("xastro_amount", mint_amount),
         ]))
@@ -271,29 +282,19 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Ensure that the correct token is sent. This will fail if
-    // zero tokens are sent.
+    // Ensure that the correct token is sent. Sending zero tokens is prohibited on chain level
     let amount = must_pay(&info, &config.xastro_denom)?;
 
-    // Receiver of the xASTRO tokens
-    let recipient = info.sender;
-
     // Get the current deposits and shares held in the contract
-    let total_deposit = query_balance(
-        &deps.querier,
-        env.contract.address.clone(),
-        config.astro_denom.clone(),
-    )?;
-    let total_shares = deps
+    let total_deposit = deps
         .querier
-        .query_supply(config.xastro_denom.clone())?
+        .query_balance(&env.contract.address, &config.astro_denom)?
         .amount;
+    let total_shares = deps.querier.query_supply(&config.xastro_denom)?.amount;
 
     // Calculate the amount of ASTRO to return based on the ratios of
     // deposit and shares
-    let return_amount = amount
-        .checked_mul(total_deposit)?
-        .checked_div(total_shares)?;
+    let return_amount = amount.multiply_ratio(total_deposit, total_shares);
 
     // Burn the received xASTRO tokens
     let burn_msg = MsgBurn {
@@ -304,7 +305,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     // Return the ASTRO tokens to the sender
     let transfer_msg = BankMsg::Send {
-        to_address: recipient.to_string(),
+        to_address: info.sender.to_string(),
         amount: vec![coin(return_amount.u128(), config.astro_denom)],
     };
 
@@ -322,7 +323,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .set_data(staking_response)
         .add_attributes(vec![
             attr("action", "leave"),
-            attr("recipient", recipient),
+            attr("recipient", info.sender),
             attr("xastro_amount", amount),
             attr("astro_amount", return_amount),
         ]))
@@ -335,24 +336,31 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 ///
 /// * **QueryMsg::TotalShares {}** Returns the total xASTRO supply using a [`Uint128`] object.
 ///
-/// * **QueryMsg::Config {}** Returns the amount of ASTRO that's currently in the staking pool using a [`Uint128`] object.
+/// * **QueryMsg::TotalDeposit {}** Returns the amount of ASTRO that's currently in the staking pool using a [`Uint128`] object.
+///
+/// * **QueryMsg::TrackerConfig {}** Returns the tracker contract configuration using a [`TrackerData`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    let config = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::Config {} => Ok(to_json_binary(&ConfigResponse {
-            deposit_denom: config.astro_denom,
-            share_denom: config.xastro_denom,
-            share_tracking_address: config.tracking_contract_address,
-        })?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::TotalShares {} => {
-            // to_json_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
-            todo!("TotalShares query not implemented")
+            let config = CONFIG.load(deps.storage)?;
+
+            let total_supply = deps.querier.query_supply(&config.xastro_denom)?.amount;
+            to_json_binary(&total_supply)
         }
-        QueryMsg::TotalDeposit {} => to_json_binary(&query_balance(
-            &deps.querier,
-            env.contract.address,
-            config.astro_denom,
-        )?),
+        QueryMsg::TotalDeposit {} => {
+            let config = CONFIG.load(deps.storage)?;
+
+            let total_deposit = deps
+                .querier
+                .query_balance(&env.contract.address, &config.astro_denom)?
+                .amount;
+            to_json_binary(&total_deposit)
+        }
+        QueryMsg::TrackerConfig {} => {
+            let tracker_data = TRACKER_DATA.load(deps.storage)?;
+            to_json_binary(&tracker_data)
+        }
     }
 }
