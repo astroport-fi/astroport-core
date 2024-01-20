@@ -342,6 +342,10 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 /// * **QueryMsg::TotalDeposit {}** Returns the amount of ASTRO that's currently in the staking pool
 ///
 /// * **QueryMsg::TrackerConfig {}** Returns the tracker contract configuration
+///
+/// * **QueryMsg::BalanceAt { address, timestamp }** Returns the xASTRO balance of the given address at the given timestamp
+///
+/// * **QueryMsg::TotalSupplyAt { timestamp }** Returns xASTRO total supply at the given timestamp
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -362,5 +366,37 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&total_deposit)
         }
         QueryMsg::TrackerConfig {} => to_json_binary(&TRACKER_DATA.load(deps.storage)?),
+        QueryMsg::BalanceAt { address, timestamp } => {
+            let tracker_config = TRACKER_DATA.load(deps.storage)?;
+
+            let amount = if timestamp.is_none() {
+                let config = CONFIG.load(deps.storage)?;
+                deps.querier
+                    .query_balance(&address, &config.astro_denom)?
+                    .amount
+            } else {
+                deps.querier.query_wasm_smart(
+                    &tracker_config.tracker_addr,
+                    &astroport::tokenfactory_tracker::QueryMsg::BalanceAt { address, timestamp },
+                )?
+            };
+
+            to_json_binary(&amount)
+        }
+        QueryMsg::TotalSupplyAt { timestamp } => {
+            let tracker_config = TRACKER_DATA.load(deps.storage)?;
+
+            let amount = if timestamp.is_none() {
+                let config = CONFIG.load(deps.storage)?;
+                deps.querier.query_supply(&config.xastro_denom)?.amount
+            } else {
+                deps.querier.query_wasm_smart(
+                    &tracker_config.tracker_addr,
+                    &astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp },
+                )?
+            };
+
+            to_json_binary(&amount)
+        }
     }
 }

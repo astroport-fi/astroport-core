@@ -30,12 +30,25 @@ pub enum QueryMsg {
     /// Config returns the contract configuration specified in a custom [`Config`] structure
     #[returns(Config)]
     Config {},
+    /// Returns xASTRO total supply. Duplicates TotalSupplyAt { timestamp: None } logic but kept for backward compatibility.
     #[returns(Uint128)]
     TotalShares {},
+    /// Returns total ASTRO staked in the contract
     #[returns(Uint128)]
     TotalDeposit {},
     #[returns(TrackerData)]
     TrackerConfig {},
+    /// BalanceAt returns xASTRO balance of the given address at at the given timestamp.
+    /// Returns current balance if unset if timestamp unset.
+    #[returns(Uint128)]
+    BalanceAt {
+        address: String,
+        timestamp: Option<u64>,
+    },
+    /// TotalSupplyAt returns xASTRO total token supply at the given timestamp.
+    /// Returns current total supply if timestamp unset.
+    #[returns(Uint128)]
+    TotalSupplyAt { timestamp: Option<u64> },
 }
 
 /// This structure stores the main parameters for the staking contract.
