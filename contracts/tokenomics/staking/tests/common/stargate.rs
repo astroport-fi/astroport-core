@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::fmt::Debug;
 
 use anyhow::Result as AnyResult;
@@ -14,20 +12,8 @@ use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
     MsgSetDenomMetadata,
 };
 
-pub const TOKEN_FACTORY_MODULE: &str = "wasm1tokenfactory";
-
-pub struct StargateKeeper {
-    // key: token denom, value: hook contract address
-    pub before_send_hooks: RefCell<HashMap<String, String>>,
-}
-
-impl StargateKeeper {
-    pub fn new() -> Self {
-        Self {
-            before_send_hooks: Default::default(),
-        }
-    }
-}
+#[derive(Default)]
+pub struct StargateKeeper {}
 
 impl Stargate for StargateKeeper {
     fn execute<ExecC, QueryC>(

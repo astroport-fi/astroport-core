@@ -8,12 +8,12 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
-    Executor, FailingModule, StakeKeeper, WasmKeeper,
+    Executor, FailingModule, StakeKeeper, WasmKeeper, TOKEN_FACTORY_MODULE,
 };
 
 use astroport::staking::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, TrackerData};
 
-use crate::common::stargate::{StargateKeeper, TOKEN_FACTORY_MODULE};
+use crate::common::stargate::StargateKeeper;
 
 fn staking_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
@@ -39,7 +39,7 @@ fn tracker_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
-pub type NeutronApp = App<
+pub type CustomizedApp = App<
     BankKeeper,
     MockApi,
     MemoryStorage,
@@ -53,7 +53,7 @@ pub type NeutronApp = App<
 >;
 
 pub struct Helper {
-    pub app: NeutronApp,
+    pub app: CustomizedApp,
     pub owner: Addr,
     pub staking: Addr,
     pub tracker_addr: String,
@@ -65,7 +65,7 @@ pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
 impl Helper {
     pub fn new(owner: &Addr) -> AnyResult<Self> {
         let mut app = BasicAppBuilder::new()
-            .with_stargate(StargateKeeper::new())
+            .with_stargate(StargateKeeper::default())
             .build(|router, _, storage| {
                 router
                     .bank
@@ -161,15 +161,9 @@ impl Helper {
             .send_tokens(denom_admin, to.clone(), &[coin])
             .unwrap();
     }
-}
 
-pub trait AppExtension {
-    fn next_block(&mut self, time: u64);
-}
-
-impl AppExtension for NeutronApp {
-    fn next_block(&mut self, time: u64) {
-        self.update_block(|block| {
+    pub fn next_block(&mut self, time: u64) {
+        self.app.update_block(|block| {
             block.time = block.time.plus_seconds(time);
             block.height += 1
         });

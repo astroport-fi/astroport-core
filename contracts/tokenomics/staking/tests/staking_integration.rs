@@ -1,14 +1,13 @@
 #![cfg(not(tarpaulin_include))]
 
 use cosmwasm_std::{coin, coins, Addr};
-use cw_multi_test::Executor;
+use cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 use cw_utils::PaymentError;
 
 use astroport::staking::{Config, ExecuteMsg, QueryMsg, TrackerData};
 use astroport_staking::error::ContractError;
 
 use crate::common::helper::{Helper, ASTRO_DENOM};
-use crate::common::stargate::TOKEN_FACTORY_MODULE;
 
 mod common;
 
