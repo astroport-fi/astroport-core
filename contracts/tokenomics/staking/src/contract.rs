@@ -23,7 +23,6 @@ const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// xASTRO information
-/// TODO: Once Neutron allows setting metadata, add this as decimals
 const TOKEN_NAME: &str = "Staked Astroport Token";
 const TOKEN_SYMBOL: &str = "xASTRO";
 
@@ -122,7 +121,6 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
         ReplyIds::InstantiateDenom => {
             let MsgCreateDenomResponse { new_token_denom } = msg.result.try_into()?;
 
-            // TODO: Decide correct metadata
             let denom_metadata_msg = MsgSetDenomMetadata {
                 sender: env.contract.address.to_string(),
                 metadata: Some(Metadata {
@@ -133,7 +131,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                     denom_units: vec![
                         DenomUnit {
                             denom: new_token_denom.clone(),
-                            exponent: 12,
+                            exponent: 0,
                             aliases: vec![],
                         },
                         DenomUnit {
@@ -142,9 +140,9 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                             aliases: vec![],
                         },
                     ],
-                    description: TOKEN_NAME.to_string(),
-                    uri: "".to_string(),
-                    uri_hash: "".to_string(),
+                    description: "Astroport is a neutral marketplace where anyone, from anywhere in the galaxy, can dock to trade their wares.".to_string(),
+                    uri: "https://app.astroport.fi/tokens/xAstro.svg".to_string(),
+                    uri_hash: "d39cfe20605a9857b2b123c6d6dbbdf4d3b65cb9d411cee1011877b918b4c646".to_string(),
                 }),
             };
 
@@ -178,12 +176,12 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 contract_address, ..
             } = parse_reply_instantiate_data(msg)?;
 
-            let config = CONFIG.load(deps.storage)?;
-
             TRACKER_DATA.update::<_, StdError>(deps.storage, |mut tracker_data| {
                 tracker_data.tracker_addr = contract_address.clone();
                 Ok(tracker_data)
             })?;
+
+            let config = CONFIG.load(deps.storage)?;
 
             // Enable balance tracking for xASTRO
             let set_hook_msg = MsgSetBeforeSendHook {
@@ -203,14 +201,16 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Ensure that the correct token is sent. Sending zero tokens is prohibited on chain level
+    // Ensure that the correct denom is sent. Sending zero tokens is prohibited on chain level
     let amount = must_pay(&info, &config.astro_denom)?;
 
-    // Get the current deposits and shares held in the contract
+    // Get the current deposits and shares held in the contract.
+    // Amount sent along with the message already included. Subtract it from the total deposit
     let total_deposit = deps
         .querier
         .query_balance(&env.contract.address, &config.astro_denom)?
-        .amount;
+        .amount
+        - amount;
     let total_shares = deps.querier.query_supply(&config.xastro_denom)?.amount;
 
     let mut messages: Vec<CosmosMsg> = vec![];
@@ -236,6 +236,10 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     } else {
         amount.multiply_ratio(total_shares, total_deposit)
     };
+
+    if mint_amount.is_zero() {
+        return Err(ContractError::StakeAmountTooSmall {});
+    }
 
     let minted_coins = coin(mint_amount.u128(), config.xastro_denom);
 
@@ -269,7 +273,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     Ok(Response::new()
         .add_messages(messages)
         .set_data(staking_response)
-        .add_attributes(vec![
+        .add_attributes([
             attr("action", "enter"),
             attr("recipient", info.sender),
             attr("astro_amount", amount),
@@ -282,7 +286,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    // Ensure that the correct token is sent. Sending zero tokens is prohibited on chain level
+    // Ensure that the correct denom is sent. Sending zero tokens is prohibited on chain level
     let amount = must_pay(&info, &config.xastro_denom)?;
 
     // Get the current deposits and shares held in the contract
@@ -321,7 +325,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .add_message(burn_msg)
         .add_message(transfer_msg)
         .set_data(staking_response)
-        .add_attributes(vec![
+        .add_attributes([
             attr("action", "leave"),
             attr("recipient", info.sender),
             attr("xastro_amount", amount),
@@ -331,14 +335,13 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
 /// Exposes all the queries available in the contract.
 ///
-/// ## Queries
-/// * **QueryMsg::Config {}** Returns the staking contract configuration using a [`ConfigResponse`] object.
+/// * **QueryMsg::Config {}** Returns the staking contract configuration
 ///
-/// * **QueryMsg::TotalShares {}** Returns the total xASTRO supply using a [`Uint128`] object.
+/// * **QueryMsg::TotalShares {}** Returns the total xASTRO supply
 ///
-/// * **QueryMsg::TotalDeposit {}** Returns the amount of ASTRO that's currently in the staking pool using a [`Uint128`] object.
+/// * **QueryMsg::TotalDeposit {}** Returns the amount of ASTRO that's currently in the staking pool
 ///
-/// * **QueryMsg::TrackerConfig {}** Returns the tracker contract configuration using a [`TrackerData`] object.
+/// * **QueryMsg::TrackerConfig {}** Returns the tracker contract configuration
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -358,9 +361,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 .amount;
             to_json_binary(&total_deposit)
         }
-        QueryMsg::TrackerConfig {} => {
-            let tracker_data = TRACKER_DATA.load(deps.storage)?;
-            to_json_binary(&tracker_data)
-        }
+        QueryMsg::TrackerConfig {} => to_json_binary(&TRACKER_DATA.load(deps.storage)?),
     }
 }

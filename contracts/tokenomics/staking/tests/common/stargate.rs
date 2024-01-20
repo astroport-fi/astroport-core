@@ -6,25 +6,22 @@ use anyhow::Result as AnyResult;
 use cosmwasm_schema::schemars::JsonSchema;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
-    coin, to_json_binary, Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Querier, Storage,
-    SubMsgResponse,
+    coin, Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Querier, Storage, SubMsgResponse,
 };
-use cw_multi_test::{AppResponse, BankSudo, CosmosRouter, Stargate, WasmSudo};
+use cw_multi_test::{AppResponse, BankSudo, CosmosRouter, Stargate};
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
     MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
     MsgSetDenomMetadata,
 };
 
-use astroport::tokenfactory_tracker::SudoMsg;
-
 pub const TOKEN_FACTORY_MODULE: &str = "wasm1tokenfactory";
 
-pub struct NeutronStargate {
+pub struct StargateKeeper {
     // key: token denom, value: hook contract address
     pub before_send_hooks: RefCell<HashMap<String, String>>,
 }
 
-impl NeutronStargate {
+impl StargateKeeper {
     pub fn new() -> Self {
         Self {
             before_send_hooks: Default::default(),
@@ -32,7 +29,7 @@ impl NeutronStargate {
     }
 }
 
-impl Stargate for NeutronStargate {
+impl Stargate for StargateKeeper {
     fn execute<ExecC, QueryC>(
         &self,
         api: &dyn Api,
@@ -74,22 +71,8 @@ impl Stargate for NeutronStargate {
                     to_address: tf_msg.mint_to_address.clone(),
                     amount: vec![cw_coin.clone()],
                 };
-                let mint_resp = router.sudo(api, storage, block, bank_sudo.into())?;
 
-                if let Some(hook_contract) = self.before_send_hooks.borrow().get(&cw_coin.denom) {
-                    // Call tracker contract to update the balance
-                    let wasm_sudo = WasmSudo {
-                        contract_addr: Addr::unchecked(hook_contract),
-                        msg: to_json_binary(&SudoMsg::BlockBeforeSend {
-                            from: TOKEN_FACTORY_MODULE.to_string(),
-                            to: tf_msg.mint_to_address,
-                            amount: cw_coin,
-                        })?,
-                    };
-                    router.sudo(api, storage, block, wasm_sudo.into())
-                } else {
-                    Ok(mint_resp)
-                }
+                router.sudo(api, storage, block, bank_sudo.into())
             }
             MsgBurn::TYPE_URL => {
                 let tf_msg: MsgBurn = value.try_into()?;
@@ -100,28 +83,14 @@ impl Stargate for NeutronStargate {
                 let burn_msg = BankMsg::Burn {
                     amount: vec![cw_coin.clone()],
                 };
-                let burn_resp = router.execute(
+
+                router.execute(
                     api,
                     storage,
                     block,
-                    Addr::unchecked(TOKEN_FACTORY_MODULE),
+                    Addr::unchecked(&tf_msg.sender),
                     burn_msg.into(),
-                )?;
-
-                if let Some(hook_contract) = self.before_send_hooks.borrow().get(&cw_coin.denom) {
-                    // Call tracker contract to update the balance
-                    let wasm_sudo = WasmSudo {
-                        contract_addr: Addr::unchecked(hook_contract),
-                        msg: to_json_binary(&SudoMsg::BlockBeforeSend {
-                            from: "".to_string(), // on real chain this is likely set to denom admin but tracker doesn't care
-                            to: TOKEN_FACTORY_MODULE.to_string(),
-                            amount: cw_coin,
-                        })?,
-                    };
-                    router.sudo(api, storage, block, wasm_sudo.into())
-                } else {
-                    Ok(burn_resp)
-                }
+                )
             }
             MsgSetDenomMetadata::TYPE_URL => {
                 // TODO: Implement this if needed
@@ -129,11 +98,13 @@ impl Stargate for NeutronStargate {
             }
             MsgSetBeforeSendHook::TYPE_URL => {
                 let tf_msg: MsgSetBeforeSendHook = value.try_into()?;
-                self.before_send_hooks
-                    .borrow_mut()
-                    .insert(tf_msg.denom, tf_msg.cosmwasm_address);
 
-                Ok(AppResponse::default())
+                let bank_sudo = BankSudo::SetHook {
+                    denom: tf_msg.denom,
+                    contract_addr: tf_msg.cosmwasm_address,
+                };
+
+                router.sudo(api, storage, block, bank_sudo.into())
             }
             _ => Err(anyhow::anyhow!(
                 "Unexpected exec msg {type_url} from {sender:?}",

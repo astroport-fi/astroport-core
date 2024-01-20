@@ -3,17 +3,17 @@
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, Addr, Binary, Deps, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
-    MessageInfo, Response, StdResult,
+    coins, Addr, Binary, Coin, Deps, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
+    MessageInfo, Response, StdResult, Uint128,
 };
 use cw_multi_test::{
-    App, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper, Executor,
-    FailingModule, StakeKeeper, WasmKeeper,
+    App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
+    Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
 
-use astroport::staking::{InstantiateMsg, QueryMsg, TrackerData};
+use astroport::staking::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, TrackerData};
 
-use crate::common::neutron_ext::{NeutronStargate, TOKEN_FACTORY_MODULE};
+use crate::common::stargate::{StargateKeeper, TOKEN_FACTORY_MODULE};
 
 fn staking_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
@@ -49,7 +49,7 @@ pub type NeutronApp = App<
     DistributionKeeper,
     FailingModule<IbcMsg, IbcQuery, Empty>,
     FailingModule<GovMsg, Empty, Empty>,
-    NeutronStargate,
+    StargateKeeper,
 >;
 
 pub struct Helper {
@@ -57,6 +57,7 @@ pub struct Helper {
     pub owner: Addr,
     pub staking: Addr,
     pub tracker_addr: String,
+    pub xastro_denom: String,
 }
 
 pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
@@ -64,7 +65,7 @@ pub const ASTRO_DENOM: &str = "factory/assembly/ASTRO";
 impl Helper {
     pub fn new(owner: &Addr) -> AnyResult<Self> {
         let mut app = BasicAppBuilder::new()
-            .with_stargate(NeutronStargate::new())
+            .with_stargate(StargateKeeper::new())
             .build(|router, _, storage| {
                 router
                     .bank
@@ -96,12 +97,17 @@ impl Helper {
             .wrap()
             .query_wasm_smart(&staking, &QueryMsg::TrackerConfig {})
             .unwrap();
+        let Config { xastro_denom, .. } = app
+            .wrap()
+            .query_wasm_smart(&staking, &QueryMsg::Config {})
+            .unwrap();
 
         Ok(Self {
             app,
             owner: owner.clone(),
             staking,
             tracker_addr,
+            xastro_denom,
         })
     }
 
@@ -112,6 +118,47 @@ impl Helper {
                 recipient.clone(),
                 &coins(amount, ASTRO_DENOM),
             )
+            .unwrap();
+    }
+
+    pub fn stake(&mut self, sender: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.staking.clone(),
+            &ExecuteMsg::Enter {},
+            &coins(amount, ASTRO_DENOM),
+        )
+    }
+
+    pub fn unstake(&mut self, sender: &Addr, amount: u128) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.staking.clone(),
+            &ExecuteMsg::Leave {},
+            &coins(amount, &self.xastro_denom),
+        )
+    }
+
+    pub fn query_balance(&mut self, sender: &Addr, denom: &str) -> StdResult<Uint128> {
+        self.app
+            .wrap()
+            .query_balance(sender, denom)
+            .map(|c| c.amount)
+    }
+
+    pub fn mint_coin(&mut self, to: &Addr, coin: Coin) {
+        // .init_balance() erases previous balance thus I use such hack and create intermediate "denom admin"
+        let denom_admin = Addr::unchecked(format!("{}_admin", &coin.denom));
+        self.app
+            .init_modules(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, &denom_admin, vec![coin.clone()])
+            })
+            .unwrap();
+
+        self.app
+            .send_tokens(denom_admin, to.clone(), &[coin])
             .unwrap();
     }
 }

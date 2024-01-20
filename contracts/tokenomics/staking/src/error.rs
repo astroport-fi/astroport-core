@@ -16,9 +16,6 @@ pub enum ContractError {
     #[error("{0}")]
     ParseReplyError(#[from] ParseReplyError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
-
     #[error("Initial stake amount must be more than {MINIMUM_STAKE_AMOUNT}")]
     MinimumStakeAmountError {},
 
