@@ -36,11 +36,13 @@ pub enum SudoMsg {
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
+    /// Return the balance of the given address at the given nanoseconds timestamp.
     #[returns(Uint128)]
     BalanceAt {
         address: String,
         timestamp: Option<u64>,
     },
+    /// Return the total supply at the given nanoseconds timestamp.
     #[returns(Uint128)]
     TotalSupplyAt { timestamp: Option<u64> },
 }
