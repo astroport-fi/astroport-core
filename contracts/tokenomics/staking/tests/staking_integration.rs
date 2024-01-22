@@ -1,12 +1,12 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{coin, coins, Addr, BlockInfo, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, BlockInfo, Timestamp, Uint128};
 use cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 use cw_utils::PaymentError;
 use itertools::Itertools;
 use std::collections::HashMap;
 
-use astroport::staking::{Config, ExecuteMsg, QueryMsg, TrackerData};
+use astroport::staking::{Config, ExecuteMsg, QueryMsg, StakingResponse, TrackerData};
 use astroport_staking::error::ContractError;
 
 use crate::common::helper::{Helper, ASTRO_DENOM};
@@ -176,7 +176,15 @@ fn test_enter_and_leave() {
     helper.give_astro(10000, &alice);
 
     // Stake Alice's 1100 ASTRO for 1100 xASTRO
-    helper.stake(&alice, 1100).unwrap();
+    let resp_data = helper.stake(&alice, 1100).unwrap().data.unwrap();
+    let staking_resp: StakingResponse = from_json(&resp_data).unwrap();
+    assert_eq!(
+        staking_resp,
+        StakingResponse {
+            astro_amount: 1100u128.into(),
+            xastro_amount: 100u128.into(),
+        }
+    );
 
     // Check if Alice's xASTRO balance is 100 (1000 consumed by staking contract on initial provide)
     let amount = helper.query_balance(&alice, &xastro_denom).unwrap();
@@ -187,7 +195,15 @@ fn test_enter_and_leave() {
     assert_eq!(amount.u128(), 1100u128);
 
     // Unstake Alice's 10 xASTRO for 10 ASTRO
-    helper.unstake(&alice, 10).unwrap();
+    let resp_data = helper.unstake(&alice, 10).unwrap().data.unwrap();
+    let staking_resp: StakingResponse = from_json(&resp_data).unwrap();
+    assert_eq!(
+        staking_resp,
+        StakingResponse {
+            astro_amount: 10u128.into(),
+            xastro_amount: 10u128.into(),
+        }
+    );
 
     // Check if Alice's xASTRO balance is 90
     let amount = helper.query_balance(&alice, &xastro_denom).unwrap();

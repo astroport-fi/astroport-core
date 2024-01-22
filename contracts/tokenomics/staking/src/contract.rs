@@ -57,8 +57,6 @@ pub fn instantiate(
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    // TODO: figure out how to set initial staking ratio
-
     // Validate that deposit_token_denom exists on chain
     deps.querier.query_supply(&msg.deposit_token_denom)?;
 
@@ -315,7 +313,6 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
 
     // Set the data to be returned in set_data to easy integration with
     // other contracts
-    // TODO: Test if this works now
     let staking_response = to_json_binary(&StakingResponse {
         astro_amount: return_amount,
         xastro_amount: amount,
