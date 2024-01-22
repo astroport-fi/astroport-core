@@ -13,7 +13,6 @@ pub use {
     pair::{MockXykPair, MockXykPairBuilder},
     pair_concentrated::{MockConcentratedPair, MockConcentratedPairBuilder},
     pair_stable::{MockStablePair, MockStablePairBuilder},
-    staking::{MockStaking, MockStakingBuilder},
     token::{MockToken, MockTokenBuilder},
     vesting::{MockVesting, MockVestingBuilder},
     xastro::{MockXastro, MockXastroBuilder},
@@ -26,7 +25,6 @@ pub mod pair;
 pub mod pair_concentrated;
 pub mod pair_stable;
 pub mod shared_multisig;
-pub mod staking;
 pub mod token;
 pub mod vesting;
 pub mod whitelist;
