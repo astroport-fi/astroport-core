@@ -1,8 +1,10 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{coin, coins, Addr};
+use cosmwasm_std::{coin, coins, Addr, BlockInfo, Timestamp, Uint128};
 use cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 use cw_utils::PaymentError;
+use itertools::Itertools;
+use std::collections::HashMap;
 
 use astroport::staking::{Config, ExecuteMsg, QueryMsg, TrackerData};
 use astroport_staking::error::ContractError;
@@ -261,4 +263,148 @@ fn should_work_with_more_than_one_participant() {
     // Check Alice's ASTRO balance is 7990 (10000 minted - 2000 entered - 10 entered)
     let amount = helper.query_balance(&alice, ASTRO_DENOM).unwrap();
     assert_eq!(amount.u128(), 7990);
+}
+
+#[test]
+fn test_historical_queries() {
+    let owner = Addr::unchecked("owner");
+
+    let mut helper = Helper::new(&owner).unwrap();
+    helper.app.set_block(BlockInfo {
+        height: 1000,
+        time: Timestamp::from_seconds(1700000000),
+        chain_id: "".to_string(),
+    });
+
+    helper.stake(&owner, 1001).unwrap();
+
+    let xastro_denom = helper.xastro_denom.clone();
+
+    let user1 = Addr::unchecked("user1");
+    let user2 = Addr::unchecked("user2");
+
+    // Stake and query at the same block
+    helper.give_astro(1_000_000000, &user1);
+    helper.stake(&user1, 1_000_000000).unwrap();
+
+    let amount = helper.query_xastro_balance_at(&user1, None).unwrap();
+    assert_eq!(amount.u128(), 1_000_000000);
+    let total_supply = helper.query_xastro_supply_at(None).unwrap();
+    assert_eq!(total_supply.u128(), 1_000_001001);
+
+    // Stake for user2 too
+    helper.give_astro(1_000_000000, &user2);
+    helper.stake(&user2, 1_000_000000).unwrap();
+
+    struct Entry {
+        user1_bal: Uint128,
+        user2_bal: Uint128,
+        total_supply: Uint128,
+    }
+    let mut history: HashMap<u64, Entry> = Default::default();
+
+    for _ in 0..10 {
+        helper.next_block(100);
+
+        helper
+            .app
+            .send_tokens(
+                user1.clone(),
+                user2.clone(),
+                &coins(1_000000, &xastro_denom),
+            )
+            .unwrap();
+
+        // Stake to impact total supply
+        helper.give_astro(2_000000, &user1);
+        helper.stake(&user1, 2_000000).unwrap();
+
+        // Unstake to impact total supply
+        helper.unstake(&user2, 3_000000).unwrap();
+
+        history.insert(
+            helper.app.block_info().time.seconds() + 1, // balance change takes effect from the next block
+            Entry {
+                user1_bal: helper
+                    .app
+                    .wrap()
+                    .query_balance(&user1, &xastro_denom)
+                    .unwrap()
+                    .amount,
+                user2_bal: helper
+                    .app
+                    .wrap()
+                    .query_balance(&user2, &xastro_denom)
+                    .unwrap()
+                    .amount,
+                total_supply: helper
+                    .app
+                    .wrap()
+                    .query_supply(&xastro_denom)
+                    .unwrap()
+                    .amount,
+            },
+        );
+    }
+
+    for (
+        timestamp,
+        Entry {
+            user1_bal,
+            user2_bal,
+            total_supply,
+        },
+    ) in history.into_iter().sorted_by(|(t1, _), (t2, _)| t1.cmp(t2))
+    {
+        let historical_user1_bal = helper
+            .query_xastro_balance_at(&user1, Some(timestamp))
+            .unwrap();
+        assert_eq!(
+            historical_user1_bal, user1_bal,
+            "Invalid balance for user1 at {timestamp}"
+        );
+
+        let historical_user2_bal = helper
+            .query_xastro_balance_at(&user2, Some(timestamp))
+            .unwrap();
+        assert_eq!(
+            historical_user2_bal, user2_bal,
+            "Invalid balance for user2 at {timestamp}"
+        );
+
+        let historical_total_supply = helper.query_xastro_supply_at(Some(timestamp)).unwrap();
+        assert_eq!(
+            historical_total_supply, total_supply,
+            "Invalid total supply at {timestamp}"
+        );
+    }
+
+    // Check the rest of the queries
+
+    let total_shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
+        .unwrap();
+    let total_supply = helper
+        .app
+        .wrap()
+        .query_supply(&xastro_denom)
+        .unwrap()
+        .amount;
+    assert_eq!(total_shares, total_supply);
+
+    let staking = helper.staking.clone();
+    let total_deposit: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
+        .unwrap();
+    let staking_astro_balance = helper
+        .app
+        .wrap()
+        .query_balance(&staking, ASTRO_DENOM)
+        .unwrap()
+        .amount;
+    assert_eq!(total_deposit, staking_astro_balance);
 }

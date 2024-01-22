@@ -3,8 +3,8 @@
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, Addr, Binary, Coin, Deps, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
-    MessageInfo, Response, StdResult, Uint128,
+    coins, Addr, Coin, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage, MessageInfo,
+    Response, StdResult, Uint128,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -33,7 +33,7 @@ fn tracker_contract() -> Box<dyn Contract<Empty>> {
                 unimplemented!()
             },
             astroport_tokenfactory_tracker::contract::instantiate,
-            |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() },
+            astroport_tokenfactory_tracker::query::query,
         )
         .with_sudo_empty(astroport_tokenfactory_tracker::contract::sudo),
     )
@@ -139,11 +139,31 @@ impl Helper {
         )
     }
 
-    pub fn query_balance(&mut self, sender: &Addr, denom: &str) -> StdResult<Uint128> {
+    pub fn query_balance(&self, sender: &Addr, denom: &str) -> StdResult<Uint128> {
         self.app
             .wrap()
             .query_balance(sender, denom)
             .map(|c| c.amount)
+    }
+
+    pub fn query_xastro_balance_at(
+        &self,
+        sender: &Addr,
+        timestamp: Option<u64>,
+    ) -> StdResult<Uint128> {
+        self.app.wrap().query_wasm_smart(
+            &self.staking,
+            &QueryMsg::BalanceAt {
+                address: sender.to_string(),
+                timestamp,
+            },
+        )
+    }
+
+    pub fn query_xastro_supply_at(&self, timestamp: Option<u64>) -> StdResult<Uint128> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.staking, &QueryMsg::TotalSupplyAt { timestamp })
     }
 
     pub fn mint_coin(&mut self, to: &Addr, coin: Coin) {

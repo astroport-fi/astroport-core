@@ -36,5 +36,4 @@ cosmwasm-schema = "1.5"
 #cw-multi-test = { version = "0.20", features = ["cosmwasm_1_1"] }
 #cw-multi-test = { path = "../../../../cw-multi-test", features = ["cosmwasm_1_1"] }
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-
 astroport-tokenfactory-tracker = { path = "../../periphery/tokenfactory_tracker" }

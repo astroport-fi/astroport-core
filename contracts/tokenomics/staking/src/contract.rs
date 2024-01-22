@@ -367,14 +367,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TrackerConfig {} => to_json_binary(&TRACKER_DATA.load(deps.storage)?),
         QueryMsg::BalanceAt { address, timestamp } => {
-            let tracker_config = TRACKER_DATA.load(deps.storage)?;
-
             let amount = if timestamp.is_none() {
                 let config = CONFIG.load(deps.storage)?;
                 deps.querier
-                    .query_balance(&address, &config.astro_denom)?
+                    .query_balance(&address, &config.xastro_denom)?
                     .amount
             } else {
+                let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
                     &tracker_config.tracker_addr,
                     &astroport::tokenfactory_tracker::QueryMsg::BalanceAt { address, timestamp },
@@ -384,12 +383,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&amount)
         }
         QueryMsg::TotalSupplyAt { timestamp } => {
-            let tracker_config = TRACKER_DATA.load(deps.storage)?;
-
             let amount = if timestamp.is_none() {
                 let config = CONFIG.load(deps.storage)?;
                 deps.querier.query_supply(&config.xastro_denom)?.amount
             } else {
+                let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
                     &tracker_config.tracker_addr,
                     &astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp },
