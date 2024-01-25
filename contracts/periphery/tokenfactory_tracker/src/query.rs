@@ -12,11 +12,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::BalanceAt { address, timestamp } => to_json_binary(&balance_at(
             deps,
             address,
-            timestamp.unwrap_or_else(|| env.block.time.nanos()),
+            timestamp.unwrap_or_else(|| env.block.time.seconds()),
         )?),
         QueryMsg::TotalSupplyAt { timestamp } => to_json_binary(&total_supply_at(
             deps,
-            timestamp.unwrap_or_else(|| env.block.time.nanos()),
+            timestamp.unwrap_or_else(|| env.block.time.seconds()),
         )?),
     }
 }

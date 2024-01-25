@@ -55,10 +55,9 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
             } else {
                 // If this function throws error all send, mint and burn actions will be blocked.
                 // However, balances query will still work, hence governance will be able to recover the contract.
-                // We track balances over nano seconds to avoid collisions on chains with high block frequency (for example, Injective and Sei).
                 track_balances(
                     deps.storage,
-                    env.block.time.nanos(),
+                    env.block.time.seconds(),
                     &config,
                     from,
                     to,
@@ -76,7 +75,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     }
 }
 
-/// Track balance and total supply changes over timestamp in nano seconds.
+/// Track balance and total supply changes over timestamp.
 /// Only tokenfactory module itself can change supply by minting and burning tokens.
 /// Only denom admin can dispatch mint/burn messages to the module.
 /// Sending tokens to the tokenfactory module address isn't allowed by the chain.
@@ -90,7 +89,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 /// - attempt to add with overflow. First will happen on total supply increase. Possible if total supply is greater than 2^128 - 1.
 pub fn track_balances(
     storage: &mut dyn Storage,
-    block_nanos: u64,
+    block_seconds: u64,
     config: &Config,
     from: String,
     to: String,
@@ -99,12 +98,12 @@ pub fn track_balances(
     // If the token is minted directly to an address, we don't need to subtract
     // as the sender is the module address
     if from.ne(&config.m) {
-        BALANCES.update::<_, StdError>(storage, &from, block_nanos, |balance| {
+        BALANCES.update::<_, StdError>(storage, &from, block_seconds, |balance| {
             Ok(balance.unwrap_or_default().checked_sub(amount)?)
         })?;
     } else {
         // Minted new tokens
-        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_nanos, |balance| {
+        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_seconds, |balance| {
             Ok(balance.unwrap_or_default().checked_add(amount)?)
         })?;
     }
@@ -112,12 +111,12 @@ pub fn track_balances(
     // When burning tokens, the receiver is the token factory module address
     // Sending tokens to the module address isn't allowed by the chain
     if to.ne(&config.m) {
-        BALANCES.update::<_, StdError>(storage, &to, block_nanos, |balance| {
+        BALANCES.update::<_, StdError>(storage, &to, block_seconds, |balance| {
             Ok(balance.unwrap_or_default().checked_add(amount)?)
         })?;
     } else {
         // Burned tokens
-        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_nanos, |balance| {
+        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_seconds, |balance| {
             Ok(balance.unwrap_or_default().checked_sub(amount)?)
         })?;
     }
@@ -233,7 +232,7 @@ mod tests {
             env.clone(),
             QueryMsg::BalanceAt {
                 address: "user1".to_string(),
-                timestamp: Some(env.block.time.nanos()),
+                timestamp: Some(env.block.time.seconds()),
             },
         )
         .unwrap();
@@ -244,7 +243,7 @@ mod tests {
             env.clone(),
             QueryMsg::BalanceAt {
                 address: "user2".to_string(),
-                timestamp: Some(env.block.time.nanos()),
+                timestamp: Some(env.block.time.seconds()),
             },
         )
         .unwrap();
@@ -255,7 +254,7 @@ mod tests {
             env.clone(),
             QueryMsg::BalanceAt {
                 address: "user3".to_string(),
-                timestamp: Some(env.block.time.nanos()),
+                timestamp: Some(env.block.time.seconds()),
             },
         )
         .unwrap();
@@ -287,7 +286,7 @@ mod tests {
             deps.as_ref(),
             env.clone(),
             QueryMsg::TotalSupplyAt {
-                timestamp: Some(env.block.time.nanos()),
+                timestamp: Some(env.block.time.seconds()),
             },
         )
         .unwrap();
@@ -351,7 +350,7 @@ mod tests {
             env.clone(),
             QueryMsg::BalanceAt {
                 address: "user1".to_string(),
-                timestamp: Some(env.block.time.nanos()),
+                timestamp: Some(env.block.time.seconds()),
             },
         )
         .unwrap();

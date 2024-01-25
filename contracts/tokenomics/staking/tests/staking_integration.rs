@@ -339,7 +339,7 @@ fn test_historical_queries() {
         helper.unstake(&user2, 3_000000).unwrap();
 
         history.insert(
-            helper.app.block_info().time.nanos() + 1, // balance change takes effect from the next block
+            helper.app.block_info().time.seconds() + 1, // balance change takes effect from the next block
             Entry {
                 user1_bal: helper
                     .app
