@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
     Deps, DepsMut, Empty, Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError,
     StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint64, WasmMsg,
 };
@@ -709,7 +709,7 @@ fn get_proxy_rewards(
         Some(SubMsg::new(WasmMsg::Execute {
             contract_addr: reward_proxy.to_string(),
             funds: vec![],
-            msg: to_binary(&ProxyExecuteMsg::UpdateRewards {})?,
+            msg: to_json_binary(&ProxyExecuteMsg::UpdateRewards {})?,
         }))
     } else {
         None
@@ -955,7 +955,7 @@ fn receive_cw20(
         create_pool(deps.branch(), &env, &lp_token, &cfg)?;
     }
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Deposit {} => update_rewards_and_execute(
             deps,
             env,
@@ -1008,7 +1008,7 @@ pub fn send_pending_rewards(
     if !pending_rewards.is_zero() {
         messages.push(WasmMsg::Execute {
             contract_addr: cfg.vesting_contract.to_string(),
-            msg: to_binary(&VestingExecuteMsg::Claim {
+            msg: to_json_binary(&VestingExecuteMsg::Claim {
                 recipient: Some(to.to_string()),
                 amount: Some(pending_rewards),
             })?,
@@ -1026,7 +1026,7 @@ pub fn send_pending_rewards(
                     messages.push(WasmMsg::Execute {
                         contract_addr: proxy.to_string(),
                         funds: vec![],
-                        msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                        msg: to_json_binary(&ProxyExecuteMsg::SendRewards {
                             account: to.to_string(),
                             amount: pending_proxy_rewards,
                         })?,
@@ -1038,7 +1038,7 @@ pub fn send_pending_rewards(
                     messages.push(WasmMsg::Execute {
                         contract_addr: proxy_rewards_holder.to_string(),
                         funds: vec![],
-                        msg: to_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
+                        msg: to_json_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
                             msgs: vec![Asset {
                                 info: asset_info,
                                 amount: pending_proxy_rewards,
@@ -1090,7 +1090,7 @@ pub fn deposit(
             &lp_token,
             &Cw20ExecuteMsg::Send {
                 contract: pool.reward_proxy.clone().unwrap().to_string(),
-                msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+                msg: to_json_binary(&ProxyCw20HookMsg::Deposit {})?,
                 amount,
             },
             vec![],
@@ -1153,14 +1153,14 @@ pub fn withdraw(
         Some(proxy) => WasmMsg::Execute {
             contract_addr: proxy.to_string(),
             funds: vec![],
-            msg: to_binary(&ProxyExecuteMsg::Withdraw {
+            msg: to_json_binary(&ProxyExecuteMsg::Withdraw {
                 account: account.to_string(),
                 amount,
             })?,
         },
         None => WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: account.to_string(),
                 amount,
             })?,
@@ -1233,7 +1233,7 @@ pub fn emergency_withdraw(
 
         transfer_msg = WasmMsg::Execute {
             contract_addr: proxy.to_string(),
-            msg: to_binary(&ProxyExecuteMsg::EmergencyWithdraw {
+            msg: to_json_binary(&ProxyExecuteMsg::EmergencyWithdraw {
                 account: info.sender.to_string(),
                 amount: user.amount,
             })?,
@@ -1242,7 +1242,7 @@ pub fn emergency_withdraw(
     } else {
         transfer_msg = WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.to_string(),
                 amount: user.amount,
             })?,
@@ -1297,7 +1297,7 @@ fn send_orphan_proxy_rewards(
                 Some(reward_proxy) if reward_proxy == proxy => SubMsg::new(WasmMsg::Execute {
                     contract_addr: reward_proxy.to_string(),
                     funds: vec![],
-                    msg: to_binary(&ProxyExecuteMsg::SendRewards {
+                    msg: to_json_binary(&ProxyExecuteMsg::SendRewards {
                         account: recipient.to_string(),
                         amount: *amount,
                     })?,
@@ -1307,7 +1307,7 @@ fn send_orphan_proxy_rewards(
                     SubMsg::new(WasmMsg::Execute {
                         contract_addr: proxy_rewards_holder.to_string(),
                         funds: vec![],
-                        msg: to_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
+                        msg: to_json_binary(&cw1_whitelist::msg::ExecuteMsg::Execute {
                             msgs: vec![Asset {
                                 info: asset_info,
                                 amount: *amount,
@@ -1349,7 +1349,7 @@ fn init_proxy_rewards_holder(
             code_id: whitelist_code_id,
             funds: vec![],
             label: "Proxy rewards holder".to_string(),
-            msg: to_binary(&cw1_whitelist::msg::InstantiateMsg {
+            msg: to_json_binary(&cw1_whitelist::msg::InstantiateMsg {
                 admins: vec![admin.to_string()],
                 mutable: false,
             })?,
@@ -1445,7 +1445,7 @@ fn migrate_proxy_callback(
         let rewards_holder = PROXY_REWARDS_HOLDER.load(deps.storage)?;
         let trasfer_rewards_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: prev_proxy_addr.to_string(),
-            msg: to_binary(&ProxyExecuteMsg::SendRewards {
+            msg: to_json_binary(&ProxyExecuteMsg::SendRewards {
                 account: rewards_holder.to_string(),
                 amount: rewards_amount,
             })?,
@@ -1459,7 +1459,7 @@ fn migrate_proxy_callback(
         // Firstly, transfer LP tokens to the generator address
         let transfer_lp_msg = SubMsg::new(WasmMsg::Execute {
             contract_addr: prev_proxy_addr.to_string(),
-            msg: to_binary(&ProxyExecuteMsg::Withdraw {
+            msg: to_json_binary(&ProxyExecuteMsg::Withdraw {
                 account: env.contract.address.to_string(),
                 amount: proxy_lp_balance,
             })?,
@@ -1498,9 +1498,9 @@ fn migrate_proxy_deposit_lp(
     // Depositing LP tokens to new proxy
     let deposit_msg = WasmMsg::Execute {
         contract_addr: lp_addr.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Send {
+        msg: to_json_binary(&Cw20ExecuteMsg::Send {
             contract: new_proxy.to_string(),
-            msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+            msg: to_json_binary(&ProxyCw20HookMsg::Deposit {})?,
             amount,
         })?,
         funds: vec![],
@@ -1560,9 +1560,9 @@ fn move_to_proxy(
     let messages = if !res.balance.is_zero() {
         vec![WasmMsg::Execute {
             contract_addr: lp_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
                 contract: pool_info.reward_proxy.clone().unwrap().to_string(),
-                msg: to_binary(&ProxyCw20HookMsg::Deposit {})?,
+                msg: to_json_binary(&ProxyCw20HookMsg::Deposit {})?,
                 amount: res.balance,
             })?,
             funds: vec![],
@@ -1603,33 +1603,37 @@ fn move_to_proxy(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::TotalVirtualSupply { generator } => {
-            Ok(to_binary(&total_virtual_supply(deps, generator)?)?)
+            Ok(to_json_binary(&total_virtual_supply(deps, generator)?)?)
         }
         QueryMsg::ActivePoolLength {} => {
             let config = CONFIG.load(deps.storage)?;
-            Ok(to_binary(&config.active_pools.len())?)
+            Ok(to_json_binary(&config.active_pools.len())?)
         }
         QueryMsg::PoolLength {} => {
             let length = POOL_INFO
                 .keys(deps.storage, None, None, Order::Ascending)
                 .count();
-            Ok(to_binary(&length)?)
+            Ok(to_json_binary(&length)?)
         }
-        QueryMsg::UserVirtualAmount { lp_token, user } => {
-            Ok(to_binary(&query_virtual_amount(deps, lp_token, user)?)?)
-        }
+        QueryMsg::UserVirtualAmount { lp_token, user } => Ok(to_json_binary(
+            &query_virtual_amount(deps, lp_token, user)?,
+        )?),
         QueryMsg::Deposit { lp_token, user } => {
-            Ok(to_binary(&query_deposit(deps, lp_token, user)?)?)
+            Ok(to_json_binary(&query_deposit(deps, lp_token, user)?)?)
         }
         QueryMsg::PendingToken { lp_token, user } => {
-            Ok(to_binary(&pending_token(deps, env, lp_token, user)?)?)
+            Ok(to_json_binary(&pending_token(deps, env, lp_token, user)?)?)
         }
-        QueryMsg::Config {} => Ok(to_binary(&CONFIG.load(deps.storage)?)?),
-        QueryMsg::RewardInfo { lp_token } => Ok(to_binary(&query_reward_info(deps, lp_token)?)?),
-        QueryMsg::OrphanProxyRewards { lp_token } => {
-            Ok(to_binary(&query_orphan_proxy_rewards(deps, lp_token)?)?)
+        QueryMsg::Config {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?)?),
+        QueryMsg::RewardInfo { lp_token } => {
+            Ok(to_json_binary(&query_reward_info(deps, lp_token)?)?)
         }
-        QueryMsg::PoolInfo { lp_token } => Ok(to_binary(&query_pool_info(deps, env, lp_token)?)?),
+        QueryMsg::OrphanProxyRewards { lp_token } => Ok(to_json_binary(
+            &query_orphan_proxy_rewards(deps, lp_token)?,
+        )?),
+        QueryMsg::PoolInfo { lp_token } => {
+            Ok(to_json_binary(&query_pool_info(deps, env, lp_token)?)?)
+        }
         QueryMsg::SimulateFutureReward {
             lp_token,
             future_block,
@@ -1638,26 +1642,26 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             let alloc_point =
                 get_alloc_point(&cfg.active_pools, &deps.api.addr_validate(&lp_token)?);
 
-            Ok(to_binary(&calculate_rewards(
+            Ok(to_json_binary(&calculate_rewards(
                 future_block - env.block.height,
                 &alloc_point,
                 &cfg,
             )?)?)
         }
-        QueryMsg::BlockedTokensList {} => {
-            Ok(to_binary(&CONFIG.load(deps.storage)?.blocked_tokens_list)?)
-        }
+        QueryMsg::BlockedTokensList {} => Ok(to_json_binary(
+            &CONFIG.load(deps.storage)?.blocked_tokens_list,
+        )?),
         QueryMsg::PoolStakers {
             lp_token,
             start_after,
             limit,
-        } => Ok(to_binary(&query_list_of_stakers(
+        } => Ok(to_json_binary(&query_list_of_stakers(
             deps,
             lp_token,
             start_after,
             limit,
         )?)?),
-        QueryMsg::RewardProxiesList {} => Ok(to_binary(
+        QueryMsg::RewardProxiesList {} => Ok(to_json_binary(
             &PROXY_REWARD_ASSET
                 .keys(deps.storage, None, None, Order::Ascending)
                 .collect::<Result<Vec<Addr>, StdError>>()?,

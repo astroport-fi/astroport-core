@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, ensure, wasm_execute, Addr, Deps, DepsMut, Env, MessageInfo, Order, QuerierWrapper,
-    ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order,
+    QuerierWrapper, ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use itertools::Itertools;
 
@@ -261,6 +261,12 @@ pub fn incentivize(
                 if funds[ind].amount.is_zero() {
                     funds.remove(ind);
                 }
+
+                // Send fee to fee receiver
+                response = response.add_message(BankMsg::Send {
+                    to_address: incentivization_fee_info.fee_receiver.to_string(),
+                    amount: vec![incentivization_fee_info.fee.clone()],
+                });
             } else {
                 return Err(ContractError::IncentivizationFeeExpected {
                     fee: incentivization_fee_info.fee.to_string(),

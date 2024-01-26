@@ -19,7 +19,7 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_mocks::cw_multi_test::{App, BasicApp, ContractWrapper, Executor};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair_xyk_sale_tax::error::ContractError;
-use cosmwasm_std::{attr, coin, to_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use test_case::test_case;
 
@@ -115,6 +115,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
@@ -145,7 +146,7 @@ fn instantiate_pair(mut router: &mut App, owner: &Addr) -> Addr {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let pair = router
@@ -184,6 +185,7 @@ fn instantiate_standard_xyk_pair(mut router: &mut App, owner: &Addr, version: &s
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
@@ -394,7 +396,7 @@ fn test_provide_and_withdraw_liquidity() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
     // Try to send withdraw liquidity with FOO token
     let err = router
@@ -442,7 +444,7 @@ fn test_provide_and_withdraw_liquidity() {
         config.clone(),
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
             owner,
             factory_addr: config.factory_addr
         }
@@ -554,6 +556,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id,
         generator_address: Some(String::from("generator")),
@@ -581,7 +584,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
             AssetInfo::native("uusd"),
         ],
         pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -616,7 +619,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
+        msg: to_json_binary(&Cw20HookMsg::Swap {
             ask_asset_info: None,
             belief_price: None,
             max_spread: None,
@@ -664,7 +667,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
 
     let swap_msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
-        msg: to_binary(&Cw20HookMsg::Swap {
+        msg: to_json_binary(&Cw20HookMsg::Swap {
             ask_asset_info: None,
             belief_price: None,
             max_spread: None,
@@ -810,7 +813,7 @@ fn create_pair_with_same_assets() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let resp = router
@@ -843,7 +846,7 @@ fn wrong_number_of_assets() {
         }],
         token_code_id: 123,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let err = router
@@ -870,7 +873,7 @@ fn wrong_number_of_assets() {
         ],
         token_code_id: 123,
         factory_addr: String::from("factory"),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let err = router
@@ -927,6 +930,7 @@ fn asset_balances_tracking_works_correctly() {
             total_fee_bps: 0,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id,
         generator_address: Some(String::from("generator")),
@@ -958,7 +962,7 @@ fn asset_balances_tracking_works_correctly() {
         ],
         pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
         init_params: Some(
-            to_binary(&SaleTaxInitParams {
+            to_json_binary(&SaleTaxInitParams {
                 tax_configs: TaxConfigsUnchecked::new(),
                 ..Default::default()
             })
@@ -1019,7 +1023,7 @@ fn asset_balances_tracking_works_correctly() {
 
     // Enable asset balances tracking
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&SaleTaxConfigUpdates {
+        params: to_json_binary(&SaleTaxConfigUpdates {
             track_asset_balances: Some(true),
             ..Default::default()
         })
@@ -1166,7 +1170,7 @@ fn asset_balances_tracking_works_correctly() {
         ],
         pair_type: PairType::Custom(env!("CARGO_PKG_NAME").to_string()),
         init_params: Some(
-            to_binary(&SaleTaxInitParams {
+            to_json_binary(&SaleTaxInitParams {
                 track_asset_balances: true,
                 tax_configs: TaxConfigsUnchecked::new(),
                 tax_config_admin: "tax_config_admin".to_string(),
@@ -1229,7 +1233,7 @@ fn asset_balances_tracking_works_correctly() {
 
     // Check that enabling asset balances tracking can not be done if it is already enabled
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&SaleTaxConfigUpdates {
+        params: to_json_binary(&SaleTaxConfigUpdates {
             track_asset_balances: Some(true),
             ..Default::default()
         })
@@ -1408,7 +1412,7 @@ fn asset_balances_tracking_works_correctly() {
     let msg = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::new(500_000000),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
     };
 
     app.execute_contract(owner.clone(), lp_token_address, &msg, &[])
@@ -1499,7 +1503,7 @@ fn update_pair_config() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let pair = router
@@ -1522,14 +1526,14 @@ fn update_pair_config() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0")
         }
     );
 
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&SaleTaxConfigUpdates {
+        params: to_json_binary(&SaleTaxConfigUpdates {
             track_asset_balances: Some(true),
             ..Default::default()
         })
@@ -1557,7 +1561,7 @@ fn update_pair_config() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&SaleTaxInitParams {
+                to_json_binary(&SaleTaxInitParams {
                     track_asset_balances: true,
                     ..Default::default()
                 })
@@ -1625,7 +1629,7 @@ fn update_tax_configs() {
         ],
         token_code_id: token_contract_code_id,
         factory_addr: factory_instance.to_string(),
-        init_params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+        init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
     let pair = router
@@ -1648,7 +1652,7 @@ fn update_tax_configs() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0")
         }
@@ -1656,7 +1660,7 @@ fn update_tax_configs() {
 
     // Update tax config admin
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&SaleTaxConfigUpdates {
+        params: to_json_binary(&SaleTaxConfigUpdates {
             tax_config_admin: Some("new_admin".to_string()),
             ..Default::default()
         })
@@ -1684,7 +1688,7 @@ fn update_tax_configs() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&SaleTaxInitParams {
+                to_json_binary(&SaleTaxInitParams {
                     tax_config_admin: "new_admin".to_string(),
                     ..Default::default()
                 })
@@ -1705,7 +1709,7 @@ fn update_tax_configs() {
     )]
     .into();
     let msg = ExecuteMsg::UpdateConfig {
-        params: to_binary(&SaleTaxConfigUpdates {
+        params: to_json_binary(&SaleTaxConfigUpdates {
             tax_configs: Some(new_tax_configs.clone()),
             ..Default::default()
         })
@@ -1733,7 +1737,7 @@ fn update_tax_configs() {
         ConfigResponse {
             block_time_last: 0,
             params: Some(
-                to_binary(&SaleTaxInitParams {
+                to_json_binary(&SaleTaxInitParams {
                     tax_configs: new_tax_configs,
                     tax_config_admin: "new_admin".to_string(),
                     ..Default::default()
@@ -1875,7 +1879,7 @@ fn test_imbalanced_withdraw_is_disabled() {
     let msg_imbalance = Cw20ExecuteMsg::Send {
         contract: pair_instance.to_string(),
         amount: Uint128::from(50u8),
-        msg: to_binary(&Cw20HookMsg::WithdrawLiquidity {
+        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity {
             assets: vec![Asset {
                 info: AssetInfo::NativeToken {
                     denom: "uusd".to_string(),
@@ -1942,7 +1946,7 @@ fn test_migrate_from_standard_xyk(old_version: &str) {
         config.clone(),
         ConfigResponse {
             block_time_last: 0,
-            params: Some(to_binary(&SaleTaxInitParams::default()).unwrap()),
+            params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
             owner,
             factory_addr: config.factory_addr
         }

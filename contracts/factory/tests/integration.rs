@@ -10,6 +10,7 @@ use astroport::factory::{
 };
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
+use astroport_factory::error::ContractError;
 use cw_multi_test::{App, ContractWrapper, Executor};
 
 fn mock_app() -> App {
@@ -44,6 +45,7 @@ fn proper_initialization() {
         maker_fee_bps: 10,
         is_disabled: false,
         is_generator_disabled: false,
+        permissioned: false,
     }];
 
     let msg = InstantiateMsg {
@@ -202,6 +204,7 @@ fn test_create_pair() {
                 maker_fee_bps: 40,
                 is_disabled: true,
                 is_generator_disabled: false,
+                permissioned: false,
             },
         },
         &[],
@@ -353,4 +356,38 @@ fn check_update_owner() {
     let res: ConfigResponse = app.wrap().query_wasm_smart(&helper.factory, &msg).unwrap();
 
     assert_eq!(res.owner, new_owner)
+}
+
+#[test]
+fn test_create_permissioned_pair() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let token1 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenX", None);
+    let token2 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenY", None);
+
+    let err = helper
+        .create_pair(
+            &mut app,
+            &Addr::unchecked("random_stranger"),
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap();
 }

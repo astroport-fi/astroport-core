@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Empty, Env, IbcMsg, IbcQuery,
+    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Empty, Env, IbcMsg, IbcQuery,
     RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128, VerificationError,
 };
 use cw20::MinterResponse;
@@ -286,6 +286,7 @@ impl Helper {
                             maker_fee_bps: 0,
                             is_disabled: false,
                             is_generator_disabled: false,
+                            permissioned: false,
                         },
                         PairConfig {
                             code_id: pair_stable_code,
@@ -294,6 +295,7 @@ impl Helper {
                             maker_fee_bps: 0,
                             is_disabled: false,
                             is_generator_disabled: false,
+                            permissioned: false,
                         },
                     ],
                     token_code_id,
@@ -396,7 +398,7 @@ impl Helper {
                 &cw20::Cw20ExecuteMsg::Send {
                     contract: self.generator.to_string(),
                     amount: lp_asset.amount,
-                    msg: to_binary(&ExecuteMsg::Deposit { recipient: None }).unwrap(),
+                    msg: to_json_binary(&ExecuteMsg::Deposit { recipient: None }).unwrap(),
                 },
                 &[],
             ),
@@ -932,7 +934,7 @@ impl Helper {
                     pair_type: PairType::Stable {},
                     asset_infos: asset_infos.clone(),
                     init_params: Some(
-                        to_binary(&StablePoolParams {
+                        to_json_binary(&StablePoolParams {
                             amp: 10,
                             owner: None,
                         })

@@ -70,14 +70,26 @@ impl FactoryHelper {
         let factory_code_id = router.store_code(factory_contract);
 
         let msg = astroport::factory::InstantiateMsg {
-            pair_configs: vec![PairConfig {
-                code_id: pair_code_id,
-                pair_type: PairType::Xyk {},
-                total_fee_bps: 100,
-                maker_fee_bps: 10,
-                is_disabled: false,
-                is_generator_disabled: false,
-            }],
+            pair_configs: vec![
+                PairConfig {
+                    code_id: pair_code_id,
+                    pair_type: PairType::Xyk {},
+                    total_fee_bps: 100,
+                    maker_fee_bps: 10,
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: false,
+                },
+                PairConfig {
+                    code_id: pair_code_id,
+                    pair_type: PairType::Custom("transmuter".to_string()),
+                    total_fee_bps: 0,
+                    maker_fee_bps: 0,
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: true,
+                },
+            ],
             token_code_id: cw20_token_code_id,
             fee_address: None,
             generator_address: None,

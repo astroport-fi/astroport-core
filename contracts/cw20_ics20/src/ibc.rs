@@ -1,6 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    attr, entry_point, from_json, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
     IbcBasicResponse, IbcChannel, IbcChannelCloseMsg, IbcChannelConnectMsg, IbcChannelOpenMsg,
     IbcEndpoint, IbcOrder, IbcPacket, IbcPacketAckMsg, IbcPacketReceiveMsg, IbcPacketTimeoutMsg,
     IbcReceiveResponse, Reply, Response, SubMsg, SubMsgResult, Uint128, WasmMsg,
@@ -75,13 +75,13 @@ pub enum Ics20Ack {
 // create a serialized success message
 fn ack_success() -> Binary {
     let res = Ics20Ack::Result(b"1".into());
-    to_binary(&res).unwrap()
+    to_json_binary(&res).unwrap()
 }
 
 // create a serialized error message
 fn ack_fail(err: String) -> Binary {
     let res = Ics20Ack::Error(err);
-    to_binary(&res).unwrap()
+    to_json_binary(&res).unwrap()
 }
 
 const RECEIVE_ID: u64 = 1337;
@@ -240,7 +240,7 @@ fn do_ibc_packet_receive(
     deps: DepsMut,
     packet: &IbcPacket,
 ) -> Result<IbcReceiveResponse, ContractError> {
-    let msg: Ics20Packet = from_binary(&packet.data)?;
+    let msg: Ics20Packet = from_json(&packet.data)?;
     let channel = packet.dest.channel_id.clone();
 
     // If the token originated on the remote chain, it looks like "ucosm".
@@ -280,7 +280,7 @@ fn do_ibc_packet_receive(
                 let msg = Cw20ExecuteMsg::Send {
                     contract: hook_contract.to_string(),
                     amount: coin.amount,
-                    msg: to_binary(&Cw20HookMsg::OutpostMemo {
+                    msg: to_json_binary(&Cw20HookMsg::OutpostMemo {
                         // The channel this packet was received on
                         channel: packet.dest.channel_id.clone(),
                         // Original sender from Outpost
@@ -293,7 +293,7 @@ fn do_ibc_packet_receive(
 
                 Ok(WasmMsg::Execute {
                     contract_addr: coin.address,
-                    msg: to_binary(&msg).unwrap(),
+                    msg: to_json_binary(&msg).unwrap(),
                     funds: vec![],
                 }
                 .into())
@@ -355,7 +355,7 @@ pub fn ibc_packet_ack(
     // Design decision: should we trap error like in receive?
     // TODO: unsure... as it is now a failed ack handling would revert the tx and would be
     // retried again and again. is that good?
-    let ics20msg: Ics20Ack = from_binary(&msg.acknowledgement.data)?;
+    let ics20msg: Ics20Ack = from_json(&msg.acknowledgement.data)?;
     match ics20msg {
         Ics20Ack::Result(_) => on_packet_success(deps, msg.original_packet),
         Ics20Ack::Error(err) => on_packet_failure(deps, msg.original_packet, err),
@@ -376,7 +376,7 @@ pub fn ibc_packet_timeout(
 
 // update the balance stored on this (channel, denom) index
 fn on_packet_success(_deps: DepsMut, packet: IbcPacket) -> Result<IbcBasicResponse, ContractError> {
-    let msg: Ics20Packet = from_binary(&packet.data)?;
+    let msg: Ics20Packet = from_json(&packet.data)?;
 
     // similar event messages like ibctransfer module
     let attributes = vec![
@@ -397,7 +397,7 @@ fn on_packet_failure(
     packet: IbcPacket,
     err: String,
 ) -> Result<IbcBasicResponse, ContractError> {
-    let ics_msg: Ics20Packet = from_binary(&packet.data)?;
+    let ics_msg: Ics20Packet = from_json(&packet.data)?;
 
     // undo the balance update on failure (as we pre-emptively added it on send)
     reduce_channel_balance(
@@ -426,14 +426,14 @@ fn on_packet_failure(
                     let cw20_msg = Cw20ExecuteMsg::Send {
                         contract: hook_addr.to_string(),
                         amount: coin.amount,
-                        msg: to_binary(&Cw20HookMsg::TransferFailure {
+                        msg: to_json_binary(&Cw20HookMsg::TransferFailure {
                             receiver: ics_msg.receiver.clone(),
                         })?,
                     };
 
                     Ok(WasmMsg::Execute {
                         contract_addr: coin.address,
-                        msg: to_binary(&cw20_msg)?,
+                        msg: to_json_binary(&cw20_msg)?,
                         funds: vec![],
                     }
                     .into())
@@ -478,7 +478,7 @@ fn send_amount(amount: Amount, recipient: String) -> CosmosMsg {
             };
             WasmMsg::Execute {
                 contract_addr: coin.address,
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
                 funds: vec![],
             }
             .into()
@@ -539,7 +539,7 @@ mod test {
         };
         let exec = WasmMsg::Execute {
             contract_addr: address.into(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
             funds: vec![],
         };
         let mut msg = SubMsg::reply_on_error(exec, RECEIVE_ID);
@@ -574,7 +574,7 @@ mod test {
         };
         print!("Packet denom: {}", &data.denom);
         IbcPacket::new(
-            to_binary(&data).unwrap(),
+            to_json_binary(&data).unwrap(),
             IbcEndpoint {
                 port_id: REMOTE_PORT.to_string(),
                 channel_id: "channel-1234".to_string(),
@@ -609,7 +609,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         let no_funds = Ics20Ack::Error(ContractError::InsufficientFunds {}.to_string());
         assert_eq!(ack, no_funds);
 
@@ -623,7 +623,7 @@ mod test {
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "local-sender".to_string(),
             amount: Uint128::new(987654321),
-            msg: to_binary(&transfer).unwrap(),
+            msg: to_json_binary(&transfer).unwrap(),
         });
         let info = mock_info(cw20_addr, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -640,7 +640,7 @@ mod test {
             &res.messages[0],
             &SubMsg::new(IbcMsg::SendPacket {
                 channel_id: send_channel.to_string(),
-                data: to_binary(&expected).unwrap(),
+                data: to_json_binary(&expected).unwrap(),
                 timeout: IbcTimeout::with_timestamp(timeout),
             })
         );
@@ -654,7 +654,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
@@ -665,7 +665,7 @@ mod test {
             cw20_payment(876543210, cw20_addr, "local-rcpt", Some(gas_limit)),
             res.messages[0]
         );
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert!(matches!(ack, Ics20Ack::Result(_)));
 
         // TODO: we need to call the reply block
@@ -704,7 +704,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         let no_funds = Ics20Ack::Error(ContractError::InsufficientFunds {}.to_string());
         assert_eq!(ack, no_funds);
 
@@ -718,7 +718,7 @@ mod test {
         let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
             sender: "local-sender".to_string(),
             amount: Uint128::new(987654321),
-            msg: to_binary(&transfer).unwrap(),
+            msg: to_json_binary(&transfer).unwrap(),
         });
         let info = mock_info(cw20_addr, &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -735,7 +735,7 @@ mod test {
             &res.messages[0],
             &SubMsg::new(IbcMsg::SendPacket {
                 channel_id: send_channel.to_string(),
-                data: to_binary(&expected).unwrap(),
+                data: to_json_binary(&expected).unwrap(),
                 timeout: IbcTimeout::with_timestamp(timeout),
             })
         );
@@ -749,7 +749,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // We can receive less than we sent, but if a memo is set without a handler, we fail
@@ -758,7 +758,7 @@ mod test {
 
         // No messages should be sent
         assert_eq!(0, res.messages.len());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         // We should get an error because no handler is set
         assert!(matches!(ack, Ics20Ack::Error(_)));
 
@@ -785,7 +785,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         let no_funds = Ics20Ack::Error(ContractError::InsufficientFunds {}.to_string());
         assert_eq!(ack, no_funds);
 
@@ -808,7 +808,7 @@ mod test {
         let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
@@ -819,7 +819,7 @@ mod test {
             native_payment(876543210, denom, "local-rcpt"),
             res.messages[0]
         );
-        let ack: Ics20Ack = from_binary(&res.acknowledgement).unwrap();
+        let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert!(matches!(ack, Ics20Ack::Result(_)));
 
         // only need to call reply block on error case

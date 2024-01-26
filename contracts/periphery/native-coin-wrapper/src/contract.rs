@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, wasm_execute, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps,
+    attr, from_json, to_json_binary, wasm_execute, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, WasmMsg,
 };
@@ -48,7 +48,7 @@ pub fn instantiate(
         msg: WasmMsg::Instantiate {
             admin: Some(info.sender.to_string()),
             code_id: msg.token_code_id,
-            msg: to_binary(&TokenInstantiateMsg {
+            msg: to_json_binary(&TokenInstantiateMsg {
                 name: format!("CW20-wrapped {}", token_name),
                 symbol: token_symbol.to_uppercase(),
                 decimals: msg.token_decimals,
@@ -152,7 +152,7 @@ pub(crate) fn receive_cw20(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Unwrap {} => {
             // Permission check
             if info.sender != config.token {
@@ -162,7 +162,7 @@ pub(crate) fn receive_cw20(
             Ok(Response::new()
                 .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: config.token.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn {
+                    msg: to_json_binary(&Cw20ExecuteMsg::Burn {
                         amount: cw20_msg.amount,
                     })?,
                     funds: vec![],
@@ -181,6 +181,6 @@ pub(crate) fn receive_cw20(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
     }
 }

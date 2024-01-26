@@ -1,7 +1,7 @@
 #![cfg(not(tarpaulin_include))]
 
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, BalanceResponse as NativeBalanceResponse, BankQuery, Coin,
+    attr, coin, to_json_binary, Addr, BalanceResponse as NativeBalanceResponse, BankQuery, Coin,
     QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse, TokenInfoResponse};
@@ -23,7 +23,7 @@ fn check_balance(app: &mut App, user: Addr, asset_info: &AssetInfo) -> Uint128 {
             let res: Result<BalanceResponse, _> =
                 app.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
                     contract_addr: contract_addr.to_string(),
-                    msg: to_binary(&Cw20QueryMsg::Balance {
+                    msg: to_json_binary(&Cw20QueryMsg::Balance {
                         address: user.to_string(),
                     })
                     .unwrap(),
@@ -209,7 +209,7 @@ fn check_wrap_and_unwrap() {
         .wrap()
         .query::<Config>(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: native_wrapper_instance.to_string(),
-            msg: to_binary(&QueryMsg::Config {}).unwrap(),
+            msg: to_json_binary(&QueryMsg::Config {}).unwrap(),
         }))
         .unwrap();
     let wrapped_cw20_native_token = token_asset_info(res.token);
@@ -248,7 +248,7 @@ fn check_wrap_and_unwrap() {
             Addr::unchecked(wrapped_cw20_native_token.to_string()),
             &Cw20ExecuteMsg::Send {
                 contract: native_wrapper_instance.to_string(),
-                msg: to_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
+                msg: to_json_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
                 amount: Uint128::from(10u128),
             },
             &[],
@@ -321,7 +321,7 @@ fn check_wrap_and_unwrap() {
             astro_token_addr.clone(),
             &Cw20ExecuteMsg::Send {
                 contract: native_wrapper_instance.to_string(),
-                msg: to_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
+                msg: to_json_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
                 amount: Uint128::from(10u128),
             },
             &[],
@@ -335,7 +335,7 @@ fn check_wrap_and_unwrap() {
         Addr::unchecked(wrapped_cw20_native_token.to_string()),
         &Cw20ExecuteMsg::Send {
             contract: native_wrapper_instance.to_string(),
-            msg: to_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::Unwrap {}).unwrap(),
             amount: Uint128::from(10u128),
         },
         &[],
