@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    from_binary, to_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, Reply, ReplyOn,
+    from_json, to_json_binary, wasm_execute, Addr, DepsMut, Env, MessageInfo, Reply, ReplyOn,
     Response, StdError, StdResult, SubMsg, Uint128,
 };
 use cw20::{Cw20ExecuteMsg, Expiration};
@@ -55,7 +55,7 @@ pub fn execute(
             let pair_addr = deps.api.addr_validate(&pair_addr)?;
             provide_liquidity(deps, info, env, pair_addr, msg, min_lp_to_receive)
         }
-        ExecuteMsg::Receive(cw20_msg) => match from_binary(&cw20_msg.msg)? {
+        ExecuteMsg::Receive(cw20_msg) => match from_json(&cw20_msg.msg)? {
             Cw20HookMsg::WithdrawLiquidity {
                 pair_msg: msg,
                 min_assets_to_receive,
@@ -372,7 +372,7 @@ fn withdraw_liquidity(
         &Cw20ExecuteMsg::Send {
             contract: pair_addr.to_string(),
             amount,
-            msg: to_binary(&inner_msg)?,
+            msg: to_json_binary(&inner_msg)?,
         },
         vec![],
     )?;

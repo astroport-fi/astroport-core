@@ -67,10 +67,18 @@ pub struct PairConfig {
     pub maker_fee_bps: u16,
     /// Whether a pair type is disabled or not. If it is disabled, new pairs cannot be
     /// created, but existing ones can still read the pair configuration
+    /// Default is false.
+    #[serde(default)]
     pub is_disabled: bool,
     /// Setting this to true means that pairs of this type will not be able
     /// to get an ASTRO generator
+    /// Default is false.
+    #[serde(default)]
     pub is_generator_disabled: bool,
+    /// If pool type is permissioned, only factory owner can create pairs of this type.
+    /// Default is false.
+    #[serde(default)]
+    pub permissioned: bool,
 }
 
 impl PairConfig {
@@ -197,12 +205,6 @@ pub struct ConfigResponse {
     pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins and their accuracy
     pub coin_registry_address: Addr,
-}
-
-/// This structure stores the parameters used in a migration message.
-#[cw_serde]
-pub struct MigrateMsg {
-    pub params: Binary,
 }
 
 /// A custom struct for each query response that returns an array of objects of type [`PairInfo`].

@@ -10,7 +10,7 @@ use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_pair_info;
 
 use cosmwasm_std::{
-    entry_point, to_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
+    entry_point, to_json_binary, Binary, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
     StdError, StdResult, Uint128, Uint256,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -129,7 +129,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Consult { token, amount } => to_binary(&consult(deps, token, amount)?),
+        QueryMsg::Consult { token, amount } => to_json_binary(&consult(deps, token, amount)?),
     }
 }
 

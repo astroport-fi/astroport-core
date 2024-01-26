@@ -1,6 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{ensure, to_binary, Binary, Deps, Env, Order, StdError, StdResult, Uint128};
+use cosmwasm_std::{
+    ensure, to_json_binary, Binary, Deps, Env, Order, StdError, StdResult, Uint128,
+};
 use cw_storage_plus::Bound;
 use itertools::Itertools;
 
@@ -16,28 +18,30 @@ use crate::utils::{asset_info_key, from_key_to_asset_info};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&CONFIG.load(deps.storage)?)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?)?),
         QueryMsg::Deposit { lp_token, user } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
             let user_addr = deps.api.addr_validate(&user)?;
-            let amount = UserInfo::load_position(deps.storage, &user_addr, &lp_asset)?.amount;
-            Ok(to_binary(&amount)?)
+            let amount = UserInfo::may_load_position(deps.storage, &user_addr, &lp_asset)?
+                .map(|maybe_pos| maybe_pos.amount)
+                .unwrap_or_default();
+            Ok(to_json_binary(&amount)?)
         }
-        QueryMsg::PendingRewards { lp_token, user } => Ok(to_binary(&query_pending_rewards(
+        QueryMsg::PendingRewards { lp_token, user } => Ok(to_json_binary(&query_pending_rewards(
             deps, env, user, lp_token,
         )?)?),
         QueryMsg::RewardInfo { lp_token } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
             let mut pool_info = PoolInfo::load(deps.storage, &lp_asset)?;
             pool_info.update_rewards(deps.storage, &env, &lp_asset)?;
-            Ok(to_binary(&pool_info.rewards)?)
+            Ok(to_json_binary(&pool_info.rewards)?)
         }
-        QueryMsg::BlockedTokensList { start_after, limit } => {
-            Ok(to_binary(&query_blocked_tokens(deps, start_after, limit)?)?)
-        }
+        QueryMsg::BlockedTokensList { start_after, limit } => Ok(to_json_binary(
+            &query_blocked_tokens(deps, start_after, limit)?,
+        )?),
         QueryMsg::PoolInfo { lp_token } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
-            Ok(to_binary(
+            Ok(to_json_binary(
                 &PoolInfo::load(deps.storage, &lp_asset)?.into_response(),
             )?)
         }
@@ -51,7 +55,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
                 .map(|addr| deps.api.addr_validate(&addr))
                 .transpose()?;
             let stakers = list_pool_stakers(deps.storage, &lp_asset, start_after, limit)?;
-            Ok(to_binary(&stakers)?)
+            Ok(to_json_binary(&stakers)?)
         }
         QueryMsg::IsFeeExpected { lp_token, reward } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
@@ -74,14 +78,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
                 .transpose()?
                 .unwrap_or(true);
 
-            Ok(to_binary(&is_fee_expected)?)
+            Ok(to_json_binary(&is_fee_expected)?)
         }
         QueryMsg::ExternalRewardSchedules {
             reward,
             lp_token,
             start_after,
             limit,
-        } => Ok(to_binary(&query_external_reward_schedules(
+        } => Ok(to_json_binary(&query_external_reward_schedules(
             deps,
             env,
             reward,

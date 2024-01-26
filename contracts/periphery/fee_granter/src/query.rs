@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_binary, Binary, Deps, Env, Order, StdResult};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult};
 use cw_storage_plus::Bound;
 
 use crate::state::{CONFIG, GRANTS};
@@ -12,11 +12,13 @@ const DEFAULT_LIMIT: u32 = 50;
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::GrantsList { start_after, limit } => {
-            to_binary(&list_grants(deps, start_after, limit)?)
+            to_json_binary(&list_grants(deps, start_after, limit)?)
         }
-        QueryMsg::GrantFor { grantee_contract } => to_binary(&grant_for(deps, grantee_contract)?),
+        QueryMsg::GrantFor { grantee_contract } => {
+            to_json_binary(&grant_for(deps, grantee_contract)?)
+        }
     }
 }
 
@@ -59,7 +61,7 @@ mod unit_tests {
     use crate::contract::{execute, instantiate};
     use astroport::fee_granter::{Config, ExecuteMsg, InstantiateMsg};
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Addr, Uint128};
+    use cosmwasm_std::{coins, from_json, Addr, Uint128};
 
     const GAS_DENOM: &str = "inj";
 
@@ -93,7 +95,7 @@ mod unit_tests {
         execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
         let resp = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-        let config: Config = from_binary(&resp).unwrap();
+        let config: Config = from_json(&resp).unwrap();
 
         assert_eq!(
             config,
@@ -112,7 +114,7 @@ mod unit_tests {
             },
         )
         .unwrap();
-        let config: GrantResponse = from_binary(&resp).unwrap();
+        let config: GrantResponse = from_json(&resp).unwrap();
         assert_eq!(
             config,
             GrantResponse {
@@ -129,7 +131,7 @@ mod unit_tests {
             },
         )
         .unwrap();
-        let config: GrantResponse = from_binary(&resp).unwrap();
+        let config: GrantResponse = from_json(&resp).unwrap();
         assert_eq!(
             config,
             GrantResponse {
@@ -147,7 +149,7 @@ mod unit_tests {
             },
         )
         .unwrap();
-        let config: Vec<GrantResponse> = from_binary(&resp).unwrap();
+        let config: Vec<GrantResponse> = from_json(&resp).unwrap();
         assert_eq!(
             config,
             [GrantResponse {
@@ -165,7 +167,7 @@ mod unit_tests {
             },
         )
         .unwrap();
-        let config: Vec<GrantResponse> = from_binary(&resp).unwrap();
+        let config: Vec<GrantResponse> = from_json(&resp).unwrap();
         assert_eq!(
             config,
             [GrantResponse {
@@ -183,7 +185,7 @@ mod unit_tests {
             },
         )
         .unwrap();
-        let config: Vec<GrantResponse> = from_binary(&resp).unwrap();
+        let config: Vec<GrantResponse> = from_json(&resp).unwrap();
         assert_eq!(
             config,
             [

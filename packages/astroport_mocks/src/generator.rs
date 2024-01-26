@@ -9,7 +9,7 @@ use astroport::{
         Cw20HookMsg as VestingCw20HookMsg, VestingAccount, VestingSchedule, VestingSchedulePoint,
     },
 };
-use cosmwasm_std::{to_binary, Addr, Api, CustomQuery, Storage, Uint128};
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Storage, Uint128};
 use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
@@ -131,7 +131,7 @@ where
                 &Cw20ExecuteMsg::Send {
                     contract: vesting.address.to_string(),
                     amount: Uint128::new(1_000_000_000_000),
-                    msg: to_binary(&VestingCw20HookMsg::RegisterVestingAccounts {
+                    msg: to_json_binary(&VestingCw20HookMsg::RegisterVestingAccounts {
                         vesting_accounts: vec![VestingAccount {
                             address: address.to_string(),
                             schedules: vec![VestingSchedule {

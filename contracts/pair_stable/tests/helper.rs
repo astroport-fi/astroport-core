@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
 use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
-use cosmwasm_std::{coin, to_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
+use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
 use itertools::Itertools;
@@ -188,6 +188,7 @@ impl Helper {
                 pair_type: PairType::Stable {},
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id,
             generator_address: None,
@@ -213,7 +214,7 @@ impl Helper {
         let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
             pair_type: PairType::Stable {},
             asset_infos: asset_infos.clone(),
-            init_params: Some(to_binary(&StablePoolParams { amp, owner: None }).unwrap()),
+            init_params: Some(to_json_binary(&StablePoolParams { amp, owner: None }).unwrap()),
         };
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
@@ -239,7 +240,7 @@ impl Helper {
             assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
 
         let msg = ExecuteMsg::ProvideLiquidity {
-            assets: assets.clone().to_vec(),
+            assets: assets.to_vec(),
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
@@ -258,7 +259,7 @@ impl Helper {
         let msg = Cw20ExecuteMsg::Send {
             contract: self.pair_addr.to_string(),
             amount: Uint128::from(amount),
-            msg: to_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
+            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
         };
 
         self.app
@@ -276,7 +277,7 @@ impl Helper {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&Cw20HookMsg::Swap {
+                    msg: to_json_binary(&Cw20HookMsg::Swap {
                         ask_asset_info,
                         belief_price: None,
                         max_spread: None,

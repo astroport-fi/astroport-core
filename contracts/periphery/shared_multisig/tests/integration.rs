@@ -2,7 +2,7 @@
 
 use astroport::asset::{Asset, AssetInfo};
 use astroport::generator::PendingTokenResponse;
-use cosmwasm_std::{to_binary, Addr, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, Coin, CosmosMsg, Decimal, Uint128, WasmMsg};
 use cw20::Cw20ExecuteMsg;
 use cw3::{Status, Vote, VoteInfo, VoteListResponse, VoteResponse};
 use cw_utils::{Duration, ThresholdResponse};
@@ -343,7 +343,7 @@ fn test_proposal() {
 
     let setup_pools_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: shared_multisig.address.to_string(),
-        msg: to_binary(&ExecuteMsg::SetupPools {
+        msg: to_json_binary(&ExecuteMsg::SetupPools {
             target_pool: None,
             migration_pool: Some(pcl.address.to_string()),
         })
@@ -1685,7 +1685,7 @@ fn test_transfer_lp_tokens() {
     let lp_transfer_amount = Uint128::new(10_000_000);
     let transfer_lp_msg = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: pcl_pair_info.liquidity_token.to_string(),
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: recipient.to_string(),
             amount: lp_transfer_amount,
         })

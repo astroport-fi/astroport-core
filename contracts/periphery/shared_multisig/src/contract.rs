@@ -3,7 +3,7 @@ use std::cmp::Ordering;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, BlockInfo, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, to_json_binary, BankMsg, Binary, BlockInfo, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Order, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -301,10 +301,10 @@ pub fn deposit_generator(
     Ok(Response::new()
         .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: lp_token.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Send {
+            msg: to_json_binary(&Cw20ExecuteMsg::Send {
                 contract: cfg.generator_addr.to_string(),
                 amount: deposit_amount,
-                msg: to_binary(&Cw20HookMsg::Deposit {})?,
+                msg: to_json_binary(&Cw20HookMsg::Deposit {})?,
             })?,
             funds: vec![],
         }))
@@ -320,7 +320,7 @@ pub fn claim_generator_rewards(deps: DepsMut) -> Result<Response, ContractError>
     Ok(Response::new()
         .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.generator_addr.to_string(),
-            msg: to_binary(&GeneratorExecuteMsg::ClaimRewards {
+            msg: to_json_binary(&GeneratorExecuteMsg::ClaimRewards {
                 lp_tokens: vec![lp_token.to_string()],
             })?,
             funds: vec![],
@@ -371,7 +371,7 @@ pub fn withdraw_generator(
     Ok(Response::new()
         .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.generator_addr.to_string(),
-            msg: to_binary(&GeneratorExecuteMsg::Withdraw {
+            msg: to_json_binary(&GeneratorExecuteMsg::Withdraw {
                 lp_token: lp_token.to_string(),
                 amount: burn_amount,
             })?,
@@ -555,7 +555,7 @@ fn transfer(
 
             CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient: recipient.clone(),
                     amount: asset.amount,
                 })?,
@@ -937,17 +937,21 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
-        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
+        QueryMsg::Proposal { proposal_id } => {
+            to_json_binary(&query_proposal(deps, env, proposal_id)?)
+        }
+        QueryMsg::Vote { proposal_id, voter } => {
+            to_json_binary(&query_vote(deps, proposal_id, voter)?)
+        }
         QueryMsg::ListProposals { start_after, limit } => {
-            to_binary(&list_proposals(deps, env, start_after, limit)?)
+            to_json_binary(&list_proposals(deps, env, start_after, limit)?)
         }
         QueryMsg::ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
-        QueryMsg::ListVotes { proposal_id } => to_binary(&list_votes(deps, proposal_id)?),
+        } => to_json_binary(&reverse_proposals(deps, env, start_before, limit)?),
+        QueryMsg::ListVotes { proposal_id } => to_json_binary(&list_votes(deps, proposal_id)?),
     }
 }
 

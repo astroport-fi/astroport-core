@@ -9,7 +9,7 @@ use astroport::pair::{
 use astroport::pair_bonded::{Config, ExecuteMsg, QueryMsg};
 use astroport::querier::query_factory_config;
 use cosmwasm_std::{
-    from_binary, to_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    from_json, to_json_binary, Addr, Binary, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
     StdResult, Uint128,
 };
 use cw2::set_contract_version;
@@ -139,17 +139,19 @@ pub trait PairBonded<'a> {
     /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
     fn query(&self, deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         match msg {
-            QueryMsg::Pair {} => to_binary(&self.query_pair_info(deps)?),
-            QueryMsg::Pool {} => to_binary(&self.query_pool(deps)?),
-            QueryMsg::Share { .. } => to_binary(&Vec::<Asset>::new()),
+            QueryMsg::Pair {} => to_json_binary(&self.query_pair_info(deps)?),
+            QueryMsg::Pool {} => to_json_binary(&self.query_pool(deps)?),
+            QueryMsg::Share { .. } => to_json_binary(&Vec::<Asset>::new()),
             QueryMsg::Simulation { offer_asset } => {
-                to_binary(&self.query_simulation(deps, env, offer_asset)?)
+                to_json_binary(&self.query_simulation(deps, env, offer_asset)?)
             }
             QueryMsg::ReverseSimulation { ask_asset } => {
-                to_binary(&self.query_reverse_simulation(deps, env, ask_asset)?)
+                to_json_binary(&self.query_reverse_simulation(deps, env, ask_asset)?)
             }
-            QueryMsg::CumulativePrices {} => to_binary(&self.query_cumulative_prices(deps, env)?),
-            QueryMsg::Config {} => to_binary(&self.query_config(deps)?),
+            QueryMsg::CumulativePrices {} => {
+                to_json_binary(&self.query_cumulative_prices(deps, env)?)
+            }
+            QueryMsg::Config {} => to_json_binary(&self.query_config(deps)?),
         }
     }
 
@@ -163,7 +165,7 @@ pub trait PairBonded<'a> {
         info: MessageInfo,
         cw20_msg: Cw20ReceiveMsg,
     ) -> Result<Response, ContractError> {
-        match from_binary(&cw20_msg.msg)? {
+        match from_json(&cw20_msg.msg)? {
             Cw20HookMsg::Swap {
                 belief_price,
                 max_spread,

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::asset::{validate_native_denom, AssetInfo};
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{from_binary, Addr, Api, Binary, Decimal, StdError, StdResult};
+use cosmwasm_std::{from_json, Addr, Api, Binary, Decimal, StdError, StdResult};
 
 #[cw_serde]
 pub struct TaxConfig<T> {
@@ -173,9 +173,9 @@ impl Default for SaleTaxInitParams {
 
 impl SaleTaxInitParams {
     /// Deserializes the params from an `Option<Binary>`.
-    pub fn from_binary(data: Option<Binary>) -> StdResult<Self> {
+    pub fn from_json(data: Option<Binary>) -> StdResult<Self> {
         data.as_ref()
-            .map(from_binary::<SaleTaxInitParams>)
+            .map(from_json::<SaleTaxInitParams>)
             .transpose()?
             .ok_or_else(|| StdError::generic_err("Missing Init params"))
     }

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, from_binary, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    attr, ensure, from_json, Addr, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
     Uint128,
 };
 use cw_utils::one_coin;
@@ -72,7 +72,7 @@ pub fn execute(
         }
         ExecuteMsg::Receive(cw20msg) => {
             let maybe_lp = Asset::cw20(info.sender, cw20msg.amount);
-            let recipient = match from_binary(&cw20msg.msg)? {
+            let recipient = match from_json(&cw20msg.msg)? {
                 Cw20Msg::Deposit { recipient } => recipient,
                 Cw20Msg::DepositFor(recipient) => Some(recipient),
             };

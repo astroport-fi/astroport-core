@@ -1,6 +1,6 @@
 use crate::asset::Asset;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{from_slice, Addr, CosmosMsg, Decimal, Empty, StdResult, Uint128};
+use cosmwasm_std::{from_json, Addr, CosmosMsg, Decimal, Empty, StdResult, Uint128};
 use cw3::Vote;
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::{Duration, Expiration, Threshold, ThresholdResponse};
@@ -132,7 +132,7 @@ impl KeyDeserialize for &MultisigRole {
 
     #[inline(always)]
     fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        from_slice(&value)
+        from_json(value)
     }
 }
 
