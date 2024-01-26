@@ -41,7 +41,7 @@ pub enum ContractError {
     #[error("CW20 tokens are not supported")]
     Cw20TokenNotSupported {},
 
-    #[error("At least 2 assets are required")]
+    #[error("Pool supports from 2 to 5 assets")]
     InvalidAssetLength {},
 
     #[error("Insufficient pool {asset} balance. Want: {want}, available: {available}")]

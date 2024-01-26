@@ -37,7 +37,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     ensure!(
-        msg.asset_infos.len() > 1,
+        msg.asset_infos.len() > 1 && msg.asset_infos.len() <= 5,
         ContractError::InvalidAssetLength {}
     );
     check_asset_infos(deps.api, &msg.asset_infos)?;
@@ -121,8 +121,18 @@ pub fn execute(
     match msg {
         ExecuteMsg::Receive(cw20msg) => receive_cw20(deps, info, cw20msg),
         ExecuteMsg::ProvideLiquidity {
-            assets, receiver, ..
-        } => provide_liquidity(deps, info, assets, receiver),
+            assets,
+            auto_stake,
+            receiver,
+            ..
+        } => {
+            ensure!(
+                auto_stake.is_none() || matches!(auto_stake, Some(false)),
+                StdError::generic_err("Auto stake is not supported")
+            );
+
+            provide_liquidity(deps, info, assets, receiver)
+        }
         ExecuteMsg::Swap {
             offer_asset,
             to,
@@ -233,6 +243,7 @@ pub fn withdraw_liquidity(
     let send_msgs = refund_assets
         .clone()
         .into_iter()
+        .filter(|asset| !asset.amount.is_zero())
         .map(|asset| asset.into_msg(&sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.extend(send_msgs);

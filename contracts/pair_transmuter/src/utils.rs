@@ -1,4 +1,4 @@
-use cosmwasm_std::{Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{ensure, Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
@@ -59,6 +59,15 @@ pub fn assert_and_swap(
     ask_asset_info: Option<AssetInfo>,
 ) -> Result<(Asset, AssetInfo), ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    ensure!(
+        config
+            .pair_info
+            .asset_infos
+            .iter()
+            .contains(&offer_asset.info),
+        ContractError::InvalidAsset(offer_asset.info.to_string())
+    );
 
     let pools = config
         .pair_info
