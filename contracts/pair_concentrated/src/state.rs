@@ -228,14 +228,18 @@ impl PoolState {
         let cur_amp_gamma = self.get_amp_gamma(env);
 
         // Validate amp and gamma values are being changed by <= 1000%
-        let zero = Decimal::zero();
-        if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(zero) > MAX_CHANGE {
+        if cur_amp_gamma.amp.max(next_amp_gamma.amp) / cur_amp_gamma.amp.min(next_amp_gamma.amp)
+            > MAX_CHANGE
+        {
             return Err(ContractError::MaxChangeAssertion(
                 "Amp".to_string(),
                 MAX_CHANGE,
             ));
         }
-        if (next_amp_gamma.gamma / cur_amp_gamma.gamma).diff(zero) > MAX_CHANGE {
+        if cur_amp_gamma.gamma.max(next_amp_gamma.gamma)
+            / cur_amp_gamma.gamma.min(next_amp_gamma.gamma)
+            > MAX_CHANGE
+        {
             return Err(ContractError::MaxChangeAssertion(
                 "Gamma".to_string(),
                 MAX_CHANGE,
@@ -566,6 +570,7 @@ mod test {
 
         // Amp param validation should fail trying to update a value bigger than MAX_CHANGE
 
+        // Increasing Amp exceding MAX_CHANGE
         let promote_params = PromoteParams {
             next_amp: f64_to_dec(10500_f64),
             next_gamma: f64_to_dec(0.000000106_f64),
@@ -578,8 +583,22 @@ mod test {
             ContractError::MaxChangeAssertion("Amp".to_string(), MAX_CHANGE)
         );
 
+        // Decreasing Amp exceding MAX_CHANGE
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(11_f64),
+            next_gamma: f64_to_dec(0.000000106_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::MaxChangeAssertion("Amp".to_string(), MAX_CHANGE)
+        );
+
         // Gamma param validation should fail trying to update a value bigger than MAX_CHANGE
 
+        // Increasing Gamma exceeding MAX_CHANGE
         let promote_params = PromoteParams {
             next_amp: f64_to_dec(118_f64),
             next_gamma: f64_to_dec(0.000010106_f64),
@@ -591,6 +610,36 @@ mod test {
             err,
             ContractError::MaxChangeAssertion("Gamma".to_string(), MAX_CHANGE)
         );
+
+        // Decreasing Gamma exceding MAX_CHANGE
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(118_f64),
+            next_gamma: f64_to_dec(0.000000010_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::MaxChangeAssertion("Gamma".to_string(), MAX_CHANGE)
+        );
+
+        // Make sure we could increase the params below MAX_CHANGE
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(1180_f64),
+            next_gamma: f64_to_dec(0.000001060_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+
+        state.promote_params(&env, promote_params).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(100_000);
+
+        let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
+        assert_eq!(amp, f64_to_dec(1180_f64));
+        assert_eq!(gamma, f64_to_dec(0.000001060_f64));
 
         // Make sure we could increase the params below MAX_CHANGE
 
