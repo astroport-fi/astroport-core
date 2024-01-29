@@ -227,7 +227,7 @@ impl PoolState {
         // Calculate current amp and gamma
         let cur_amp_gamma = self.get_amp_gamma(env);
 
-        // Validate amp and gamma values are being changed by < 1000%
+        // Validate amp and gamma values are being changed by <= 1000%
         let zero = Decimal::zero();
         if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(zero) > MAX_CHANGE {
             return Err(ContractError::MaxChangeAssertion(
@@ -595,8 +595,8 @@ mod test {
         // Make sure we could increase the params below MAX_CHANGE
 
         let promote_params = PromoteParams {
-            next_amp: f64_to_dec(1179_f64),
-            next_gamma: f64_to_dec(0.000001059_f64),
+            next_amp: f64_to_dec(1180_f64),
+            next_gamma: f64_to_dec(0.000001060_f64),
             future_time: env.block.time.seconds() + 100_000,
         };
 
@@ -605,8 +605,8 @@ mod test {
         env.block.time = env.block.time.plus_seconds(100_000);
 
         let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
-        assert_eq!(amp, f64_to_dec(1179_f64));
-        assert_eq!(gamma, f64_to_dec(0.000001059_f64));
+        assert_eq!(amp, f64_to_dec(1180_f64));
+        assert_eq!(gamma, f64_to_dec(0.000001060_f64));
 
         let promote_params = PromoteParams {
             next_amp: f64_to_dec(500_f64),
