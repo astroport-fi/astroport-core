@@ -57,5 +57,5 @@ pub const GAMMA_MAX: Decimal = Decimal::raw(20000000000000000);
 
 /// The minimum time interval for updating Amplifier or Gamma
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
-/// The maximum allowed change of Amplifier or Gamma (10%).
-pub const MAX_CHANGE: Decimal = Decimal::raw(1e17 as u128);
+/// The maximum allowed change of Amplifier or Gamma (1000%).
+pub const MAX_CHANGE: Decimal = Decimal::raw(1e19 as u128);
