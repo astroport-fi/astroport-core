@@ -227,7 +227,7 @@ impl PoolState {
         // Calculate current amp and gamma
         let cur_amp_gamma = self.get_amp_gamma(env);
 
-        // Validate amp and gamma values are being changed by <= 10%
+        // Validate amp and gamma values are being changed by up to x10
         let one = Decimal::one();
         if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(one) > MAX_CHANGE {
             return Err(ContractError::MaxChangeAssertion(
@@ -563,6 +563,34 @@ mod test {
         let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
         assert_eq!(amp, f64_to_dec(118_f64));
         assert_eq!(gamma, f64_to_dec(0.000000106_f64));
+
+        // Amp param validation should fail trying to update a value bigger than MAX_CHANGE
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(10500_f64),
+            next_gamma: f64_to_dec(0.000000106_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::MaxChangeAssertion("Amp".to_string(), MAX_CHANGE)
+        );
+
+        // Gamma param validation should fail trying to update a value bigger than MAX_CHANGE
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(118_f64),
+            next_gamma: f64_to_dec(0.000010106_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+        let err = state.promote_params(&env, promote_params).unwrap_err();
+
+        assert_eq!(
+            err,
+            ContractError::MaxChangeAssertion("Gamma".to_string(), MAX_CHANGE)
+        );
     }
 
     #[test]
