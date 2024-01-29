@@ -227,15 +227,15 @@ impl PoolState {
         // Calculate current amp and gamma
         let cur_amp_gamma = self.get_amp_gamma(env);
 
-        // Validate amp and gamma values are being changed by up to x10
-        let one = Decimal::one();
-        if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(one) > MAX_CHANGE {
+        // Validate amp and gamma values are being changed by < 1000%
+        let zero = Decimal::zero();
+        if (next_amp_gamma.amp / cur_amp_gamma.amp).diff(zero) > MAX_CHANGE {
             return Err(ContractError::MaxChangeAssertion(
                 "Amp".to_string(),
                 MAX_CHANGE,
             ));
         }
-        if (next_amp_gamma.gamma / cur_amp_gamma.gamma).diff(one) > MAX_CHANGE {
+        if (next_amp_gamma.gamma / cur_amp_gamma.gamma).diff(zero) > MAX_CHANGE {
             return Err(ContractError::MaxChangeAssertion(
                 "Gamma".to_string(),
                 MAX_CHANGE,
@@ -591,6 +591,50 @@ mod test {
             err,
             ContractError::MaxChangeAssertion("Gamma".to_string(), MAX_CHANGE)
         );
+
+        // Make sure we could increase the params below MAX_CHANGE
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(1179_f64),
+            next_gamma: f64_to_dec(0.000001059_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+
+        state.promote_params(&env, promote_params).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(100_000);
+
+        let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
+        assert_eq!(amp, f64_to_dec(1179_f64));
+        assert_eq!(gamma, f64_to_dec(0.000001059_f64));
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(500_f64),
+            next_gamma: f64_to_dec(0.000000559_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+
+        state.promote_params(&env, promote_params).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(100_000);
+
+        let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
+        assert_eq!(amp, f64_to_dec(500_f64));
+        assert_eq!(gamma, f64_to_dec(0.000000559_f64));
+
+        let promote_params = PromoteParams {
+            next_amp: f64_to_dec(55_f64),
+            next_gamma: f64_to_dec(0.000000057_f64),
+            future_time: env.block.time.seconds() + 100_000,
+        };
+
+        state.promote_params(&env, promote_params).unwrap();
+
+        env.block.time = env.block.time.plus_seconds(100_000);
+
+        let AmpGamma { amp, gamma } = state.get_amp_gamma(&env);
+        assert_eq!(amp, f64_to_dec(55_f64));
+        assert_eq!(gamma, f64_to_dec(0.000000057_f64));
     }
 
     #[test]
