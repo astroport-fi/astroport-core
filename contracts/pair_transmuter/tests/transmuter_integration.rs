@@ -1,4 +1,4 @@
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, StdError};
 use cw_multi_test::Executor;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
@@ -27,6 +27,23 @@ fn test_instantiate() {
     );
 
     let err = Helper::new(&owner, vec![TestCoin::native("usdt")]).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InvalidAssetLength {}
+    );
+
+    let err = Helper::new(
+        &owner,
+        vec![
+            TestCoin::native("usdt1"),
+            TestCoin::native("usdt2"),
+            TestCoin::native("usdt3"),
+            TestCoin::native("usdt4"),
+            TestCoin::native("usdt5"),
+            TestCoin::native("usdt6"),
+        ],
+    )
+    .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::InvalidAssetLength {}
@@ -66,7 +83,59 @@ fn test_provide_and_withdraw() {
 
     helper.give_me_money(&provide_assets, &user);
 
-    helper.provide_liquidity(&user, &provide_assets).unwrap();
+    // Check that contract is not allowing to provide liquidity with auto stake
+    let err = helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::ProvideLiquidity {
+                assets: provide_assets.to_vec(),
+                slippage_tolerance: None,
+                auto_stake: Some(true),
+                receiver: None,
+            },
+            &[
+                helper.assets[&test_coins[0]]
+                    .with_balance(100_000_000000u128)
+                    .as_coin()
+                    .unwrap(),
+                helper.assets[&test_coins[1]]
+                    .with_balance(100_000_000000u128)
+                    .as_coin()
+                    .unwrap(),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        StdError::generic_err("Auto stake is not supported").into()
+    );
+
+    // But it allows with explicit auto stake set to false
+    helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::ProvideLiquidity {
+                assets: provide_assets.to_vec(),
+                slippage_tolerance: None,
+                auto_stake: Some(false),
+                receiver: None,
+            },
+            &[
+                helper.assets[&test_coins[0]]
+                    .with_balance(100_000_000000u128)
+                    .as_coin()
+                    .unwrap(),
+                helper.assets[&test_coins[1]]
+                    .with_balance(100_000_000000u128)
+                    .as_coin()
+                    .unwrap(),
+            ],
+        )
+        .unwrap();
 
     let lp_balance = helper.token_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 2 * 100_000_000000u128);
@@ -515,5 +584,94 @@ fn test_queries() {
     assert_eq!(
         err.to_string(),
         "Generic error: Querier contract error: Endpoint is not supported"
+    );
+}
+
+#[test]
+fn test_drain_pool() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
+    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+                helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+            ],
+        )
+        .unwrap();
+    let user = Addr::unchecked("user");
+
+    // Try to drain all test_coins[0]
+    let wrong_asset_info = AssetInfo::cw20_unchecked("astro");
+    let swap_asset = wrong_asset_info.with_balance(100_000_000000u128);
+    let err = helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::Swap {
+                offer_asset: swap_asset,
+                ask_asset_info: None,
+                belief_price: None,
+                max_spread: None,
+                to: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InvalidAsset(wrong_asset_info.to_string())
+    );
+}
+
+#[test]
+fn test_unbalanced_withdraw() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
+    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let user = Addr::unchecked("user");
+    let provide_assets = [
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&provide_assets, &user);
+    helper.provide_liquidity(&user, &provide_assets).unwrap();
+    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    assert_eq!(lp_balance, 200_000_000000u128);
+    // withdraw imbalanced
+    helper
+        .withdraw_liquidity(
+            &user,
+            100_000_000000u128,
+            vec![helper.assets[&test_coins[0]].with_balance(100_000_000000u128)],
+        )
+        .unwrap();
+    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    assert_eq!(lp_balance, 100_000_000000u128);
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(0u128),
+            helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+        ]
+    );
+    assert_eq!(
+        helper.coin_balance(&test_coins[0], &user),
+        100_000_000000u128
+    );
+
+    assert_eq!(helper.coin_balance(&test_coins[1], &user), 0u128);
+
+    // Balanced withdraw works
+    helper
+        .withdraw_liquidity(&user, 100_000_000000u128, vec![])
+        .unwrap();
+    assert_eq!(
+        helper.coin_balance(&test_coins[1], &user),
+        100_000_000000u128
     );
 }

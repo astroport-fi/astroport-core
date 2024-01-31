@@ -99,7 +99,7 @@ impl PoolInfo {
         lp_asset: &AssetInfo,
     ) -> StdResult<()> {
         let block_ts = env.block.time.seconds();
-        let mut time_passed: Uint128 = block_ts.saturating_sub(self.last_update_ts).into();
+        let time_passed: Uint128 = block_ts.saturating_sub(self.last_update_ts).into();
 
         if time_passed.is_zero() {
             return Ok(());
@@ -107,6 +107,7 @@ impl PoolInfo {
 
         for reward_info in self.rewards.iter_mut() {
             let mut collected_rewards = Decimal::zero();
+            let mut time_passed_inner = time_passed;
 
             // Whether we need to remove this reward from pool info. Only applicable for finished external rewards.
             let mut need_remove = false;
@@ -140,7 +141,7 @@ impl PoolInfo {
                                 info: info.clone(),
                                 next_update_ts: update_ts,
                             };
-                            time_passed = (block_ts - next_update_ts).into();
+                            time_passed_inner = (block_ts - next_update_ts).into();
                             next_update_ts = update_ts;
                             break;
                         }
@@ -160,7 +161,7 @@ impl PoolInfo {
                 }
             }
 
-            collected_rewards += reward_info.rps * Decimal::from_ratio(time_passed, 1u8);
+            collected_rewards += reward_info.rps * Decimal::from_ratio(time_passed_inner, 1u8);
 
             if self.total_lp.is_zero() {
                 reward_info.orphaned += collected_rewards;

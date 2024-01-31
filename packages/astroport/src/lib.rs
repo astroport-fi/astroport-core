@@ -17,6 +17,7 @@ pub mod pair;
 pub mod pair_bonded;
 pub mod pair_concentrated;
 pub mod pair_concentrated_inj;
+pub mod pair_xyk_sale_tax;
 pub mod querier;
 pub mod restricted_vector;
 pub mod router;
