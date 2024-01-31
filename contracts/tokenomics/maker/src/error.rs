@@ -3,7 +3,7 @@ use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
 use thiserror::Error;
 
 /// This enum describes maker contract errors
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
@@ -43,6 +43,12 @@ pub enum ContractError {
 
     #[error("An error occurred during migration")]
     MigrationError {},
+
+    #[error("Collect cooldown is not expired. Next collect is possible at {next_collect_ts}")]
+    Cooldown { next_collect_ts: u64 },
+
+    #[error("Incorrect cooldown. Min: {min}, Max: {max}")]
+    IncorrectCooldown { min: u64, max: u64 },
 }
 
 impl From<OverflowError> for ContractError {

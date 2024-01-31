@@ -375,6 +375,14 @@ fn test_incentives() {
         )
         .unwrap();
 
+    // Check maker received incentivization fee
+    let maker_amount = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert_eq!(maker_amount.amount, incentivization_fee.amount);
+
     helper.app.update_block(|block| {
         block.time = Timestamp::from_seconds(internal_sch.next_epoch_start_ts)
     });
@@ -753,6 +761,88 @@ fn test_multiple_schedules_different_reward() {
             schedule.reward.info
         );
     }
+
+    let time_now = helper.app.block_info().time.seconds();
+    let astro_reward_balance = astro.query_pool(&helper.app.wrap(), &user).unwrap();
+    assert_eq!(
+        astro_reward_balance.u128(),
+        u128::from(time_now - time_before_claims) * 100
+    );
+}
+
+#[test]
+fn test_claim_between_different_periods() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro).unwrap();
+    let owner = helper.owner.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair_info = helper.create_pair(&asset_infos).unwrap();
+    let lp_token = pair_info.liquidity_token.to_string();
+
+    let provide_assets = [
+        asset_infos[0].with_balance(100000u64),
+        asset_infos[1].with_balance(100000u64),
+    ];
+    // Owner provides liquidity first just to make following calculations easier
+    // since first depositor gets small cut of LP tokens
+    helper
+        .provide_liquidity(
+            &owner,
+            &provide_assets,
+            &pair_info.contract_addr,
+            false, // Owner doesn't stake in generator
+        )
+        .unwrap();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(&user, &provide_assets, &pair_info.contract_addr, true)
+        .unwrap();
+
+    // External incentives
+    let bank = TestAddr::new("bank");
+    let reward_asset_info = AssetInfo::native("reward");
+    let reward = reward_asset_info.with_balance(1000_000000u128);
+
+    // Create multiple overlapping schedules with the same reward token starting right away
+    let schedules: Vec<_> = (1..=2)
+        .into_iter()
+        .map(|i| helper.create_schedule(&reward, i).unwrap())
+        .collect();
+    for (ind, (schedule, _)) in schedules.iter().enumerate() {
+        helper.mint_assets(&bank, &[reward.clone()]);
+        if ind == 0 {
+            // attach incentivization fee on the first schedule
+            helper.mint_coin(&bank, &incentivization_fee);
+            helper
+                .incentivize(
+                    &bank,
+                    &lp_token,
+                    schedule.clone(),
+                    &[incentivization_fee.clone()],
+                )
+                .unwrap();
+        } else {
+            helper
+                .incentivize(&bank, &lp_token, schedule.clone(), &[])
+                .unwrap();
+        }
+    }
+
+    // Incentivize with ASTRO
+    helper.setup_pools(vec![(lp_token.clone(), 100)]).unwrap();
+    helper.set_tokens_per_second(100).unwrap();
+
+    let time_before_claims = helper.app.block_info().time.seconds();
+
+    // Shift time by 15 days
+    helper
+        .app
+        .update_block(|block| block.time = block.time.plus_seconds(15 * 86400));
+
+    helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
 
     let time_now = helper.app.block_info().time.seconds();
     let astro_reward_balance = astro.query_pool(&helper.app.wrap(), &user).unwrap();
@@ -1470,25 +1560,11 @@ fn test_queries() {
     assert_eq!(helper.query_deposit(&lp_token, &user).unwrap(), 100000);
 
     let random = TestAddr::new("random");
-    let err = helper.query_deposit(&lp_token, &random).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        format!(
-            "Generic error: Querier contract error: User {} doesn't have position in {}",
-            random.as_str(),
-            &lp_token
-        )
-    );
+    let amount = helper.query_deposit(&lp_token, &random).unwrap();
+    assert_eq!(amount, 0);
 
-    let err = helper.query_deposit(random.as_str(), &user).unwrap_err();
-    assert_eq!(
-        err.to_string(),
-        format!(
-            "Generic error: Querier contract error: User {} doesn't have position in {}",
-            user.as_str(),
-            random.as_str()
-        )
-    );
+    let amount = helper.query_deposit(random.as_str(), &user).unwrap();
+    assert_eq!(amount, 0);
 
     // This Lp doesn't exist
     helper.pool_info(random.as_str()).unwrap_err();

@@ -20,10 +20,11 @@ pub(crate) fn f(
     let mul = x[0] * x[1];
     let d_pow2 = d.pow(2);
 
-    let k0 = mul * N_POW2 / d_pow2;
-    let k = a * gamma.pow(2) * k0 / (SignedDecimal256::from(gamma + Decimal256::one()) - k0).pow(2);
+    let prod_n_n = mul * N_POW2;
+    let k = a * gamma.pow(2) * prod_n_n
+        / ((gamma + Decimal256::one() - prod_n_n / d_pow2).pow(2) * d_pow2);
 
-    k * d * (x[0] + x[1]) + mul - k * d_pow2 - d_pow2 / N_POW2
+    d * (x[0] + x[1]) * k + mul - k * d_pow2 - d_pow2 / N_POW2
 }
 
 /// df/dD
@@ -33,22 +34,25 @@ pub(crate) fn df_dd(
     a: Decimal256,
     gamma: Decimal256,
 ) -> SignedDecimal256 {
-    let mul = x[0] * x[1];
     let a_gamma_pow_2 = a * gamma.pow(2); // A * gamma^2
+    let gamma_plus_1 = gamma + Decimal256::one();
+    let d_pow_n = d.pow(2);
+    let prod_n_n = x[0] * x[1] * N_POW2;
+    let sum = x[0] + x[1];
 
-    let k0 = mul * N_POW2 / d.pow(2);
+    let k0 = prod_n_n / d_pow_n;
+    let k0_prime = -SignedDecimal256::from(N) * prod_n_n;
 
-    let gamma_one_k0 = SignedDecimal256::from(gamma + Decimal256::one()) - k0; // gamma + 1 - K0
-    let gamma_one_k0_pow2 = gamma_one_k0.pow(2); // (gamma + 1 - K0)^2
+    let gamma_one_k0 = gamma_plus_1 - k0; // gamma + 1 - K0
 
-    let k = a_gamma_pow_2 * k0 / gamma_one_k0_pow2;
+    let k = a_gamma_pow_2 * k0 / (gamma_plus_1 - k0).pow(2);
+    let k_prime_numerator = PADDING * a_gamma_pow_2 * k0_prime * (gamma_plus_1 + k0);
+    let k_prime_denominator = PADDING * d.pow(3) * gamma_one_k0 * gamma_one_k0 * gamma_one_k0;
 
-    let k_d_denom = PADDING * d.pow(3) * gamma_one_k0_pow2 * gamma_one_k0;
-    let k_d = -mul * N.pow(3) * a_gamma_pow_2 * (gamma + Decimal256::one() + k0);
-
-    (k_d * d * PADDING / k_d_denom + k) * (x[0] + x[1])
-        - (k_d * d * PADDING / k_d_denom + N * k) * d
-        - (d / N)
+    k_prime_numerator * d * sum / k_prime_denominator + k * sum
+        - k_prime_numerator * d_pow_n / k_prime_denominator
+        - N * k * d
+        - d / N
 }
 
 pub(crate) fn newton_d(
@@ -242,6 +246,35 @@ mod tests {
         println!("Pool after [{} {}]", x0 + offer_amount, new_x1);
         println!("Diff [{} {}]", offer_amount, new_x1 - x1);
         assert!(new_x1 < x1, "new x1 {new_x1} should be less than x1 {x1}");
+    }
+
+    #[test]
+    fn test_compute_d_for_lsd() {
+        let pools = &[
+            Decimal256::from_atomics(888787u128, 6).unwrap(),
+            Decimal256::from_atomics(868901000520175167u128, 18).unwrap(),
+        ];
+        let amp = Decimal256::from_atomics(500u16, 0).unwrap();
+        let gamma = Decimal256::from_atomics(1u8, 8).unwrap();
+
+        let d = newton_d(pools, amp, gamma).unwrap();
+
+        assert_eq!(d.to_string(), "1.757575508957576976")
+    }
+
+    #[test]
+    fn test_compute_d_roar() {
+        let pools = &[
+            Decimal256::from_atomics(12089244654_099852u128, 6).unwrap(),
+            Decimal256::from_atomics(23173729615_834822866013755721u128, 18).unwrap(),
+        ];
+
+        // 10.0
+        let amp = Decimal256::from_atomics(10u8, 0).unwrap();
+        // 0.000145
+        let gamma = Decimal256::from_atomics(145u8, 6).unwrap();
+        let d = newton_d(pools, amp, gamma).unwrap();
+        assert_eq!(d.to_string(), "33532826223.999399077170285763")
     }
 
     #[test]

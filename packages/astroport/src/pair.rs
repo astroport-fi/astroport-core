@@ -1,9 +1,10 @@
+use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
-use cw20::Cw20ReceiveMsg;
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
-use crate::observation::OracleObservation;
+
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
+use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
 pub const DEFAULT_SLIPPAGE: &str = "0.005";
@@ -274,11 +275,9 @@ pub enum StablePoolUpdateParams {
 
 #[cfg(test)]
 mod tests {
-    use cosmwasm_std::{from_json, to_json_binary};
-
-    use crate::asset::native_asset_info;
-
     use super::*;
+    use crate::asset::native_asset_info;
+    use cosmwasm_std::{from_json, to_json_binary};
 
     #[cw_serde]
     pub struct LegacyInstantiateMsg {

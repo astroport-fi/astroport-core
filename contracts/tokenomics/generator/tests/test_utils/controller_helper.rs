@@ -60,6 +60,7 @@ impl ControllerHelper {
                 maker_fee_bps: 10,
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id: escrow_helper.astro_token_code_id,
             fee_address: None,

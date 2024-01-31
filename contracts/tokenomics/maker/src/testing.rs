@@ -30,6 +30,7 @@ fn proper_initialization() {
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
         second_receiver_params: None,
+        collect_cooldown: None,
     };
     let res = instantiate(deps.as_mut(), env, info, instantiate_msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -51,7 +52,8 @@ fn proper_initialization() {
             last_distribution_block: 0,
             remainder_reward: Uint128::zero(),
             pre_upgrade_astro_amount: Uint128::zero(),
-            second_receiver_cfg: None
+            second_receiver_cfg: None,
+            collect_cooldown: None,
         }
     )
 }
@@ -78,6 +80,7 @@ fn update_owner() {
         default_bridge: Some(native_asset_info("uluna".to_string())),
         max_spread: None,
         second_receiver_params: None,
+        collect_cooldown: None,
     };
 
     let env = mock_env();

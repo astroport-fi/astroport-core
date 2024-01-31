@@ -3,25 +3,24 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
+    attr, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply,
+    ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_utils::parse_instantiate_response_data;
+use itertools::Itertools;
 
 use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
-    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
-    PairType, PairsResponse, QueryMsg,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
+    PairsResponse, QueryMsg,
 };
 use astroport::generator::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use itertools::Itertools;
 
 use crate::error::ContractError;
-use crate::migration;
-use crate::migration::{migrate_configs, migrate_pair_configs};
+use crate::migration::migrate_pair_configs;
 use crate::querier::query_pair_info;
 use crate::state::{
     check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
@@ -152,7 +151,7 @@ pub fn execute(
             pair_type,
             asset_infos,
             init_params,
-        } => execute_create_pair(deps, env, pair_type, asset_infos, init_params),
+        } => execute_create_pair(deps, info, env, pair_type, asset_infos, init_params),
         ExecuteMsg::Deregister { asset_infos } => deregister(deps, info, asset_infos),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config = CONFIG.load(deps.storage)?;
@@ -274,6 +273,7 @@ pub fn execute_update_pair_config(
 /// * **init_params** These are packed params used for custom pair types that need extra data to be instantiated.
 pub fn execute_create_pair(
     deps: DepsMut,
+    info: MessageInfo,
     env: Env,
     pair_type: PairType,
     asset_infos: Vec<AssetInfo>,
@@ -291,6 +291,10 @@ pub fn execute_create_pair(
     let pair_config = PAIR_CONFIGS
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
+
+    if pair_config.permissioned && info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
 
     // Check if pair config is disabled
     if pair_config.is_disabled {
@@ -503,17 +507,15 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            "1.2.0" | "1.2.1" => {
-                let msg: migration::MigrationMsg = from_json(msg.params)?;
-                migrate_configs(&mut deps, &msg)?;
-            }
-            "1.3.0" | "1.5.1" => {}
-            "1.3.1" | "1.5.0" => {
+            // pisco-1, phoenix-1, injective-1, pion-1, neutron-1, pacific-1: 1.5.1
+            // injective-888: 1.6.0
+            // atlantic-2: 1.3.1
+            "1.3.1" | "1.5.1" | "1.6.0" => {
                 migrate_pair_configs(deps.storage)?;
             }
             _ => return Err(ContractError::MigrationError {}),

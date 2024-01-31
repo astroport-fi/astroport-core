@@ -150,6 +150,7 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
                 maker_fee_bps: 0,
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             },
             PairConfig {
                 code_id: pair_stable_code_id,
@@ -158,6 +159,7 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
                 maker_fee_bps: 0,
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             },
         ],
         token_code_id: 1u64,

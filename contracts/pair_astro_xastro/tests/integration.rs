@@ -93,6 +93,7 @@ fn instantiate_factory_contract(app: &mut App, owner: Addr, pair_code_id: u64) -
             pair_type: PairType::Custom("bonded".to_string()),
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id: 0,
         fee_address: None,

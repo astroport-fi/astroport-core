@@ -22,7 +22,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
         QueryMsg::Deposit { lp_token, user } => {
             let lp_asset = determine_asset_info(&lp_token, deps.api)?;
             let user_addr = deps.api.addr_validate(&user)?;
-            let amount = UserInfo::load_position(deps.storage, &user_addr, &lp_asset)?.amount;
+            let amount = UserInfo::may_load_position(deps.storage, &user_addr, &lp_asset)?
+                .map(|maybe_pos| maybe_pos.amount)
+                .unwrap_or_default();
             Ok(to_json_binary(&amount)?)
         }
         QueryMsg::PendingRewards { lp_token, user } => Ok(to_json_binary(&query_pending_rewards(

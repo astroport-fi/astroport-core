@@ -1140,6 +1140,7 @@ fn disabling_pool() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: true,
+            permissioned: false,
         },
     };
 
@@ -1169,6 +1170,7 @@ fn disabling_pool() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         },
     };
 
@@ -3430,6 +3432,7 @@ fn deactivate_pools_by_pair_types() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: true,
+            permissioned: false,
         },
     };
 
@@ -3533,6 +3536,7 @@ fn deactivate_pools_by_pair_types() {
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         },
     };
 
@@ -3938,6 +3942,7 @@ fn instantiate_factory(
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         }],
         token_code_id,
         fee_address: None,
@@ -3955,6 +3960,7 @@ fn instantiate_factory(
             maker_fee_bps: 10,
             is_disabled: false,
             is_generator_disabled: false,
+            permissioned: false,
         });
     }
 

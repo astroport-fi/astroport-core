@@ -188,6 +188,7 @@ impl Helper {
                 pair_type: PairType::Stable {},
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id,
             generator_address: None,
@@ -239,7 +240,7 @@ impl Helper {
             assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
 
         let msg = ExecuteMsg::ProvideLiquidity {
-            assets: assets.clone().to_vec(),
+            assets: assets.to_vec(),
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,

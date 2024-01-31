@@ -2,7 +2,8 @@ use crate::error::ContractError;
 use crate::state::BRIDGES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::{
-    Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, MAX_SECOND_RECEIVER_CUT,
+    Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
+    MAX_SECOND_RECEIVER_CUT,
 };
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
@@ -249,6 +250,20 @@ pub fn update_second_receiver_cfg(
                 .addr_validate(params.second_fee_receiver.as_str())?,
             second_receiver_cut: params.second_receiver_cut,
         });
+    }
+
+    Ok(())
+}
+
+/// Validate cooldown value is within the allowed range
+pub fn validate_cooldown(maybe_cooldown: Option<u64>) -> Result<(), ContractError> {
+    if let Some(collect_cooldown) = maybe_cooldown {
+        if !COOLDOWN_LIMITS.contains(&collect_cooldown) {
+            return Err(ContractError::IncorrectCooldown {
+                min: *COOLDOWN_LIMITS.start(),
+                max: *COOLDOWN_LIMITS.end(),
+            });
+        }
     }
 
     Ok(())

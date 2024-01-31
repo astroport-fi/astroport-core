@@ -82,6 +82,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 30,
                 maker_fee_bps: 3333,
+                permissioned: false,
             },
             PairConfig {
                 code_id: stable_code_id,
@@ -90,6 +91,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 5,
                 maker_fee_bps: 5000,
+                permissioned: false,
             },
             PairConfig {
                 code_id: concentrated_code_id,
@@ -98,6 +100,7 @@ where
                 is_generator_disabled: false,
                 total_fee_bps: 30,
                 maker_fee_bps: 3333,
+                permissioned: false,
             },
         ];
 

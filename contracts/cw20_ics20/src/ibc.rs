@@ -489,7 +489,7 @@ fn send_amount(amount: Amount, recipient: String) -> CosmosMsg {
 #[cfg(test)]
 mod test {
     use cosmwasm_std::testing::{mock_env, mock_info};
-    use cosmwasm_std::{coins, to_json_vec, Addr, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
+    use cosmwasm_std::{coins, to_vec, IbcEndpoint, IbcMsg, IbcTimeout, Timestamp};
     use cw20::Cw20ReceiveMsg;
 
     use astroport::cw20_ics20::TransferMsg;
@@ -505,10 +505,10 @@ mod test {
         let success = Ics20Ack::Result(b"1".into());
         let fail = Ics20Ack::Error("bad coin".into());
 
-        let success_json = String::from_utf8(to_json_vec(&success).unwrap()).unwrap();
+        let success_json = String::from_utf8(to_vec(&success).unwrap()).unwrap();
         assert_eq!(r#"{"result":"MQ=="}"#, success_json.as_str());
 
-        let fail_json = String::from_utf8(to_json_vec(&fail).unwrap()).unwrap();
+        let fail_json = String::from_utf8(to_vec(&fail).unwrap()).unwrap();
         assert_eq!(r#"{"error":"bad coin"}"#, fail_json.as_str());
     }
 
@@ -523,7 +523,7 @@ mod test {
         // Example message generated from the SDK
         let expected = r#"{"amount":"12345","denom":"ucosm","receiver":"wasm1fucynrfkrt684pm8jrt8la5h2csvs5cnldcgqc","sender":"cosmos1zedxv25ah8fksmg2lzrndrpkvsjqgk4zt5ff7n"}"#;
 
-        let encdoded = String::from_utf8(to_json_vec(&packet).unwrap()).unwrap();
+        let encdoded = String::from_utf8(to_vec(&packet).unwrap()).unwrap();
         assert_eq!(expected, encdoded.as_str());
     }
 
@@ -588,10 +588,6 @@ mod test {
         )
     }
 
-    fn mock_relayer_addr() -> Addr {
-        Addr::unchecked("relayer")
-    }
-
     #[test]
     fn send_receive_cw20() {
         let send_channel = "channel-9";
@@ -610,7 +606,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, cw20_denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
@@ -655,14 +651,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::cw20(987654321, cw20_addr)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert_eq!(1, res.messages.len());
         assert_eq!(
@@ -705,7 +701,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, cw20_denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
@@ -750,14 +746,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::cw20(987654321, cw20_addr)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // We can receive less than we sent, but if a memo is set without a handler, we fail
-        let msg = IbcPacketReceiveMsg::new(recv_packet_with_memo, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet_with_memo);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
 
         // No messages should be sent
@@ -786,7 +782,7 @@ mod test {
             mock_receive_packet(send_channel, 1876543210, denom, "local-rcpt", None);
 
         // cannot receive this denom yet
-        let msg = IbcPacketReceiveMsg::new(recv_packet.clone(), mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet.clone());
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
@@ -809,14 +805,14 @@ mod test {
         assert_eq!(state.total_sent, vec![Amount::native(987654321, denom)]);
 
         // cannot receive more than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_high_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_high_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert!(res.messages.is_empty());
         let ack: Ics20Ack = from_json(&res.acknowledgement).unwrap();
         assert_eq!(ack, no_funds);
 
         // we can receive less than we sent
-        let msg = IbcPacketReceiveMsg::new(recv_packet, mock_relayer_addr());
+        let msg = IbcPacketReceiveMsg::new(recv_packet);
         let res = ibc_packet_receive(deps.as_mut(), mock_env(), msg).unwrap();
         assert_eq!(1, res.messages.len());
         assert_eq!(

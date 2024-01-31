@@ -7,6 +7,7 @@ use cosmwasm_std::{
     QuerierWrapper, ReplyOn, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
 use cw20::{Cw20Coin, Cw20CoinVerified, Cw20ExecuteMsg, Cw20QueryMsg, Denom, MinterResponse};
+use cw_asset::{Asset as CwAsset, AssetInfo as CwAssetInfo};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
@@ -126,6 +127,23 @@ impl TryFrom<Asset> for Cw20Coin {
             address: verified.address.to_string(),
             amount: verified.amount,
         })
+    }
+}
+
+impl From<Asset> for CwAsset {
+    fn from(asset: Asset) -> CwAsset {
+        Self::new(Into::<CwAssetInfo>::into(asset.info), asset.amount)
+    }
+}
+
+impl TryFrom<CwAsset> for Asset {
+    type Error = StdError;
+
+    fn try_from(cw_asset: CwAsset) -> StdResult<Self> {
+        cw_asset
+            .info
+            .try_into()
+            .map(|cw_asset_info| Self::new(cw_asset_info, cw_asset.amount))
     }
 }
 
@@ -419,6 +437,27 @@ impl TryFrom<AssetInfo> for Addr {
 impl From<Addr> for AssetInfo {
     fn from(contract_addr: Addr) -> Self {
         token_asset_info(contract_addr)
+    }
+}
+
+impl From<AssetInfo> for CwAssetInfo {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Token { contract_addr } => Self::Cw20(contract_addr),
+            AssetInfo::NativeToken { denom } => Self::Native(denom),
+        }
+    }
+}
+
+impl TryFrom<CwAssetInfo> for AssetInfo {
+    type Error = StdError;
+
+    fn try_from(cw_asset_info: CwAssetInfo) -> StdResult<Self> {
+        match cw_asset_info {
+            CwAssetInfo::Native(denom) => Ok(Self::native(denom)),
+            CwAssetInfo::Cw20(contract_addr) => Ok(Self::cw20(contract_addr)),
+            _ => Err(StdError::generic_err("CwAssetInfo variant unknown")),
+        }
     }
 }
 
@@ -1143,5 +1182,70 @@ mod tests {
         let info = AssetInfo::native("uusd");
         let denom2: Denom = info.try_into().unwrap();
         assert_eq!(denom, denom2);
+    }
+
+    #[test]
+    fn test_from_asset_info_for_cw_asset_info() {
+        let asset_info_native = AssetInfo::native("denom");
+        let asset_info_cw20 = AssetInfo::cw20(Addr::unchecked("cw20"));
+        assert_eq!(CwAssetInfo::native("denom"), asset_info_native.into());
+        assert_eq!(
+            CwAssetInfo::cw20(Addr::unchecked("cw20")),
+            asset_info_cw20.into()
+        )
+    }
+
+    #[test]
+    fn test_try_from_from_cw_asset_info_for_asset_info() {
+        let cw_asset_info_native = CwAssetInfo::native("denom");
+        let cw_asset_info_cw20 = CwAssetInfo::cw20(Addr::unchecked("cw20"));
+        assert_eq!(
+            AssetInfo::native("denom"),
+            cw_asset_info_native.try_into().unwrap()
+        );
+        assert_eq!(
+            AssetInfo::cw20(Addr::unchecked("cw20")),
+            cw_asset_info_cw20.try_into().unwrap()
+        )
+    }
+
+    #[test]
+    fn test_from_asset_for_cw_asset() {
+        let asset_native = Asset::new(AssetInfo::native("denom"), Uint128::one());
+        let asset_cw20 = Asset::new(
+            AssetInfo::cw20(Addr::unchecked("cw20")),
+            Uint128::from(2_u128),
+        );
+        assert_eq!(
+            CwAsset::new(CwAssetInfo::native("denom"), Uint128::one()),
+            Into::<CwAsset>::into(asset_native)
+        );
+        assert_eq!(
+            CwAsset::new(
+                CwAssetInfo::cw20(Addr::unchecked("cw20")),
+                Uint128::from(2_u128)
+            ),
+            Into::<CwAsset>::into(asset_cw20)
+        )
+    }
+
+    #[test]
+    fn test_try_from_cw_asset_for_asset() {
+        let asset_native = CwAsset::new(CwAssetInfo::native("denom"), Uint128::one());
+        let asset_cw20 = CwAsset::new(
+            CwAssetInfo::cw20(Addr::unchecked("cw20")),
+            Uint128::from(2_u128),
+        );
+        assert_eq!(
+            Asset::new(AssetInfo::native("denom"), Uint128::one()),
+            asset_native.try_into().unwrap()
+        );
+        assert_eq!(
+            Asset::new(
+                AssetInfo::cw20(Addr::unchecked("cw20")),
+                Uint128::from(2_u128)
+            ),
+            asset_cw20.try_into().unwrap()
+        )
     }
 }
