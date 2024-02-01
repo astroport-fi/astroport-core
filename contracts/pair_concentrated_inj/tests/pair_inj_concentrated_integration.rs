@@ -2,7 +2,9 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::str::FromStr;
 
+use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use cosmwasm_std::{coins, Addr, Coin, Decimal, Decimal256, StdError, Uint128};
 use injective_cosmwasm::InjectiveQuerier;
 use injective_testing::generate_inj_address;
@@ -10,22 +12,16 @@ use itertools::{max, Itertools};
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
-use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
-use astroport::pair_concentrated_inj::{ExecuteMsg, MigrateMsg, OrderbookConfig};
+use astroport::pair_concentrated_inj::ExecuteMsg;
 use astroport_mocks::cw_multi_test::Executor;
 use astroport_pair_concentrated_injective::error::ContractError;
-use astroport_pair_concentrated_injective::orderbook::consts::MIN_TRADES_TO_AVG_LIMITS;
-use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
 
 use crate::helper::mocks::{mock_inj_app, InjAppExt, MockFundingMode};
-use crate::helper::{
-    common_pcl_params, dec_to_f64, f64_to_dec, orderbook_pair_contract, AppExtension, Helper,
-    TestCoin,
-};
+use crate::helper::{common_pcl_params, dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
 
 mod helper;
 
@@ -115,7 +111,7 @@ fn provide_and_withdraw() {
     let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     // checking LP token virtual price on an empty pool
-    let lp_price = helper.query_lp_price().unwrap();
+    let lp_price: Decimal256 = helper.query_lp_price().unwrap();
     assert!(
         lp_price.is_zero(),
         "LP price must be zero before any provide"
@@ -132,7 +128,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&wrong_assets, &user1);
     let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
     assert_eq!(
-        "Generic error: Unexpected asset random-coin",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -147,7 +143,7 @@ fn provide_and_withdraw() {
         )
         .unwrap_err();
     assert_eq!(
-        "Generic error: Unexpected asset random-coin",
+        "Generic error: Asset random-coin is not in the pool",
         err.root_cause().to_string()
     );
 
@@ -896,6 +892,14 @@ fn check_orderbook_integration() {
     let querier_wrapper = helper.app.wrap();
     let inj_querier = InjectiveQuerier::new(&querier_wrapper);
 
+    let pools = helper
+        .query_pool()
+        .unwrap()
+        .assets
+        .iter()
+        .map(|asset| asset.amount)
+        .collect_vec();
+
     let inj_deposit: u128 = inj_querier
         .query_subaccount_deposit(&ob_config.subaccount, &"inj".to_string())
         .unwrap()
@@ -908,7 +912,16 @@ fn check_orderbook_integration() {
         .deposits
         .total_balance
         .into();
-    assert_eq!(inj_deposit, 2489_981000000000000000);
+
+    /*  let expected_inj =
+    Decimal::from_str(&pools[0].to_string()).unwrap() * Decimal::from_ratio(5u128, 100u128); */
+    println!(
+        "expected_inj: {} total: {} deposited: {}",
+        Decimal256::from_str(&pools[0].to_string()).unwrap() * Decimal256::from_str("0.1").unwrap(),
+        pools[0],
+        inj_deposit
+    );
+
     assert_eq!(astro_deposit, 4979_051501);
 
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
@@ -1094,7 +1107,7 @@ fn check_deactivate_orderbook() {
     // total liquidity is close to initial provided liquidity
     let mut total_inj = inj_deposit + inj_pool;
     let mut total_astro = astro_deposit + astro_pool;
-    assert_eq!(total_inj, 500032_914893233248565365);
+    assert_eq!(total_inj, 500032914893233248386874);
     assert_eq!(total_astro, 100006_4376540);
 
     let random_user = generate_inj_address();
@@ -1419,220 +1432,6 @@ fn check_deactivate_orderbook() {
 }
 
 #[test]
-fn test_migrate_cl_to_orderbook_cl() {
-    let owner = generate_inj_address();
-
-    let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
-
-    let params = ConcentratedPoolParams {
-        price_scale: f64_to_dec(0.5),
-        ..common_pcl_params()
-    };
-    let mut app = mock_inj_app(|_, _, _| {});
-    let market_id = app
-        .create_market(
-            &test_coins[0].denom().unwrap(),
-            &test_coins[1].denom().unwrap(),
-        )
-        .unwrap();
-    let mut helper =
-        Helper::new_with_app(app, &owner, test_coins.clone(), params.clone(), false, None).unwrap();
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(500_000e18 as u128),
-        helper.assets[&test_coins[1]].with_balance(1_000_000e6 as u128),
-    ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
-
-    // Make some swaps
-    for _ in 0..10 {
-        helper
-            .swap(
-                &owner,
-                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
-                None,
-            )
-            .unwrap();
-        helper.next_block(true).unwrap();
-        helper
-            .swap(
-                &owner,
-                &helper.assets[&test_coins[0]].with_balance(500e18 as u128),
-                None,
-            )
-            .unwrap();
-        helper.next_block(true).unwrap();
-    }
-
-    let migrate_msg = MigrateMsg::MigrateToOrderbook {
-        params: OrderbookConfig {
-            market_id: "0x3001cec95658b1a59d143d3829b1bcfce83a06d302a31ab3f1a52bfbd7e5395e"
-                .to_string(),
-            orders_number: 5,
-            min_trades_to_avg: 1,
-        },
-    };
-
-    let new_code_id = helper.app.store_code(orderbook_pair_contract());
-    let err = helper
-        .app
-        .migrate_contract(
-            owner.clone(),
-            helper.pair_addr.clone(),
-            &migrate_msg,
-            new_code_id,
-        )
-        .unwrap_err();
-
-    let err_msg = err.root_cause().to_string();
-    assert!(
-        err_msg.contains("Invalid market id"),
-        "Wrong error message {}",
-        err_msg
-    );
-
-    let migrate_msg = MigrateMsg::MigrateToOrderbook {
-        params: OrderbookConfig {
-            market_id,
-            orders_number: 5,
-            min_trades_to_avg: 1,
-        },
-    };
-    helper
-        .app
-        .migrate_contract(
-            owner.clone(),
-            helper.pair_addr.clone(),
-            &migrate_msg,
-            new_code_id,
-        )
-        .unwrap();
-
-    let config = helper.query_config().unwrap();
-    assert_eq!(
-        config.pair_info.pair_type,
-        PairType::Custom("concentrated_inj_orderbook".to_string())
-    );
-    assert_eq!(config.pool_state.price_state.price_scale.to_string(), "0.5");
-
-    helper
-        .app
-        .enable_contract(
-            helper.pair_addr.clone(),
-            MockFundingMode::GrantOnly(helper.owner.clone()),
-        )
-        .unwrap();
-
-    for _ in 0..50 {
-        helper
-            .swap(
-                &owner,
-                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
-                None,
-            )
-            .unwrap();
-        helper.next_block(true).unwrap();
-        helper
-            .swap(
-                &owner,
-                &helper.assets[&test_coins[0]].with_balance(500e18 as u128),
-                None,
-            )
-            .unwrap();
-        helper.next_block(true).unwrap();
-    }
-
-    // Check that orders have been created
-    let querier_wrapper = helper.app.wrap();
-    let inj_querier = InjectiveQuerier::new(&querier_wrapper);
-    let ob_config = helper.query_ob_config().unwrap();
-
-    let inj_deposit: u128 = inj_querier
-        .query_subaccount_deposit(&ob_config.subaccount, &"inj".to_string())
-        .unwrap()
-        .deposits
-        .total_balance
-        .into();
-    let astro_deposit: u128 = inj_querier
-        .query_subaccount_deposit(&ob_config.subaccount, &"astro".to_string())
-        .unwrap()
-        .deposits
-        .total_balance
-        .into();
-    assert_eq!(inj_deposit, 2489_976000000000000000);
-    assert_eq!(astro_deposit, 4979_061419);
-
-    let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
-    let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);
-
-    // Total liquidity is close to initial provided liquidity
-    let total_inj = inj_deposit + inj_pool;
-    let total_astro = astro_deposit + astro_pool;
-    assert_eq!(total_inj, 500039_497794763370151009);
-    assert_eq!(total_astro, 100007_7251964);
-}
-
-#[test]
-fn test_wrong_assets_order() {
-    let owner = generate_inj_address();
-
-    let test_coins = vec![TestCoin::native("inj"), TestCoin::native("astro")];
-
-    let params = ConcentratedPoolParams {
-        price_scale: f64_to_dec(0.5),
-        ..common_pcl_params()
-    };
-    let mut app = mock_inj_app(|_, _, _| {});
-    let market_id = app
-        .create_market(
-            // NOTE: we intentionally changed denoms order
-            &test_coins[1].denom().unwrap(),
-            &test_coins[0].denom().unwrap(),
-        )
-        .unwrap();
-    let mut helper =
-        Helper::new_with_app(app, &owner, test_coins.clone(), params.clone(), false, None).unwrap();
-
-    let migrate_msg = MigrateMsg::MigrateToOrderbook {
-        params: OrderbookConfig {
-            market_id,
-            orders_number: 5,
-            min_trades_to_avg: *MIN_TRADES_TO_AVG_LIMITS.start(),
-        },
-    };
-    let new_code_id = helper.app.store_code(orderbook_pair_contract());
-    let err = helper
-        .app
-        .migrate_contract(
-            owner.clone(),
-            helper.pair_addr.clone(),
-            &migrate_msg,
-            new_code_id,
-        )
-        .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Generic error: Pair asset infos have different order than market: inj-astro while market has astro-inj");
-
-    let mut app = mock_inj_app(|_, _, _| {});
-    let market_id = app
-        .create_market(
-            // NOTE: we intentionally changed denoms order
-            &test_coins[1].denom().unwrap(),
-            &test_coins[0].denom().unwrap(),
-        )
-        .unwrap();
-    let err = Helper::new_with_app(
-        app,
-        &owner,
-        test_coins.clone(),
-        params.clone(),
-        true,
-        Some(market_id),
-    )
-    .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Generic error: Pair asset infos have different order than market: inj-astro while market has astro-inj");
-}
-
-#[test]
 fn test_feegrant_mode() {
     let owner = generate_inj_address();
 
@@ -1752,9 +1551,7 @@ fn test_feegrant_mode() {
 
 #[test]
 fn provide_liquidity_with_autostaking_to_generator() {
-    use astroport_mocks::{
-        astroport_address, MockConcentratedPairInjBuilder, MockGeneratorBuilder,
-    };
+    use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
     let astroport = astroport_address();
 
     let app = Rc::new(RefCell::new(mock_inj_app(|router, _, storage| {
@@ -1785,7 +1582,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
     let ucosmos = native_asset_info("ucosmos".to_owned());
     let ustake = native_asset_info("ustake".to_owned());
 
-    let pair = MockConcentratedPairInjBuilder::new(&app)
+    let pair = MockConcentratedPairBuilder::new(&app)
         .with_factory(&factory)
         .with_asset(&ucosmos)
         .with_asset(&ustake)

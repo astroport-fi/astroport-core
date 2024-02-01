@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated-injective"
-version = "2.2.2"
+version = "2.2.3"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair which supports Injective orderbook integration"
@@ -49,5 +49,5 @@ proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-injective-math = "0.1"
+injective-math = "0.2.4"
 injective-testing = "0.1.1"

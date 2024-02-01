@@ -1,14 +1,14 @@
+use astroport::cosmwasm_ext::DecimalToInteger;
 use cosmwasm_std::{entry_point, Decimal256, DepsMut, Env, Response, StdResult};
 use injective_cosmwasm::{
     create_deposit_msg, create_withdraw_msg, InjectiveMsgWrapper, InjectiveQuerier,
     InjectiveQueryWrapper,
 };
+
 use itertools::Itertools;
 use std::cmp::Ordering;
 
-use astroport::asset::AssetInfoExt;
-use astroport::cosmwasm_ext::IntegerToDecimal;
-use astroport_circular_buffer::BufferManager;
+use astroport::asset::{AssetInfoExt, Decimal256Ext};
 
 use crate::orderbook::error::OrderbookError;
 use crate::orderbook::msg::SudoMsg;
@@ -17,7 +17,7 @@ use crate::orderbook::utils::{
     cancel_all_orders, compute_swap, get_subaccount_balances, leave_orderbook,
     process_cumulative_trade, update_spot_orders, SpotOrdersFactory,
 };
-use crate::state::{CONFIG, OBSERVATIONS};
+use crate::state::CONFIG;
 use crate::utils::query_pools;
 use astroport_pcl_common::calc_d;
 use astroport_pcl_common::state::Precisions;
@@ -84,22 +84,40 @@ fn begin_blocker(
             CONFIG.save(deps.storage, &config)?;
         }
 
-        let last_observation_opt =
-            BufferManager::new(deps.storage, OBSERVATIONS)?.read_last(deps.storage)?;
+        // Calculate total order size using the sum of an arithmetic progression
+        let total_order_size = (1 + ob_state.orders_number) * ob_state.orders_number / 2;
+        let liquidity_percent = Decimal256::from(ob_state.liquidity_percent);
 
-        let (avg_base_trade_size, avg_quote_trade_size) = last_observation_opt
-            .map(|last_observation| -> StdResult<_> {
-                let converted_base = last_observation
-                    .base_sma
-                    .to_decimal256(base_asset_precision)?;
-                let converted_quote = last_observation
-                    .quote_sma
-                    .to_decimal256(quote_asset_precision)?;
-                Ok((converted_base, converted_quote))
-            })
-            .transpose()?
-            .ok_or(OrderbookError::NoObservationFound {})?;
-        // This shouldn't happen since we wait until MIN_TRADES_TO_AVG is reached. However, we keep this check just for safety.
+        let base_order_size = pools[0] * liquidity_percent;
+        let quote_order_size = pools[1] * liquidity_percent;
+
+        if base_order_size < Decimal256::from_integer(ob_state.min_base_order_size)
+            || quote_order_size < Decimal256::from_integer(ob_state.min_quote_order_size)
+        {
+            return leave_orderbook(&ob_state, balances, &env);
+        }
+
+        let base_trade_size = base_order_size / Decimal256::from_integer(total_order_size);
+        let quote_trade_size = quote_order_size / Decimal256::from_integer(total_order_size);
+
+        println!(
+            "liquidity_percent: {}",
+            (Decimal256::one() * base_trade_size) * base_trade_size / Decimal256::raw(2)
+        );
+
+        // Adjusting to min quantity tick size on Injective market
+        let base_trade_size = (base_trade_size / ob_state.min_quantity_tick_size).floor()
+            * ob_state.min_quantity_tick_size;
+
+        // If adjusted avg_trade_size is zero we cancel all orders and withdraw liquidity.
+        if base_trade_size.is_zero() {
+            return leave_orderbook(&ob_state, balances, &env);
+        }
+
+        let amp_gamma = config.pool_state.get_amp_gamma(&env);
+        let mut ixs = pools.to_vec();
+        ixs[1] *= config.pool_state.price_state.price_scale;
+        let d = calc_d(&ixs, &amp_gamma)?;
 
         let mut orders_factory = SpotOrdersFactory::new(
             &ob_state.market_id,
@@ -109,24 +127,11 @@ fn begin_blocker(
             quote_asset_precision,
         );
 
-        // Adjusting to min quantity tick size on Injective market
-        let avg_base_trade_size = (avg_base_trade_size / ob_state.min_quantity_tick_size).floor()
-            * ob_state.min_quantity_tick_size;
-
-        // If adjusted avg_trade_size is zero we cancel all orders and withdraw liquidity.
-        if avg_base_trade_size.is_zero() {
-            return leave_orderbook(&ob_state, balances, &env);
-        }
-
-        let amp_gamma = config.pool_state.get_amp_gamma(&env);
-        let mut ixs = pools.to_vec();
-        ixs[1] *= config.pool_state.price_state.price_scale;
-        let d = calc_d(&ixs, &amp_gamma)?;
-
         // Equal heights algorithm
         for i in 1..=ob_state.orders_number {
-            let quote_sell_amount = avg_quote_trade_size * Decimal256::from_ratio(i, 1u8);
+            let quote_sell_amount = quote_trade_size * Decimal256::from_ratio(i, 1u8);
             let base_sell_amount = compute_swap(&ixs, quote_sell_amount, 0, &config, amp_gamma, d)?;
+
             let sell_amount = (base_sell_amount * Decimal256::from_ratio(1u8, i)
                 / ob_state.min_quantity_tick_size)
                 .floor()
@@ -139,8 +144,8 @@ fn begin_blocker(
                 quote_sell_amount / sell_amount
             };
 
-            let buy_amount = avg_base_trade_size;
-            let base_buy_amount = buy_amount * Decimal256::from_ratio(i, 1u8);
+            let buy_amount = base_trade_size;
+            let base_buy_amount = base_trade_size * Decimal256::from_ratio(i, 1u8);
             let quote_buy_amount = compute_swap(&ixs, base_buy_amount, 1, &config, amp_gamma, d)?;
             let buy_price = if i > 1 {
                 (quote_buy_amount - orders_factory.orderbook_one_side_liquidity(true)) / buy_amount
@@ -222,7 +227,6 @@ fn deactivate_orderbook(
         "Deactivating Astroport pair {} orderbook integration",
         &env.contract.address
     ));
-
     let mut ob_state = OrderbookState::load(deps.storage)?;
     ob_state.enabled = false;
     ob_state.last_balances = vec![

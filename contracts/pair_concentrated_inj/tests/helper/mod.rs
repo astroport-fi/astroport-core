@@ -288,6 +288,7 @@ impl Helper {
                     pair_type: PairType::Custom("concentrated".to_string()),
                     is_disabled: false,
                     is_generator_disabled: false,
+                    permissioned: true,
                 },
                 PairConfig {
                     code_id: app.store_code(orderbook_pair_contract()),
@@ -296,6 +297,7 @@ impl Helper {
                     pair_type: PairType::Custom("concentrated_inj_orderbook".to_string()),
                     is_disabled: false,
                     is_generator_disabled: false,
+                    permissioned: true,
                 },
             ],
             token_code_id,
@@ -329,6 +331,9 @@ impl Helper {
                     market_id,
                     orders_number: 5,
                     min_trades_to_avg: 1,
+                    min_base_order_size: 100,
+                    min_quote_order_size: 100,
+                    liquidity_percent: Decimal::percent(10),
                 },
             })
             .unwrap()

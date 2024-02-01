@@ -1,5 +1,10 @@
+use std::str::FromStr;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Decimal256, Env, QuerierWrapper, StdError, StdResult, Storage, Uint256};
+use cosmwasm_std::{
+    attr, Attribute, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Storage,
+    Uint256,
+};
 use cw_storage_plus::Item;
 use injective_cosmwasm::{
     InjectiveQuerier, InjectiveQueryWrapper, MarketId, MarketType, SubaccountId,
@@ -7,7 +12,9 @@ use injective_cosmwasm::{
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::cosmwasm_ext::ConvertInto;
-use astroport::pair_concentrated_inj::OrderbookStateResponse;
+use astroport::pair_concentrated_inj::{
+    OrderbookConfig, OrderbookStateResponse, UpdateOrderBookParams,
+};
 
 use crate::orderbook::consts::{MIN_TRADES_TO_AVG_LIMITS, ORDER_SIZE_LIMITS};
 use crate::orderbook::error::OrderbookError;
@@ -47,7 +54,12 @@ pub struct OrderbookState {
     /// The higher this number is, the more gas the contract consumes on begin blocker and
     /// the more liquidity the contract places in the order book.
     pub orders_number: u8,
-    /// Minimum number of trades to accumulate average trade size.
+    /// The minimum base order size allowed in the order book.
+    pub min_base_order_size: u32,
+    /// The minimum quote order size allowed in the order book.
+    pub min_quote_order_size: u32,
+    /// The percentage of the pool's liquidity that will be placed in the order book.
+    pub liquidity_percent: Decimal,
     /// Orderbook integration will not be enabled until this number is reached.
     pub min_trades_to_avg: u32,
     /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
@@ -62,20 +74,18 @@ impl OrderbookState {
     pub fn new(
         querier: QuerierWrapper<InjectiveQueryWrapper>,
         env: &Env,
-        market_id: &str,
-        orders_number: u8,
-        min_trades_to_avg: u32,
         asset_infos: &[AssetInfo],
         base_precision: u8,
+        orderbook_config: OrderbookConfig,
     ) -> StdResult<Self> {
-        let market_id = MarketId::new(market_id)?;
+        let market_id = MarketId::new(orderbook_config.market_id)?;
 
         Self::validate(
             querier,
             asset_infos,
             &market_id,
-            orders_number,
-            min_trades_to_avg,
+            orderbook_config.orders_number,
+            orderbook_config.min_trades_to_avg,
         )?;
 
         let mut state = Self {
@@ -89,8 +99,11 @@ impl OrderbookState {
                 asset_infos[0].with_balance(0u8),
                 asset_infos[1].with_balance(0u8),
             ],
-            orders_number,
-            min_trades_to_avg,
+            min_base_order_size: orderbook_config.min_base_order_size,
+            min_quote_order_size: orderbook_config.min_quote_order_size,
+            liquidity_percent: orderbook_config.liquidity_percent,
+            orders_number: orderbook_config.orders_number,
+            min_trades_to_avg: orderbook_config.min_trades_to_avg,
             ready: false,
             enabled: true,
         };
@@ -222,21 +235,71 @@ impl OrderbookState {
         self.ready = ready;
     }
 
-    /// Validates new orders number parameter and saves it in storage.
-    pub fn update_orders_number(storage: &mut dyn Storage, orders_number: u8) -> StdResult<()> {
-        validate_param!(
-            orders_number,
-            orders_number,
-            *ORDER_SIZE_LIMITS.start(),
-            *ORDER_SIZE_LIMITS.end()
-        );
+    pub fn update_params(
+        storage: &mut dyn Storage,
+        update_params: UpdateOrderBookParams,
+    ) -> StdResult<Vec<Attribute>> {
+        let mut attributes: Vec<_> = vec![];
 
-        OB_CONFIG
-            .update(storage, |mut ob_state| {
-                ob_state.orders_number = orders_number;
-                Ok(ob_state)
-            })
-            .map(|_| ())
+        if let Some(orders_number) = update_params.orders_number {
+            validate_param!(
+                orders_number,
+                orders_number,
+                *ORDER_SIZE_LIMITS.start(),
+                *ORDER_SIZE_LIMITS.end()
+            );
+
+            OB_CONFIG
+                .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
+                    ob_state.orders_number = orders_number;
+                    Ok(ob_state)
+                })
+                .map(|_| ())?;
+            attributes.push(attr("orders_number", orders_number.to_string()));
+        }
+
+        if let Some(min_base_order_size) = update_params.min_base_order_size {
+            validate_param!(min_base_order_size, min_base_order_size, 1, u32::MAX);
+            OB_CONFIG
+                .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
+                    ob_state.min_base_order_size = min_base_order_size;
+                    Ok(ob_state)
+                })
+                .map(|_| ())?;
+            attributes.push(attr("min_base_order_size", min_base_order_size.to_string()));
+        }
+
+        if let Some(min_quote_order_size) = update_params.min_quote_order_size {
+            validate_param!(min_quote_order_size, min_quote_order_size, 1, u32::MAX);
+            OB_CONFIG
+                .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
+                    ob_state.min_quote_order_size = min_quote_order_size;
+                    Ok(ob_state)
+                })
+                .map(|_| ())?;
+            attributes.push(attr(
+                "min_quote_order_size",
+                min_quote_order_size.to_string(),
+            ));
+        }
+
+        if let Some(liquidity_percent) = update_params.liquidity_percent {
+            validate_param!(
+                liquidity_percent,
+                liquidity_percent,
+                Decimal::from_str("0.01")?,
+                Decimal::percent(100)
+            );
+            OB_CONFIG
+                .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
+                    ob_state.liquidity_percent = liquidity_percent;
+                    Ok(ob_state)
+                })
+                .map(|_| ())?;
+            attributes.push(attr("liquidity_percent", liquidity_percent.to_string()));
+        }
+
+        Ok(attributes)
     }
 }
 

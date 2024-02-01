@@ -388,6 +388,7 @@ impl<'a> SpotOrdersFactory<'a> {
                     self.market_id,
                     self.subaccount.clone(),
                     Some(fee_receiver.clone()),
+                    None,
                 ))
             })
             .collect()

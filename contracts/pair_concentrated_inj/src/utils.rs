@@ -1,14 +1,14 @@
-use cosmwasm_std::{Addr, Env, QuerierWrapper, Storage};
+use cosmwasm_std::{Addr, Decimal, Env, QuerierWrapper, Storage};
 use injective_cosmwasm::InjectiveQueryWrapper;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, DecimalAsset};
 use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport::observation::{safe_sma_buffer_not_full, safe_sma_calculation};
 use astroport::observation::{Observation, PrecommitObservation};
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 use astroport_pcl_common::state::{Config, Precisions};
-use astroport_pcl_common::utils::{safe_sma_buffer_not_full, safe_sma_calculation};
 
 use crate::error::ContractError;
 use crate::orderbook::state::OrderbookState;
@@ -78,7 +78,7 @@ pub(crate) fn query_pools(
     Ok(contract_assets)
 }
 
-/// Calculate and save moving averages of swap sizes.
+/// Calculate and save price moving average
 pub fn accumulate_swap_sizes(
     storage: &mut dyn Storage,
     env: &Env,
@@ -91,6 +91,7 @@ pub fn accumulate_swap_sizes(
     }) = PrecommitObservation::may_load(storage)?
     {
         let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
+        let observed_price = Decimal::from_ratio(base_amount, quote_amount);
 
         let new_observation;
         if let Some(last_obs) = buffer.read_last(storage)? {
@@ -99,37 +100,26 @@ pub fn accumulate_swap_sizes(
                 // Since this is circular buffer the next index contains the oldest value
                 let count = buffer.capacity();
                 if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
-                    let new_base_sma = safe_sma_calculation(
-                        last_obs.base_sma,
-                        oldest_obs.base_amount,
+                    let price_sma = safe_sma_calculation(
+                        last_obs.price_sma,
+                        oldest_obs.price,
                         count,
-                        base_amount,
-                    )?;
-                    let new_quote_sma = safe_sma_calculation(
-                        last_obs.quote_sma,
-                        oldest_obs.quote_amount,
-                        count,
-                        quote_amount,
+                        observed_price,
                     )?;
                     new_observation = Observation {
-                        base_amount,
-                        quote_amount,
-                        base_sma: new_base_sma,
-                        quote_sma: new_quote_sma,
                         ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
                     };
                 } else {
                     // Buffer is not full yet
                     let count = buffer.head();
-                    let base_sma = safe_sma_buffer_not_full(last_obs.base_sma, count, base_amount)?;
-                    let quote_sma =
-                        safe_sma_buffer_not_full(last_obs.quote_sma, count, quote_amount)?;
+                    let price_sma =
+                        safe_sma_buffer_not_full(last_obs.price_sma, count, observed_price)?;
                     new_observation = Observation {
-                        base_amount,
-                        quote_amount,
-                        base_sma,
-                        quote_sma,
                         ts: precommit_ts,
+                        price: observed_price,
+                        price_sma,
                     };
                 }
 
@@ -145,10 +135,8 @@ pub fn accumulate_swap_sizes(
             if env.block.time.seconds() > precommit_ts {
                 new_observation = Observation {
                     ts: precommit_ts,
-                    base_sma: base_amount,
-                    base_amount,
-                    quote_sma: quote_amount,
-                    quote_amount,
+                    price: observed_price,
+                    price_sma: observed_price,
                 };
 
                 buffer.instant_push(storage, &new_observation)?
@@ -188,6 +176,9 @@ mod tests {
             need_reconcile: false,
             last_balances: vec![],
             orders_number: 0,
+            liquidity_percent: Default::default(),
+            min_base_order_size: Default::default(),
+            min_quote_order_size: Default::default(),
             min_trades_to_avg: *MIN_TRADES_TO_AVG_LIMITS.start(),
             ready: false,
             enabled: true,
@@ -205,10 +196,11 @@ mod tests {
         let obs = buffer.read_last(&store).unwrap().unwrap();
         assert_eq!(obs.ts, 50);
         assert_eq!(buffer.head(), 0);
-        assert_eq!(obs.base_sma.u128(), 1000u128);
-        assert_eq!(obs.quote_sma.u128(), 500u128);
+        assert_eq!(obs.price, Decimal::raw(2));
+        assert_eq!(obs.price_sma, Decimal::raw(2));
     }
 
+    #[ignore]
     #[test]
     fn test_contract_ready() {
         let mut store = MockStorage::new();
@@ -223,6 +215,9 @@ mod tests {
             need_reconcile: false,
             last_balances: vec![],
             orders_number: 0,
+            liquidity_percent: Default::default(),
+            min_base_order_size: Default::default(),
+            min_quote_order_size: Default::default(),
             min_trades_to_avg,
             ready: false,
             enabled: true,

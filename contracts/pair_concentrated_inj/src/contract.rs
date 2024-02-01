@@ -90,11 +90,9 @@ pub fn instantiate(
     let ob_state = OrderbookState::new(
         deps.querier,
         &env,
-        &orderbook_params.orderbook_config.market_id,
-        orderbook_params.orderbook_config.orders_number,
-        orderbook_params.orderbook_config.min_trades_to_avg,
         &msg.asset_infos,
         base_precision,
+        orderbook_params.orderbook_config,
     )?;
     ob_state.save(deps.storage)?;
 
@@ -911,12 +909,10 @@ fn update_config<T>(
             config.pool_state.stop_promotion(&env);
             vec![attr("action", "stop_changing_amp_gamma")]
         }
-        ConcentratedObPoolUpdateParams::UpdateOrderbookParams { orders_number } => {
-            OrderbookState::update_orders_number(deps.storage, orders_number)?;
-            vec![
-                attr("action", "update_orderbook_params"),
-                attr("orders_number", orders_number.to_string()),
-            ]
+        ConcentratedObPoolUpdateParams::UpdateOrderbookParams(update_params) => {
+            let mut attrs = OrderbookState::update_params(deps.storage, update_params)?;
+            attrs.push(attr("action", "update_orderbook_params"));
+            attrs
         }
     };
     CONFIG.save(deps.storage, &config)?;

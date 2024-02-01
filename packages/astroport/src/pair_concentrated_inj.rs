@@ -15,15 +15,34 @@ use crate::pair_concentrated::{ConcentratedPoolParams, PromoteParams, UpdatePool
 #[cw_serde]
 pub struct OrderbookConfig {
     pub market_id: String,
+    /// Number of orders on each side of the orderbook
     pub orders_number: u8,
     pub min_trades_to_avg: u32,
+    /// Minimum order size for base token
+    pub min_base_order_size: u32,
+    /// Minimum order size for quote token
+    pub min_quote_order_size: u32,
+    /// Percent of liquidity to be deployed to the orderbook
+    pub liquidity_percent: Decimal,
 }
-
 /// This structure holds concentrated pool parameters along with orderbook params specific for Injective.
 #[cw_serde]
 pub struct ConcentratedInjObParams {
     pub main_params: ConcentratedPoolParams,
     pub orderbook_config: OrderbookConfig,
+}
+
+/// This structure holds orderbook params specific for update order book state.
+#[cw_serde]
+pub struct UpdateOrderBookParams {
+    /// Number of orders on each side of the orderbook
+    pub orders_number: Option<u8>,
+    /// Minimum trade size for base asset orders
+    pub min_base_order_size: Option<u32>,
+    /// Minimum trade size for quote asset orders
+    pub min_quote_order_size: Option<u32>,
+    /// Percent of liquidity to be deployed to the orderbook
+    pub liquidity_percent: Option<Decimal>,
 }
 
 /// This structure is extended version of [`crate::pair::ExecuteMsg`].
@@ -143,8 +162,8 @@ pub struct OrderbookStateResponse {
 
 #[cw_serde]
 pub enum MigrateMsg {
-    MigrateToOrderbook { params: OrderbookConfig },
     Migrate {},
+    MigrateWithParams(Binary),
 }
 
 /// This enum is intended for parameters update.
@@ -157,5 +176,5 @@ pub enum ConcentratedObPoolUpdateParams {
     /// Stops Amp and Gamma update and stores current values.
     StopChangingAmpGamma {},
     /// Update orderbook params.
-    UpdateOrderbookParams { orders_number: u8 },
+    UpdateOrderbookParams(UpdateOrderBookParams),
 }
