@@ -190,6 +190,7 @@ impl Helper {
                 pair_type: pair_type.clone(),
                 is_disabled: false,
                 is_generator_disabled: false,
+                permissioned: false,
             }],
             token_code_id,
             generator_address: None,

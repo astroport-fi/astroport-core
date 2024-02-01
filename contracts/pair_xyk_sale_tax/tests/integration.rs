@@ -47,12 +47,12 @@ fn store_standard_xyk_pair_code(app: &mut App, version: &str) -> u64 {
         "1.3.1" => {
             let code = Box::new(
                 ContractWrapper::new_with_empty(
-                    astroport_pair_1_3_1::contract::execute,
-                    astroport_pair_1_3_1::contract::instantiate,
-                    astroport_pair_1_3_1::contract::query,
+                    astroport_pair_1_3_3::contract::execute,
+                    astroport_pair_1_3_3::contract::instantiate,
+                    astroport_pair_1_3_3::contract::query,
                 )
-                .with_migrate_empty(astroport_pair_1_3_1::contract::migrate)
-                .with_reply_empty(astroport_pair_1_3_1::contract::reply),
+                .with_migrate_empty(astroport_pair_1_3_3::contract::migrate)
+                .with_reply_empty(astroport_pair_1_3_3::contract::reply),
             );
             app.store_code(code)
         }
