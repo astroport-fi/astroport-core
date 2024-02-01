@@ -350,7 +350,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalShares {} => {
             let config = CONFIG.load(deps.storage)?;
 
-            let total_supply = deps.querier.query_supply(&config.xastro_denom)?.amount;
+            let total_supply = deps.querier.query_supply(config.xastro_denom)?.amount;
             to_json_binary(&total_supply)
         }
         QueryMsg::TotalDeposit {} => {
@@ -358,7 +358,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
             let total_deposit = deps
                 .querier
-                .query_balance(&env.contract.address, &config.astro_denom)?
+                .query_balance(env.contract.address, config.astro_denom)?
                 .amount;
             to_json_binary(&total_deposit)
         }
@@ -367,12 +367,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             let amount = if timestamp.is_none() {
                 let config = CONFIG.load(deps.storage)?;
                 deps.querier
-                    .query_balance(&address, &config.xastro_denom)?
+                    .query_balance(&address, config.xastro_denom)?
                     .amount
             } else {
                 let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
-                    &tracker_config.tracker_addr,
+                    tracker_config.tracker_addr,
                     &astroport::tokenfactory_tracker::QueryMsg::BalanceAt { address, timestamp },
                 )?
             };
@@ -382,11 +382,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::TotalSupplyAt { timestamp } => {
             let amount = if timestamp.is_none() {
                 let config = CONFIG.load(deps.storage)?;
-                deps.querier.query_supply(&config.xastro_denom)?.amount
+                deps.querier.query_supply(config.xastro_denom)?.amount
             } else {
                 let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
-                    &tracker_config.tracker_addr,
+                    tracker_config.tracker_addr,
                     &astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp },
                 )?
             };
