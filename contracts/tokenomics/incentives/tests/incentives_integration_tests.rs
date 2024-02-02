@@ -886,6 +886,9 @@ fn test_astro_external_reward() {
     helper.setup_pools(vec![(lp_token.clone(), 100)]).unwrap();
     helper.set_tokens_per_second(100).unwrap();
 
+    let active_pools = helper.active_pools();
+    assert_eq!(active_pools, vec![(lp_token.clone(), 100u8.into())]);
+
     // Setup external rewards: 2 equal external ASTRO rewards that must be summed up
     let bank = TestAddr::new("bank");
     let reward = astro.with_balance(2u128 * 7 * 86400 * 25); // 25 uastro per second
@@ -1657,6 +1660,9 @@ fn test_queries() {
         .query_ext_reward_schedules(&lp_token, &reward_asset_info, Some(1699228800), None)
         .unwrap();
     assert_eq!(res.len(), 2);
+
+    let pools = helper.all_pools();
+    assert_eq!(pools, vec![lp_token.clone()]);
 }
 
 #[test]
