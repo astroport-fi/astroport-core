@@ -3,6 +3,10 @@ name = "astroport-incentives"
 version = "1.0.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Incentives Contract distributing rewards to LP stakers"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -17,7 +21,7 @@ cosmwasm-schema = "1.4"
 cw2 = "1"
 cw20 = "1"
 cw-utils = "1"
-astroport = { path = "../../../packages/astroport" }
+astroport = { path = "../../../packages/astroport", version = "3.11.0" }
 thiserror = "1"
 itertools = "0.11"
 
