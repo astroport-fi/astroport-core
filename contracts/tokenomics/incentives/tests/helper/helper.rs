@@ -893,6 +893,26 @@ impl Helper {
             .unwrap()
     }
 
+    pub fn all_pools(&self) -> Vec<String> {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.generator,
+                &QueryMsg::ListPools {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+    }
+
+    pub fn active_pools(&self) -> Vec<(String, Uint128)> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.generator, &QueryMsg::ActivePools {})
+            .unwrap()
+    }
+
     pub fn create_pair(&mut self, asset_infos: &[AssetInfo]) -> AnyResult<PairInfo> {
         let asset_infos = asset_infos.to_vec();
         self.app
