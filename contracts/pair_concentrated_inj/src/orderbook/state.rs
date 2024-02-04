@@ -118,8 +118,8 @@ impl OrderbookState {
     ) -> StdResult<()> {
         Self::validate_orders_number(orderbook_config.orders_number)?;
         Self::validate_liquidity_percent(orderbook_config.liquidity_percent)?;
-        Self::validate_min_order_size(orderbook_config.min_base_order_size)?;
-        Self::validate_min_order_size(orderbook_config.min_quote_order_size)?;
+        Self::validate_min_base_order_size(orderbook_config.min_base_order_size)?;
+        Self::validate_min_quote_order_size(orderbook_config.min_quote_order_size)?;
 
         let market_ids = calc_market_ids(asset_infos)?;
 
@@ -165,8 +165,13 @@ impl OrderbookState {
         Ok(())
     }
 
-    fn validate_min_order_size(order_size: u32) -> StdResult<()> {
-        validate_param!(order_size, order_size, 1, u32::MAX);
+    fn validate_min_base_order_size(min_base_order_size: u32) -> StdResult<()> {
+        validate_param!(min_base_order_size, min_base_order_size, 1, u32::MAX);
+        Ok(())
+    }
+
+    fn validate_min_quote_order_size(min_quote_order_size: u32) -> StdResult<()> {
+        validate_param!(min_quote_order_size, min_quote_order_size, 1, u32::MAX);
         Ok(())
     }
 
@@ -234,12 +239,13 @@ impl OrderbookState {
     }
 
     pub fn update_params(
+        self,
         storage: &mut dyn Storage,
-        update_params: UpdateOrderBookParams,
+        params: UpdateOrderBookParams,
     ) -> StdResult<Vec<Attribute>> {
         let mut attributes: Vec<_> = vec![];
 
-        if let Some(orders_number) = update_params.orders_number {
+        if let Some(orders_number) = params.orders_number {
             Self::validate_orders_number(orders_number)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
@@ -250,8 +256,8 @@ impl OrderbookState {
             attributes.push(attr("orders_number", orders_number.to_string()));
         }
 
-        if let Some(min_base_order_size) = update_params.min_base_order_size {
-            Self::validate_min_order_size(min_base_order_size)?;
+        if let Some(min_base_order_size) = params.min_base_order_size {
+            Self::validate_min_base_order_size(min_base_order_size)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.min_base_order_size = min_base_order_size;
@@ -261,8 +267,8 @@ impl OrderbookState {
             attributes.push(attr("min_base_order_size", min_base_order_size.to_string()));
         }
 
-        if let Some(min_quote_order_size) = update_params.min_quote_order_size {
-            Self::validate_min_order_size(min_quote_order_size)?;
+        if let Some(min_quote_order_size) = params.min_quote_order_size {
+            Self::validate_min_quote_order_size(min_quote_order_size)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.min_quote_order_size = min_quote_order_size;
@@ -275,7 +281,7 @@ impl OrderbookState {
             ));
         }
 
-        if let Some(liquidity_percent) = update_params.liquidity_percent {
+        if let Some(liquidity_percent) = params.liquidity_percent {
             Self::validate_liquidity_percent(liquidity_percent)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
@@ -305,5 +311,185 @@ impl From<OrderbookState> for OrderbookStateResponse {
             liquidity_percent: value.liquidity_percent,
             enabled: value.enabled,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Display;
+
+    use cosmwasm_std::testing::MockStorage;
+
+    use super::*;
+
+    fn error_params<T>(name: &str, min: T, max: T, val: T) -> StdError
+    where
+        T: Display,
+    {
+        StdError::generic_err(format!(
+            "Incorrect orderbook params: must be {min} <= {name} <= {max}, but value is {val}",
+            name = name,
+            min = min,
+            max = max,
+            val = val
+        ))
+    }
+
+    #[test]
+    fn check_update_params() {
+        let min_liquidity_percent = Decimal::from_str("0.01").unwrap();
+        let max_liquidity_percent = Decimal::percent(100);
+        let min_orders_number = ORDER_SIZE_LIMITS.start();
+        let max_orders_number = ORDER_SIZE_LIMITS.end();
+        let min_order_size = 1_u32;
+
+        let mut storage = MockStorage::default();
+        let ob_state = OrderbookState {
+            market_id: MarketId::unchecked(
+                "0x1c79dac019f73e4060494ab1b4fcba734350656d6fc4d474f6a238c13c6f9ced",
+            ),
+            subaccount: SubaccountId::unchecked(
+                "0xc7dca7c15c364865f77a4fb67ab11dc95502e6fe000000000000000000000001",
+            ),
+            asset_infos: vec![],
+            min_price_tick_size: Default::default(),
+            min_quantity_tick_size: Default::default(),
+            need_reconcile: false,
+            last_balances: vec![],
+            orders_number: 0,
+            liquidity_percent: Default::default(),
+            min_base_order_size: Default::default(),
+            min_quote_order_size: Default::default(),
+            enabled: true,
+        };
+
+        OB_CONFIG.save(&mut storage, &ob_state).unwrap();
+
+        let mut params = UpdateOrderBookParams {
+            orders_number: None,
+            min_base_order_size: None,
+            min_quote_order_size: None,
+            liquidity_percent: Some(Decimal::percent(0)),
+        };
+
+        // Should fail since liquidity percent is less than 0.01
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params(
+                "liquidity_percent",
+                min_liquidity_percent,
+                max_liquidity_percent,
+                Decimal::percent(0)
+            ),
+        );
+
+        // Should fail if liquidity is bigger than 100%
+        params.liquidity_percent = Some(Decimal::percent(101));
+
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params(
+                "liquidity_percent",
+                min_liquidity_percent,
+                max_liquidity_percent,
+                Decimal::percent(101)
+            ),
+        );
+
+        // Should fail if orders_number is less than 1
+        params.liquidity_percent = None;
+        params.orders_number = Some(0);
+
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params("orders_number", min_orders_number, max_orders_number, &0),
+        );
+
+        // Should fail if orders_number is bigger than ORDER_SIZE_LIMITS.end()
+
+        params.orders_number = Some(ORDER_SIZE_LIMITS.end() + 1);
+
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params(
+                "orders_number",
+                min_orders_number,
+                max_orders_number,
+                &(ORDER_SIZE_LIMITS.end() + 1)
+            ),
+        );
+
+        // Should fail if min_base_order_size is less than 1
+        params.orders_number = None;
+        params.min_base_order_size = Some(0);
+
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params("min_base_order_size", min_order_size, u32::MAX, 0),
+        );
+
+        // Should fail if min_quote_order_size is less than 1
+        params.min_base_order_size = None;
+        params.min_quote_order_size = Some(0);
+
+        let res = ob_state
+            .clone()
+            .update_params(&mut storage, params.clone())
+            .unwrap_err();
+
+        assert_eq!(
+            res,
+            error_params("min_quote_order_size", min_order_size, u32::MAX, 0),
+        );
+
+        // Should pass if all params are valid
+        let params = UpdateOrderBookParams {
+            orders_number: Some(5),
+            min_base_order_size: Some(22),
+            min_quote_order_size: Some(33),
+            liquidity_percent: Some(Decimal::percent(50)),
+        };
+
+        let res = ob_state
+            .update_params(&mut storage, params.clone())
+            .unwrap();
+
+        let ob_state = OB_CONFIG.load(&mut storage).unwrap();
+
+        assert_eq!(ob_state.orders_number, 5);
+        assert_eq!(ob_state.min_base_order_size, 22);
+        assert_eq!(ob_state.min_quote_order_size, 33);
+        assert_eq!(ob_state.liquidity_percent, Decimal::percent(50));
+
+        assert_eq!(res.len(), 4);
+        assert_eq!(res[0], attr("orders_number", "5"));
+        assert_eq!(res[1], attr("min_base_order_size", "22"));
+        assert_eq!(res[2], attr("min_quote_order_size", "33"));
+        assert_eq!(res[3], attr("liquidity_percent", "0.5"));
     }
 }

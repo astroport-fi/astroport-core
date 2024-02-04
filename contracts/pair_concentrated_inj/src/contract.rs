@@ -910,7 +910,8 @@ fn update_config<T>(
             vec![attr("action", "stop_changing_amp_gamma")]
         }
         ConcentratedObPoolUpdateParams::UpdateOrderbookParams(update_params) => {
-            let mut attrs = OrderbookState::update_params(deps.storage, update_params)?;
+            let ob_state = OrderbookState::load(deps.storage)?;
+            let mut attrs = ob_state.update_params(deps.storage, update_params)?;
             attrs.push(attr("action", "update_orderbook_params"));
             attrs
         }
