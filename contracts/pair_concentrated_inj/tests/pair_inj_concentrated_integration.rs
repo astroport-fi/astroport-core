@@ -886,7 +886,6 @@ fn check_orderbook_integration() {
     let ob_state = helper.query_ob_config_smart().unwrap();
     assert_eq!(ob_state.orders_number, 5);
     assert_eq!(ob_state.need_reconcile, false); // sudo endpoint was already executed and liq. deployed in OB
-    assert_eq!(ob_state.ready, true);
 
     let ob_config = helper.query_ob_config().unwrap();
     let querier_wrapper = helper.app.wrap();

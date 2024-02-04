@@ -25,7 +25,6 @@ pub fn migrate(
                     let OrderbookConfig {
                         liquidity_percent,
                         min_base_order_size,
-                        min_trades_to_avg,
                         min_quote_order_size,
                         orders_number,
                         ..
@@ -36,7 +35,6 @@ pub fn migrate(
                     ob_state.min_base_order_size = min_base_order_size;
                     ob_state.min_quote_order_size = min_quote_order_size;
                     ob_state.orders_number = orders_number;
-                    ob_state.min_trades_to_avg = min_trades_to_avg;
                     ob_state.save(deps.storage)?;
                 }
                 _ => {

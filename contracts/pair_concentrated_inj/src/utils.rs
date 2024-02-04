@@ -79,11 +79,7 @@ pub(crate) fn query_pools(
 }
 
 /// Calculate and save price moving average
-pub fn accumulate_swap_sizes(
-    storage: &mut dyn Storage,
-    env: &Env,
-    ob_state: &mut OrderbookState,
-) -> BufferResult<()> {
+pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
     if let Some(PrecommitObservation {
         base_amount,
         quote_amount,
@@ -123,11 +119,6 @@ pub fn accumulate_swap_sizes(
                     };
                 }
 
-                // Enable orderbook if we have enough observations
-                if !ob_state.ready && (buffer.head() + 1) >= ob_state.min_trades_to_avg {
-                    ob_state.ready(true)
-                }
-
                 buffer.instant_push(storage, &new_observation)?
             }
         } else {
@@ -149,13 +140,17 @@ pub fn accumulate_swap_sizes(
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
+    use std::str::FromStr;
+
     use cosmwasm_std::testing::{mock_env, MockStorage};
     use cosmwasm_std::{BlockInfo, Timestamp};
-    use injective_cosmwasm::{MarketId, SubaccountId};
-
-    use crate::orderbook::consts::MIN_TRADES_TO_AVG_LIMITS;
 
     use super::*;
+
+    pub fn dec_to_f64(val: impl Display) -> f64 {
+        f64::from_str(&val.to_string()).unwrap()
+    }
 
     fn next_block(block: &mut BlockInfo) {
         block.height += 1;
@@ -167,26 +162,11 @@ mod tests {
         let mut store = MockStorage::new();
         let mut env = mock_env();
         env.block.time = Timestamp::from_seconds(1);
-        let mut ob_state = OrderbookState {
-            market_id: MarketId::unchecked("test"),
-            subaccount: SubaccountId::unchecked("test"),
-            asset_infos: vec![],
-            min_price_tick_size: Default::default(),
-            min_quantity_tick_size: Default::default(),
-            need_reconcile: false,
-            last_balances: vec![],
-            orders_number: 0,
-            liquidity_percent: Default::default(),
-            min_base_order_size: Default::default(),
-            min_quote_order_size: Default::default(),
-            min_trades_to_avg: *MIN_TRADES_TO_AVG_LIMITS.start(),
-            ready: false,
-            enabled: true,
-        };
+
         BufferManager::init(&mut store, OBSERVATIONS, 10).unwrap();
 
         for _ in 0..=50 {
-            accumulate_swap_sizes(&mut store, &env, &mut ob_state).unwrap();
+            accumulate_swap_sizes(&mut store, &env).unwrap();
             PrecommitObservation::save(&mut store, &env, 1000u128.into(), 500u128.into()).unwrap();
             next_block(&mut env.block);
         }
@@ -196,44 +176,7 @@ mod tests {
         let obs = buffer.read_last(&store).unwrap().unwrap();
         assert_eq!(obs.ts, 50);
         assert_eq!(buffer.head(), 0);
-        assert_eq!(obs.price, Decimal::raw(2));
-        assert_eq!(obs.price_sma, Decimal::raw(2));
-    }
-
-    #[ignore]
-    #[test]
-    fn test_contract_ready() {
-        let mut store = MockStorage::new();
-        let mut env = mock_env();
-        let min_trades_to_avg = 10;
-        let mut ob_state = OrderbookState {
-            market_id: MarketId::unchecked("test"),
-            subaccount: SubaccountId::unchecked("test"),
-            asset_infos: vec![],
-            min_price_tick_size: Default::default(),
-            min_quantity_tick_size: Default::default(),
-            need_reconcile: false,
-            last_balances: vec![],
-            orders_number: 0,
-            liquidity_percent: Default::default(),
-            min_base_order_size: Default::default(),
-            min_quote_order_size: Default::default(),
-            min_trades_to_avg,
-            ready: false,
-            enabled: true,
-        };
-        BufferManager::init(&mut store, OBSERVATIONS, min_trades_to_avg).unwrap();
-
-        for _ in 0..min_trades_to_avg {
-            accumulate_swap_sizes(&mut store, &env, &mut ob_state).unwrap();
-            PrecommitObservation::save(&mut store, &env, 1000u128.into(), 500u128.into()).unwrap();
-            next_block(&mut env.block);
-        }
-        assert!(!ob_state.ready, "Contract should not be ready yet");
-
-        // last observation to make contract ready
-        accumulate_swap_sizes(&mut store, &env, &mut ob_state).unwrap();
-
-        assert!(ob_state.ready, "Contract should be ready");
+        assert_eq!(dec_to_f64(obs.price), 2.0_f64);
+        assert_eq!(dec_to_f64(obs.price_sma), 2.0_f64);
     }
 }

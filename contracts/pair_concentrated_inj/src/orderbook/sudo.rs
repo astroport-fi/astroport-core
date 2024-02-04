@@ -1,4 +1,3 @@
-use astroport::cosmwasm_ext::DecimalToInteger;
 use cosmwasm_std::{entry_point, Decimal256, DepsMut, Env, Response, StdResult};
 use injective_cosmwasm::{
     create_deposit_msg, create_withdraw_msg, InjectiveMsgWrapper, InjectiveQuerier,
@@ -39,7 +38,7 @@ fn begin_blocker(
     env: Env,
 ) -> Result<Response<InjectiveMsgWrapper>, OrderbookError> {
     let ob_state = OrderbookState::load(deps.storage)?;
-    if !(ob_state.ready && ob_state.enabled) {
+    if !(ob_state.enabled) {
         return Ok(Response::new());
     }
     let querier = InjectiveQuerier::new(&deps.querier);
@@ -63,6 +62,23 @@ fn begin_blocker(
         .map(|asset| asset.amount)
         .collect_vec();
 
+        // Calculate total order size using the sum of an arithmetic progression
+        let total_order_size = (1 + ob_state.orders_number) * ob_state.orders_number / 2;
+        let liquidity_percent = Decimal256::from(ob_state.liquidity_percent);
+
+        let base_order_size = pools[0] * liquidity_percent;
+        let quote_order_size = pools[1] * liquidity_percent;
+
+        let balances_are_zero = balances.iter().all(|balance| balance.amount.is_zero());
+
+        // Since there is not balance before and don't meet min order size, we don't need to do anything
+        if balances_are_zero
+            && (base_order_size < Decimal256::from_integer(ob_state.min_base_order_size)
+                || quote_order_size < Decimal256::from_integer(ob_state.min_quote_order_size))
+        {
+            return Ok(Response::new());
+        }
+
         let base_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[0])?;
         let quote_asset_precision = precisions.get_precision(&config.pair_info.asset_infos[1])?;
 
@@ -84,13 +100,7 @@ fn begin_blocker(
             CONFIG.save(deps.storage, &config)?;
         }
 
-        // Calculate total order size using the sum of an arithmetic progression
-        let total_order_size = (1 + ob_state.orders_number) * ob_state.orders_number / 2;
-        let liquidity_percent = Decimal256::from(ob_state.liquidity_percent);
-
-        let base_order_size = pools[0] * liquidity_percent;
-        let quote_order_size = pools[1] * liquidity_percent;
-
+        // If we previously had balances but we don't meet min order size, we leave orderbook
         if base_order_size < Decimal256::from_integer(ob_state.min_base_order_size)
             || quote_order_size < Decimal256::from_integer(ob_state.min_quote_order_size)
         {
@@ -99,20 +109,6 @@ fn begin_blocker(
 
         let base_trade_size = base_order_size / Decimal256::from_integer(total_order_size);
         let quote_trade_size = quote_order_size / Decimal256::from_integer(total_order_size);
-
-        println!(
-            "liquidity_percent: {}",
-            (Decimal256::one() * base_trade_size) * base_trade_size / Decimal256::raw(2)
-        );
-
-        // Adjusting to min quantity tick size on Injective market
-        let base_trade_size = (base_trade_size / ob_state.min_quantity_tick_size).floor()
-            * ob_state.min_quantity_tick_size;
-
-        // If adjusted avg_trade_size is zero we cancel all orders and withdraw liquidity.
-        if base_trade_size.is_zero() {
-            return leave_orderbook(&ob_state, balances, &env);
-        }
 
         let amp_gamma = config.pool_state.get_amp_gamma(&env);
         let mut ixs = pools.to_vec();

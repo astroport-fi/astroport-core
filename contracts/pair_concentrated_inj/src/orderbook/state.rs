@@ -16,7 +16,7 @@ use astroport::pair_concentrated_inj::{
     OrderbookConfig, OrderbookStateResponse, UpdateOrderBookParams,
 };
 
-use crate::orderbook::consts::{MIN_TRADES_TO_AVG_LIMITS, ORDER_SIZE_LIMITS};
+use crate::orderbook::consts::ORDER_SIZE_LIMITS;
 use crate::orderbook::error::OrderbookError;
 use crate::orderbook::utils::{calc_market_ids, get_subaccount};
 
@@ -60,10 +60,6 @@ pub struct OrderbookState {
     pub min_quote_order_size: u32,
     /// The percentage of the pool's liquidity that will be placed in the order book.
     pub liquidity_percent: Decimal,
-    /// Orderbook integration will not be enabled until this number is reached.
-    pub min_trades_to_avg: u32,
-    /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
-    pub ready: bool,
     /// Whether the begin blocker execution is allowed or not. Default: true
     pub enabled: bool,
 }
@@ -78,15 +74,9 @@ impl OrderbookState {
         base_precision: u8,
         orderbook_config: OrderbookConfig,
     ) -> StdResult<Self> {
-        let market_id = MarketId::new(orderbook_config.market_id)?;
+        let market_id = MarketId::new(orderbook_config.market_id.clone())?;
 
-        Self::validate(
-            querier,
-            asset_infos,
-            &market_id,
-            orderbook_config.orders_number,
-            orderbook_config.min_trades_to_avg,
-        )?;
+        Self::validate(querier, asset_infos, &market_id, &orderbook_config)?;
 
         let mut state = Self {
             market_id,
@@ -103,8 +93,6 @@ impl OrderbookState {
             min_quote_order_size: orderbook_config.min_quote_order_size,
             liquidity_percent: orderbook_config.liquidity_percent,
             orders_number: orderbook_config.orders_number,
-            min_trades_to_avg: orderbook_config.min_trades_to_avg,
-            ready: false,
             enabled: true,
         };
 
@@ -126,22 +114,12 @@ impl OrderbookState {
         querier: QuerierWrapper<InjectiveQueryWrapper>,
         asset_infos: &[AssetInfo],
         market_id: &MarketId,
-        orders_number: u8,
-        min_trades_to_avg: u32,
+        orderbook_config: &OrderbookConfig,
     ) -> StdResult<()> {
-        validate_param!(
-            orders_number,
-            orders_number,
-            *ORDER_SIZE_LIMITS.start(),
-            *ORDER_SIZE_LIMITS.end()
-        );
-
-        validate_param!(
-            min_trades_to_avg,
-            min_trades_to_avg,
-            *MIN_TRADES_TO_AVG_LIMITS.start(),
-            *MIN_TRADES_TO_AVG_LIMITS.end()
-        );
+        Self::validate_orders_number(orderbook_config.orders_number)?;
+        Self::validate_liquidity_percent(orderbook_config.liquidity_percent)?;
+        Self::validate_min_order_size(orderbook_config.min_base_order_size)?;
+        Self::validate_min_order_size(orderbook_config.min_quote_order_size)?;
 
         let market_ids = calc_market_ids(asset_infos)?;
 
@@ -164,6 +142,31 @@ impl OrderbookState {
             .clone()
             .validate(&InjectiveQuerier::new(&querier), MarketType::Spot)?;
 
+        Ok(())
+    }
+
+    fn validate_orders_number(orders_number: u8) -> StdResult<()> {
+        validate_param!(
+            orders_number,
+            orders_number,
+            *ORDER_SIZE_LIMITS.start(),
+            *ORDER_SIZE_LIMITS.end()
+        );
+        Ok(())
+    }
+
+    fn validate_liquidity_percent(liquidity_percent: Decimal) -> StdResult<()> {
+        validate_param!(
+            liquidity_percent,
+            liquidity_percent,
+            Decimal::from_str("0.01")?,
+            Decimal::percent(100)
+        );
+        Ok(())
+    }
+
+    fn validate_min_order_size(order_size: u32) -> StdResult<()> {
+        validate_param!(order_size, order_size, 1, u32::MAX);
         Ok(())
     }
 
@@ -230,11 +233,6 @@ impl OrderbookState {
         )
     }
 
-    /// If min_trades_to_avg has been reached, set ready flag to true.
-    pub fn ready(&mut self, ready: bool) {
-        self.ready = ready;
-    }
-
     pub fn update_params(
         storage: &mut dyn Storage,
         update_params: UpdateOrderBookParams,
@@ -242,13 +240,7 @@ impl OrderbookState {
         let mut attributes: Vec<_> = vec![];
 
         if let Some(orders_number) = update_params.orders_number {
-            validate_param!(
-                orders_number,
-                orders_number,
-                *ORDER_SIZE_LIMITS.start(),
-                *ORDER_SIZE_LIMITS.end()
-            );
-
+            Self::validate_orders_number(orders_number)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.orders_number = orders_number;
@@ -259,7 +251,7 @@ impl OrderbookState {
         }
 
         if let Some(min_base_order_size) = update_params.min_base_order_size {
-            validate_param!(min_base_order_size, min_base_order_size, 1, u32::MAX);
+            Self::validate_min_order_size(min_base_order_size)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.min_base_order_size = min_base_order_size;
@@ -270,7 +262,7 @@ impl OrderbookState {
         }
 
         if let Some(min_quote_order_size) = update_params.min_quote_order_size {
-            validate_param!(min_quote_order_size, min_quote_order_size, 1, u32::MAX);
+            Self::validate_min_order_size(min_quote_order_size)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.min_quote_order_size = min_quote_order_size;
@@ -284,12 +276,7 @@ impl OrderbookState {
         }
 
         if let Some(liquidity_percent) = update_params.liquidity_percent {
-            validate_param!(
-                liquidity_percent,
-                liquidity_percent,
-                Decimal::from_str("0.01")?,
-                Decimal::percent(100)
-            );
+            Self::validate_liquidity_percent(liquidity_percent)?;
             OB_CONFIG
                 .update(storage, |mut ob_state| -> StdResult<OrderbookState> {
                     ob_state.liquidity_percent = liquidity_percent;
@@ -313,8 +300,9 @@ impl From<OrderbookState> for OrderbookStateResponse {
             need_reconcile: value.need_reconcile,
             last_balances: value.last_balances,
             orders_number: value.orders_number,
-            min_trades_to_avg: value.min_trades_to_avg,
-            ready: value.ready,
+            min_base_order_size: value.min_base_order_size,
+            min_quote_order_size: value.min_quote_order_size,
+            liquidity_percent: value.liquidity_percent,
             enabled: value.enabled,
         }
     }

@@ -837,7 +837,7 @@ where
     }
 
     // Store observation from precommit data
-    accumulate_swap_sizes(deps.storage, &env, &mut ob_state)?;
+    accumulate_swap_sizes(deps.storage, &env)?;
 
     // Store time series data in precommit observation.
     // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.

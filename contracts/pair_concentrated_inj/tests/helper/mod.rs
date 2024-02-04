@@ -330,7 +330,6 @@ impl Helper {
                 orderbook_config: OrderbookConfig {
                     market_id,
                     orders_number: 5,
-                    min_trades_to_avg: 1,
                     min_base_order_size: 100,
                     min_quote_order_size: 100,
                     liquidity_percent: Decimal::percent(10),

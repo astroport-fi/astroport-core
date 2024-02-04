@@ -17,7 +17,6 @@ pub struct OrderbookConfig {
     pub market_id: String,
     /// Number of orders on each side of the orderbook
     pub orders_number: u8,
-    pub min_trades_to_avg: u32,
     /// Minimum order size for base token
     pub min_base_order_size: u32,
     /// Minimum order size for quote token
@@ -151,11 +150,12 @@ pub struct OrderbookStateResponse {
     pub last_balances: Vec<Asset>,
     /// Order number on each side of the orderbook
     pub orders_number: u8,
-    /// Minimum number of trades to accumulate average trade size.
-    /// Orderbook integration will not be enabled until this number is reached.
-    pub min_trades_to_avg: u32,
-    /// Whether the pool is ready to integrate with the orderbook (MIN_TRADES_TO_AVG is reached)
-    pub ready: bool,
+    /// Minimum order size for base token
+    pub min_base_order_size: u32,
+    /// Minimum order size for quote token
+    pub min_quote_order_size: u32,
+    /// Percent of liquidity to be deployed to the orderbook
+    pub liquidity_percent: Decimal,
     /// Whether the begin blocker execution is allowed or not. Default: true
     pub enabled: bool,
 }
