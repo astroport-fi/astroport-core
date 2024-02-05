@@ -22,7 +22,7 @@ use crate::orderbook::utils::{calc_market_ids, get_subaccount};
 
 macro_rules! validate_param {
     ($name:ident, $val:expr, $min:expr, $max:expr) => {
-        if $val < $min || $val > $max {
+        if !($min..$max).contains(&$val) {
             return Err(StdError::generic_err(format!(
                 "Incorrect orderbook params: must be {min} <= {name} <= {max}, but value is {val}",
                 name = stringify!($name),

@@ -28,7 +28,7 @@ pub fn migrate(
                         min_quote_order_size,
                         orders_number,
                         ..
-                    } = from_json(&data)?;
+                    } = from_json(data)?;
 
                     let mut ob_state = OrderbookState::load(deps.storage)?;
                     ob_state.liquidity_percent = liquidity_percent;

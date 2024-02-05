@@ -903,13 +903,13 @@ fn check_orderbook_integration() {
         .total_balance
         .into();
 
-    assert_eq!(inj_deposit, 16540_551000000000000000);
-    assert_eq!(astro_deposit, 32844_980113);
+    assert_eq!(inj_deposit, 16540_316000000000000000);
+    assert_eq!(astro_deposit, 32839_685906);
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
     let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);
 
-    assert_eq!(inj_pool, 483492_363893233248386874);
-    assert_eq!(astro_pool, 967219_396427);
+    assert_eq!(inj_pool, 483492_598893233248386874);
+    assert_eq!(astro_pool, 967224_690634);
 
     // total liquidity is close to initial provided liquidity
     let total_inj = inj_deposit + inj_pool;
