@@ -107,8 +107,10 @@ fn begin_blocker(
             return leave_orderbook(&ob_state, balances, &env);
         }
 
-        let base_trade_size = base_order_size / Decimal256::from_integer(total_order_size);
-        let quote_trade_size = quote_order_size / Decimal256::from_integer(total_order_size);
+        let base_trade_size =
+            (base_order_size / Decimal256::from_integer(total_order_size)).floor();
+        let quote_trade_size =
+            (quote_order_size / Decimal256::from_integer(total_order_size)).floor();
 
         let amp_gamma = config.pool_state.get_amp_gamma(&env);
         let mut ixs = pools.to_vec();

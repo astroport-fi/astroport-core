@@ -2,7 +2,6 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::str::FromStr;
 
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use cosmwasm_std::{coins, Addr, Coin, Decimal, Decimal256, StdError, Uint128};
@@ -891,14 +890,6 @@ fn check_orderbook_integration() {
     let querier_wrapper = helper.app.wrap();
     let inj_querier = InjectiveQuerier::new(&querier_wrapper);
 
-    let pools = helper
-        .query_pool()
-        .unwrap()
-        .assets
-        .iter()
-        .map(|asset| asset.amount)
-        .collect_vec();
-
     let inj_deposit: u128 = inj_querier
         .query_subaccount_deposit(&ob_config.subaccount, &"inj".to_string())
         .unwrap()
@@ -912,27 +903,18 @@ fn check_orderbook_integration() {
         .total_balance
         .into();
 
-    /*  let expected_inj =
-    Decimal::from_str(&pools[0].to_string()).unwrap() * Decimal::from_ratio(5u128, 100u128); */
-    println!(
-        "expected_inj: {} total: {} deposited: {}",
-        Decimal256::from_str(&pools[0].to_string()).unwrap() * Decimal256::from_str("0.1").unwrap(),
-        pools[0],
-        inj_deposit
-    );
-
-    assert_eq!(astro_deposit, 4979_051501);
-
+    assert_eq!(inj_deposit, 16540_551000000000000000);
+    assert_eq!(astro_deposit, 32844_980113);
     let inj_pool = helper.coin_balance(&test_coins[0], &helper.pair_addr);
     let astro_pool = helper.coin_balance(&test_coins[1], &helper.pair_addr);
 
-    assert_eq!(inj_pool, 497542_933893233248565365);
-    assert_eq!(astro_pool, 995085_325039);
+    assert_eq!(inj_pool, 483492_363893233248386874);
+    assert_eq!(astro_pool, 967219_396427);
 
     // total liquidity is close to initial provided liquidity
     let total_inj = inj_deposit + inj_pool;
     let total_astro = astro_deposit + astro_pool;
-    assert_eq!(total_inj, 500032_914893233248565365);
+    assert_eq!(total_inj, 500032_914893233248386874);
     assert_eq!(total_astro, 100006_4376540);
 
     let random_user = generate_inj_address();
