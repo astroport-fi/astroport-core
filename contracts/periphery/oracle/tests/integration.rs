@@ -1,6 +1,7 @@
 use anyhow::Result;
 use cosmwasm_std::{
-    attr, to_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128, WasmQuery,
+    attr, to_json_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128,
+    WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
@@ -266,7 +267,7 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: token.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
 
     let balance = res.unwrap();
@@ -382,7 +383,7 @@ fn create_pair(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -426,7 +427,7 @@ fn create_pair_stable(
                 pair_type: PairType::Stable {},
                 asset_infos: asset_infos.clone(),
                 init_params: Some(
-                    to_binary(&StablePoolParams {
+                    to_json_binary(&StablePoolParams {
                         amp: 100,
                         owner: None,
                     })
@@ -448,7 +449,7 @@ fn create_pair_stable(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -615,7 +616,7 @@ fn consult() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -695,7 +696,7 @@ fn consult() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res[0].1, amount);
@@ -746,7 +747,7 @@ fn consult_pair_stable() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -838,7 +839,7 @@ fn consult_pair_stable() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res[0].1, amount);
@@ -1046,7 +1047,7 @@ fn consult2() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res[0].1, amount_exp);
@@ -1099,7 +1100,7 @@ fn consult2() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res[0].1, amount_exp);
@@ -1235,7 +1236,7 @@ fn consult_zero_price() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res[0].1, amount_out);
@@ -1388,7 +1389,7 @@ fn consult_multiple_assets() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -1551,7 +1552,7 @@ fn consult_multiple_assets() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res, amounts_exp);
@@ -1662,7 +1663,7 @@ fn consult_multiple_assets() {
             .wrap()
             .query(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: oracle_instance.to_string(),
-                msg: to_binary(&msg).unwrap(),
+                msg: to_json_binary(&msg).unwrap(),
             }))
             .unwrap();
         assert_eq!(res, amount_exp);

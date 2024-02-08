@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
+    from_json, to_json_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest,
+    SystemError, SystemResult, Uint128, WasmQuery,
 };
 
 use std::collections::HashMap;
@@ -89,7 +89,7 @@ pub(crate) fn pairs_to_map(pairs: &[(&String, &PairInfo)]) -> HashMap<String, Pa
 impl Querier for WasmMockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
         // MockQuerier doesn't support Custom, so we ignore it completely here
-        let request: QueryRequest<Empty> = match from_slice(bin_request) {
+        let request: QueryRequest<Empty> = match from_json(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {
@@ -119,7 +119,7 @@ impl CW20QueryHandler {
     pub fn execute(&self, request: &QueryRequest<Empty>) -> QuerierResult {
         match &request {
             QueryRequest::Wasm(WasmQuery::Smart { contract_addr, msg }) => {
-                match from_binary(msg).unwrap() {
+                match from_json(msg).unwrap() {
                     Cw20QueryMsg::TokenInfo {} => {
                         let balances: &HashMap<String, Uint128> =
                             match self.token_querier.balances.get(contract_addr) {
@@ -136,7 +136,7 @@ impl CW20QueryHandler {
                         }
 
                         SystemResult::Ok(
-                            to_binary(&TokenInfoResponse {
+                            to_json_binary(&TokenInfoResponse {
                                 name: "mAPPL".to_string(),
                                 symbol: "mAPPL".to_string(),
                                 decimals: 6,
@@ -161,7 +161,9 @@ impl CW20QueryHandler {
                             }
                         };
 
-                        SystemResult::Ok(to_binary(&BalanceResponse { balance: *balance }).into())
+                        SystemResult::Ok(
+                            to_json_binary(&BalanceResponse { balance: *balance }).into(),
+                        )
                     }
                     _ => panic!("DO NOT ENTER HERE"),
                 }
@@ -182,11 +184,11 @@ impl DefaultQueryHandler {
             QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: _,
                 msg,
-            }) => match from_binary(msg).unwrap() {
+            }) => match from_json(msg).unwrap() {
                 FactoryQueryMsg::Pair { asset_infos } => {
                     let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                     match self.astroport_factory_querier.pairs.get(&key) {
-                        Some(v) => SystemResult::Ok(to_binary(&v).into()),
+                        Some(v) => SystemResult::Ok(to_json_binary(&v).into()),
                         None => SystemResult::Err(SystemError::InvalidRequest {
                             error: "No pair info exists".to_string(),
                             request: msg.as_slice().into(),

@@ -5,7 +5,7 @@ use crate::factory::{
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use cosmwasm_std::{
-    from_slice, Addr, AllBalanceResponse, BankQuery, Coin, Decimal, QuerierWrapper, QueryRequest,
+    from_json, Addr, AllBalanceResponse, BankQuery, Coin, Decimal, QuerierWrapper, QueryRequest,
     StdError, StdResult, Uint128,
 };
 
@@ -126,7 +126,7 @@ pub fn query_factory_config(
     factory_contract: impl Into<String>,
 ) -> StdResult<FactoryConfig> {
     if let Some(res) = querier.query_wasm_raw(factory_contract, b"config".as_slice())? {
-        let res = from_slice(&res)?;
+        let res = from_json(res)?;
         Ok(res)
     } else {
         Err(StdError::generic_err("The factory config not found!"))

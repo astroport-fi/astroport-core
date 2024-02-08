@@ -1,8 +1,8 @@
 use std::vec;
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg,
-    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    attr, entry_point, from_json, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg, Decimal,
+    Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
     SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -60,7 +60,7 @@ pub fn instantiate(
 
     check_asset_infos(deps.api, &msg.asset_infos)?;
 
-    let params: ConcentratedPoolParams = from_binary(
+    let params: ConcentratedPoolParams = from_json(
         &msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
@@ -325,7 +325,7 @@ fn receive_cw20(
     info: MessageInfo,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Swap {
             belief_price,
             max_spread,
@@ -859,11 +859,11 @@ fn update_config(
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     let owner = config.owner.as_ref().unwrap_or(&factory_config.owner);
-    if &info.sender != owner {
+    if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    let action = match from_binary::<ConcentratedPoolUpdateParams>(&params)? {
+    let action = match from_json::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
             config.pool_params.update_params(update_params)?;
             "update_params"

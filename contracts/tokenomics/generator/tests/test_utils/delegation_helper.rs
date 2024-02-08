@@ -1,6 +1,6 @@
 use anyhow::Result;
 use astroport_governance::voting_escrow_delegation as escrow_delegation;
-use cosmwasm_std::{to_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
+use cosmwasm_std::{to_json_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 
 use cw721_base::helpers::Cw721Contract;
@@ -58,7 +58,7 @@ impl DelegationHelper {
             .query::<astroport_governance::voting_escrow_delegation::Config>(&QueryRequest::Wasm(
                 WasmQuery::Smart {
                     contract_addr: delegation_addr.to_string(),
-                    msg: to_binary(&escrow_delegation::QueryMsg::Config {}).unwrap(),
+                    msg: to_json_binary(&escrow_delegation::QueryMsg::Config {}).unwrap(),
                 },
             ))
             .unwrap();
@@ -144,7 +144,7 @@ impl DelegationHelper {
             .wrap()
             .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.delegation_instance.to_string(),
-                msg: to_binary(&escrow_delegation::QueryMsg::AdjustedBalance {
+                msg: to_json_binary(&escrow_delegation::QueryMsg::AdjustedBalance {
                     account: user.to_string(),
                     timestamp,
                 })
@@ -162,7 +162,7 @@ impl DelegationHelper {
             .wrap()
             .query::<Uint128>(&QueryRequest::Wasm(WasmQuery::Smart {
                 contract_addr: self.delegation_instance.to_string(),
-                msg: to_binary(&escrow_delegation::QueryMsg::DelegatedVotingPower {
+                msg: to_json_binary(&escrow_delegation::QueryMsg::DelegatedVotingPower {
                     account: user.to_string(),
                     timestamp,
                 })

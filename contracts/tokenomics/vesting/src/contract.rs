@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    attr, entry_point, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
     Response, StdError, StdResult, SubMsg, Uint128,
 };
 
@@ -143,7 +143,7 @@ fn receive_cw20(
         return Err(ContractError::Unauthorized {});
     }
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::RegisterVestingAccounts { vesting_accounts } => {
             register_vesting_accounts(deps, env, vesting_accounts, cw20_msg.amount)
         }
@@ -434,24 +434,24 @@ fn withdraw_from_active_schedule(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&query_config(deps)?)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps)?)?),
         QueryMsg::VestingAccount { address } => {
-            Ok(to_binary(&query_vesting_account(deps, address)?)?)
+            Ok(to_json_binary(&query_vesting_account(deps, address)?)?)
         }
         QueryMsg::VestingAccounts {
             start_after,
             limit,
             order_by,
-        } => Ok(to_binary(&query_vesting_accounts(
+        } => Ok(to_json_binary(&query_vesting_accounts(
             deps,
             start_after,
             limit,
             order_by,
         )?)?),
-        QueryMsg::AvailableAmount { address } => Ok(to_binary(&query_vesting_available_amount(
-            deps, env, address,
-        )?)?),
-        QueryMsg::Timestamp {} => Ok(to_binary(&query_timestamp(env)?)?),
+        QueryMsg::AvailableAmount { address } => Ok(to_json_binary(
+            &query_vesting_available_amount(deps, env, address)?,
+        )?),
+        QueryMsg::Timestamp {} => Ok(to_json_binary(&query_timestamp(env)?)?),
     }
 }
 

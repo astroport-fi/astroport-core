@@ -23,7 +23,7 @@ use astroport::{
 use astroport::generator_proxy::ConfigResponse;
 use astroport::pair::StablePoolParams;
 use astroport_generator::error::ContractError;
-use cosmwasm_std::{to_binary, Addr, Binary, StdResult, Uint128, Uint64};
+use cosmwasm_std::{to_json_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
 
@@ -1144,7 +1144,7 @@ fn disabling_pool() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1180,7 +1180,7 @@ fn disabling_pool() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1264,7 +1264,7 @@ fn generator_without_reward_proxies() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -1937,7 +1937,7 @@ fn generator_with_vkr_reward_proxy() {
 
     let msg = Cw20ExecuteMsg::Send {
         contract: generator_instance.to_string(),
-        msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+        msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
         amount: Uint128::new(10),
     };
 
@@ -3334,7 +3334,7 @@ fn deactivate_pools_by_pair_types() {
         &factory_instance,
         Some(PairType::Stable {}),
         Some(
-            to_binary(&StablePoolParams {
+            to_json_binary(&StablePoolParams {
                 amp: 100,
                 owner: None,
             })
@@ -4046,7 +4046,7 @@ fn instantiate_generator(
 
     let msg = Cw20ExecuteMsg::Send {
         contract: vesting_instance.to_string(),
-        msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+        msg: to_json_binary(&VestingHookMsg::RegisterVestingAccounts {
             vesting_accounts: vec![VestingAccount {
                 address: generator_instance.to_string(),
                 schedules: vec![VestingSchedule {
@@ -4204,7 +4204,7 @@ fn deposit_lp_tokens_to_generator(
     for (token, amount) in lp_tokens {
         let msg = Cw20ExecuteMsg::Send {
             contract: generator_instance.to_string(),
-            msg: to_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
+            msg: to_json_binary(&GeneratorHookMsg::Deposit {}).unwrap(),
             amount: Uint128::from(amount.to_owned()),
         };
 
