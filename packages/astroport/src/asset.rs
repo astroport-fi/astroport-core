@@ -2,15 +2,16 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, ensure, from_slice, to_binary, Addr, Api, BankMsg, Coin, ConversionOverflowError,
-    CosmosMsg, Decimal256, Fraction, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128,
-    Uint256, WasmMsg,
+    coin, coins, ensure, to_json_binary, wasm_execute, Addr, Api, BankMsg, Coin,
+    ConversionOverflowError, CosmosMsg, CustomMsg, Decimal256, Fraction, MessageInfo,
+    QuerierWrapper, ReplyOn, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20::{Cw20Coin, Cw20CoinVerified, Cw20ExecuteMsg, Cw20QueryMsg, Denom, MinterResponse};
 use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
+use crate::cosmwasm_ext::DecimalToInteger;
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
@@ -23,6 +24,8 @@ pub const UUSD_DENOM: &str = "uusd";
 pub const ULUNA_DENOM: &str = "uluna";
 /// Minimum initial LP share
 pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
+/// Maximum denom length
+pub const DENOM_MAX_LENGTH: usize = 128;
 
 /// This enum describes a Terra asset (native or CW20).
 #[cw_serde]
@@ -40,29 +43,120 @@ pub struct DecimalAsset {
     pub amount: Decimal256,
 }
 
+impl DecimalAsset {
+    pub fn into_asset(self, precision: impl Into<u32> + Sized) -> StdResult<Asset> {
+        Ok(Asset {
+            info: self.info,
+            amount: self.amount.to_uint(precision)?,
+        })
+    }
+}
+
 impl fmt::Display for Asset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{}", self.amount, self.info)
     }
 }
 
+impl From<Coin> for Asset {
+    fn from(coin: Coin) -> Self {
+        Asset::native(coin.denom, coin.amount)
+    }
+}
+
+impl From<&Coin> for Asset {
+    fn from(coin: &Coin) -> Self {
+        coin.clone().into()
+    }
+}
+
+impl TryFrom<Asset> for Coin {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        match asset.info {
+            AssetInfo::NativeToken { denom } => Ok(Self {
+                denom,
+                amount: asset.amount,
+            }),
+            _ => Err(StdError::parse_err(
+                "Asset",
+                "Cannot convert non-native asset to Coin",
+            )),
+        }
+    }
+}
+
+impl TryFrom<&Asset> for Coin {
+    type Error = StdError;
+
+    fn try_from(asset: &Asset) -> Result<Self, Self::Error> {
+        asset.clone().try_into()
+    }
+}
+
+impl From<Cw20CoinVerified> for Asset {
+    fn from(coin: Cw20CoinVerified) -> Self {
+        Asset::cw20(coin.address, coin.amount)
+    }
+}
+
+impl TryFrom<Asset> for Cw20CoinVerified {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        match asset.info {
+            AssetInfo::Token { contract_addr } => Ok(Self {
+                address: contract_addr,
+                amount: asset.amount,
+            }),
+            _ => Err(StdError::generic_err(
+                "Cannot convert non-CW20 asset to Cw20Coin",
+            )),
+        }
+    }
+}
+
+impl TryFrom<Asset> for Cw20Coin {
+    type Error = StdError;
+
+    fn try_from(asset: Asset) -> Result<Self, Self::Error> {
+        let verified: Cw20CoinVerified = asset.try_into()?;
+        Ok(Self {
+            address: verified.address.to_string(),
+            amount: verified.amount,
+        })
+    }
+}
+
 impl Asset {
+    /// Constructs a new [`Asset`] object.
+    pub fn new<A: Into<Uint128>>(info: AssetInfo, amount: A) -> Self {
+        Self {
+            info,
+            amount: amount.into(),
+        }
+    }
+
+    /// Returns an [`Asset`] object representing a native token with a given amount.
+    pub fn native<A: Into<String>, B: Into<Uint128>>(denom: A, amount: B) -> Self {
+        native_asset(denom.into(), amount.into())
+    }
+
+    /// Returns an [`Asset`] object representing a CW20 token with a given amount.
+    pub fn cw20<A: Into<Uint128>>(contract_addr: Addr, amount: A) -> Self {
+        token_asset(contract_addr, amount.into())
+    }
+
+    /// Returns an [`Asset`] object representing a CW20 token with a given amount, bypassing the
+    /// address validation.
+    pub fn cw20_unchecked<A: Into<String>, B: Into<Uint128>>(contract_addr: A, amount: B) -> Self {
+        token_asset(Addr::unchecked(contract_addr.into()), amount.into())
+    }
+
     /// Returns true if the token is native. Otherwise returns false.
     pub fn is_native_token(&self) -> bool {
         self.info.is_native_token()
-    }
-
-    /// Convert a native token of type [`AssetInfo`] to a coin of type [`Coin`].
-    /// For other tokens it returns an [`Err`].
-    pub fn to_coin(&self) -> StdResult<Coin> {
-        if let AssetInfo::NativeToken { denom } = &self.info {
-            Ok(Coin {
-                denom: denom.to_string(),
-                amount: self.amount,
-            })
-        } else {
-            Err(StdError::generic_err("Cannot convert token asset to Coin"))
-        }
     }
 
     /// For native tokens of type [`AssetInfo`] uses the default method [`BankMsg::Send`] to send a
@@ -73,7 +167,7 @@ impl Asset {
         match &self.info {
             AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: contract_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                     recipient,
                     amount: self.amount,
                 })?,
@@ -81,8 +175,57 @@ impl Asset {
             })),
             AssetInfo::NativeToken { .. } => Ok(CosmosMsg::Bank(BankMsg::Send {
                 to_address: recipient,
-                amount: vec![self.to_coin()?],
+                amount: vec![self.as_coin()?],
             })),
+        }
+    }
+
+    /// Same as [`Asset::into_msg`] but allows to handle errors/msg response data in contract's reply endpoint.
+    /// If `reply_params` is None then the reply is disabled.
+    /// Returns a [`SubMsg`] object.
+    pub fn into_submsg<T>(
+        self,
+        recipient: impl Into<String>,
+        reply_params: Option<(ReplyOn, u64)>,
+    ) -> StdResult<SubMsg<T>>
+    where
+        T: CustomMsg,
+    {
+        let recipient = recipient.into();
+        let (reply_on, reply_id) = reply_params.unwrap_or((ReplyOn::Never, 0));
+
+        match &self.info {
+            AssetInfo::Token { contract_addr } => {
+                let inner_msg = wasm_execute(
+                    contract_addr,
+                    &Cw20ExecuteMsg::Transfer {
+                        recipient,
+                        amount: self.amount,
+                    },
+                    vec![],
+                )?;
+
+                Ok(SubMsg {
+                    id: reply_id,
+                    msg: inner_msg.into(),
+                    gas_limit: None,
+                    reply_on,
+                })
+            }
+            AssetInfo::NativeToken { denom } => {
+                let bank_msg = BankMsg::Send {
+                    to_address: recipient,
+                    amount: coins(self.amount.u128(), denom),
+                }
+                .into();
+
+                Ok(SubMsg {
+                    id: reply_id,
+                    msg: bank_msg,
+                    gas_limit: None,
+                    reply_on,
+                })
+            }
         }
     }
 
@@ -108,6 +251,15 @@ impl Asset {
             info: self.info.clone(),
             amount: Decimal256::with_precision(self.amount, precision.into())?,
         })
+    }
+
+    pub fn as_coin(&self) -> StdResult<Coin> {
+        match &self.info {
+            AssetInfo::Token { .. } => {
+                Err(StdError::generic_err("Cannot convert token asset to coin"))
+            }
+            AssetInfo::NativeToken { denom } => Ok(coin(self.amount.u128(), denom)),
+        }
     }
 }
 
@@ -169,7 +321,7 @@ impl CoinsExt for Vec<Coin> {
                 Ok(())
             } else {
                 Err(StdError::generic_err(format!(
-                    "Transferred coin {} is not in the pool",
+                    "Supplied coins contain {} that is not in the input asset vector",
                     coin.denom
                 )))
             }
@@ -218,8 +370,8 @@ impl KeyDeserialize for &AssetInfo {
     type Output = AssetInfo;
 
     #[inline(always)]
-    fn from_vec(value: Vec<u8>) -> StdResult<Self::Output> {
-        from_slice(&value)
+    fn from_vec(_value: Vec<u8>) -> StdResult<Self::Output> {
+        unimplemented!("Due to lack of knowledge of enum variant in binary there is no way to determine correct AssetInfo")
     }
 }
 
@@ -232,7 +384,60 @@ impl fmt::Display for AssetInfo {
     }
 }
 
+impl From<Denom> for AssetInfo {
+    fn from(denom: Denom) -> Self {
+        match denom {
+            Denom::Cw20(contract_addr) => token_asset_info(contract_addr),
+            Denom::Native(denom) => native_asset_info(denom),
+        }
+    }
+}
+
+impl From<AssetInfo> for Denom {
+    fn from(asset_info: AssetInfo) -> Self {
+        match asset_info {
+            AssetInfo::Token { contract_addr } => Denom::Cw20(contract_addr),
+            AssetInfo::NativeToken { denom } => Denom::Native(denom),
+        }
+    }
+}
+
+impl TryFrom<AssetInfo> for Addr {
+    type Error = StdError;
+
+    fn try_from(asset_info: AssetInfo) -> StdResult<Self> {
+        match asset_info {
+            AssetInfo::Token { contract_addr } => Ok(contract_addr),
+            AssetInfo::NativeToken { denom: _ } => Err(StdError::generic_err("Not a CW20 token")),
+        }
+    }
+}
+
+impl From<Addr> for AssetInfo {
+    fn from(contract_addr: Addr) -> Self {
+        token_asset_info(contract_addr)
+    }
+}
+
 impl AssetInfo {
+    /// Returns an [`AssetInfo`] object representing the denomination for native asset.
+    pub fn native<A: Into<String>>(denom: A) -> Self {
+        native_asset_info(denom.into())
+    }
+
+    /// Returns an [`AssetInfo`] object representing the address of a CW20 token contract.
+    pub fn cw20(contract_addr: Addr) -> Self {
+        token_asset_info(contract_addr)
+    }
+
+    /// Returns an [`AssetInfo`] object representing the address of a CW20 token contract, bypassing
+    /// the address validation.
+    pub fn cw20_unchecked<A: Into<String>>(contract_addr: A) -> Self {
+        AssetInfo::Token {
+            contract_addr: Addr::unchecked(contract_addr.into()),
+        }
+    }
+
     /// Returns true if the caller is a native token. Otherwise returns false.
     pub fn is_native_token(&self) -> bool {
         match self {
@@ -297,14 +502,50 @@ impl AssetInfo {
         }
     }
 
-    /// Checks that the tokens' denom or contract addr is lowercased and valid.
+    /// Checks that the tokens' denom or contract addr is valid.
     pub fn check(&self, api: &dyn Api) -> StdResult<()> {
-        if let AssetInfo::Token { contract_addr } = self {
-            api.addr_validate(contract_addr.as_str())?;
+        match self {
+            AssetInfo::Token { contract_addr } => {
+                api.addr_validate(contract_addr.as_str())?;
+            }
+            AssetInfo::NativeToken { denom } => {
+                validate_native_denom(denom)?;
+            }
         }
 
         Ok(())
     }
+}
+
+/// Taken from https://github.com/mars-protocol/red-bank/blob/5bb0fe145588352b281803f7b870103bc6832621/packages/utils/src/helpers.rs#L68
+/// Follows cosmos SDK validation logic where denom can be 3 - 128 characters long
+/// and starts with a letter, followed but either a letter, number, or separator ( ‘/' , ‘:' , ‘.’ , ‘_’ , or '-')
+/// reference: https://github.com/cosmos/cosmos-sdk/blob/7728516abfab950dc7a9120caad4870f1f962df5/types/coin.go#L865-L867
+pub fn validate_native_denom(denom: &str) -> StdResult<()> {
+    if denom.len() < 3 || denom.len() > DENOM_MAX_LENGTH {
+        return Err(StdError::generic_err(format!(
+            "Invalid denom length [3,{DENOM_MAX_LENGTH}]: {denom}"
+        )));
+    }
+
+    let mut chars = denom.chars();
+    let first = chars.next().unwrap();
+    if !first.is_ascii_alphabetic() {
+        return Err(StdError::generic_err(format!(
+            "First character is not ASCII alphabetic: {denom}"
+        )));
+    }
+
+    let set = ['/', ':', '.', '_', '-'];
+    for c in chars {
+        if !(c.is_ascii_alphanumeric() || set.contains(&c)) {
+            return Err(StdError::generic_err(format!(
+                "Not all characters are ASCII alphanumeric or one of:  /  :  .  _  -: {denom}"
+            )));
+        }
+    }
+
+    Ok(())
 }
 
 /// This structure stores the main parameters for an Astroport pair
@@ -432,6 +673,29 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
     AssetInfo::Token { contract_addr }
 }
 
+/// This function tries to determine asset info from the given input.  
+///
+/// **NOTE**
+/// - this function relies on the fact that chain doesn't allow to mint native tokens in the form of bech32 addresses.
+/// For example, if it is allowed to mint native token `wasm1xxxxxxx` then [`AssetInfo`] will be determined incorrectly;
+/// - if you intend to test this functionality in cw-multi-test you must implement [`Api`] trait for your test App
+/// with conjunction with [AddressGenerator](https://docs.rs/cw-multi-test/0.17.0/cw_multi_test/trait.AddressGenerator.html)
+pub fn determine_asset_info(maybe_asset_info: &str, api: &dyn Api) -> StdResult<AssetInfo> {
+    if api.addr_validate(maybe_asset_info).is_ok() {
+        Ok(AssetInfo::Token {
+            contract_addr: Addr::unchecked(maybe_asset_info),
+        })
+    } else if validate_native_denom(maybe_asset_info).is_ok() {
+        Ok(AssetInfo::NativeToken {
+            denom: maybe_asset_info.to_string(),
+        })
+    } else {
+        Err(StdError::generic_err(format!(
+            "Cannot determine asset info from {maybe_asset_info}"
+        )))
+    }
+}
+
 /// Returns [`PairInfo`] by specified pool address.
 ///
 /// * **pool_addr** address of the pool.
@@ -464,6 +728,7 @@ pub fn check_swap_parameters(pools: Vec<Uint128>, swap_amount: Uint128) -> StdRe
 /// Trait extension for AssetInfo to produce [`Asset`] objects from [`AssetInfo`].
 pub trait AssetInfoExt {
     fn with_balance(&self, balance: impl Into<Uint128>) -> Asset;
+    fn with_dec_balance(&self, balance: Decimal256) -> DecimalAsset;
 }
 
 impl AssetInfoExt for AssetInfo {
@@ -471,6 +736,13 @@ impl AssetInfoExt for AssetInfo {
         Asset {
             info: self.clone(),
             amount: balance.into(),
+        }
+    }
+
+    fn with_dec_balance(&self, balance: Decimal256) -> DecimalAsset {
+        DecimalAsset {
+            info: self.clone(),
+            amount: balance,
         }
     }
 }
@@ -554,6 +826,24 @@ mod tests {
     use cosmwasm_std::{coin, coins};
 
     use super::*;
+
+    fn mock_cw20() -> Asset {
+        Asset {
+            info: AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token"),
+            },
+            amount: Uint128::new(123456u128),
+        }
+    }
+
+    fn mock_native() -> Asset {
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: String::from("uusd"),
+            },
+            amount: Uint128::new(123456u128),
+        }
+    }
 
     #[test]
     fn test_native_coins_sent() {
@@ -642,7 +932,9 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             err,
-            StdError::generic_err("Transferred coin uusd is not in the pool")
+            StdError::generic_err(
+                "Supplied coins contain uusd that is not in the input asset vector"
+            )
         );
     }
 
@@ -670,7 +962,7 @@ mod tests {
             "Generic error: Native token balance mismatch between the argument (1000uusd) and the transferred (0uusd)"
         );
 
-        let err = vec![assets[0].to_coin().unwrap()]
+        let err = vec![assets[0].as_coin().unwrap()]
             .assert_coins_properly_sent(&assets, &pool_asset_infos)
             .unwrap_err();
         assert_eq!(
@@ -690,12 +982,132 @@ mod tests {
             pool_asset_infos[0].with_balance(1000u16),
             pool_asset_infos[1].with_balance(100u16),
         ];
-        let err = vec![assets[0].to_coin().unwrap(), assets[1].to_coin().unwrap()]
+        let err = vec![assets[0].as_coin().unwrap(), assets[1].as_coin().unwrap()]
             .assert_coins_properly_sent(&assets, &pool_asset_infos)
             .unwrap_err();
         assert_eq!(
             err.to_string(),
             "Generic error: Duplicated assets in the input"
         );
+    }
+
+    #[test]
+    fn native_denom_validation() {
+        let err = validate_native_denom("ab").unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("Invalid denom length [3,128]: ab")
+        );
+        let err = validate_native_denom("1usd").unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("First character is not ASCII alphabetic: 1usd")
+        );
+        let err = validate_native_denom("wow@usd").unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err(
+                "Not all characters are ASCII alphanumeric or one of:  /  :  .  _  -: wow@usd"
+            )
+        );
+        let long_denom: String = ['a'].repeat(129).iter().collect();
+        let err = validate_native_denom(&long_denom).unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("Invalid denom length [3,128]: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+        );
+
+        validate_native_denom("uusd").unwrap();
+        validate_native_denom(
+            "ibc/EBD5A24C554198EBAF44979C5B4D2C2D312E6EBAB71962C92F735499C7575839",
+        )
+        .unwrap();
+        validate_native_denom("factory/wasm1jdppe6fnj2q7hjsepty5crxtrryzhuqsjrj95y/uusd").unwrap();
+    }
+
+    #[test]
+    fn test_native_asset_info() {
+        let info = AssetInfo::native("uusd");
+        assert_eq!(
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string()
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn cw20_unchecked_asset_info() {
+        let info = AssetInfo::cw20_unchecked(Addr::unchecked("mock_token"));
+        assert_eq!(
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token")
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn cw20_asset_info() {
+        let info = AssetInfo::cw20(Addr::unchecked("mock_token"));
+        assert_eq!(
+            AssetInfo::Token {
+                contract_addr: Addr::unchecked("mock_token")
+            },
+            info
+        );
+    }
+
+    #[test]
+    fn from_cw20coinverified_for_asset() {
+        let coin = Cw20CoinVerified {
+            address: Addr::unchecked("mock_token"),
+            amount: Uint128::new(123456u128),
+        };
+        assert_eq!(mock_cw20(), Asset::from(coin));
+    }
+
+    #[test]
+    fn test_from_coin_for_asset() {
+        let coin = coin(123456u128, "uusd");
+        assert_eq!(mock_native(), Asset::from(coin));
+    }
+
+    #[test]
+    fn test_try_from_asset_for_coin() {
+        let coin = coin(123456u128, "uusd");
+        let asset = Asset::from(&coin);
+        let coin2: Coin = asset.try_into().unwrap();
+        assert_eq!(coin, coin2);
+    }
+
+    #[test]
+    fn test_from_addr_for_asset_info() {
+        let addr = Addr::unchecked("mock_token");
+        let info = AssetInfo::from(addr.clone());
+        assert_eq!(info, AssetInfo::cw20(addr));
+    }
+
+    #[test]
+    fn test_try_from_asset_info_for_addr() {
+        let addr = Addr::unchecked("mock_token");
+        let info = AssetInfo::cw20(addr.clone());
+        let addr2: Addr = info.try_into().unwrap();
+        assert_eq!(addr, addr2);
+    }
+
+    #[test]
+    fn test_from_denom_for_asset_info() {
+        let denom = Denom::Native("uusd".to_string());
+        let info = AssetInfo::from(denom.clone());
+        assert_eq!(info, AssetInfo::native("uusd"));
+    }
+
+    #[test]
+    fn test_try_from_asset_info_for_denom() {
+        let denom = Denom::Native("uusd".to_string());
+        let info = AssetInfo::native("uusd");
+        let denom2: Denom = info.try_into().unwrap();
+        assert_eq!(denom, denom2);
     }
 }

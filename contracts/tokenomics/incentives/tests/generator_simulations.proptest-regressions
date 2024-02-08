@@ -1,0 +1,9 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+
+cc 7e23e0c3b9fba21730f9ee4ba53ef0fa12d588589049c6c3ffd141171c8b6080 # shrinks to case = [(Incentivize { lp_token_id: 0, reward_id: 1, amount: 4838000, duration: 1 }, 600), (Incentivize { lp_token_id: 0, reward_id: 1, amount: 12699800, duration: 2 }, 600), (Incentivize { lp_token_id: 0, reward_id: 1, amount: 5441600, duration: 3 }, 600), (Deposit { sender_id: 0, lp_token_id: 0, amount: 10 }, 600)]
+cc 419eeba061291c59183ba847dbe1007ec10b2aeef36a2f6e21ce4148f2649e4f # shrinks to case = [(SetupPools { pools: [(0, 10)], tokens_per_second: 500 }, 600), (Deposit { sender_id: 0, lp_token_id: 0, amount: 10 }, 600), (SetupPools { pools: [(0, 10)], tokens_per_second: 500 }, 600)]

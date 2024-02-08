@@ -12,6 +12,7 @@ members = [
     "contracts/whitelist",
     "templates/*",
     "contracts/tokenomics/generator",
+    "contracts/tokenomics/incentives",
     "contracts/tokenomics/maker",
     "contracts/tokenomics/staking",
     "contracts/tokenomics/vesting",
