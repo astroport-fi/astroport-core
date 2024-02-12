@@ -256,6 +256,17 @@ pub enum QueryMsg {
         /// Limit number of returned schedules.
         limit: Option<u8>,
     },
+    #[returns(Vec<String>)]
+    /// Returns the list of all ever incentivized pools
+    ListPools {
+        /// Start after specified LP token
+        start_after: Option<String>,
+        /// Limit number of returned pools.
+        limit: Option<u8>,
+    },
+    #[returns(Vec<(String, Uint128)>)]
+    /// Returns the list of all pools receiving astro emissions
+    ActivePools {},
 }
 
 #[cw_serde]

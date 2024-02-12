@@ -11,7 +11,8 @@ use astroport::incentives::{QueryMsg, RewardType, ScheduleResponse, MAX_PAGE_LIM
 
 use crate::error::ContractError;
 use crate::state::{
-    list_pool_stakers, PoolInfo, UserInfo, BLOCKED_TOKENS, CONFIG, EXTERNAL_REWARD_SCHEDULES,
+    list_pool_stakers, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG,
+    EXTERNAL_REWARD_SCHEDULES, POOLS,
 };
 use crate::utils::{asset_info_key, from_key_to_asset_info};
 
@@ -93,7 +94,40 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
             start_after,
             limit,
         )?)?),
+        QueryMsg::ListPools { start_after, limit } => {
+            Ok(to_json_binary(&list_pools(deps, start_after, limit)?)?)
+        }
+        QueryMsg::ActivePools {} => {
+            let pools = ACTIVE_POOLS
+                .load(deps.storage)?
+                .into_iter()
+                .map(|(asset_info, alloc_points)| (asset_info.to_string(), alloc_points))
+                .collect_vec();
+            Ok(to_json_binary(&pools)?)
+        }
     }
+}
+
+fn list_pools(
+    deps: Deps,
+    start_after: Option<String>,
+    limit: Option<u8>,
+) -> StdResult<Vec<String>> {
+    let limit = limit.unwrap_or(MAX_PAGE_LIMIT) as usize;
+    POOLS
+        .keys_raw(
+            deps.storage,
+            start_after
+                .map(|lp_token| determine_asset_info(&lp_token, deps.api))
+                .transpose()?
+                .as_ref()
+                .map(Bound::exclusive),
+            None,
+            Order::Ascending,
+        )
+        .map(|item| String::from_utf8(item).map_err(StdError::invalid_utf8))
+        .take(limit)
+        .collect()
 }
 
 fn query_blocked_tokens(
