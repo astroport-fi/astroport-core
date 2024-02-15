@@ -3,7 +3,7 @@ use astroport::vesting::{ConfigResponse, InstantiateMsg, QueryMsg};
 
 use astroport::asset::token_asset_info;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{from_binary, Addr};
+use cosmwasm_std::{from_json, Addr};
 
 #[test]
 fn proper_initialization() {
@@ -19,7 +19,7 @@ fn proper_initialization() {
     let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     assert_eq!(
-        from_binary::<ConfigResponse>(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap())
+        from_json::<ConfigResponse>(&query(deps.as_ref(), env, QueryMsg::Config {}).unwrap())
             .unwrap(),
         ConfigResponse {
             owner: Addr::unchecked("owner"),

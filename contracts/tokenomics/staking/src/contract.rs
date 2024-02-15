@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
     DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
     WasmMsg,
 };
@@ -56,7 +56,7 @@ pub fn instantiate(
         msg: WasmMsg::Instantiate {
             admin: Some(msg.owner),
             code_id: msg.token_code_id,
-            msg: to_binary(&TokenInstantiateMsg {
+            msg: to_json_binary(&TokenInstantiateMsg {
                 name: TOKEN_NAME.to_string(),
                 symbol: TOKEN_SYMBOL.to_string(),
                 decimals: 6,
@@ -144,7 +144,7 @@ fn receive_cw20(
     )?;
     let total_shares = query_supply(&deps.querier, &config.xastro_token_addr)?;
 
-    match from_binary(&cw20_msg.msg)? {
+    match from_json(&cw20_msg.msg)? {
         Cw20HookMsg::Enter {} => {
             let mut messages = vec![];
             if info.sender != config.astro_token_addr {
@@ -215,12 +215,12 @@ fn receive_cw20(
             let res = Response::new()
                 .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: config.xastro_token_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Burn { amount })?,
+                    msg: to_json_binary(&Cw20ExecuteMsg::Burn { amount })?,
                     funds: vec![],
                 }))
                 .add_message(CosmosMsg::Wasm(WasmMsg::Execute {
                     contract_addr: config.astro_token_addr.to_string(),
-                    msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                    msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                         recipient: recipient.clone(),
                         amount: what,
                     })?,
@@ -249,14 +249,14 @@ fn receive_cw20(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let config = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::Config {} => Ok(to_binary(&ConfigResponse {
+        QueryMsg::Config {} => Ok(to_json_binary(&ConfigResponse {
             deposit_token_addr: config.astro_token_addr,
             share_token_addr: config.xastro_token_addr,
         })?),
         QueryMsg::TotalShares {} => {
-            to_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
+            to_json_binary(&query_supply(&deps.querier, &config.xastro_token_addr)?)
         }
-        QueryMsg::TotalDeposit {} => to_binary(&query_token_balance(
+        QueryMsg::TotalDeposit {} => to_json_binary(&query_token_balance(
             &deps.querier,
             &config.astro_token_addr,
             env.contract.address,

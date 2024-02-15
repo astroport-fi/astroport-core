@@ -2,8 +2,8 @@
 #![allow(unused_variables, unreachable_code, clippy::diverging_sub_expression)]
 
 use cosmwasm_std::{
-    entry_point, from_binary, to_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, SubMsg, Uint128, WasmMsg,
+    entry_point, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 
@@ -86,7 +86,7 @@ fn receive_cw20(
     let response = Response::new();
     let cfg = CONFIG.load(deps.storage)?;
 
-    if let Ok(Cw20HookMsg::Deposit {}) = from_binary(&cw20_msg.msg) {
+    if let Ok(Cw20HookMsg::Deposit {}) = from_json(&cw20_msg.msg) {
         if cw20_msg.sender != cfg.generator_contract_addr || info.sender != cfg.lp_token_addr {
             return Err(ContractError::Unauthorized {});
         }
@@ -143,7 +143,7 @@ fn send_rewards(
         .messages
         .push(SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: cfg.reward_token_addr.to_string(),
-            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: account,
                 amount,
             })?,
@@ -190,7 +190,7 @@ fn withdraw(
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         funds: vec![],
-        msg: to_binary(&ExecuteMsg::Callback(
+        msg: to_json_binary(&ExecuteMsg::Callback(
             CallbackMsg::TransferLpTokensAfterWithdraw {
                 account,
                 prev_lp_balance,
@@ -239,7 +239,7 @@ fn emergency_withdraw(
     response.messages.push(SubMsg::new(WasmMsg::Execute {
         contract_addr: env.contract.address.to_string(),
         funds: vec![],
-        msg: to_binary(&ExecuteMsg::Callback(
+        msg: to_json_binary(&ExecuteMsg::Callback(
             CallbackMsg::TransferLpTokensAfterWithdraw {
                 account,
                 prev_lp_balance,
@@ -299,7 +299,7 @@ pub fn transfer_lp_tokens_after_withdraw(
     Ok(Response::new().add_message(WasmMsg::Execute {
         contract_addr: cfg.lp_token_addr.to_string(),
         funds: vec![],
-        msg: to_binary(&Cw20ExecuteMsg::Transfer {
+        msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: account.to_string(),
             amount,
         })?,
@@ -320,7 +320,7 @@ pub fn transfer_lp_tokens_after_withdraw(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     let cfg = CONFIG.load(deps.storage)?;
     match msg {
-        QueryMsg::Config {} => to_binary(&ConfigResponse {
+        QueryMsg::Config {} => to_json_binary(&ConfigResponse {
             generator_contract_addr: cfg.generator_contract_addr.to_string(),
             pair_addr: cfg.pair_addr.to_string(),
             lp_token_addr: cfg.lp_token_addr.to_string(),
@@ -343,7 +343,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             )?;
             let reward_amount = res.balance;
 
-            to_binary(&reward_amount)
+            to_json_binary(&reward_amount)
         }
         QueryMsg::PendingToken {} => {
             todo!(
@@ -353,7 +353,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::RewardInfo {} => {
             let config = CONFIG.load(deps.storage)?;
-            to_binary(&config.reward_token_addr)
+            to_json_binary(&config.reward_token_addr)
         }
     }
 }

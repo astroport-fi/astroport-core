@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env, QuerierWrapper,
-    StdResult, Storage, Uint128, Uint64,
+    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Deps, Env,
+    QuerierWrapper, StdResult, Storage, Uint128, Uint64,
 };
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
@@ -202,7 +202,7 @@ pub(crate) fn mint_liquidity_token_message(
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },

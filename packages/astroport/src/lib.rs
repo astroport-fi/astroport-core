@@ -25,6 +25,8 @@ pub mod vesting;
 pub mod xastro_token;
 
 pub mod liquidity_manager;
+
+pub mod incentives;
 #[cfg(test)]
 mod mock_querier;
 #[cfg(test)]

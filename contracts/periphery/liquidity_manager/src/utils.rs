@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{
-    from_slice, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
+    from_json, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
 };
 
 use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
@@ -247,7 +247,7 @@ pub fn convert_config(
     querier: QuerierWrapper,
     config_data: Vec<u8>,
 ) -> StdResult<PairStableConfig> {
-    let compat_config: CompatPairStableConfig = from_slice(&config_data)?;
+    let compat_config: CompatPairStableConfig = from_json(&config_data)?;
 
     let greatest_precision = if let Some(prec) = compat_config.greatest_precision {
         prec

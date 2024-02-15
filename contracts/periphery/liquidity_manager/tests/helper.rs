@@ -9,7 +9,7 @@ use std::str::FromStr;
 use anyhow::Result as AnyResult;
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
-    coin, from_slice, to_binary, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
@@ -209,18 +209,18 @@ impl Helper {
             PoolParams::Constant(inner) => {
                 pair_code_id = app.store_code(xyk_pair_contract());
                 pair_type = PairType::Xyk {};
-                inner_params = to_binary(inner).unwrap();
+                inner_params = to_json_binary(inner).unwrap();
             }
             PoolParams::Stable(inner) => {
                 pair_code_id = app.store_code(stable_pair_contract());
                 pair_type = PairType::Stable {};
-                inner_params = to_binary(inner).unwrap();
+                inner_params = to_json_binary(inner).unwrap();
             }
             PoolParams::Concentrated(_) => {
                 unimplemented!("Concentrated pool is not supported yet");
                 // pair_code_id = app.store_code(pcl_pair_contract());
                 // pair_type = PairType::Custom("concentrated".to_owned());
-                // inner_params = to_binary(inner).unwrap();
+                // inner_params = to_json_binary(inner).unwrap();
             }
         }
 
@@ -468,14 +468,14 @@ impl Helper {
         let (contract, msg);
         if let Some(min_assets_to_receive) = min_assets {
             contract = self.liquidity_manager.to_string();
-            msg = to_binary(&Cw20HookMsg::WithdrawLiquidity {
+            msg = to_json_binary(&Cw20HookMsg::WithdrawLiquidity {
                 pair_msg,
                 min_assets_to_receive,
             })
             .unwrap();
         } else {
             contract = self.pair_addr.to_string();
-            msg = to_binary(&pair_msg).unwrap();
+            msg = to_json_binary(&pair_msg).unwrap();
         }
 
         let msg = Cw20ExecuteMsg::Send {
@@ -499,7 +499,7 @@ impl Helper {
                 let msg = Cw20ExecuteMsg::Send {
                     contract: self.pair_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&PairCw20HookMsg::Swap {
+                    msg: to_json_binary(&PairCw20HookMsg::Swap {
                         ask_asset_info: None,
                         belief_price: None,
                         max_spread,
@@ -638,7 +638,7 @@ impl Helper {
             .wrap()
             .query_wasm_raw(&self.pair_addr, b"config")?
             .ok_or_else(|| StdError::generic_err("Failed to find config in storage"))?;
-        from_slice(&binary)
+        from_json(&binary)
     }
 
     pub fn query_asset_balance_at(

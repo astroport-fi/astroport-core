@@ -1,6 +1,6 @@
 use crate::state::Params;
 use cosmwasm_std::{
-    to_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    to_json_binary, Addr, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response, StdError,
     StdResult, Uint128, WasmMsg,
 };
 
@@ -82,20 +82,20 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         }) {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: params.astro_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
+                msg: to_json_binary(&Cw20ExecuteMsg::Send {
                     contract: params.staking_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&StakingCw20HookMsg::Enter {})?,
+                    msg: to_json_binary(&StakingCw20HookMsg::Enter {})?,
                 })?,
                 funds: vec![],
             }))
         } else {
             messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr: params.xastro_addr.to_string(),
-                msg: to_binary(&Cw20ExecuteMsg::Send {
+                msg: to_json_binary(&Cw20ExecuteMsg::Send {
                     contract: params.staking_addr.to_string(),
                     amount: offer_asset.amount,
-                    msg: to_binary(&StakingCw20HookMsg::Leave {})?,
+                    msg: to_json_binary(&StakingCw20HookMsg::Leave {})?,
                 })?,
                 funds: vec![],
             }))
@@ -106,7 +106,7 @@ impl<'a> PairBonded<'a> for Contract<'a> {
         messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: env.contract.address.to_string(),
             funds: vec![],
-            msg: to_binary(&ExecuteMsg::AssertAndSend {
+            msg: to_json_binary(&ExecuteMsg::AssertAndSend {
                 offer_asset: Asset {
                     amount: offer_asset.amount,
                     info: offer_pool.info,

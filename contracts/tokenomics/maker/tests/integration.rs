@@ -9,7 +9,7 @@ use astroport::maker::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
-    attr, coin, to_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
+    attr, coin, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 use cw_multi_test::{next_block, App, ContractWrapper, Executor};
@@ -335,7 +335,7 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
     let res: Result<BalanceResponse, _> =
         router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: token.to_string(),
-            msg: to_binary(&msg).unwrap(),
+            msg: to_json_binary(&msg).unwrap(),
         }));
 
     let balance = res.unwrap();
@@ -390,7 +390,7 @@ fn create_pair(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: factory_instance.clone().to_string(),
-            msg: to_binary(&astroport::factory::QueryMsg::Pair {
+            msg: to_json_binary(&astroport::factory::QueryMsg::Pair {
                 asset_infos: asset_infos.clone(),
             })
             .unwrap(),
@@ -665,7 +665,7 @@ fn test_maker_collect(
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+            msg: to_json_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),
@@ -1246,7 +1246,7 @@ fn update_bridges() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Bridges {}).unwrap(),
+            msg: to_json_binary(&QueryMsg::Bridges {}).unwrap(),
         }))
         .unwrap();
 
@@ -1286,7 +1286,7 @@ fn update_bridges() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Bridges {}).unwrap(),
+            msg: to_json_binary(&QueryMsg::Bridges {}).unwrap(),
         }))
         .unwrap();
 
@@ -1479,7 +1479,7 @@ fn collect_with_asset_limit() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+            msg: to_json_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),
@@ -1782,7 +1782,7 @@ fn collect_with_second_receiver() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+            msg: to_json_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),
@@ -2493,7 +2493,7 @@ fn collect_3pools() {
         .wrap()
         .query(&QueryRequest::Wasm(WasmQuery::Smart {
             contract_addr: maker_instance.to_string(),
-            msg: to_binary(&QueryMsg::Balances {
+            msg: to_json_binary(&QueryMsg::Balances {
                 assets: expected_balances.iter().map(|a| a.info.clone()).collect(),
             })
             .unwrap(),

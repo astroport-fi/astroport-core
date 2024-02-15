@@ -8,7 +8,7 @@ use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
-use cosmwasm_std::{to_binary, Addr, StdResult, Uint128, Uint64};
+use cosmwasm_std::{to_json_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
 use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
@@ -169,7 +169,7 @@ impl ControllerHelper {
         // Register vesting account
         let msg = Cw20ExecuteMsg::Send {
             contract: vesting_instance.to_string(),
-            msg: to_binary(&VestingHookMsg::RegisterVestingAccounts {
+            msg: to_json_binary(&VestingHookMsg::RegisterVestingAccounts {
                 vesting_accounts: vec![VestingAccount {
                     address: generator.to_string(),
                     schedules: vec![VestingSchedule {

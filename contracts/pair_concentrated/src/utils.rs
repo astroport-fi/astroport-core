@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Env, Fraction,
+    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Env, Fraction,
     QuerierWrapper, StdError, StdResult, Uint128,
 };
 use cw20::Cw20ExecuteMsg;
@@ -102,7 +102,7 @@ pub(crate) fn mint_liquidity_token_message(
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },
