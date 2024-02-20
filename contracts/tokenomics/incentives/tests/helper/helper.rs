@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Empty, Env, IbcMsg, IbcQuery,
-    RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128, VerificationError,
+    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env, IbcMsg,
+    IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
+    VerificationError,
 };
 use cw20::MinterResponse;
 use cw_multi_test::{
@@ -1039,4 +1040,8 @@ pub fn assert_rewards(bal_before: &[Asset], bal_after: &[Asset], pending_rewards
         .collect_vec();
 
     assert_eq!(bal_after, expected);
+}
+
+pub fn dec256_to_u128_floor(val: Decimal256) -> u128 {
+    Uint128::try_from(val.to_uint_floor()).unwrap().u128()
 }

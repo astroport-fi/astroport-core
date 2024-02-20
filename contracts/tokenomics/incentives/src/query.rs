@@ -173,7 +173,7 @@ pub fn query_pending_rewards(
     pos.reset_user_index(deps.storage, &lp_asset, &pool_info)?;
 
     let active_rewards = pool_info
-        .calculate_rewards(&mut pos)
+        .calculate_rewards(&mut pos)?
         .into_iter()
         .map(|(_, asset)| asset);
 
