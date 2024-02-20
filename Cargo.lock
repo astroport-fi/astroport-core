@@ -243,7 +243,7 @@ name = "astroport-governance"
 version = "1.4.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#3071dab091f88fac33594574cf3bdb34d9674189"
 dependencies = [
- "astroport 3.11.0",
+ "astroport 3.11.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -256,7 +256,7 @@ name = "astroport-governance"
 version = "1.4.1"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance#3071dab091f88fac33594574cf3bdb34d9674189"
 dependencies = [
- "astroport 3.11.0",
+ "astroport 3.11.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
