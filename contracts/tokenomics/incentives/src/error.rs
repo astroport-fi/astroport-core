@@ -1,8 +1,10 @@
-use astroport::factory::PairType;
-use cosmwasm_std::{CheckedFromRatioError, OverflowError, StdError, Uint128};
+use cosmwasm_std::{
+    CheckedFromRatioError, ConversionOverflowError, OverflowError, StdError, Uint128,
+};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
+use astroport::factory::PairType;
 use astroport::incentives::MAX_REWARD_TOKENS;
 
 #[derive(Error, Debug, PartialEq)]
@@ -18,6 +20,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    ConversionOverflowError(#[from] ConversionOverflowError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -61,4 +66,7 @@ pub enum ContractError {
 
     #[error("Failed to set 0 alloc point for pool {lp_token}")]
     ZeroAllocPoint { lp_token: String },
+
+    #[error("Failed to migrate contract")]
+    MigrationError {},
 }
