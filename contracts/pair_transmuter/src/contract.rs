@@ -46,15 +46,15 @@ pub fn instantiate(
 
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
 
-    let config = Config {
-        pair_info: PairInfo {
-            contract_addr: env.contract.address.clone(),
-            liquidity_token: Addr::unchecked(""),
-            asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Custom("transmuter".to_string()),
-        },
-        factory_addr,
+    let pair_info = PairInfo {
+        contract_addr: env.contract.address.clone(),
+        liquidity_token: Addr::unchecked(""),
+        asset_infos: msg.asset_infos.clone(),
+        pair_type: PairType::Custom("transmuter".to_string()),
     };
+
+    let config = Config::new(deps.querier, pair_info, factory_addr)?;
+
     CONFIG.save(deps.storage, &config)?;
 
     let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
@@ -210,7 +210,9 @@ pub fn withdraw_liquidity(
                         }
                     })?;
 
-                    Ok(acc + asset.amount)
+                    let normalized_asset = config.normalize(asset)?;
+
+                    Ok(acc + normalized_asset.amount)
                 })?;
 
         let unused =
@@ -285,6 +287,7 @@ pub fn provide_liquidity(
     // Share is simply sum of all provided assets because this pool maintains 1:1 ratio
     let share = assets
         .iter()
+        .map(|asset| config.normalize(asset).unwrap())
         .fold(Uint128::zero(), |acc, asset| acc + asset.amount);
 
     // Mint LP token for the caller (or for the receiver if it was set)
@@ -322,8 +325,7 @@ pub fn swap(
 ) -> Result<Response, ContractError> {
     offer_asset.assert_sent_native_token_balance(&info)?;
 
-    let (return_asset, ask_asset_info) =
-        assert_and_swap(deps.as_ref(), &offer_asset, ask_asset_info)?;
+    let return_asset = assert_and_swap(deps.as_ref(), &offer_asset, ask_asset_info)?;
 
     let receiver = addr_opt_validate(deps.api, &to)?.unwrap_or_else(|| info.sender.clone());
 
@@ -331,7 +333,7 @@ pub fn swap(
         attr("action", "swap"),
         attr("receiver", &receiver),
         attr("offer_asset", offer_asset.info.to_string()),
-        attr("ask_asset", ask_asset_info.to_string()),
+        attr("ask_asset", return_asset.info.to_string()),
         attr("offer_amount", offer_asset.amount),
         attr("return_amount", return_asset.amount),
         attr("spread_amount", "0"),
