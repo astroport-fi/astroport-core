@@ -85,12 +85,12 @@ pub fn assert_and_swap(
 
     let ask_asset = config.denormalize(&ask_pool.info.with_balance(offer_asset.amount))?;
 
-    if ask_pool.amount >= offer_asset.amount {
+    if ask_pool.amount >= ask_asset.amount {
         Ok(ask_asset)
     } else {
         Err(ContractError::InsufficientPoolBalance {
             asset: ask_asset_info.to_string(),
-            want: offer_asset.amount,
+            want: ask_asset.amount,
             available: ask_pool.amount,
         })
     }
