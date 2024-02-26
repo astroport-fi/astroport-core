@@ -1,8 +1,9 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, from_json, wasm_execute, wasm_instantiate, Addr, DepsMut, Env, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
+    attr, ensure, from_json, wasm_execute, wasm_instantiate, Addr, DepsMut, Empty, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult,
+    Uint128,
 };
 use cw2::set_contract_version;
 use cw20::Cw20ReceiveMsg;
@@ -344,4 +345,33 @@ pub fn swap(
     let send_msg = return_asset.into_msg(&receiver)?;
 
     Ok(Response::new().add_message(send_msg).add_attributes(attrs))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
+    let contract_version = cw2::get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair-transmuter" => match contract_version.version.as_ref() {
+            "1.1.0" => {}
+            _ => {
+                return Err(StdError::generic_err(
+                    "Cannot migrate. Unsupported contract version",
+                ))
+            }
+        },
+        _ => {
+            return Err(StdError::generic_err(
+                "Cannot migrate. Unsupported contract name",
+            ))
+        }
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

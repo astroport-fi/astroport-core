@@ -785,6 +785,29 @@ fn test_different_decimals() {
             available: 90_000_00000000u128.into(),
         }
     );
+
+    let swap_asset = helper.assets[&test_coins[1]].with_balance(10_000_00000000u128);
+    let user = Addr::unchecked("user3");
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    helper.swap(&user, &swap_asset, None, None).unwrap();
+
+    assert_eq!(
+        helper.coin_balance(&test_coins[0], &user),
+        10_000_000000u128
+    );
+
+    let user = Addr::unchecked("user3");
+    let swap_asset = helper.assets[&test_coins[1]].with_balance(101_000_00000000u128);
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    let err = helper.swap(&user, &swap_asset, None, None).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientPoolBalance {
+            asset: helper.assets[&test_coins[0]].to_string(),
+            want: 101_000_000000u128.into(),
+            available: 100_000_000000u128.into(),
+        }
+    );
 }
 
 #[test]
