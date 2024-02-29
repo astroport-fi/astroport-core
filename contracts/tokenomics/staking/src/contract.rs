@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, coin, entry_point, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, coin, ensure, entry_point, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::{must_pay, parse_reply_instantiate_data, MsgInstantiateContractResponse};
@@ -58,7 +58,13 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     // Validate that deposit_token_denom exists on chain
-    deps.querier.query_supply(&msg.deposit_token_denom)?;
+    let supply = deps.querier.query_supply(&msg.deposit_token_denom)?.amount;
+    ensure!(
+        !supply.is_zero(),
+        StdError::generic_err(
+            "deposit_token_denom has 0 supply which is likely sign of misconfiguration"
+        )
+    );
 
     // Validate addresses
     deps.api.addr_validate(&msg.token_factory_addr)?;
