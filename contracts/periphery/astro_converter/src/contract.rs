@@ -40,17 +40,31 @@ pub fn init(
     validate_native_denom(&msg.new_astro_denom)?;
     msg.old_astro_asset_info.check(deps.api)?;
 
+    ensure!(
+        msg.old_astro_asset_info != AssetInfo::native(&msg.new_astro_denom),
+        StdError::generic_err("Cannot convert to the same asset")
+    );
+
+    if msg.old_astro_asset_info.is_native_token() {
+        ensure!(
+            msg.old_astro_asset_info.is_ibc(),
+            StdError::generic_err("If old ASTRO is native it must be IBC denom")
+        );
+    }
+
+    if matches!(msg.old_astro_asset_info, AssetInfo::Token { .. }) {
+        ensure!(
+            msg.outpost_burn_params.is_none(),
+            StdError::generic_err("Burn params must be unset on the old Hub (Terra)")
+        );
+    }
+
     if msg.old_astro_asset_info.is_ibc() {
         ensure!(
             msg.outpost_burn_params.is_some(),
             StdError::generic_err("Burn params must be specified on outpost")
         );
     }
-
-    ensure!(
-        msg.old_astro_asset_info != AssetInfo::native(&msg.new_astro_denom),
-        StdError::generic_err("Cannot convert to the same asset")
-    );
 
     let attrs = [
         attr("contract_name", CONTRACT_NAME),
@@ -280,7 +294,7 @@ mod testing {
             old_astro_transfer_channel: "channel-1".to_string(),
         });
 
-        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
 
         let config_data = query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
         let config = from_json::<Config>(&config_data).unwrap();
@@ -295,6 +309,20 @@ mod testing {
                     old_astro_transfer_channel: "channel-1".to_string(),
                 }),
             }
+        );
+
+        msg.old_astro_asset_info = AssetInfo::native("untrn");
+        let err = instantiate(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Generic error: If old ASTRO is native it must be IBC denom"
+        );
+
+        msg.old_astro_asset_info = AssetInfo::cw20_unchecked("terra1xxx_old_astro");
+        let err = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap_err();
+        assert_eq!(
+            err.to_string(),
+            "Generic error: Burn params must be unset on the old Hub (Terra)"
         );
     }
 
