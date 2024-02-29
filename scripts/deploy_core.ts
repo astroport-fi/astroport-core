@@ -27,6 +27,7 @@ async function main() {
     await uploadAndInitTreasury(terra, wallet)
     await uploadPairContracts(terra, wallet)
     await uploadAndInitStaking(terra, wallet)
+    await uploadAndInitNativeCoinRegistry(terra, wallet)
     await uploadAndInitFactory(terra, wallet)
     await uploadAndInitRouter(terra, wallet)
     await uploadAndInitMaker(terra, wallet)
@@ -132,6 +133,38 @@ async function uploadAndInitStaking(terra: LCDClient, wallet: any) {
     }
 }
 
+async function uploadAndInitNativeCoinRegistry(terra: LCDClient, wallet: any) {
+    let network = readArtifact(terra.config.chainID)
+
+    if (!network.nativeCoinRegistryCodeID) {
+        console.log('Register astroport native coin registry contract...')
+        network.nativeCoinRegistryCodeID = await uploadContract(terra, wallet, join(ARTIFACTS_PATH, 'astroport_native_coin_registry.wasm')!)
+        writeArtifact(network, terra.config.chainID)
+    }
+
+    if (!network.nativeCoinRegistryAddress) {
+        chainConfigs.nativeCoinRegistry.initMsg.owner ||= chainConfigs.generalInfo.multisig
+        chainConfigs.nativeCoinRegistry.admin ||= chainConfigs.generalInfo.multisig
+
+        console.log('Deploying Coin Registry...')
+        let resp = await deployContract(
+            terra,
+            wallet,
+            chainConfigs.nativeCoinRegistry.admin,
+            join(ARTIFACTS_PATH, 'astroport_native_coin_registry.wasm'),
+            chainConfigs.nativeCoinRegistry.initMsg,
+            chainConfigs.nativeCoinRegistry.label,
+        )
+
+        let addresses = resp.shift()
+        // @ts-ignore
+        network.nativeCoinRegistryAddress = addresses.shift();
+
+        console.log(`Coin Registry Contract Address: ${network.nativeCoinRegistryAddress}`)
+        writeArtifact(network, terra.config.chainID)
+    }
+}
+
 async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
     let network = readArtifact(terra.config.chainID)
 
@@ -155,6 +188,7 @@ async function uploadAndInitFactory(terra: LCDClient, wallet: any) {
         chainConfigs.factory.initMsg.token_code_id ||= network.tokenCodeID;
         chainConfigs.factory.initMsg.whitelist_code_id ||= network.whitelistCodeID;
         chainConfigs.factory.initMsg.owner ||= wallet.key.accAddress;
+        chainConfigs.factory.initMsg.coin_registry_address ||= network.nativeCoinRegistryAddress;
         chainConfigs.factory.admin ||= chainConfigs.generalInfo.multisig;
 
         let resp = await deployContract(
