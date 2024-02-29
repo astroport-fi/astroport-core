@@ -9,27 +9,29 @@ use crate::state::{BALANCES, TOTAL_SUPPLY_HISTORY};
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::BalanceAt { address, timestamp } => to_json_binary(&balance_at(
-            deps,
-            address,
-            timestamp.unwrap_or_else(|| env.block.time.seconds()),
-        )?),
-        QueryMsg::TotalSupplyAt { timestamp } => to_json_binary(&total_supply_at(
-            deps,
-            timestamp.unwrap_or_else(|| env.block.time.seconds()),
-        )?),
+        QueryMsg::BalanceAt { address, timestamp } => {
+            to_json_binary(&balance_at(deps, env, address, timestamp)?)
+        }
+        QueryMsg::TotalSupplyAt { timestamp } => {
+            to_json_binary(&total_supply_at(deps, env, timestamp)?)
+        }
     }
 }
 
-fn balance_at(deps: Deps, address: String, timestamp: u64) -> StdResult<Uint128> {
-    let balance = BALANCES
-        .may_load_at_height(deps.storage, &address, timestamp)?
-        .unwrap_or_default();
-    Ok(balance)
+fn balance_at(deps: Deps, env: Env, address: String, timestamp: Option<u64>) -> StdResult<Uint128> {
+    let block_time = env.block.time.seconds();
+    match timestamp.unwrap_or(block_time) {
+        timestamp if timestamp == block_time => BALANCES.may_load(deps.storage, &address),
+        timestamp => BALANCES.may_load_at_height(deps.storage, &address, timestamp),
+    }
+    .map(|balance| balance.unwrap_or_default())
 }
 
-fn total_supply_at(deps: Deps, timestamp: u64) -> StdResult<Uint128> {
-    TOTAL_SUPPLY_HISTORY
-        .may_load_at_height(deps.storage, timestamp)
-        .map(|res| res.unwrap_or_default())
+fn total_supply_at(deps: Deps, env: Env, timestamp: Option<u64>) -> StdResult<Uint128> {
+    let block_time = env.block.time.seconds();
+    match timestamp.unwrap_or(block_time) {
+        timestamp if timestamp == block_time => TOTAL_SUPPLY_HISTORY.may_load(deps.storage),
+        timestamp => TOTAL_SUPPLY_HISTORY.may_load_at_height(deps.storage, timestamp),
+    }
+    .map(|total_supply| total_supply.unwrap_or_default())
 }

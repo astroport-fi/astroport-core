@@ -1,10 +1,11 @@
 #![cfg(not(tarpaulin_include))]
 
+use std::collections::HashMap;
+
 use cosmwasm_std::{coin, coins, from_json, Addr, BlockInfo, Timestamp, Uint128};
 use cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 use cw_utils::PaymentError;
 use itertools::Itertools;
-use std::collections::HashMap;
 
 use astroport::staking::{Config, ExecuteMsg, QueryMsg, StakingResponse, TrackerData};
 use astroport_staking::error::ContractError;
@@ -423,4 +424,70 @@ fn test_historical_queries() {
         .unwrap()
         .amount;
     assert_eq!(total_deposit, staking_astro_balance);
+}
+
+#[test]
+fn test_different_query_results() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let alice = Addr::unchecked("alice");
+    // Mint 10000 ASTRO for Alice
+    helper.give_astro(10000, &alice);
+    // Stake Alice's 1100 ASTRO for 1100 xASTRO
+    let resp_data = helper.stake(&alice, 1100).unwrap().data.unwrap();
+    let staking_resp: StakingResponse = from_json(&resp_data).unwrap();
+    assert_eq!(
+        staking_resp,
+        StakingResponse {
+            astro_amount: 1100u128.into(),
+            xastro_amount: 100u128.into(),
+        }
+    );
+    // get current time
+    let time_now = helper.app.block_info().time.seconds();
+    // query with None, which uses deps.querier.query_balance
+    let total_supply_none: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.staking,
+            &QueryMsg::TotalSupplyAt { timestamp: None },
+        )
+        .unwrap();
+    // query with Some(_), which uses SnapshotMap
+    let total_supply_some: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.staking,
+            &QueryMsg::TotalSupplyAt {
+                timestamp: Some(time_now),
+            },
+        )
+        .unwrap();
+    assert_eq!(total_supply_none, total_supply_some);
+
+    let balance_none: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.staking,
+            &QueryMsg::BalanceAt {
+                timestamp: None,
+                address: alice.to_string(),
+            },
+        )
+        .unwrap();
+    let balance_some: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.staking,
+            &QueryMsg::BalanceAt {
+                timestamp: Some(time_now),
+                address: alice.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(balance_none, balance_some);
 }
