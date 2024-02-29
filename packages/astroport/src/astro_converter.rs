@@ -1,10 +1,13 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cw20::Cw20ReceiveMsg;
+use std::ops::RangeInclusive;
 
 use crate::asset::AssetInfo;
 
 /// Default timeout for IBC transfer (5 minutes)
 pub const DEFAULT_TIMEOUT: u64 = 300;
+/// Timeout limits for IBC transfer (from 2 to 10 minutes)
+pub const TIMEOUT_LIMITS: RangeInclusive<u64> = 120..=600;
 
 /// Defines parameters for sending old IBCed ASTRO to the Hub for burning.
 #[cw_serde]

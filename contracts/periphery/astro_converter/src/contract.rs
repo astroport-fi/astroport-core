@@ -11,7 +11,7 @@ use cw_utils::{must_pay, nonpayable};
 
 use astroport::asset::{addr_opt_validate, validate_native_denom, AssetInfo};
 use astroport::astro_converter::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT,
+    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT, TIMEOUT_LIMITS,
 };
 
 use crate::error::ContractError;
@@ -159,6 +159,12 @@ pub fn ibc_transfer_for_burning(
     nonpayable(&info)?;
     match config.old_astro_asset_info {
         AssetInfo::NativeToken { denom } => {
+            let timeout = timeout.unwrap_or(DEFAULT_TIMEOUT);
+            ensure!(
+                TIMEOUT_LIMITS.contains(&timeout),
+                ContractError::InvalidTimeout {}
+            );
+
             let amount = querier.query_balance(&env.contract.address, &denom)?.amount;
 
             ensure!(
@@ -166,7 +172,6 @@ pub fn ibc_transfer_for_burning(
                 StdError::generic_err("No tokens to transfer")
             );
 
-            let timeout = timeout.unwrap_or(DEFAULT_TIMEOUT);
             let burn_params = config.outpost_burn_params.expect("No outpost burn params");
 
             let ibc_transfer_msg = IbcMsg::Transfer {
@@ -460,7 +465,7 @@ mod testing {
         let res = ibc_transfer_for_burning(
             deps.as_ref().querier,
             env.clone(),
-            info,
+            info.clone(),
             config.clone(),
             None,
         )
@@ -475,6 +480,16 @@ mod testing {
                 timeout: env.block.time.plus_seconds(DEFAULT_TIMEOUT).into(),
             }))]
         );
+
+        let err = ibc_transfer_for_burning(
+            deps.as_ref().querier,
+            env.clone(),
+            info,
+            config.clone(),
+            Some(1),
+        )
+        .unwrap_err();
+        assert_eq!(err, ContractError::InvalidTimeout {})
     }
 
     fn querier_wrapper_with_cw20_balances(

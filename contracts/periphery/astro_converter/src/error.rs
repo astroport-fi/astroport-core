@@ -2,6 +2,8 @@ use cosmwasm_std::{Addr, StdError};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
+use astroport::astro_converter::TIMEOUT_LIMITS;
+
 /// This enum describes pair contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
@@ -24,4 +26,7 @@ pub enum ContractError {
 
     #[error("Invalid cw20 token: {0}")]
     UnsupportedCw20Token(Addr),
+
+    #[error("Invalid timeout: {0}. Max {}s, min {}s", TIMEOUT_LIMITS.end(), TIMEOUT_LIMITS.start())]
+    InvalidTimeout {},
 }

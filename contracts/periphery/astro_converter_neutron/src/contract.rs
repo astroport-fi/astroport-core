@@ -2,9 +2,10 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdError, StdResult,
+    Uint128,
 };
 use cw2::set_contract_version;
-use cw_utils::nonpayable;
+use cw_utils::may_pay;
 use neutron_sdk::bindings::msg::{IbcFee, NeutronMsg};
 use neutron_sdk::bindings::query::NeutronQuery;
 use neutron_sdk::query::min_ibc_fee::query_min_ibc_fee;
@@ -14,7 +15,9 @@ use astro_token_converter::contract::{convert, cw20_receive};
 use astro_token_converter::error::ContractError;
 use astro_token_converter::state::CONFIG;
 use astroport::asset::AssetInfo;
-use astroport::astro_converter::{Config, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT};
+use astroport::astro_converter::{
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT, TIMEOUT_LIMITS,
+};
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -63,17 +66,40 @@ pub fn ibc_transfer_for_burning(
     config: Config,
     timeout: Option<u64>,
 ) -> Result<Response<NeutronMsg>, ContractError> {
-    nonpayable(&info)?;
+    may_pay(&info, FEE_DENOM)?;
     match config.old_astro_asset_info {
         AssetInfo::NativeToken { denom } => {
+            let timeout = timeout.unwrap_or(DEFAULT_TIMEOUT);
+            ensure!(
+                TIMEOUT_LIMITS.contains(&timeout),
+                ContractError::InvalidTimeout {}
+            );
+
             let ntrn_bal = deps
                 .querier
                 .query_balance(&env.contract.address, FEE_DENOM)?
                 .amount;
 
+            let fee = min_ntrn_ibc_fee(
+                query_min_ibc_fee(deps)
+                    .map_err(|err| StdError::generic_err(err.to_string()))?
+                    .min_fee,
+            );
+
+            let total_fee = fee
+                .ack_fee
+                .iter()
+                .chain(fee.recv_fee.iter())
+                .chain(fee.timeout_fee.iter())
+                .into_iter()
+                .filter(|a| a.denom == FEE_DENOM)
+                .fold(Uint128::zero(), |acc, coin| acc + coin.amount);
+
             ensure!(
-                ntrn_bal.u128() >= 200_000,
-                StdError::generic_err("Contract requires at least 0.2 NTRN in balance")
+                ntrn_bal >= total_fee,
+                StdError::generic_err(format!(
+                    "Contract requires at least {total_fee} {FEE_DENOM} in balance"
+                ))
             );
 
             let amount = deps
@@ -86,14 +112,7 @@ pub fn ibc_transfer_for_burning(
                 StdError::generic_err("No tokens to transfer")
             );
 
-            let timeout = timeout.unwrap_or(DEFAULT_TIMEOUT);
             let burn_params = config.outpost_burn_params.expect("No outpost burn params");
-
-            let fee = min_ntrn_ibc_fee(
-                query_min_ibc_fee(deps)
-                    .map_err(|err| StdError::generic_err(err.to_string()))?
-                    .min_fee,
-            );
 
             let ibc_transfer_msg = NeutronMsg::IbcTransfer {
                 source_port: "transfer".to_string(),
@@ -225,7 +244,7 @@ mod testing {
         .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Generic error: Contract requires at least 0.2 NTRN in balance"
+            "Generic error: Contract requires at least 200000 untrn in balance"
         );
 
         let deps = mock_neutron_dependencies(&[(
@@ -246,8 +265,14 @@ mod testing {
             env.contract.address.as_str(),
             &[coin(100, "ibc/old_astro"), coin(200_000, FEE_DENOM)],
         )]);
-        let res = ibc_transfer_for_burning(deps.as_ref(), env.clone(), info, config.clone(), None)
-            .unwrap();
+        let res = ibc_transfer_for_burning(
+            deps.as_ref(),
+            env.clone(),
+            info.clone(),
+            config.clone(),
+            None,
+        )
+        .unwrap();
 
         assert_eq!(
             res.messages,
@@ -270,5 +295,10 @@ mod testing {
                 },
             }))]
         );
+
+        let err =
+            ibc_transfer_for_burning(deps.as_ref(), env.clone(), info, config.clone(), Some(1))
+                .unwrap_err();
+        assert_eq!(err, ContractError::InvalidTimeout {})
     }
 }
