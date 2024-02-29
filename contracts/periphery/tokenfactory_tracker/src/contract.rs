@@ -3,6 +3,7 @@ use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128};
 use cw2::set_contract_version;
 
+use astroport::asset::validate_native_denom;
 use astroport::tokenfactory_tracker::{InstantiateMsg, SudoMsg};
 
 use crate::error::ContractError;
@@ -21,6 +22,8 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     deps.api.addr_validate(&msg.tokenfactory_module_address)?;
+
+    validate_native_denom(&msg.tracked_denom)?;
 
     let config = Config {
         d: msg.tracked_denom.clone(),
