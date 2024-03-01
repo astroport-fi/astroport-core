@@ -2,9 +2,9 @@
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, Env, StdResult, Uint128};
 
-use astroport::tokenfactory_tracker::QueryMsg;
+use astroport::tokenfactory_tracker::{ConfigResponse, QueryMsg};
 
-use crate::state::{BALANCES, TOTAL_SUPPLY_HISTORY};
+use crate::state::{BALANCES, CONFIG, TOTAL_SUPPLY_HISTORY};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -14,6 +14,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TotalSupplyAt { timestamp } => {
             to_json_binary(&total_supply_at(deps, env, timestamp)?)
+        }
+        QueryMsg::Config {} => {
+            let config = CONFIG.load(deps.storage)?;
+            to_json_binary(&ConfigResponse {
+                tracked_denom: config.d,
+                token_factory_module: config.m,
+            })
         }
     }
 }

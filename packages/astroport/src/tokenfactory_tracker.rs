@@ -45,4 +45,14 @@ pub enum QueryMsg {
     /// Return the total supply at the given timestamp.
     #[returns(Uint128)]
     TotalSupplyAt { timestamp: Option<u64> },
+    #[returns(ConfigResponse)]
+    Config {},
+}
+
+#[cw_serde]
+pub struct ConfigResponse {
+    /// Tracked denom
+    pub tracked_denom: String,
+    /// Token factory module address
+    pub token_factory_module: String,
 }
