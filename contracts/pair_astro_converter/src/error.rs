@@ -16,12 +16,6 @@ pub enum ContractError {
     #[error("Failed to migrate from {current}. Expected: {expected}")]
     MigrationError { expected: String, current: String },
 
-    #[error("Unauthorized")]
-    Unauthorized {},
-
-    #[error("Invalid CW20 token")]
-    InvalidCw20Token {},
-
     #[error("This pair swaps from old ASTRO ({old}) to new ASTRO only ({new})")]
     AssetMismatch { old: String, new: String },
 }
