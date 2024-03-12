@@ -3,7 +3,7 @@ use cosmwasm_std::{Addr, Decimal, Env, QuerierWrapper, StdResult, Storage, Uint1
 use astroport::asset::{Asset, DecimalAsset};
 use astroport::observation::{safe_sma_buffer_not_full, safe_sma_calculation};
 use astroport::observation::{Observation, PrecommitObservation};
-use astroport::querier::query_supply;
+use astroport::querier::query_native_supply;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 use astroport_pcl_common::state::{Config, Precisions};
@@ -19,7 +19,8 @@ pub(crate) fn pool_info(
     let pools = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;
-    let total_share = query_supply(&querier, &config.pair_info.liquidity_token)?;
+
+    let total_share = query_native_supply(&querier, config.pair_info.liquidity_token.to_string())?;
 
     Ok((pools, total_share))
 }

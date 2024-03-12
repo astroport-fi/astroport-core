@@ -98,6 +98,19 @@ where
     Ok(res.total_supply)
 }
 
+/// Returns the total supply of a native token.
+///
+/// * **denom** specifies the denomination used to return the supply (e.g uatom).
+pub fn query_native_supply<C>(
+    querier: &QuerierWrapper<C>,
+    denom: impl Into<String>,
+) -> StdResult<Uint128>
+where
+    C: CustomQuery,
+{
+    querier.query_supply(denom).map(|res| res.amount)
+}
+
 /// Returns the number of decimals that a token has.
 ///
 /// * **asset_info** is an object of type [`AssetInfo`] and contains the asset details for a specific token.

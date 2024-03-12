@@ -1,13 +1,14 @@
 use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal,
-    Decimal256, Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
+    wasm_execute, Addr, Api, Coin, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
+    Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
-use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
+use astroport::incentives::ExecuteMsg;
 use astroport::querier::query_factory_config;
+use astroport::token_factory::tf_mint_msg;
 use astroport_factory::state::pair_key;
 
 use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWO};
@@ -47,11 +48,11 @@ pub fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), Pcl
     Err(PclError::Unauthorized {})
 }
 
-/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Incentive contract (if auto staking is specified).
 ///
 /// * **recipient** LP token recipient.
 ///
-/// * **amount** amount of LP tokens that will be minted for the recipient.
+/// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
 /// be automatically staked in the Generator on behalf of the recipient.
@@ -67,19 +68,14 @@ where
     C: CustomQuery,
     T: CustomMsg,
 {
-    let lp_token = &config.pair_info.liquidity_token;
+    let coin = Coin {
+        denom: config.pair_info.liquidity_token.to_string(),
+        amount: amount.into(),
+    };
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
-        return Ok(vec![wasm_execute(
-            lp_token,
-            &Cw20ExecuteMsg::Mint {
-                recipient: recipient.to_string(),
-                amount,
-            },
-            vec![],
-        )?
-        .into()]);
+        return Ok(vec![tf_mint_msg(contract_address, coin, recipient)]);
     }
 
     // Mint for the pair contract and stake into the Generator contract
@@ -87,25 +83,13 @@ where
 
     if let Some(generator) = generator {
         Ok(vec![
+            tf_mint_msg(contract_address, coin.clone(), recipient),
             wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Mint {
-                    recipient: contract_address.to_string(),
-                    amount,
+                generator,
+                &ExecuteMsg::Deposit {
+                    recipient: Some(recipient.to_string()),
                 },
-                vec![],
-            )?
-            .into(),
-            wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Send {
-                    contract: generator.to_string(),
-                    amount,
-                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
-                        recipient.to_string(),
-                    ))?,
-                },
-                vec![],
+                vec![coin],
             )?
             .into(),
         ])

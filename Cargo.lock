@@ -75,6 +75,7 @@ name = "astroport"
 version = "3.12.1"
 dependencies = [
  "astroport-circular-buffer 0.1.0",
+ "cosmos-sdk-proto",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-asset",
@@ -84,6 +85,7 @@ dependencies = [
  "cw3",
  "injective-math",
  "itertools 0.10.5",
+ "prost 0.11.9",
  "test-case",
  "thiserror",
  "uint 0.9.5",
@@ -356,6 +358,7 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
+ "cw-multi-test 0.20.0",
  "cw-utils 1.0.3",
  "cw20 0.15.1",
  "cw3",
@@ -545,6 +548,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test 0.20.0",
  "cw-storage-plus 0.15.1",
  "cw-utils 0.15.1",
  "cw2 0.15.1",
@@ -1968,9 +1972,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.147"
+version = "0.2.153"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
+checksum = "9c198f91728a82281a64e1f4f9eeb25d82cb32a5de251c6bd1b5154d63a8e7bd"
 
 [[package]]
 name = "libm"

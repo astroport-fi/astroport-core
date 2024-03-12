@@ -49,6 +49,9 @@ pub enum ExecuteMsg {
         /// The receiver of LP tokens
         receiver: Option<String>,
     },
+    WithdrawLiquidity {
+        assets: Vec<Asset>,
+    },
     /// Swap performs a swap in the pool
     Swap {
         offer_asset: Asset,
@@ -58,7 +61,9 @@ pub enum ExecuteMsg {
         to: Option<String>,
     },
     /// Update the pair configuration
-    UpdateConfig { params: Binary },
+    UpdateConfig {
+        params: Binary,
+    },
     /// ProposeNewOwner creates a proposal to change contract ownership.
     /// The validity period for the proposal is set in the `expires_in` variable.
     ProposeNewOwner {

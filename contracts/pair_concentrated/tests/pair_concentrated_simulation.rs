@@ -178,7 +178,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
     let price_scale = dec_to_f64(config.pool_state.price_state.price_scale);
 
     for (user, &(coin0_amnt, coin1_amnt, cnt)) in &accounts {
-        let lp_amount = helper.token_balance(&helper.lp_token, user);
+        let lp_amount = helper.native_balance(&helper.lp_token, user);
         if cnt != 0 {
             helper.withdraw_liquidity(user, lp_amount, vec![]).unwrap();
         }

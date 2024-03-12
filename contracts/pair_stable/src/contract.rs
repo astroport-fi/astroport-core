@@ -268,6 +268,7 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
+        _ => Ok(Response::default()),
     }
 }
 

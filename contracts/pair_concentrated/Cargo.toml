@@ -32,7 +32,7 @@ astroport-circular-buffer = { path = "../../packages/circular_buffer", version =
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "1" }
 cw2 = "0.15"
 cw20 = "0.15"
-cosmwasm-std = "1.1"
+cosmwasm-std = { version = "1.1", features = ["cosmwasm_1_1"]}
 cw-storage-plus = "0.15"
 thiserror = "1.0"
 cosmwasm-schema = "1.1"
@@ -48,3 +48,4 @@ proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+cw-multi-test = { version = "0.20.0", features = ["cosmwasm_1_1"] }

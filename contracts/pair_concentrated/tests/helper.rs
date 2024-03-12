@@ -7,10 +7,12 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
+use astroport_mocks::stargate::Stargate;
 use cosmwasm_schema::cw_serde;
+use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
-    Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, GovMsg, IbcMsg,
+    IbcQuery, MemoryStorage, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
@@ -26,10 +28,14 @@ use astroport::pair::{
 use astroport::pair_concentrated::{
     ConcentratedPoolConfig, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
-use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pcl_common::state::Config;
+use cw_multi_test::Executor;
+use cw_multi_test::{
+    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
+    FailingModule, StakeKeeper, WasmKeeper,
+};
 
 const INIT_BALANCE: u128 = u128::MAX;
 
@@ -138,11 +144,24 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
+pub type TestApp = App<
+    BankKeeper,
+    MockApi,
+    MemoryStorage,
+    FailingModule<Empty, Empty, Empty>,
+    WasmKeeper<Empty, Empty>,
+    StakeKeeper,
+    DistributionKeeper,
+    FailingModule<IbcMsg, IbcQuery, Empty>,
+    FailingModule<GovMsg, Empty, Empty>,
+    Stargate,
+>;
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
     #[derivative(Debug = "ignore")]
-    pub app: App,
+    pub app: TestApp,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
@@ -157,12 +176,14 @@ impl Helper {
         test_coins: Vec<TestCoin>,
         params: ConcentratedPoolParams,
     ) -> AnyResult<Self> {
-        let mut app = App::new(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, owner, init_native_coins(&test_coins))
-                .unwrap()
-        });
+        let mut app = AppBuilder::new_custom()
+            .with_stargate(Stargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, owner, init_native_coins(&test_coins))
+                    .unwrap()
+            });
 
         let token_code_id = app.store_code(token_contract());
 
@@ -217,6 +238,7 @@ impl Helper {
                     ("uusd".to_owned(), 6),
                     ("wsteth".to_owned(), 18),
                     ("eth".to_owned(), 18),
+                    ("uusdc".to_owned(), 6),
                 ],
             },
             &[],
@@ -312,14 +334,12 @@ impl Helper {
         amount: u128,
         assets: Vec<Asset>,
     ) -> AnyResult<AppResponse> {
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.pair_addr.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
-        };
-
-        self.app
-            .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
+        self.app.execute_contract(
+            sender.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::WithdrawLiquidity { assets },
+            &[coin(amount, self.lp_token.to_string())],
+        )
     }
 
     pub fn swap(
@@ -412,7 +432,7 @@ impl Helper {
     }
 
     fn init_token(
-        app: &mut App,
+        app: &mut TestApp,
         token_code: u64,
         name: String,
         decimals: u8,
@@ -455,16 +475,19 @@ impl Helper {
         resp.balance.u128()
     }
 
+    pub fn native_balance(&self, denom: impl Into<String>, user: &Addr) -> u128 {
+        self.app
+            .wrap()
+            .query_balance(user, denom)
+            .unwrap()
+            .amount
+            .u128()
+    }
+
     pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> u128 {
         match &self.assets[coin] {
             AssetInfo::Token { contract_addr } => self.token_balance(contract_addr, user),
-            AssetInfo::NativeToken { denom } => self
-                .app
-                .wrap()
-                .query_balance(user, denom)
-                .unwrap()
-                .amount
-                .u128(),
+            AssetInfo::NativeToken { denom } => self.native_balance(denom, user),
         }
     }
 
@@ -582,7 +605,7 @@ pub enum SendType {
 pub trait AssetExt {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -592,7 +615,7 @@ pub trait AssetExt {
 impl AssetExt for Asset {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -628,7 +651,7 @@ impl AssetExt for Asset {
 pub trait AssetsExt {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -638,7 +661,7 @@ pub trait AssetsExt {
 impl AssetsExt for &[Asset] {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -655,7 +678,7 @@ pub trait AppExtension {
     fn next_block(&mut self, time: u64);
 }
 
-impl AppExtension for App {
+impl AppExtension for TestApp {
     fn next_block(&mut self, time: u64) {
         self.update_block(|block| {
             block.time = block.time.plus_seconds(time);
