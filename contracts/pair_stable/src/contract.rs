@@ -446,13 +446,14 @@ pub fn provide_liquidity(
             false,
         )?);
 
-        let event = Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
-            attr("action", "mint"),
-            attr("to", env.contract.address.as_str()),
-            attr("amount", &MINIMUM_LIQUIDITY_AMOUNT.to_string()),
-        ]);
-
-        events.insert(0, event);
+        events.insert(
+            0,
+            Event::new("astroport-pool.v1.Mint").add_attributes([
+                attr("action", "mint"),
+                attr("to", env.contract.address.as_str()),
+                attr("amount", &MINIMUM_LIQUIDITY_AMOUNT.to_string()),
+            ]),
+        );
 
         share
     } else {
@@ -487,7 +488,7 @@ pub fn provide_liquidity(
 
     events.insert(
         events.len(),
-        Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
+        Event::new("astroport-pool.v1.Mint").add_attributes([
             attr("action", "mint"),
             attr("to", receiver.clone()),
             attr("amount", share),

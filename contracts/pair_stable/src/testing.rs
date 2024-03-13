@@ -290,16 +290,16 @@ fn provide_liquidity() {
             denom: "uusd".to_string(),
             amount: Uint128::new(200_000000000000000000 + 200_000000000000000000 /* user deposit must be pre-applied */),
         }],
-    )]);
+        
+    ),
+    (
+        &String::from("liquidity0000"),
+        &[coin(100_000000000000000000u128, denom.to_string())],
+    ),
+    ]);
 
     deps.querier.with_token_balances(&[
-        (
-            &String::from("liquidity0000"),
-            &[(
-                &String::from(MOCK_CONTRACT_ADDR),
-                &Uint128::new(100_000000000000000000),
-            )],
-        ),
+       
         (
             &String::from("asset0000"),
             &[(
@@ -340,7 +340,7 @@ fn provide_liquidity() {
 
     let res: Response = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let transfer_from_msg = res.messages.get(0).expect("no message");
-    let mint_msg = res.messages.get(2).expect("no message");
+    let mint_msg = res.messages.get(1).expect("no message");
 
     assert_eq!(
         transfer_from_msg,
@@ -370,7 +370,7 @@ fn provide_liquidity() {
                     MsgMint {
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
-                            amount: Uint128::from(699927827498316824846u128).to_string(),
+                            amount: Uint128::from(74_981_956_874_579_206461u128).to_string(),
                         }),
 
                         mint_to_address: String::from("addr0000"),
