@@ -1,12 +1,12 @@
 use cosmwasm_std::{
-    wasm_execute, Addr, Api, Coin, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
+    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
     Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
-use astroport::incentives::ExecuteMsg;
+use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::querier::query_factory_config;
 use astroport::token_factory::tf_mint_msg;
 use astroport_factory::state::pair_key;
@@ -68,10 +68,7 @@ where
     C: CustomQuery,
     T: CustomMsg,
 {
-    let coin = Coin {
-        denom: config.pair_info.liquidity_token.to_string(),
-        amount: amount.into(),
-    };
+    let coin = coin(amount.into(), config.pair_info.liquidity_token.to_string());
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
@@ -86,7 +83,7 @@ where
             tf_mint_msg(contract_address, coin.clone(), recipient),
             wasm_execute(
                 generator,
-                &ExecuteMsg::Deposit {
+                &IncentiveExecuteMsg::Deposit {
                     recipient: Some(recipient.to_string()),
                 },
                 vec![coin],

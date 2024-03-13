@@ -2,16 +2,17 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::vec;
 
+use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, wasm_execute, wasm_instantiate, Addr, Binary, CosmosMsg,
-    Decimal, Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply,
-    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, Decimal,
+    Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
-use cw_utils::parse_instantiate_response_data;
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
 use astroport::asset::{
@@ -33,8 +34,7 @@ use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolConfig,
 };
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::DecimalCheckedOps;
 use astroport_circular_buffer::BufferManager;
 
@@ -55,8 +55,8 @@ use crate::utils::{
 const CONTRACT_NAME: &str = "astroport-pair-stable";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// A `reply` call code ID of sub-message.
-const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
+/// Reply ID for create denom reply
+const CREATE_DENOM_REPLY_ID: u64 = 1;
 /// Number of assets in the pool.
 const N_COINS: usize = 2;
 
@@ -114,23 +114,8 @@ pub fn instantiate(
 
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
-        wasm_instantiate(
-            msg.token_code_id,
-            &TokenInstantiateMsg {
-                name: token_name,
-                symbol: "uLP".to_string(),
-                decimals: greatest_precision,
-                initial_balances: vec![],
-                mint: Some(MinterResponse {
-                    minter: env.contract.address.to_string(),
-                    cap: None,
-                }),
-                marketing: None,
-            },
-            vec![],
-            String::from("Astroport LP token"),
-        )?,
-        INSTANTIATE_TOKEN_REPLY_ID,
+        tf_create_denom_msg(env.contract.address.to_string(), token_name),
+        CREATE_DENOM_REPLY_ID,
     );
 
     Ok(Response::new().add_submessage(sub_msg))
@@ -141,25 +126,24 @@ pub fn instantiate(
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
-            id: INSTANTIATE_TOKEN_REPLY_ID,
+            id: CREATE_DENOM_REPLY_ID,
             result:
                 SubMsgResult::Ok(SubMsgResponse {
                     data: Some(data), ..
                 }),
         } => {
-            let mut config = CONFIG.load(deps.storage)?;
+            let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
 
-            if config.pair_info.liquidity_token != Addr::unchecked("") {
-                return Err(ContractError::Unauthorized {});
-            }
+            CONFIG.update(deps.storage, |mut config| {
+                if !config.pair_info.liquidity_token.as_str().is_empty() {
+                    return Err(ContractError::Unauthorized {});
+                }
 
-            let init_response = parse_instantiate_response_data(data.as_slice())
-                .map_err(|e| StdError::generic_err(format!("{e}")))?;
-            config.pair_info.liquidity_token =
-                deps.api.addr_validate(&init_response.contract_address)?;
-            CONFIG.save(deps.storage, &config)?;
-            Ok(Response::new()
-                .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+                config.pair_info.liquidity_token = Addr::unchecked(&new_token_denom);
+                Ok(config)
+            })?;
+
+            Ok(Response::new().add_attribute("lp_denom", new_token_denom))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }
@@ -268,7 +252,7 @@ pub fn execute(
             })
             .map_err(|e| e.into())
         }
-        _ => Ok(Response::default()),
+        ExecuteMsg::WithdrawLiquidity { assets } => withdraw_liquidity(deps, env, info, assets),
     }
 }
 
@@ -310,13 +294,7 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
-            deps,
-            info,
-            Addr::unchecked(cw20_msg.sender),
-            cw20_msg.amount,
-            assets,
-        ),
+        _ => Err(StdError::generic_err("Unsupported message").into()),
     }
 }
 
@@ -397,6 +375,8 @@ pub fn provide_liquidity(
     }
 
     let mut messages = vec![];
+    let mut events = vec![];
+
     for (deposit, pool) in assets_collection.iter_mut() {
         // We cannot put a zero amount into an empty pool.
         if deposit.amount.is_zero() && pool.is_zero() {
@@ -445,7 +425,7 @@ pub fn provide_liquidity(
         .collect::<StdResult<Vec<_>>>()?;
     let deposit_d = compute_d(amp, &new_balances)?;
 
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let share = if total_share.is_zero() {
         let share = deposit_d
             .to_uint128_with_precision(config.greatest_precision)?
@@ -465,6 +445,14 @@ pub fn provide_liquidity(
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
+
+        let event = Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
+            attr("action", "mint"),
+            attr("to", env.contract.address.as_str()),
+            attr("amount", &MINIMUM_LIQUIDITY_AMOUNT.to_string()),
+        ]);
+
+        events.insert(0, event);
 
         share
     } else {
@@ -497,31 +485,45 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
-    Ok(Response::new().add_messages(messages).add_attributes(vec![
-        attr("action", "provide_liquidity"),
-        attr("sender", info.sender),
-        attr("receiver", receiver),
-        attr("assets", assets.iter().join(", ")),
-        attr("share", share),
-    ]))
+    events.insert(
+        events.len(),
+        Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
+            attr("action", "mint"),
+            attr("to", receiver.clone()),
+            attr("amount", share),
+        ]),
+    );
+
+    events.insert(
+        0,
+        Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
+            attr("action", "provide_liquidity"),
+            attr("sender", info.sender),
+            attr("receiver", receiver),
+            attr("assets", assets.iter().join(", ")),
+            attr("share", share),
+        ]),
+    );
+
+    Ok(Response::new().add_messages(messages).add_events(events))
 }
 
 /// Withdraw liquidity from the pool.
-/// * **sender** is the address that will receive assets back from the pair contract.
-///
-/// * **amount** is the amount of LP tokens to burn.
 pub fn withdraw_liquidity(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    sender: Addr,
-    amount: Uint128,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.pair_info.liquidity_token {
-        return Err(ContractError::Unauthorized {});
-    }
+    let Coin { amount, denom } = one_coin(&info)?;
+
+    ensure_eq!(
+        denom,
+        config.pair_info.liquidity_token,
+        PaymentError::MissingDenom(config.pair_info.liquidity_token.to_string())
+    );
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
 
@@ -535,20 +537,20 @@ pub fn withdraw_liquidity(
     let mut messages = refund_assets
         .clone()
         .into_iter()
-        .map(|asset| asset.into_msg(&sender))
+        .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.push(
-        wasm_execute(
-            &config.pair_info.liquidity_token,
-            &Cw20ExecuteMsg::Burn { amount },
-            vec![],
-        )?
+        tf_burn_msg(
+            env.contract.address,
+            coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
+            info.sender.to_string(),
+        )
         .into(),
     );
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
-        attr("sender", sender),
+        attr("sender", info.sender),
         attr("withdrawn_share", amount),
         attr("refund_assets", refund_assets.iter().join(", ")),
     ]))
@@ -1086,7 +1088,7 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
     let pools = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;
-    let total_share = query_supply(&querier, &config.pair_info.liquidity_token)?;
+    let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
 }

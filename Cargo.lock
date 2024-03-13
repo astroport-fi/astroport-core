@@ -572,6 +572,7 @@ dependencies = [
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test 0.20.0",
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.3",
  "cw2 0.15.1",

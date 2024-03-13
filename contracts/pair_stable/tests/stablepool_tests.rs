@@ -155,24 +155,24 @@ fn provide_with_different_precision() {
 
     let user1 = Addr::unchecked("user1");
 
-    assert_eq!(19999000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(19999000, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
     helper.withdraw_liquidity(&user1, 19999000, vec![]).unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(999950, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(9999500, helper.coin_balance(&test_coins[1], &user1));
 
     let user2 = Addr::unchecked("user2");
-    assert_eq!(20000000, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(20000000, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
 
     helper.withdraw_liquidity(&user2, 20000000, vec![]).unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(999999, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(9999999, helper.coin_balance(&test_coins[1], &user2));
 }
@@ -408,7 +408,7 @@ fn check_pool_prices() {
 
     let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
     let err = helper.query_prices().unwrap_err();
-    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
+    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\": { \"seconds_ago\": ... } } instead.")
                , err);
 
     let assets = vec![

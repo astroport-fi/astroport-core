@@ -154,7 +154,7 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
             id: CREATE_DENOM_REPLY_ID,
@@ -165,18 +165,16 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
         } => {
             let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
 
-            let subdenom = format!("factory/{}/{}", env.contract.address, new_token_denom);
-
             CONFIG.update(deps.storage, |mut config| {
                 if !config.pair_info.liquidity_token.as_str().is_empty() {
                     return Err(ContractError::Unauthorized {});
                 }
 
-                config.pair_info.liquidity_token = Addr::unchecked(&subdenom);
+                config.pair_info.liquidity_token = Addr::unchecked(&new_token_denom);
                 Ok(config)
             })?;
 
-            Ok(Response::new().add_attribute("lp_denom", subdenom))
+            Ok(Response::new().add_attribute("lp_denom", new_token_denom))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }

@@ -1,4 +1,5 @@
 use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
@@ -17,6 +18,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     CircularBuffer(#[from] BufferError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("Unauthorized")]
     Unauthorized {},

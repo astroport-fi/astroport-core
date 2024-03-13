@@ -1,4 +1,4 @@
-use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as ProtoCoin;
+pub use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as ProtoCoin;
 use cosmwasm_std::{Binary, Coin, CosmosMsg, CustomMsg, StdError};
 use prost::Message;
 
