@@ -146,7 +146,7 @@ fn test_provide_and_withdraw() {
         )
         .unwrap();
 
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 2 * 100_000_000000u128);
 
     // withdraw half. balanced
@@ -154,7 +154,7 @@ fn test_provide_and_withdraw() {
         .withdraw_liquidity(&user, 100_000_000000u128, vec![])
         .unwrap();
 
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 100_000_000000u128);
 
     let pool_info = helper.query_pool().unwrap();
@@ -191,7 +191,7 @@ fn test_provide_and_withdraw() {
 
     // LP tokens left
     assert_eq!(
-        helper.token_balance(&helper.lp_token, &user),
+        helper.native_balance(&helper.lp_token, &user),
         50_000_000000u128
     );
 
@@ -261,7 +261,7 @@ fn test_provide_and_withdraw() {
 
     // 5k LP tokens returned to user balance
     assert_eq!(
-        helper.token_balance(&helper.lp_token, &user),
+        helper.native_balance(&helper.lp_token, &user),
         45_000_000000u128
     );
 
@@ -682,7 +682,7 @@ fn test_unbalanced_withdraw() {
     ];
     helper.give_me_money(&provide_assets, &user);
     helper.provide_liquidity(&user, &provide_assets).unwrap();
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 200_000_000000u128);
     // withdraw imbalanced
     helper
@@ -692,7 +692,7 @@ fn test_unbalanced_withdraw() {
             vec![helper.assets[&test_coins[0]].with_balance(100_000_000000u128)],
         )
         .unwrap();
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 100_000_000000u128);
     let pool_info = helper.query_pool().unwrap();
     assert_eq!(
@@ -833,7 +833,7 @@ fn test_provide_and_withdraw_different_decimals() {
 
     helper.provide_liquidity(&user, &provide_assets).unwrap();
 
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 2 * 100_000_00000000u128);
 
     // withdraw half. balanced
@@ -841,7 +841,7 @@ fn test_provide_and_withdraw_different_decimals() {
         .withdraw_liquidity(&user, 100_000_00000000u128, vec![])
         .unwrap();
 
-    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    let lp_balance = helper.native_balance(&helper.lp_token, &user);
     assert_eq!(lp_balance, 100_000_00000000u128);
 
     let pool_info = helper.query_pool().unwrap();
@@ -878,7 +878,7 @@ fn test_provide_and_withdraw_different_decimals() {
 
     // LP tokens left
     assert_eq!(
-        helper.token_balance(&helper.lp_token, &user),
+        helper.native_balance(&helper.lp_token, &user),
         50_000_00000000u128
     );
 
@@ -918,7 +918,7 @@ fn test_provide_and_withdraw_different_decimals() {
 
     // 5k LP tokens returned to user balance
     assert_eq!(
-        helper.token_balance(&helper.lp_token, &user),
+        helper.native_balance(&helper.lp_token, &user),
         45_000_00000000u128
     );
 

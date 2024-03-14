@@ -2,7 +2,7 @@ use cosmwasm_std::{Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
-use astroport::querier::query_supply;
+use astroport::querier::query_native_supply;
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -33,7 +33,7 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
     let pools = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;
-    let total_share = query_supply(&querier, &config.pair_info.liquidity_token)?;
+    let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
 }

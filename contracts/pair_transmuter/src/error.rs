@@ -1,5 +1,5 @@
 use cosmwasm_std::{CheckedFromRatioError, StdError, Uint128};
-use cw_utils::ParseReplyError;
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 /// This enum describes pair contract errors
@@ -7,6 +7,9 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("{0}")]
     CheckedFromRatioError(#[from] CheckedFromRatioError),

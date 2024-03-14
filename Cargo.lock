@@ -593,6 +593,7 @@ dependencies = [
  "anyhow",
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
+ "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-token",
  "cosmwasm-schema",
