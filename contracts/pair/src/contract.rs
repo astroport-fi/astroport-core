@@ -5,9 +5,10 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, Decimal,
-    Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
-    StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
+    attr, coin, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin, CosmosMsg,
+    CustomMsg, CustomQuery, Decimal, Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo,
+    QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult,
+    Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -17,6 +18,7 @@ use astroport::asset::{
     PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
+use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::{
     ConfigResponse, FeeShareConfig, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
@@ -26,13 +28,14 @@ use astroport::pair::{
     QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
-use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
+use astroport::token_factory::{
+    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
+};
 use astroport::U256;
 use cw_utils::{one_coin, PaymentError};
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
-use crate::utils::mint_liquidity_token_message;
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-pair";
@@ -445,6 +448,54 @@ pub fn provide_liquidity(
     );
 
     Ok(Response::new().add_messages(messages).add_events(events))
+}
+
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Incentive contract (if auto staking is specified).
+///
+/// * **recipient** LP token recipient.
+///
+/// * **coin** denom and amount of LP tokens that will be minted for the recipient.
+///
+/// * **auto_stake** determines whether the newly minted LP tokens will
+/// be automatically staked in the Generator on behalf of the recipient.
+pub fn mint_liquidity_token_message<T, C>(
+    querier: QuerierWrapper<C>,
+    config: &Config,
+    contract_address: &Addr,
+    recipient: &Addr,
+    amount: Uint128,
+    auto_stake: bool,
+) -> Result<Vec<CosmosMsg<T>>, ContractError>
+where
+    C: CustomQuery,
+    T: CustomMsg,
+{
+    let coin = coin(amount.into(), config.pair_info.liquidity_token.to_string());
+    dbg!(&coin);
+
+    // If no auto-stake - just mint to recipient
+    if !auto_stake {
+        return Ok(vec![tf_mint_msg(contract_address, coin, recipient)]);
+    }
+
+    // Mint for the pair contract and stake into the Generator contract
+    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
+
+    if let Some(generator) = generator {
+        Ok(vec![
+            tf_mint_msg(contract_address, coin.clone(), recipient),
+            wasm_execute(
+                generator,
+                &IncentiveExecuteMsg::Deposit {
+                    recipient: Some(recipient.to_string()),
+                },
+                vec![coin],
+            )?
+            .into(),
+        ])
+    } else {
+        Err(ContractError::AutoStakeError {})
+    }
 }
 
 /// Withdraw liquidity from the pool.
