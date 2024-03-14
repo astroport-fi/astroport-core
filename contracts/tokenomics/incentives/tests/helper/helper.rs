@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use anyhow::Result as AnyResult;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Empty, Env, IbcMsg, IbcQuery,
-    RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128, VerificationError,
+    coin, to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env,
+    IbcMsg, IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
+    VerificationError,
 };
 use cw20::MinterResponse;
 use cw_multi_test::{
@@ -18,14 +19,15 @@ use itertools::Itertools;
 
 use crate::helper::broken_cw20;
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::astro_converter::OutpostBurnParams;
 use astroport::factory::{PairConfig, PairType};
 use astroport::incentives::{
     Config, ExecuteMsg, IncentivesSchedule, IncentivizationFeeInfo, InputSchedule,
     PoolInfoResponse, QueryMsg, RewardInfo, ScheduleResponse,
 };
 use astroport::pair::StablePoolParams;
-use astroport::vesting::{VestingAccount, VestingSchedule, VestingSchedulePoint};
-use astroport::{factory, native_coin_registry, pair, vesting};
+use astroport::vesting::{MigrateMsg, VestingAccount, VestingSchedule, VestingSchedulePoint};
+use astroport::{astro_converter, factory, native_coin_registry, pair, vesting};
 
 fn factory_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
@@ -73,6 +75,25 @@ fn vesting_contract() -> Box<dyn Contract<Empty>> {
         astroport_vesting::contract::execute,
         astroport_vesting::contract::instantiate,
         astroport_vesting::contract::query,
+    ))
+}
+
+fn vesting_contract_v131() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_vesting_131::contract::execute,
+            astroport_vesting_131::contract::instantiate,
+            astroport_vesting_131::contract::query,
+        )
+        .with_migrate_empty(astroport_vesting_131::contract::migrate),
+    )
+}
+
+fn astro_converter() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astro_token_converter::contract::execute,
+        astro_token_converter::contract::instantiate,
+        astro_token_converter::contract::query,
     ))
 }
 
@@ -226,7 +247,7 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn new(owner: &str, astro: &AssetInfo) -> AnyResult<Self> {
+    pub fn new(owner: &str, astro: &AssetInfo, with_old_vesting: bool) -> AnyResult<Self> {
         let mut app = AppBuilder::new()
             .with_wasm::<FailingModule<_, _, Empty>, WasmKeeper<_, _>>(
                 WasmKeeper::new_with_custom_address_generator(TestAddr),
@@ -240,7 +261,11 @@ impl Helper {
             .build(|_, _, _| {});
         let owner = TestAddr::new(owner);
 
-        let vesting_code = app.store_code(vesting_contract());
+        let vesting_code = if with_old_vesting {
+            app.store_code(vesting_contract_v131())
+        } else {
+            app.store_code(vesting_contract())
+        };
         let vesting = app
             .instantiate_contract(
                 vesting_code,
@@ -251,7 +276,7 @@ impl Helper {
                 },
                 &[],
                 "Astroport Vesting",
-                None,
+                Some(owner.to_string()),
             )
             .unwrap();
 
@@ -1017,6 +1042,60 @@ impl Helper {
             })
             .collect_vec()
     }
+
+    pub fn migrate_vesting(&mut self, new_astro_denom: &str) -> AnyResult<AppResponse> {
+        let converter_code_id = self.app.store_code(astro_converter());
+
+        let msg = astro_converter::InstantiateMsg {
+            old_astro_asset_info: AssetInfo::native(&self.incentivization_fee.denom),
+            new_astro_denom: new_astro_denom.to_string(),
+            outpost_burn_params: Some(OutpostBurnParams {
+                terra_burn_addr: "terra1xxxx".to_string(),
+                old_astro_transfer_channel: "channel-228".to_string(),
+            }),
+        };
+
+        let converter_contract = self
+            .app
+            .instantiate_contract(
+                converter_code_id,
+                self.owner.clone(),
+                &msg,
+                &[],
+                "Converter",
+                None,
+            )
+            .unwrap();
+
+        self.app.init_modules(|app, _, storage| {
+            app.bank
+                .init_balance(
+                    storage,
+                    &converter_contract,
+                    vec![coin(u128::MAX, new_astro_denom)],
+                )
+                .unwrap()
+        });
+
+        let vesting_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_vesting::contract::execute,
+                astroport_vesting::contract::instantiate,
+                astroport_vesting::contract::query,
+            )
+            .with_migrate(astroport_vesting::contract::migrate),
+        );
+        let vesting_code_id = self.app.store_code(vesting_contract);
+
+        self.app.migrate_contract(
+            self.owner.clone(),
+            self.vesting.clone(),
+            &MigrateMsg {
+                converter_contract: converter_contract.to_string(),
+            },
+            vesting_code_id,
+        )
+    }
 }
 
 pub fn assert_rewards(bal_before: &[Asset], bal_after: &[Asset], pending_rewards: &[Asset]) {
@@ -1039,4 +1118,8 @@ pub fn assert_rewards(bal_before: &[Asset], bal_after: &[Asset], pending_rewards
         .collect_vec();
 
     assert_eq!(bal_after, expected);
+}
+
+pub fn dec256_to_u128_floor(val: Decimal256) -> u128 {
+    Uint128::try_from(val.to_uint_floor()).unwrap().u128()
 }

@@ -91,7 +91,6 @@ pub fn ibc_transfer_for_burning(
                 .iter()
                 .chain(fee.recv_fee.iter())
                 .chain(fee.timeout_fee.iter())
-                .into_iter()
                 .filter(|a| a.denom == FEE_DENOM)
                 .fold(Uint128::zero(), |acc, coin| acc + coin.amount);
 
