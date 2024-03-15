@@ -1,6 +1,6 @@
 use cosmwasm_std::{entry_point, to_json_binary, Binary, Deps, Env, StdResult, Uint128};
 
-use astroport::asset::{Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::pair::{
     ConfigResponse, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
 };
@@ -21,7 +21,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             offer_asset,
             ask_asset_info,
         } => {
-            let (return_asset, _) = assert_and_swap(deps, &offer_asset, ask_asset_info)?;
+            let return_asset = assert_and_swap(deps, &offer_asset, ask_asset_info)?;
 
             Ok(to_json_binary(&SimulationResponse {
                 return_amount: return_asset.amount,
@@ -96,20 +96,32 @@ pub fn reverse_swap(
         .pair_info
         .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
 
-    if let Some(offer_asset_info) = offer_asset_info {
-        pools
+    let offer_asset_info = if let Some(offer_asset_info) = offer_asset_info {
+        if !config.pair_info.asset_infos.contains(&offer_asset_info) {
+            return Err(ContractError::InvalidAsset(offer_asset_info.to_string()));
+        } else {
+            offer_asset_info
+        }
+    } else {
+        config
+            .pair_info
+            .asset_infos
             .iter()
-            .position(|asset| asset.info == offer_asset_info)
-            .ok_or_else(|| ContractError::InvalidAsset(offer_asset_info.to_string()))?;
-    }
+            .find(|&asset_info| asset_info != &ask_asset.info)
+            .cloned()
+            .unwrap()
+    };
 
     let ask_pool = pools
         .iter()
         .find(|asset| asset.info == ask_asset.info)
         .ok_or_else(|| ContractError::InvalidAsset(ask_asset.info.to_string()))?;
 
+    let ask_asset = config.normalize(&ask_asset)?;
+
     if ask_pool.amount >= ask_asset.amount {
-        Ok(ask_asset.amount)
+        let offer_asset = offer_asset_info.with_balance(ask_asset.amount);
+        config.denormalize(&offer_asset).map(|asset| asset.amount)
     } else {
         Err(ContractError::InsufficientPoolBalance {
             asset: ask_asset.info.to_string(),

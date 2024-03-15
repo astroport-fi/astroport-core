@@ -1,4 +1,4 @@
-use cosmwasm_std::{ensure, Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
@@ -57,17 +57,10 @@ pub fn assert_and_swap(
     deps: Deps,
     offer_asset: &Asset,
     ask_asset_info: Option<AssetInfo>,
-) -> Result<(Asset, AssetInfo), ContractError> {
+) -> Result<Asset, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    ensure!(
-        config
-            .pair_info
-            .asset_infos
-            .iter()
-            .contains(&offer_asset.info),
-        ContractError::InvalidAsset(offer_asset.info.to_string())
-    );
+    let offer_asset = config.normalize(offer_asset)?;
 
     let pools = config
         .pair_info
@@ -90,15 +83,14 @@ pub fn assert_and_swap(
         .find(|asset| asset.info == ask_asset_info)
         .ok_or_else(|| ContractError::InvalidAsset(ask_asset_info.to_string()))?;
 
-    if ask_pool.amount >= offer_asset.amount {
-        Ok((
-            ask_pool.info.with_balance(offer_asset.amount),
-            ask_asset_info,
-        ))
+    let ask_asset = config.denormalize(&ask_pool.info.with_balance(offer_asset.amount))?;
+
+    if ask_pool.amount >= ask_asset.amount {
+        Ok(ask_asset)
     } else {
         Err(ContractError::InsufficientPoolBalance {
             asset: ask_asset_info.to_string(),
-            want: offer_asset.amount,
+            want: ask_asset.amount,
             available: ask_pool.amount,
         })
     }
