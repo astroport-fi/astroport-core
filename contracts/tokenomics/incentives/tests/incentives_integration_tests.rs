@@ -1,7 +1,6 @@
 use std::str::FromStr;
 
 use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
-use cw_multi_test::Executor;
 
 use astroport::asset::{native_asset_info, AssetInfo, AssetInfoExt};
 use astroport::incentives::{
@@ -9,6 +8,7 @@ use astroport::incentives::{
     MAX_REWARD_TOKENS,
 };
 use astroport_incentives::error::ContractError;
+use astroport_mocks::cw_multi_test::Executor;
 
 use crate::helper::{assert_rewards, dec256_to_u128_floor, Helper, TestAddr};
 
@@ -18,100 +18,102 @@ mod helper;
 fn test_stake_unstake() {
     let astro = native_asset_info("astro".to_string());
     let mut helper = Helper::new("owner", &astro).unwrap();
+    let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair_info = helper.create_pair(&asset_infos).unwrap();
+    let lp_token = pair_info.liquidity_token.to_string();
 
     let user = TestAddr::new("user");
 
-    // ##### Check native LPs
-    // TODO: build token factory based pair and test the lines below
+    let native_lp = native_asset_info(lp_token.to_string()).with_balance(10000u16);
+    helper.mint_coin(&user, &native_lp.as_coin().unwrap());
 
-    // let native_lp = native_asset_info("lp_token".to_string()).with_balance(1000u16);
-    // helper.mint_coins(&user, vec![native_lp.as_coin().unwrap()]);
-    //
-    // helper.stake(&user, native_lp).unwrap();
-    //
-    // helper.unstake(&user, "lp_token", 500).unwrap();
-    //
-    // // Unstake more than staked
-    // let err = helper.unstake(&user, "lp_token", 10000).unwrap_err();
-    // assert_eq!(
-    //     err.downcast::<ContractError>().unwrap(),
-    //     ContractError::AmountExceedsBalance {
-    //         available: 500u16.into(),
-    //         withdraw_amount: 10000u16.into()
-    //     }
-    // );
-    //
-    // // Unstake non-existing LP token
-    // let err = helper
-    //     .unstake(&user, "non_existing_lp_token", 10000)
-    //     .unwrap_err();
-    // assert_eq!(
-    //     err.downcast::<ContractError>().unwrap(),
-    //     ContractError::PositionDoesntExist {
-    //         user: user.to_string(),
-    //         lp_token: "non_existing_lp_token".to_string()
-    //     }
-    // );
-    //
-    // helper.unstake(&user, "lp_token", 500).unwrap();
+    helper.stake(&user, native_lp).unwrap();
 
-    // ##### Check cw20 LPs
-
-    let asset_infos = [AssetInfo::native("uusd"), AssetInfo::native("ueur")];
-    let pair_info = helper.create_pair(&asset_infos).unwrap();
-    let provide_assets = [
-        asset_infos[0].with_balance(100000u64),
-        asset_infos[1].with_balance(100000u64),
-    ];
     helper
-        .provide_liquidity(&user, &provide_assets, &pair_info.contract_addr, false)
+        .unstake(&user, &lp_token.to_string(), 500u128)
         .unwrap();
-
-    let cw20_lp = AssetInfo::cw20(pair_info.liquidity_token.clone());
-    let initial_lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
-    helper
-        .stake(&user, cw20_lp.with_balance(initial_lp_balance))
-        .unwrap();
-    let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
-    assert_eq!(lp_balance.u128(), 0);
 
     // Unstake more than staked
-    let err = helper
-        .unstake(
-            &user,
-            pair_info.liquidity_token.as_str(),
-            initial_lp_balance + Uint128::one(),
-        )
-        .unwrap_err();
+    let err = helper.unstake(&user, &lp_token, 10000u128).unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::AmountExceedsBalance {
-            available: initial_lp_balance,
-            withdraw_amount: initial_lp_balance + Uint128::one()
+            available: 9500u16.into(),
+            withdraw_amount: 10000u16.into()
         }
     );
 
-    // Unstake half
-    helper
-        .unstake(
-            &user,
-            pair_info.liquidity_token.as_str(),
-            initial_lp_balance.u128() / 2,
-        )
-        .unwrap();
-    let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
-    assert_eq!(lp_balance.u128(), initial_lp_balance.u128() / 2);
+    // Unstake non-existing LP token
+    let err = helper
+        .unstake(&user, "non_existing_lp_token", 10000u128)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PositionDoesntExist {
+            user: user.to_string(),
+            lp_token: "non_existing_lp_token".to_string()
+        }
+    );
 
-    // Unstake the rest
-    helper
-        .unstake(
-            &user,
-            pair_info.liquidity_token.as_str(),
-            initial_lp_balance.u128() / 2,
-        )
-        .unwrap();
-    let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
-    assert_eq!(lp_balance, initial_lp_balance);
+    helper.unstake(&user, &lp_token, 500u128).unwrap();
+
+    // ##### Check cw20 LPs
+
+    // let asset_infos = [AssetInfo::native("uusd"), AssetInfo::native("ueur")];
+    // let pair_info = helper.create_pair(&asset_infos).unwrap();
+    // let provide_assets = [
+    //     asset_infos[0].with_balance(100000u64),
+    //     asset_infos[1].with_balance(100000u64),
+    // ];
+    // helper
+    //     .provide_liquidity(&user, &provide_assets, &pair_info.contract_addr, false)
+    //     .unwrap();
+
+    // let cw20_lp = AssetInfo::cw20(pair_info.liquidity_token.clone());
+    // let initial_lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
+    // helper
+    //     .stake(&user, cw20_lp.with_balance(initial_lp_balance))
+    //     .unwrap();
+    // let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
+    // assert_eq!(lp_balance.u128(), 0);
+
+    // // Unstake more than staked
+    // let err = helper
+    //     .unstake(
+    //         &user,
+    //         pair_info.liquidity_token.as_str(),
+    //         initial_lp_balance + Uint128::one(),
+    //     )
+    //     .unwrap_err();
+    // assert_eq!(
+    //     err.downcast::<ContractError>().unwrap(),
+    //     ContractError::AmountExceedsBalance {
+    //         available: initial_lp_balance,
+    //         withdraw_amount: initial_lp_balance + Uint128::one()
+    //     }
+    // );
+
+    // // Unstake half
+    // helper
+    //     .unstake(
+    //         &user,
+    //         pair_info.liquidity_token.as_str(),
+    //         initial_lp_balance.u128() / 2,
+    //     )
+    //     .unwrap();
+    // let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
+    // assert_eq!(lp_balance.u128(), initial_lp_balance.u128() / 2);
+
+    // // Unstake the rest
+    // helper
+    //     .unstake(
+    //         &user,
+    //         pair_info.liquidity_token.as_str(),
+    //         initial_lp_balance.u128() / 2,
+    //     )
+    //     .unwrap();
+    // let lp_balance = cw20_lp.query_pool(&helper.app.wrap(), &user).unwrap();
+    // assert_eq!(lp_balance, initial_lp_balance);
 }
 
 #[test]
@@ -2230,6 +2232,7 @@ fn test_orphaned_rewards() {
     let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
     let pair_info = helper.create_pair(&asset_infos).unwrap();
     let lp_token = pair_info.liquidity_token.to_string();
+    dbg!(&lp_token);
 
     let bank = TestAddr::new("bank");
 

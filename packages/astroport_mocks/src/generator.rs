@@ -10,7 +10,9 @@ use astroport::{
     },
 };
 use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Storage, Uint128};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
@@ -20,7 +22,7 @@ use crate::{
     MockToken, MockTokenBuilder, MockVestingBuilder, WKApp, ASTROPORT,
 };
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -32,6 +34,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     use astroport_generator as cnt;
     let contract = Box::new(
@@ -46,11 +49,11 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockGeneratorBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockGeneratorBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockGeneratorBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockGeneratorBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -62,11 +65,12 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self { app: app.clone() }
     }
-    pub fn instantiate(self) -> MockGenerator<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockGenerator<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -173,12 +177,12 @@ where
     }
 }
 
-pub struct MockGenerator<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockGenerator<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockGenerator<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockGenerator<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -190,8 +194,9 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn factory(&self) -> MockFactory<B, A, S, C, X, D, I, G> {
+    pub fn factory(&self) -> MockFactory<B, A, S, C, X, D, I, G, T> {
         let res: Config = self
             .app
             .borrow()
@@ -217,7 +222,7 @@ where
 
     pub fn query_deposit(
         &self,
-        lp_token: &MockToken<B, A, S, C, X, D, I, G>,
+        lp_token: &MockToken<B, A, S, C, X, D, I, G, T>,
         user: &Addr,
     ) -> Uint128 {
         self.app

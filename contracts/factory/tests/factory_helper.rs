@@ -3,9 +3,13 @@
 use anyhow::Result as AnyResult;
 use astroport::asset::AssetInfo;
 use astroport::factory::{PairConfig, PairType};
-use cosmwasm_std::{Addr, Binary};
+use astroport_mocks::cw_multi_test::{
+    App, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
+    MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+};
+
+use cosmwasm_std::{Addr, Binary, Empty, GovMsg, IbcMsg, IbcQuery, MemoryStorage};
 use cw20::MinterResponse;
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub struct FactoryHelper {
     pub owner: Addr,
@@ -15,7 +19,7 @@ pub struct FactoryHelper {
 }
 
 impl FactoryHelper {
-    pub fn init(router: &mut App, owner: &Addr) -> Self {
+    pub fn init(router: &mut TestApp, owner: &Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             astroport_token::contract::execute,
             astroport_token::contract::instantiate,
@@ -119,7 +123,7 @@ impl FactoryHelper {
 
     pub fn update_config(
         &mut self,
-        router: &mut App,
+        router: &mut TestApp,
         sender: &Addr,
         token_code_id: Option<u64>,
         fee_address: Option<String>,
@@ -140,7 +144,7 @@ impl FactoryHelper {
 
     pub fn create_pair(
         &mut self,
-        router: &mut App,
+        router: &mut TestApp,
         sender: &Addr,
         pair_type: PairType,
         tokens: [&Addr; 2],
@@ -166,7 +170,7 @@ impl FactoryHelper {
 }
 
 pub fn instantiate_token(
-    app: &mut App,
+    app: &mut TestApp,
     token_code_id: u64,
     owner: &Addr,
     token_name: &str,

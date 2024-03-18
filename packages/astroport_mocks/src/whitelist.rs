@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 
 use cosmwasm_std::{Api, CustomQuery, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking};
+use cw_multi_test::{Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking, Stargate};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
 use crate::WKApp;
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -19,6 +19,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     use astroport_whitelist as cnt;
     let contract = Box::new(ContractWrapper::new_with_empty(

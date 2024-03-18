@@ -4,17 +4,17 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
+use astroport_mocks::cw_multi_test::{
+    AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper,
+    DistributionKeeper, Executor, FailingModule, MockStargate, StakeKeeper, WasmKeeper,
+};
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
-    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env, IbcMsg,
-    IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
+    to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env, GovMsg,
+    IbcMsg, IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
     VerificationError,
 };
 use cw20::MinterResponse;
-use cw_multi_test::{
-    AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper,
-    DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
-};
 use itertools::Itertools;
 
 use crate::helper::broken_cw20;
@@ -192,7 +192,13 @@ impl TestAddr {
 }
 
 impl AddressGenerator for TestAddr {
-    fn next_address(&self, storage: &mut dyn Storage) -> Addr {
+    fn contract_address(
+        &self,
+        _api: &dyn Api,
+        storage: &mut dyn Storage,
+        _code_id: u64,
+        _instance_id: u64,
+    ) -> AnyResult<Addr> {
         let count = if let Some(next) = storage.get(Self::COUNT_KEY) {
             u64::from_be_bytes(next.as_slice().try_into().unwrap()) + 1
         } else {
@@ -200,7 +206,10 @@ impl AddressGenerator for TestAddr {
         };
         storage.set(Self::COUNT_KEY, &count.to_be_bytes());
 
-        Addr::unchecked(format!("{}_contract{count}", Self::ADDR_PREFIX))
+        Ok(Addr::unchecked(format!(
+            "{}_contract{count}",
+            Self::ADDR_PREFIX
+        )))
     }
 }
 
@@ -213,6 +222,8 @@ pub type TestApp<ExecC = Empty, QueryC = Empty> = App<
     StakeKeeper,
     DistributionKeeper,
     FailingModule<IbcMsg, IbcQuery, Empty>,
+    FailingModule<GovMsg, Empty, Empty>,
+    MockStargate,
 >;
 
 pub struct Helper {
@@ -229,9 +240,8 @@ pub struct Helper {
 impl Helper {
     pub fn new(owner: &str, astro: &AssetInfo) -> AnyResult<Self> {
         let mut app = AppBuilder::new()
-            .with_wasm::<FailingModule<_, _, Empty>, WasmKeeper<_, _>>(
-                WasmKeeper::new_with_custom_address_generator(TestAddr),
-            )
+            .with_stargate(MockStargate::default())
+            .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
             .with_api(TestApi::new())
             .with_block(BlockInfo {
                 height: 1,

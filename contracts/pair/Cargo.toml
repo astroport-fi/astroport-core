@@ -41,4 +41,3 @@ astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
 astroport-mocks = { path = "../../packages/astroport_mocks/" }
-cw-multi-test = { version = "0.20.0", features = ["cosmwasm_1_1"] }

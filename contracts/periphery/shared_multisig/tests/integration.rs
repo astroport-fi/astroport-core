@@ -10,18 +10,20 @@ use std::{cell::RefCell, rc::Rc};
 
 use astroport::shared_multisig::{ExecuteMsg, PoolType, ProvideParams};
 
-use astroport_mocks::cw_multi_test::{App, Executor};
+use astroport_mocks::cw_multi_test::{AppBuilder, Executor, MockStargate, StargateApp as App};
 use astroport_mocks::shared_multisig::MockSharedMultisigBuilder;
 use astroport_mocks::{astroport_address, MockFactoryBuilder, MockGeneratorBuilder};
 
 fn mock_app(owner: &Addr, coins: Option<Vec<Coin>>) -> App {
-    let app = App::new(|router, _, storage| {
-        // initialization moved to App construction
-        router
-            .bank
-            .init_balance(storage, &owner, coins.unwrap_or_default())
-            .unwrap();
-    });
+    let app = AppBuilder::new_custom()
+        .with_stargate(MockStargate::default())
+        .build(|router, _, storage| {
+            // initialization moved to App construction
+            router
+                .bank
+                .init_balance(storage, &owner, coins.unwrap_or_default())
+                .unwrap();
+        });
 
     app
 }
@@ -35,8 +37,9 @@ const CHEATER: &str = "cheater";
 fn proper_initialization() {
     let manager2 = Addr::unchecked("manager2");
     let manager1 = Addr::unchecked("manager1");
+    let app = mock_app(&manager1, None);
 
-    let router = Rc::new(RefCell::new(App::default()));
+    let router = Rc::new(RefCell::new(app));
 
     let factory = MockFactoryBuilder::new(&router).instantiate();
     let shared_multisig =
@@ -61,8 +64,9 @@ fn check_update_manager2() {
     let manager1 = Addr::unchecked("manager1");
     let manager2 = Addr::unchecked("manager2");
     let new_manager = Addr::unchecked("new_manager");
+    let app = mock_app(&manager1, None);
 
-    let router = Rc::new(RefCell::new(App::default()));
+    let router = Rc::new(RefCell::new(app));
     let factory = MockFactoryBuilder::new(&router).instantiate();
     let shared_multisig =
         MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);
@@ -180,8 +184,9 @@ fn check_update_manager1() {
     let manager2 = Addr::unchecked("manager2");
     let manager1 = Addr::unchecked("manager1");
     let new_manager1 = Addr::unchecked("new_manager1");
+    let app = mock_app(&manager1, None);
 
-    let router = Rc::new(RefCell::new(App::default()));
+    let router = Rc::new(RefCell::new(app));
     let factory = MockFactoryBuilder::new(&router).instantiate();
     let shared_multisig =
         MockSharedMultisigBuilder::new(&router).instantiate(&factory.address, None, None);

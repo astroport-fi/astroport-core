@@ -7,16 +7,12 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
-use astroport_mocks::stargate::Stargate;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cosmwasm_std::{Decimal, GovMsg, IbcMsg, IbcQuery, MemoryStorage};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{
-    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
-    Executor, FailingModule, StakeKeeper, WasmKeeper,
-};
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -25,6 +21,10 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
+};
+use astroport_mocks::cw_multi_test::{
+    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
+    Executor, FailingModule, MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
 };
 use astroport_pair_transmuter::contract::{execute, instantiate, reply};
 use astroport_pair_transmuter::queries::query;
@@ -121,19 +121,6 @@ fn coin_registry_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-pub type TestApp = App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    Stargate,
->;
-
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -154,7 +141,7 @@ impl Helper {
         native_coins: Vec<(String, u8)>, // decimals for native coins
     ) -> AnyResult<Self> {
         let mut app = AppBuilder::new_custom()
-            .with_stargate(Stargate::default())
+            .with_stargate(MockStargate::default())
             .build(|router, _, storage| {
                 router
                     .bank

@@ -2,7 +2,10 @@
 
 use anyhow::Result;
 use astroport_governance::voting_escrow_delegation as escrow_delegation;
-use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
+use astroport_mocks::cw_multi_test::{
+    AppResponse, Contract, ContractWrapper, Executor, StargateApp as TestApp,
+};
+
 use cosmwasm_std::{to_json_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 
 use cw721_base::helpers::Cw721Contract;
@@ -34,7 +37,7 @@ impl DelegationHelper {
     }
 
     fn instantiate_delegation(
-        router: &mut App,
+        router: &mut TestApp,
         owner: Addr,
         escrow_addr: Addr,
         delegation_id: u64,
@@ -68,7 +71,7 @@ impl DelegationHelper {
         (delegation_addr, res.nft_addr)
     }
 
-    pub fn init(router: &mut App, owner: Addr, escrow_addr: Addr) -> Self {
+    pub fn init(router: &mut TestApp, owner: Addr, escrow_addr: Addr) -> Self {
         let delegation_id =
             router.store_code(DelegationHelper::contract_escrow_delegation_template());
         let nft_id = router.store_code(DelegationHelper::contract_nft_template());
@@ -96,7 +99,7 @@ impl DelegationHelper {
 
     pub fn create_delegation(
         &self,
-        router: &mut App,
+        router: &mut TestApp,
         user: &str,
         bps: u16,
         expire_time: u64,
@@ -118,7 +121,7 @@ impl DelegationHelper {
 
     pub fn extend_delegation(
         &self,
-        router: &mut App,
+        router: &mut TestApp,
         user: &str,
         bps: u16,
         expire_time: u64,
@@ -138,7 +141,7 @@ impl DelegationHelper {
 
     pub fn adjusted_balance(
         &self,
-        router: &mut App,
+        router: &mut TestApp,
         user: &str,
         timestamp: Option<u64>,
     ) -> StdResult<Uint128> {
@@ -156,7 +159,7 @@ impl DelegationHelper {
 
     pub fn delegated_balance(
         &self,
-        router: &mut App,
+        router: &mut TestApp,
         user: &str,
         timestamp: Option<u64>,
     ) -> StdResult<Uint128> {

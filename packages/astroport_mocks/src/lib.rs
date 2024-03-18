@@ -3,7 +3,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use cosmwasm_std::Addr;
-pub use cw_multi_test;
+
 use cw_multi_test::{App, Module, WasmKeeper};
 
 pub use {
@@ -20,6 +20,7 @@ pub use {
 };
 
 pub mod coin_registry;
+pub mod cw_multi_test;
 pub mod factory;
 pub mod generator;
 pub mod pair;
@@ -27,7 +28,6 @@ pub mod pair_concentrated;
 pub mod pair_stable;
 pub mod shared_multisig;
 pub mod staking;
-pub mod stargate;
 pub mod token;
 pub mod vesting;
 pub mod whitelist;
@@ -39,6 +39,8 @@ pub fn astroport_address() -> Addr {
     Addr::unchecked(ASTROPORT)
 }
 
-pub type WKApp<B, A, S, C, X, D, I, G> = Rc<
-    RefCell<App<B, A, S, C, WasmKeeper<<C as Module>::ExecT, <C as Module>::QueryT>, X, D, I, G>>,
+pub type WKApp<B, A, S, C, X, D, I, G, T> = Rc<
+    RefCell<
+        App<B, A, S, C, WasmKeeper<<C as Module>::ExecT, <C as Module>::QueryT>, X, D, I, G, T>,
+    >,
 >;

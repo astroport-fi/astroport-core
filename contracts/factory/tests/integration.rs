@@ -11,13 +11,17 @@ use astroport::factory::{
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
 use astroport_factory::error::ContractError;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use astroport_mocks::cw_multi_test::{
+    AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
+};
 
-fn mock_app() -> App {
-    App::default()
+fn mock_app() -> TestApp {
+    AppBuilder::new_custom()
+        .with_stargate(MockStargate::default())
+        .build(|_, _, _| {})
 }
 
-fn store_factory_code(app: &mut App) -> u64 {
+fn store_factory_code(app: &mut TestApp) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -190,7 +194,10 @@ fn test_create_pair() {
     // In multitest, contract names are counted in the order in which contracts are created
     assert_eq!("contract1", helper.factory.to_string());
     assert_eq!("contract4", res.contract_addr.to_string());
-    assert_eq!("contract5", res.liquidity_token.to_string());
+    assert_eq!(
+        "factory/contract4/TOKE-TOKE-LP",
+        res.liquidity_token.to_string()
+    );
 
     // Create disabled pair type
     app.execute_contract(

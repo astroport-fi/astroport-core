@@ -7,11 +7,13 @@ use astroport::{
     vesting::{ConfigResponse, InstantiateMsg},
 };
 use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -23,6 +25,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     use astroport_vesting as cnt;
     let contract = Box::new(ContractWrapper::new_with_empty(
@@ -34,12 +37,12 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockVestingBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockVestingBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub astro_token: Option<AssetInfo>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockVestingBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockVestingBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -51,8 +54,9 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self {
             app: app.clone(),
             astro_token: None,
@@ -64,7 +68,7 @@ where
         self
     }
 
-    pub fn instantiate(self) -> MockVesting<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockVesting<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -97,12 +101,12 @@ where
     }
 }
 
-pub struct MockVesting<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockVesting<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockVesting<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockVesting<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -114,6 +118,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     pub fn vesting_token_info(&self) -> AssetInfo {
         let res: ConfigResponse = self

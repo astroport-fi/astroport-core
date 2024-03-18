@@ -13,12 +13,12 @@ use cosmwasm_std::{Addr, Api, Coin, CosmosMsg, CustomQuery, Decimal, StdResult, 
 use cw20::{BalanceResponse, Cw20QueryMsg};
 use cw3::{ProposalResponse, Vote, VoteListResponse, VoteResponse};
 use cw_multi_test::{
-    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
 };
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -30,6 +30,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     let contract = Box::new(ContractWrapper::new_with_empty(
         astroport_shared_multisig::contract::execute,
@@ -40,11 +41,11 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockSharedMultisigBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockSharedMultisigBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockSharedMultisigBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockSharedMultisigBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -56,8 +57,9 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self { app: app.clone() }
     }
 
@@ -66,7 +68,7 @@ where
         factory_addr: &Addr,
         generator_addr: Option<Addr>,
         target_pool: Option<String>,
-    ) -> MockSharedMultisig<B, A, S, C, X, D, I, G> {
+    ) -> MockSharedMultisig<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -101,12 +103,12 @@ where
     }
 }
 
-pub struct MockSharedMultisig<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockSharedMultisig<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockSharedMultisig<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockSharedMultisig<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -118,6 +120,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     pub fn propose(&self, sender: &Addr, msgs: Vec<CosmosMsg>) -> AnyResult<AppResponse> {
         self.app.borrow_mut().execute_contract(

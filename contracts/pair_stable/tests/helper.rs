@@ -6,17 +6,13 @@ use std::error::Error;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
-use astroport_mocks::stargate::Stargate;
-use cosmwasm_std::testing::MockApi;
-use cosmwasm_std::{
-    coin, to_json_binary, Addr, Coin, Decimal, Empty, GovMsg, IbcMsg, IbcQuery, MemoryStorage,
-    StdResult, Uint128,
+
+use astroport_mocks::cw_multi_test::{
+    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
+    StargateApp as TestApp,
 };
+use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{
-    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
-    Executor, FailingModule, StakeKeeper, WasmKeeper,
-};
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -112,19 +108,6 @@ fn store_coin_registry_code() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-pub type TestApp = App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    Stargate,
->;
-
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -146,7 +129,7 @@ impl Helper {
         swap_fee: Option<u16>,
     ) -> AnyResult<Self> {
         let mut app = AppBuilder::new_custom()
-            .with_stargate(Stargate::default())
+            .with_stargate(MockStargate::default())
             .build(|router, _, storage| {
                 router
                     .bank

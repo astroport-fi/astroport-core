@@ -14,38 +14,25 @@ use astroport::pair::{
     MAX_FEE_SHARE_BPS, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport_mocks::stargate::Stargate;
+
+use astroport_mocks::cw_multi_test::{
+    App, AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
+    MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair::error::ContractError;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, Empty, GovMsg, IbcMsg, IbcQuery,
-    MemoryStorage, Uint128, Uint64,
+    attr, coin, to_json_binary, Addr, Coin, Decimal, Empty, GovMsg, IbcMsg, IbcQuery, Uint128,
+    Uint64,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{
-    App, AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
-    StakeKeeper, WasmKeeper,
-};
 
 const OWNER: &str = "owner";
 
-pub type TestApp = App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    Stargate,
->;
-
 fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
     AppBuilder::new_custom()
-        .with_stargate(Stargate::default())
+        .with_stargate(MockStargate::default())
         .build(|router, _, storage| router.bank.init_balance(storage, &owner, coins).unwrap())
 }
 

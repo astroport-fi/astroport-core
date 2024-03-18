@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal,
-    Deps, DepsMut, Empty, Env, MessageInfo, Order, QuerierWrapper, Reply, Response, StdError,
-    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint64, WasmMsg,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg,
+    CustomQuery, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Order, QuerierWrapper, Reply,
+    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, Uint64, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
@@ -718,7 +718,10 @@ fn get_proxy_rewards(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply<T>(deps: DepsMut<T>, _env: Env, msg: Reply) -> Result<Response, ContractError>
+where
+    T: CustomQuery,
+{
     match msg {
         Reply {
             id: INIT_REWARDS_HOLDER_ID,

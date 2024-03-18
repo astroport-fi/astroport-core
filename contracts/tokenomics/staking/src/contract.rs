@@ -1,7 +1,7 @@
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Deps,
-    DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg,
+    CustomQuery, Deps, DepsMut, Env, MessageInfo, Reply, ReplyOn, Response, StdError, StdResult,
+    SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw_utils::parse_instantiate_response_data;
 
@@ -97,7 +97,10 @@ pub fn execute(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply<C>(deps: DepsMut<C>, _env: Env, msg: Reply) -> Result<Response, ContractError>
+where
+    C: CustomQuery,
+{
     match msg {
         Reply {
             id: INSTANTIATE_TOKEN_REPLY_ID,

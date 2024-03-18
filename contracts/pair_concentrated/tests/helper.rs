@@ -7,12 +7,11 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
-use astroport_mocks::stargate::Stargate;
+
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, GovMsg, IbcMsg,
-    IbcQuery, MemoryStorage, StdError, StdResult, Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
+    Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
@@ -31,10 +30,10 @@ use astroport::pair_concentrated::{
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pcl_common::state::Config;
-use cw_multi_test::Executor;
-use cw_multi_test::{
-    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
-    FailingModule, StakeKeeper, WasmKeeper,
+
+use astroport_mocks::cw_multi_test::{
+    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
+    StargateApp as TestApp,
 };
 
 const INIT_BALANCE: u128 = u128::MAX;
@@ -144,19 +143,6 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
-pub type TestApp = App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    Stargate,
->;
-
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -177,7 +163,7 @@ impl Helper {
         params: ConcentratedPoolParams,
     ) -> AnyResult<Self> {
         let mut app = AppBuilder::new_custom()
-            .with_stargate(Stargate::default())
+            .with_stargate(MockStargate::default())
             .build(|router, _, storage| {
                 router
                     .bank

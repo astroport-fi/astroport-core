@@ -17,7 +17,10 @@ use astroport::pair_xyk_sale_tax::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport_mocks::stargate::Stargate;
+use astroport_mocks::cw_multi_test::{
+    AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
+    MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use cosmwasm_std::testing::MockApi;
@@ -26,30 +29,13 @@ use cosmwasm_std::{
     MemoryStorage, Uint128, Uint64,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{
-    App, AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
-    StakeKeeper, WasmKeeper,
-};
 use test_case::test_case;
 
 const OWNER: &str = "owner";
 
-pub type TestApp = App<
-    BankKeeper,
-    MockApi,
-    MemoryStorage,
-    FailingModule<Empty, Empty, Empty>,
-    WasmKeeper<Empty, Empty>,
-    StakeKeeper,
-    DistributionKeeper,
-    FailingModule<IbcMsg, IbcQuery, Empty>,
-    FailingModule<GovMsg, Empty, Empty>,
-    Stargate,
->;
-
 fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
     AppBuilder::new_custom()
-        .with_stargate(Stargate::default())
+        .with_stargate(MockStargate::default())
         .build(|router, _, storage| router.bank.init_balance(storage, &owner, coins).unwrap())
 }
 
@@ -1737,21 +1723,23 @@ fn update_tax_configs() {
 
 #[test]
 fn provide_liquidity_with_autostaking_to_generator() {
-    /*   let astroport = astroport_address();
+    /* let astroport = astroport_address();
 
-    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
-        router
-            .bank
-            .init_balance(
-                storage,
-                &astroport,
-                vec![Coin {
-                    denom: "ustake".to_owned(),
-                    amount: Uint128::new(1_000_000_000000),
-                }],
-            )
-            .unwrap();
-    })));
+    let coins = vec![Coin {
+        denom: "ustake".to_owned(),
+        amount: Uint128::new(1_000_000_000000),
+    }];
+
+    let app = Rc::new(RefCell::new(
+        AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, &astroport, coins)
+                    .unwrap()
+            }) as TestApp,
+    ));
 
     let generator = MockGeneratorBuilder::new(&app).instantiate();
 

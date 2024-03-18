@@ -479,7 +479,7 @@ where
 
     if let Some(generator) = generator {
         Ok(vec![
-            tf_mint_msg(contract_address, coin.clone(), recipient),
+            tf_mint_msg(contract_address, coin.clone(), contract_address),
             wasm_execute(
                 generator,
                 &IncentiveExecuteMsg::Deposit {

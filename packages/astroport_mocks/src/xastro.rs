@@ -5,13 +5,15 @@ use astroport::{
     token::{InstantiateMsg, MinterResponse},
 };
 use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
 use crate::{astroport_address, MockToken, WKApp, ASTROPORT};
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -23,6 +25,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     use astroport_xastro_token as cnt;
     let contract = Box::new(ContractWrapper::new_with_empty(
@@ -34,12 +37,12 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockXastroBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockXastroBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub symbol: String,
 }
 
-impl<B, A, S, C, X, D, I, G> MockXastroBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockXastroBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -51,15 +54,16 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: &str) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>, symbol: &str) -> Self {
         Self {
             app: app.clone(),
             symbol: symbol.into(),
         }
     }
 
-    pub fn instantiate(self) -> MockXastro<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockXastro<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -97,14 +101,14 @@ where
     }
 }
 
-pub struct MockXastro<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockXastro<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
-    pub token: MockToken<B, A, S, C, X, D, I, G>,
+    pub token: MockToken<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> TryFrom<(WKApp<B, A, S, C, X, D, I, G>, &AssetInfo)>
-    for MockXastro<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> TryFrom<(WKApp<B, A, S, C, X, D, I, G, T>, &AssetInfo)>
+    for MockXastro<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -116,11 +120,12 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     type Error = String;
     fn try_from(
-        value: (WKApp<B, A, S, C, X, D, I, G>, &AssetInfo),
-    ) -> Result<MockXastro<B, A, S, C, X, D, I, G>, Self::Error> {
+        value: (WKApp<B, A, S, C, X, D, I, G, T>, &AssetInfo),
+    ) -> Result<MockXastro<B, A, S, C, X, D, I, G, T>, Self::Error> {
         match value.1 {
             AssetInfo::Token { contract_addr } => Ok(MockXastro {
                 app: value.0.clone(),

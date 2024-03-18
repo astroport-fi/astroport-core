@@ -116,7 +116,10 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply<C>(deps: DepsMut<C>, _env: Env, msg: Reply) -> Result<Response, ContractError>
+where
+    C: CustomQuery,
+{
     match msg {
         Reply {
             id: CREATE_DENOM_REPLY_ID,
@@ -471,7 +474,6 @@ where
     T: CustomMsg,
 {
     let coin = coin(amount.into(), config.pair_info.liquidity_token.to_string());
-    dbg!(&coin);
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
@@ -483,7 +485,7 @@ where
 
     if let Some(generator) = generator {
         Ok(vec![
-            tf_mint_msg(contract_address, coin.clone(), recipient),
+            tf_mint_msg(contract_address, coin.clone(), contract_address),
             wasm_execute(
                 generator,
                 &IncentiveExecuteMsg::Deposit {

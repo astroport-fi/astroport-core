@@ -5,7 +5,9 @@ use astroport::{
     pair::{ExecuteMsg, QueryMsg},
 };
 use cosmwasm_std::{Addr, Api, Coin, CustomQuery, Decimal, StdResult, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
@@ -14,7 +16,7 @@ use crate::{
     MockFactoryBuilder, MockToken, WKApp,
 };
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -26,6 +28,7 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
     use astroport_pair as cnt;
     let contract = Box::new(
@@ -39,13 +42,13 @@ where
 
     app.borrow_mut().store_code(contract)
 }
-pub struct MockXykPairBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockXykPairBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub asset_infos: Vec<AssetInfo>,
-    pub factory: MockFactoryOpt<B, A, S, C, X, D, I, G>,
+    pub factory: MockFactoryOpt<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C: Module, X, D, I, G> MockXykPairBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C: Module, X, D, I, G, T> MockXykPairBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -57,8 +60,9 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self {
             app: app.clone(),
             asset_infos: Default::default(),
@@ -66,7 +70,7 @@ where
         }
     }
 
-    pub fn with_factory(mut self, factory: &MockFactory<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn with_factory(mut self, factory: &MockFactory<B, A, S, C, X, D, I, G, T>) -> Self {
         self.factory = Some(MockFactory {
             app: self.app.clone(),
             address: factory.address.clone(),
@@ -79,7 +83,7 @@ where
         self
     }
 
-    pub fn instantiate(self) -> MockXykPair<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockXykPair<B, A, S, C, X, D, I, G, T> {
         let factory = self
             .factory
             .unwrap_or_else(|| MockFactoryBuilder::new(&self.app).instantiate());
@@ -89,12 +93,12 @@ where
 }
 
 #[derive(Clone)]
-pub struct MockXykPair<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockXykPair<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockXykPair<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockXykPair<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -106,8 +110,9 @@ where
     G: Gov,
     C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
+    T: Stargate,
 {
-    pub fn lp_token(&self) -> MockToken<B, A, S, C, X, D, I, G> {
+    pub fn lp_token(&self) -> MockToken<B, A, S, C, X, D, I, G, T> {
         let res: PairInfo = self
             .app
             .borrow()

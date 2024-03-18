@@ -3,7 +3,7 @@ extern crate core;
 
 use std::collections::{HashMap, HashSet};
 
-use cosmwasm_std::{Addr, StdError, Timestamp};
+use cosmwasm_std::{StdError, Timestamp};
 use itertools::Itertools;
 use proptest::prelude::*;
 
@@ -181,7 +181,7 @@ fn simulate_case(events: Vec<(Event, u64)>) {
             } => {
                 let user = &users[sender_id as usize];
                 let lp_token = &lp_tokens[lp_token_id as usize];
-                let lp_asset_info = AssetInfo::cw20(Addr::unchecked(lp_token));
+                let lp_asset_info = AssetInfo::native(lp_token);
                 let total_amount = lp_asset_info.query_pool(&helper.app.wrap(), user).unwrap();
                 let part = total_amount.u128() * amount as u128 / 100;
 

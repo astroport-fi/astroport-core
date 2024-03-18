@@ -9,15 +9,18 @@ use astroport::pair::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
     StablePoolConfig, StablePoolParams, StablePoolUpdateParams, MAX_FEE_SHARE_BPS,
 };
-use astroport_mocks::stargate::Stargate;
+
 use astroport_pair_stable::error::ContractError;
-use helper::TestApp;
+
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
 
 use astroport::observation::OracleObservation;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_mocks::cw_multi_test::{
+    App, AppBuilder, BasicApp, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
+};
 use astroport_mocks::pair_stable::MockStablePairBuilder;
 use astroport_mocks::{astroport_address, MockGeneratorBuilder};
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
@@ -25,7 +28,6 @@ use cosmwasm_std::{
     attr, coin, from_json, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, AppBuilder, BasicApp, ContractWrapper, Executor};
 
 const OWNER: &str = "owner";
 
@@ -33,7 +35,7 @@ mod helper;
 
 fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
     AppBuilder::new_custom()
-        .with_stargate(Stargate::default())
+        .with_stargate(MockStargate::default())
         .build(|router, _, storage| {
             // initialization moved to App construction
             router.bank.init_balance(storage, &owner, coins).unwrap()

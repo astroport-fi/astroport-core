@@ -7,12 +7,14 @@ use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
+use astroport_mocks::cw_multi_test::{
+    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate, StargateApp as App,
+};
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
     coin, from_json, to_json_binary, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -180,12 +182,14 @@ pub struct Helper {
 
 impl Helper {
     pub fn new(owner: &Addr, test_coins: Vec<TestCoin>, params: PoolParams) -> AnyResult<Self> {
-        let mut app = App::new(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, owner, init_native_coins(&test_coins))
-                .unwrap()
-        });
+        let mut app = AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, owner, init_native_coins(&test_coins))
+                    .unwrap()
+            });
 
         let mut asset_infos_vec: Vec<_> = test_coins
             .clone()

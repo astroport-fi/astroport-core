@@ -4,14 +4,31 @@ use anyhow::Result as AnyResult;
 use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use cosmwasm_schema::{schemars::JsonSchema, serde::de::DeserializeOwned};
 use cosmwasm_std::{
-    coins, Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Storage, SubMsgResponse,
+    coins,
+    testing::{MockApi, MockStorage},
+    Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Empty, Storage, SubMsgResponse,
 };
-use cwmulti_test::{AppResponse, BankSudo, CosmosRouter, Stargate as StargateTrait};
+use cw_multi_test::Stargate as StargateTrait;
+
+pub use cw_multi_test::*;
+
+pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
+    BankKeeper,
+    MockApi,
+    MockStorage,
+    FailingModule<ExecC, QueryC, Empty>,
+    WasmKeeper<ExecC, QueryC>,
+    StakeKeeper,
+    DistributionKeeper,
+    IbcFailingModule,
+    GovFailingModule,
+    MockStargate,
+>;
 
 #[derive(Default)]
-pub struct Stargate {}
+pub struct MockStargate {}
 
-impl StargateTrait for Stargate {
+impl StargateTrait for MockStargate {
     fn execute<ExecC, QueryC>(
         &self,
         api: &dyn Api,

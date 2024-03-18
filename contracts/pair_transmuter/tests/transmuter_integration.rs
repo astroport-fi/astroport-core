@@ -1,11 +1,11 @@
 use cosmwasm_std::{Addr, StdError};
-use cw_multi_test::Executor;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
+use astroport_mocks::cw_multi_test::Executor;
 use astroport_pair_transmuter::error::ContractError;
 
 use crate::helper::{Helper, TestCoin};
