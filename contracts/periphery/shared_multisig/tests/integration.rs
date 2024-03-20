@@ -12,7 +12,7 @@ use astroport::shared_multisig::{ExecuteMsg, PoolType, ProvideParams};
 
 use astroport_mocks::cw_multi_test::{AppBuilder, Executor, MockStargate, StargateApp as App};
 use astroport_mocks::shared_multisig::MockSharedMultisigBuilder;
-use astroport_mocks::{astroport_address, MockFactoryBuilder, MockGeneratorBuilder};
+use astroport_mocks::{astroport_address, MockFactoryBuilder};
 
 fn mock_app(owner: &Addr, coins: Option<Vec<Coin>>) -> App {
     let app = AppBuilder::new_custom()

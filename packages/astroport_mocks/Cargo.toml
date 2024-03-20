@@ -13,9 +13,7 @@ homepage = "https://astroport.fi"
 [dependencies]
 astroport = { path = "../astroport" }
 astroport-factory = { path = "../../contracts/factory" }
-astroport-generator = { path = "../../contracts/tokenomics/generator" }
 astroport-native-coin-registry = { path = "../../contracts/periphery/native_coin_registry" }
-astroport-shared-multisig = { path = "../../contracts/periphery/shared_multisig" }
 astroport-pair = { path = "../../contracts/pair" }
 astroport-pair-stable = { path = "../../contracts/pair_stable" }
 astroport-pair-concentrated = { path = "../../contracts/pair_concentrated" }

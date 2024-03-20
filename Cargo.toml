@@ -19,6 +19,12 @@ members = [
     "contracts/periphery/*",
 ]
 
+exclude = [
+    "contracts/tokenomics/generator",
+    "contracts/periphery/liquidity_manager",
+    "contracts/periphery/shared_multisig",
+]
+
 [profile.release]
 opt-level = "z"
 debug = false
@@ -31,11 +37,9 @@ incremental = false
 overflow-checks = true
 strip = true
 
+
 [patch.'https://github.com/astroport-fi/hidden_astroport_core']
 astroport = { path = "packages/astroport" }
 
 [patch.'https://github.com/astroport-fi/astroport-core']
 astroport = { path = "packages/astroport" }
-
-[patch.crates-io]
-cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test.git", rev = "269a2c829d1ad25d67caa4600f72d2a21fb8fdeb" }

@@ -18,11 +18,11 @@ use std::str::FromStr;
 
 use astroport::observation::OracleObservation;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_mocks::astroport_address;
 use astroport_mocks::cw_multi_test::{
     App, AppBuilder, BasicApp, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
 };
 use astroport_mocks::pair_stable::MockStablePairBuilder;
-use astroport_mocks::{astroport_address, MockGeneratorBuilder};
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use cosmwasm_std::{
     attr, coin, from_json, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,

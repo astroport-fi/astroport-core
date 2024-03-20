@@ -17,7 +17,7 @@ use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
 use astroport_mocks::cw_multi_test::{BasicApp, Executor};
-use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
+use astroport_mocks::{astroport_address, MockConcentratedPairBuilder};
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
@@ -1292,7 +1292,7 @@ fn provides_and_swaps_and_withdraw() {
 #[test]
 #[ignore]
 fn provide_liquidity_with_autostaking_to_generator() {
-    let astroport = astroport_address();
+    /* let astroport = astroport_address();
     let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
         router
             .bank
@@ -1332,7 +1332,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
     assert_eq!(
         generator.query_deposit(&pair.lp_token(), &astroport),
         Uint128::new(999_999000),
-    );
+    ); */
 }
 
 #[test]

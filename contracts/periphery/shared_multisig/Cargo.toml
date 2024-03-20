@@ -28,4 +28,3 @@ astroport = { path = "../../../packages/astroport", version = "3" }
 astroport-mocks = { path = "../../../packages/astroport_mocks"}
 astroport-pair = { path = "../../pair" }
 astroport-pair-concentrated = { path = "../../pair_concentrated" }
-astroport-generator = { path = "../../tokenomics/generator" }

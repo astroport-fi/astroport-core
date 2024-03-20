@@ -21,7 +21,7 @@ use astroport_mocks::cw_multi_test::{
     AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
     MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
 };
-use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockXykPairBuilder};
+use astroport_mocks::{astroport_address, MockXykPairBuilder};
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{

@@ -25,7 +25,6 @@ astroport-factory = { path = "../../factory", features = ["library"], version = 
 astroport-mocks = { path = "../../../packages/astroport_mocks" }
 astroport-token = { path = "../../token" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
-astroport-generator = { path = "../../tokenomics/generator" }
 astroport-whitelist = { path = "../../whitelist" }
 serde_json = "1.0.96"
 anyhow = "1"
