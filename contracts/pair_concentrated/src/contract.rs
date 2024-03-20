@@ -15,8 +15,8 @@ use itertools::Itertools;
 
 use astroport::asset::AssetInfoExt;
 use astroport::asset::{
-    addr_opt_validate, format_lp_token_name, token_asset, Asset, AssetInfo, CoinsExt,
-    Decimal256Ext, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, Decimal256Ext, PairInfo,
+    MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
@@ -51,6 +51,8 @@ const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
 const CREATE_DENOM_REPLY_ID: u64 = 1;
+/// Tokenfactory LP token subdenom
+pub const LP_SUBDENOM: &str = "astroport/share";
 /// An LP token's precision.
 pub(crate) const LP_TOKEN_PRECISION: u8 = 6;
 
@@ -133,11 +135,9 @@ pub fn instantiate(
 
     BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
-    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
-
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
-        tf_create_denom_msg(env.contract.address.to_string(), token_name),
+        tf_create_denom_msg(env.contract.address.to_string(), LP_SUBDENOM),
         CREATE_DENOM_REPLY_ID,
     );
 

@@ -26,7 +26,7 @@ use astroport_circular_buffer::BufferManager;
 
 use crate::contract::{
     assert_max_spread, execute, instantiate, query, query_pool, query_reverse_simulation,
-    query_share, query_simulation, reply,
+    query_share, query_simulation, reply, LP_SUBDENOM,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
@@ -101,7 +101,7 @@ fn proper_initialization() {
                 value: Binary(
                     MsgCreateDenom {
                         sender: env.contract.address.to_string(),
-                        subdenom: "UUSD-MAPP-LP".to_string()
+                        subdenom: LP_SUBDENOM.to_string()
                     }
                     .encode_to_vec()
                 )

@@ -20,6 +20,7 @@ use astroport_mocks::cw_multi_test::{
     MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
 };
 use astroport_mocks::{astroport_address, MockXykPairBuilder};
+use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair::error::ContractError;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
@@ -137,7 +138,10 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
     assert_eq!("contract1", res.contract_addr);
-    assert_eq!("factory/contract1/UUSD-ULUN-LP", res.liquidity_token);
+    assert_eq!(
+        format!("factory/contract1/{}", LP_SUBDENOM),
+        res.liquidity_token
+    );
 
     pair
 }
@@ -285,7 +289,10 @@ fn test_provide_and_withdraw_liquidity() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        "Must send reserve token 'factory/contract1/UUSD-ULUN-LP'"
+        format!(
+            "Must send reserve token 'factory/contract1/{}'",
+            LP_SUBDENOM
+        )
     );
 
     // Withdraw with LP token is successful

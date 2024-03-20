@@ -10,6 +10,7 @@ use astroport::pair::{
     StablePoolConfig, StablePoolParams, StablePoolUpdateParams, MAX_FEE_SHARE_BPS,
 };
 
+use astroport_pair_stable::contract::LP_SUBDENOM;
 use astroport_pair_stable::error::ContractError;
 
 use std::cell::RefCell;
@@ -222,7 +223,10 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
         .unwrap();
     assert_eq!("contract2", res.contract_addr);
-    assert_eq!("factory/contract2/UUSD-ULUN-LP", res.liquidity_token);
+    assert_eq!(
+        format!("factory/contract2/{}", LP_SUBDENOM),
+        res.liquidity_token
+    );
 
     pair
 }

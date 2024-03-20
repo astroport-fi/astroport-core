@@ -16,10 +16,9 @@ use astroport::pair::{
     SimulationResponse, TWAP_PRECISION,
 };
 
-use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
-    query_reverse_simulation, query_share, query_simulation,
+    query_reverse_simulation, query_share, query_simulation, reply, LP_SUBDENOM,
 };
 use crate::contract::{compute_offer_amount, SwapResult};
 use crate::error::ContractError;
@@ -89,7 +88,7 @@ fn proper_initialization() {
                 value: Binary(
                     MsgCreateDenom {
                         sender: env.contract.address.to_string(),
-                        subdenom: "UUSD-MAPP-LP".to_string()
+                        subdenom: LP_SUBDENOM.to_string()
                     }
                     .encode_to_vec()
                 )

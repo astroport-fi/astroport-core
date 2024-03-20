@@ -45,6 +45,8 @@ const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
 const CREATE_DENOM_REPLY_ID: u64 = 1;
+/// Tokenfactory LP token subdenom
+pub const LP_SUBDENOM: &str = "astroport/share";
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -92,11 +94,9 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
-
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
-        tf_create_denom_msg(env.contract.address.to_string(), token_name),
+        tf_create_denom_msg(env.contract.address.to_string(), LP_SUBDENOM),
         CREATE_DENOM_REPLY_ID,
     );
 

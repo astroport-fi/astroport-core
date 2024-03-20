@@ -15,12 +15,12 @@ use astroport::pair::{
 };
 use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 
-use crate::contract::compute_offer_amount;
 use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
     query_reverse_simulation, query_share, query_simulation,
 };
+use crate::contract::{compute_offer_amount, LP_SUBDENOM};
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{Config, CONFIG};
@@ -88,7 +88,7 @@ fn proper_initialization() {
                 value: Binary(
                     MsgCreateDenom {
                         sender: env.contract.address.to_string(),
-                        subdenom: "UUSD-MAPP-LP".to_string()
+                        subdenom: LP_SUBDENOM.to_string()
                     }
                     .encode_to_vec()
                 )

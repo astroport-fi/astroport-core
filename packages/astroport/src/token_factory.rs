@@ -143,13 +143,13 @@ impl TryFrom<Binary> for MsgMint {
     }
 }
 
-pub fn tf_create_denom_msg<T>(sender: impl Into<String>, denom: String) -> CosmosMsg<T>
+pub fn tf_create_denom_msg<T>(sender: impl Into<String>, denom: impl Into<String>) -> CosmosMsg<T>
 where
     T: CustomMsg,
 {
     let create_denom_msg = MsgCreateDenom {
         sender: sender.into(),
-        subdenom: denom,
+        subdenom: denom.into(),
     };
 
     CosmosMsg::Stargate {

@@ -195,7 +195,7 @@ fn test_create_pair() {
     assert_eq!("contract1", helper.factory.to_string());
     assert_eq!("contract4", res.contract_addr.to_string());
     assert_eq!(
-        "factory/contract4/TOKE-TOKE-LP",
+        "factory/contract4/astroport/share",
         res.liquidity_token.to_string()
     );
 
