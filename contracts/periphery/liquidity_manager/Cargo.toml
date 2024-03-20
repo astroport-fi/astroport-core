@@ -22,7 +22,7 @@ astroport-pair-stable = { path = "../../pair_stable", features = ["library"], ve
 astroport-factory = { path = "../../factory", features = ["library"], version = "1" }
 
 [dev-dependencies]
-cw-multi-test = "0.16.4"
+cw-multi-test = "0.20.1"
 astroport-token = { path = "../../token" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
 astroport-generator = { path = "../../tokenomics/generator" }

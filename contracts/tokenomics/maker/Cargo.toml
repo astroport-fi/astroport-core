@@ -34,7 +34,7 @@ astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc
 astroport-token = { path = "../../token" }
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
-cw-multi-test = "0.15"
+cw-multi-test = "0.20.1"
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance" }
 astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance" }
