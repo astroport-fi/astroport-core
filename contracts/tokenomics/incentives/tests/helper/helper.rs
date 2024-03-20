@@ -238,7 +238,7 @@ pub struct Helper {
 impl Helper {
     pub fn new(owner: &str, astro: &AssetInfo) -> AnyResult<Self> {
         let mut app = AppBuilder::new()
-          .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
+            .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
             .with_api(TestApi::new())
             .with_block(BlockInfo {
                 height: 1,

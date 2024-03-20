@@ -250,7 +250,7 @@ fn test_update_admins() {
     assert!(
         err.root_cause()
             .to_string()
-          .contains("Unexpected stargate message"),
+            .contains("Unexpected stargate message"),
         "{err}"
     );
 
