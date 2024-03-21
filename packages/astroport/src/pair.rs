@@ -48,9 +48,11 @@ pub enum ExecuteMsg {
         auto_stake: Option<bool>,
         /// The receiver of LP tokens
         receiver: Option<String>,
+        min_lp_to_receive: Option<Uint128>,
     },
     WithdrawLiquidity {
         assets: Vec<Asset>,
+        min_assets_to_receive: Option<Vec<Asset>>,
     },
     /// Swap performs a swap in the pool
     Swap {
@@ -61,9 +63,7 @@ pub enum ExecuteMsg {
         to: Option<String>,
     },
     /// Update the pair configuration
-    UpdateConfig {
-        params: Binary,
-    },
+    UpdateConfig { params: Binary },
     /// ProposeNewOwner creates a proposal to change contract ownership.
     /// The validity period for the proposal is set in the `expires_in` variable.
     ProposeNewOwner {
@@ -138,6 +138,10 @@ pub enum QueryMsg {
     /// Query price from observations
     #[returns(OracleObservation)]
     Observe { seconds_ago: u64 },
+    #[returns(Vec<Asset>)]
+    SimulateWithdraw { lp_amount: Uint128 },
+    #[returns(Uint128)]
+    SimulateProvide { msg: ExecuteMsg },
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.

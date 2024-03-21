@@ -1,4 +1,6 @@
-use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
+use cosmwasm_std::{
+    CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError, Uint128,
+};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -99,6 +101,19 @@ pub enum ContractError {
         MAX_FEE_SHARE_BPS
     )]
     FeeShareOutOfBounds {},
+
+    #[error("Slippage is more than expected: received {0}, expected {1} LP tokens")]
+    ProvideSlippageViolation(Uint128, Uint128),
+
+    #[error("Received {received} {asset_name} but expected {expected}")]
+    WithdrawSlippageViolation {
+        asset_name: String,
+        received: Uint128,
+        expected: Uint128,
+    },
+
+    #[error("Wrong asset length: expected {expected}, actual {actual}")]
+    WrongAssetLength { expected: usize, actual: usize },
 }
 
 impl From<OverflowError> for ContractError {

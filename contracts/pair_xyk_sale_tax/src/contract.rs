@@ -15,8 +15,8 @@ use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport::asset::{
-    addr_opt_validate, check_swap_parameters, format_lp_token_name, Asset, AssetInfo, CoinsExt,
-    PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
+    MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
@@ -174,6 +174,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
+            ..
         } => provide_liquidity(
             deps,
             env,
@@ -209,7 +210,7 @@ pub fn execute(
             )
         }
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
-        ExecuteMsg::WithdrawLiquidity { assets } => withdraw_liquidity(deps, env, info, assets),
+        ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
         _ => Err(ContractError::NonSupported {}),
     }
 }

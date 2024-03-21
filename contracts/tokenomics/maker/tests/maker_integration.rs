@@ -463,6 +463,7 @@ fn create_pair(
                 slippage_tolerance: None,
                 auto_stake: None,
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &funds,
         )

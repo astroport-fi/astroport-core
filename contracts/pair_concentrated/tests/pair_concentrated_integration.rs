@@ -1860,6 +1860,7 @@ fn test_provide_liquidity_without_funds() {
         slippage_tolerance: Some(f64_to_dec(0.5)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let err = helper

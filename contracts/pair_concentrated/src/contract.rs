@@ -220,6 +220,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
+            ..
         } => provide_liquidity(
             deps,
             env,
@@ -295,7 +296,7 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
-        ExecuteMsg::WithdrawLiquidity { assets } => withdraw_liquidity(deps, env, info, assets),
+        ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
     }
 }
 

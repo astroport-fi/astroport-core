@@ -158,6 +158,7 @@ where
 ///             slippage_tolerance,
 ///             auto_stake,
 ///             receiver,
+///            min_lp_to_receive,
 ///         }** Provides liquidity in the pair with the specified input parameters.
 ///
 /// * **ExecuteMsg::Swap {
@@ -166,6 +167,10 @@ where
 ///             max_spread,
 ///             to,
 ///         }** Performs a swap operation with the specified parameters.
+/// * **ExecuteMsg::WithdrawLiquidity {
+///            assets,
+///           min_assets_to_receive,
+///       }** Withdraws liquidity from the pool.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -180,6 +185,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
+            min_lp_to_receive,
         } => provide_liquidity(
             deps,
             env,
@@ -188,6 +194,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
+            min_lp_to_receive,
         ),
         ExecuteMsg::Swap {
             offer_asset,
@@ -215,7 +222,10 @@ pub fn execute(
             )
         }
         ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
-        ExecuteMsg::WithdrawLiquidity { assets } => withdraw_liquidity(deps, env, info, assets),
+        ExecuteMsg::WithdrawLiquidity {
+            assets,
+            min_assets_to_receive,
+        } => withdraw_liquidity(deps, env, info, assets, min_assets_to_receive),
         _ => Err(ContractError::NonSupported {}),
     }
 }
@@ -286,6 +296,7 @@ pub fn receive_cw20(
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
 ///
+/// * **min_lp_to_receive** is an optional parameter which specifies the minimum amount of LP tokens to receive.
 /// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
@@ -295,6 +306,7 @@ pub fn provide_liquidity(
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
+    min_lp_to_receive: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     if assets.len() != 2 {
         return Err(StdError::generic_err("asset_infos must contain exactly two elements").into());
@@ -397,6 +409,15 @@ pub fn provide_liquidity(
             deposits[1].multiply_ratio(total_share, pools[1].amount),
         )
     };
+
+    let min_amount_lp = min_lp_to_receive.unwrap_or(Uint128::zero());
+
+    if !(share >= min_amount_lp) {
+        return Err(ContractError::ProvideSlippageViolation(
+            share,
+            min_amount_lp,
+        ));
+    }
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -506,6 +527,7 @@ pub fn withdraw_liquidity(
     env: Env,
     info: MessageInfo,
     assets: Vec<Asset>,
+    min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage).unwrap();
 
@@ -519,12 +541,14 @@ pub fn withdraw_liquidity(
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
 
-    let refund_assets = if assets.is_empty() {
+    let mut refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
         get_share_in_assets(&pools, amount, total_share)
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
+
+    ensure_min_assets_to_receive(&config, &mut refund_assets, min_assets_to_receive)?;
 
     if config.track_asset_balances {
         for (i, pool) in pools.iter().enumerate() {
@@ -942,6 +966,9 @@ pub fn calculate_maker_fee(
 ///
 /// * **QueryMsg::AssetBalanceAt { asset_info, block_height }** Returns the balance of the specified asset that was in the pool
 /// just preceeding the moment of the specified block height creation.
+/// * **QueryMsg::SimulateWithdraw { lp_amount }** Returns the amount of assets that could be withdrawn from the pool
+/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+/// * **QueryMsg::SimulateProvide { msg }** Simulates the liquidity provision in the pair contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -960,6 +987,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             asset_info,
             block_height,
         } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
+        QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(&query_share(deps, lp_amount)?),
+        QueryMsg::SimulateProvide { msg } => simulate_provide(deps, msg),
         _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
@@ -1355,6 +1384,175 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
     let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?;
 
     Ok((pools, total_share))
+}
+
+fn ensure_min_assets_to_receive(
+    config: &Config,
+    refund_assets: &mut Vec<Asset>,
+    min_assets_to_receive: Option<Vec<Asset>>,
+) -> Result<(), ContractError> {
+    if let Some(min_assets_to_receive) = min_assets_to_receive {
+        if refund_assets.len() != min_assets_to_receive.len() {
+            return Err(ContractError::WrongAssetLength {
+                expected: refund_assets.len(),
+                actual: min_assets_to_receive.len(),
+            });
+        }
+
+        for asset in &min_assets_to_receive {
+            if !config.pair_info.asset_infos.contains(&asset.info) {
+                return Err(ContractError::AssetMismatch {});
+            }
+        }
+
+        if refund_assets[0].info.ne(&min_assets_to_receive[0].info) {
+            refund_assets.swap(0, 1)
+        }
+
+        if refund_assets[0].amount < min_assets_to_receive[0].amount {
+            return Err(ContractError::WithdrawSlippageViolation {
+                asset_name: refund_assets[0].info.to_string(),
+                received: refund_assets[0].amount,
+                expected: min_assets_to_receive[0].amount,
+            });
+        }
+
+        if refund_assets[1].amount < min_assets_to_receive[1].amount {
+            return Err(ContractError::WithdrawSlippageViolation {
+                asset_name: refund_assets[1].info.to_string(),
+                received: refund_assets[1].amount,
+                expected: min_assets_to_receive[1].amount,
+            });
+        }
+    }
+
+    Ok(())
+}
+
+fn simulate_provide(deps: Deps, msg: ExecuteMsg) -> StdResult<Binary> {
+    match msg {
+        ExecuteMsg::ProvideLiquidity {
+            mut assets,
+            slippage_tolerance,
+            ..
+        } => {
+            if assets.len() != 2 {
+                return Err(StdError::generic_err(format!(
+                    "{}",
+                    StdError::generic_err("Invalid number of assets")
+                )));
+            }
+            let config = CONFIG.load(deps.storage)?;
+
+            let (pools, _) = pool_info(deps.querier, &config)?;
+
+            let mut predicted_lp_amount = calculate_provide_simulation(
+                deps.querier,
+                &pools,
+                &config.pair_info,
+                slippage_tolerance,
+                assets.clone(),
+            )
+            .map_err(|err| StdError::generic_err(format!("{err}")))?;
+
+            // Initial provide is always fair because initial LP dictates the price
+            if !pools[0].amount.is_zero() && !pools[1].amount.is_zero() {
+                if pools[0].info.ne(&assets[0].info) {
+                    assets.swap(0, 1);
+                }
+
+                // Add user's deposits
+                let balances_with_deposit = pools
+                    .clone()
+                    .into_iter()
+                    .zip(assets.iter())
+                    .map(|(mut pool, asset)| {
+                        pool.amount += asset.amount;
+                        pool
+                    })
+                    .collect::<Vec<_>>();
+                let total_share =
+                    query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+                let accrued_share = get_share_in_assets(
+                    &balances_with_deposit,
+                    predicted_lp_amount,
+                    total_share + predicted_lp_amount,
+                );
+
+                // Simulate provide again without excess tokens
+                predicted_lp_amount = calculate_provide_simulation(
+                    deps.querier,
+                    &pools,
+                    &config.pair_info,
+                    slippage_tolerance,
+                    accrued_share,
+                )
+                .map_err(|err| StdError::generic_err(format!("{err}")))?;
+            }
+
+            to_json_binary(&predicted_lp_amount)
+        }
+        _ => Err(StdError::generic_err("Invalid simulate message")),
+    }
+}
+
+pub fn calculate_provide_simulation(
+    querier: QuerierWrapper,
+    pool_balances: &[Asset],
+    pair_info: &PairInfo,
+    slippage_tolerance: Option<Decimal>,
+    deposits: Vec<Asset>,
+) -> Result<Uint128, ContractError> {
+    let deposits = [
+        deposits
+            .iter()
+            .find(|a| a.info.equal(&pool_balances[0].info))
+            .map(|a| a.amount)
+            .expect("Wrong asset info is given"),
+        deposits
+            .iter()
+            .find(|a| a.info.equal(&pool_balances[1].info))
+            .map(|a| a.amount)
+            .expect("Wrong asset info is given"),
+    ];
+
+    if deposits[0].is_zero() || deposits[1].is_zero() {
+        return Err(StdError::generic_err("Wrong asset info is given").into());
+    }
+
+    let total_share = query_native_supply(&querier, &pair_info.liquidity_token)?;
+    let share = if total_share.is_zero() {
+        // Initial share = collateral amount
+        let share = Uint128::new(
+            (U256::from(deposits[0].u128()) * U256::from(deposits[1].u128()))
+                .integer_sqrt()
+                .as_u128(),
+        )
+        .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+        .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
+        share
+    } else {
+        // Assert slippage tolerance
+        assert_slippage_tolerance(slippage_tolerance, &deposits, pool_balances)?;
+
+        // min(1, 2)
+        // 1. sqrt(deposit_0 * exchange_rate_0_to_1 * deposit_0) * (total_share / sqrt(pool_0 * pool_0))
+        // == deposit_0 * total_share / pool_0
+        // 2. sqrt(deposit_1 * exchange_rate_1_to_0 * deposit_1) * (total_share / sqrt(pool_1 * pool_1))
+        // == deposit_1 * total_share / pool_1
+        std::cmp::min(
+            deposits[0].multiply_ratio(total_share, pool_balances[0].amount),
+            deposits[1].multiply_ratio(total_share, pool_balances[1].amount),
+        )
+    };
+
+    Ok(share)
 }
 
 #[cfg(test)]

@@ -242,7 +242,12 @@ impl Helper {
         })
     }
 
-    pub fn provide_liquidity(&mut self, sender: &Addr, assets: &[Asset]) -> AnyResult<AppResponse> {
+    pub fn provide_liquidity(
+        &mut self,
+        sender: &Addr,
+        assets: &[Asset],
+        min_lp_to_receive: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
         let funds =
             assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
 
@@ -251,6 +256,7 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive,
         };
 
         self.app
@@ -262,11 +268,15 @@ impl Helper {
         sender: &Addr,
         amount: u128,
         assets: Vec<Asset>,
+        min_assets_to_receive: Option<Vec<Asset>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender.clone(),
             self.pair_addr.clone(),
-            &ExecuteMsg::WithdrawLiquidity { assets },
+            &ExecuteMsg::WithdrawLiquidity {
+                assets,
+                min_assets_to_receive,
+            },
             &[coin(amount, self.lp_token.to_string())],
         )
     }

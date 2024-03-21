@@ -199,6 +199,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None
     };
 
     let env = mock_env();
@@ -327,6 +328,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -404,6 +406,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None
     };
 
     let env = mock_env();
@@ -480,6 +483,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -520,6 +524,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -585,7 +590,7 @@ fn withdraw_liquidity() {
     store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     // Withdraw liquidity
-    let msg = ExecuteMsg::WithdrawLiquidity { assets: vec![] };
+    let msg = ExecuteMsg::WithdrawLiquidity { assets: vec![], min_assets_to_receive: None };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[coin(100u128, denom.clone())]);

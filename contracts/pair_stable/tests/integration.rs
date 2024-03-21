@@ -258,11 +258,11 @@ fn test_provide_and_withdraw_liquidity() {
             &[
                 Coin {
                     denom: "uusd".to_string(),
-                    amount: Uint128::new(233_000u128),
+                    amount: Uint128::new(533_000u128),
                 },
                 Coin {
                     denom: "uluna".to_string(),
-                    amount: Uint128::new(200_000u128),
+                    amount: Uint128::new(500_000u128),
                 },
             ],
         )
@@ -271,11 +271,15 @@ fn test_provide_and_withdraw_liquidity() {
     // Init pair
     let pair_instance = instantiate_pair(&mut router, &owner);
 
-    let res: Result<PairInfo, _> = router.wrap().query(&QueryRequest::Wasm(WasmQuery::Smart {
-        contract_addr: pair_instance.to_string(),
-        msg: to_json_binary(&QueryMsg::Pair {}).unwrap(),
-    }));
-    let res = res.unwrap();
+    let res: PairInfo = router
+        .wrap()
+        .query(&QueryRequest::Wasm(WasmQuery::Smart {
+            contract_addr: pair_instance.to_string(),
+            msg: to_json_binary(&QueryMsg::Pair {}).unwrap(),
+        }))
+        .unwrap();
+
+    let lp_token = res.liquidity_token;
 
     assert_eq!(
         res.asset_infos,
@@ -290,7 +294,7 @@ fn test_provide_and_withdraw_liquidity() {
     );
 
     // Try to provide liquidity less then MINIMUM_LIQUIDITY_AMOUNT
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None);
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(100), Uint128::new(100), None, None);
     let err = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap_err();
@@ -300,7 +304,7 @@ fn test_provide_and_withdraw_liquidity() {
     );
 
     // Try to provide liquidity equal to MINIMUM_LIQUIDITY_AMOUNT
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(500), Uint128::new(500), None);
+    let (msg, coins) = provide_liquidity_msg(Uint128::new(500), Uint128::new(500), None, None);
     let err = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap_err();
@@ -310,12 +314,11 @@ fn test_provide_and_withdraw_liquidity() {
     );
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None);
+    let (msg, coins) =
+        provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None, None);
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
-
-    dbg!(&res.events);
 
     assert_eq!(
         res.events[1].attributes[1],
@@ -345,11 +348,59 @@ fn test_provide_and_withdraw_liquidity() {
         attr("amount", 199000u128.to_string())
     );
 
+    // Provide with min_lp_to_receive with a bigger amount than expected.
+    let min_lp_amount_to_receive: Uint128 = router
+        .wrap()
+        .query_wasm_smart(
+            pair_instance.clone(),
+            &QueryMsg::SimulateProvide { msg: msg.clone() },
+        )
+        .unwrap();
+
+    let double_amount_to_receive = min_lp_amount_to_receive * Uint128::new(2);
+
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100000),
+        Uint128::new(100000),
+        None,
+        Some(double_amount_to_receive.clone()),
+    );
+
+    let err = router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ProvideSlippageViolation(Uint128::new(200000), double_amount_to_receive)
+    );
+
+    // Provide with min_lp_to_receive with amount expected
+    let min_lp_amount_to_receive: Uint128 = router
+        .wrap()
+        .query_wasm_smart(
+            pair_instance.clone(),
+            &QueryMsg::SimulateProvide { msg: msg.clone() },
+        )
+        .unwrap();
+
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100000),
+        Uint128::new(100000),
+        None,
+        Some(min_lp_amount_to_receive),
+    );
+
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
     // Provide liquidity for a custom receiver
     let (msg, coins) = provide_liquidity_msg(
         Uint128::new(100000),
         Uint128::new(100000),
         Some("bob".to_string()),
+        None,
     );
     let res = router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
@@ -374,12 +425,90 @@ fn test_provide_and_withdraw_liquidity() {
         res.events[2].attributes[3],
         attr("amount", 200000.to_string())
     );
+
+    // Withdraw liquidity doubling the minimum to recieve
+    let min_assets_to_receive: Vec<Asset> = router
+        .wrap()
+        .query_wasm_smart(
+            pair_instance.clone(),
+            &QueryMsg::SimulateWithdraw {
+                lp_amount: Uint128::new(100),
+            },
+        )
+        .unwrap();
+
+    let err = router
+        .execute_contract(
+            alice_address.clone(),
+            pair_instance.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets: vec![],
+                min_assets_to_receive: Some(
+                    min_assets_to_receive
+                        .iter()
+                        .map(|a| Asset {
+                            info: a.info.clone(),
+                            amount: a.amount * Uint128::new(2),
+                        })
+                        .collect(),
+                ),
+            },
+            &[coin(100u128, lp_token.clone())],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::WithdrawSlippageViolation {
+            asset_name: "uusd".to_string(),
+            expected: Uint128::new(98),
+            received: Uint128::new(49)
+        }
+    );
+
+    // Withdraw liquidity with minimum to receive
+
+    let min_assets_to_receive: Vec<Asset> = router
+        .wrap()
+        .query_wasm_smart(
+            pair_instance.clone(),
+            &QueryMsg::SimulateWithdraw {
+                lp_amount: Uint128::new(100),
+            },
+        )
+        .unwrap();
+
+    router
+        .execute_contract(
+            alice_address.clone(),
+            pair_instance.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets: vec![],
+                min_assets_to_receive: Some(min_assets_to_receive),
+            },
+            &[coin(100u128, lp_token.clone())],
+        )
+        .unwrap();
+
+    // Withdraw with LP token is successful
+    router
+        .execute_contract(
+            alice_address.clone(),
+            pair_instance.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets: vec![],
+                min_assets_to_receive: None,
+            },
+            &[coin(50u128, lp_token.clone())],
+        )
+        .unwrap();
 }
 
 fn provide_liquidity_msg(
     uusd_amount: Uint128,
     uluna_amount: Uint128,
     receiver: Option<String>,
+    min_lp_to_receive: Option<Uint128>,
 ) -> (ExecuteMsg, [Coin; 2]) {
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: vec![
@@ -399,6 +528,7 @@ fn provide_liquidity_msg(
         slippage_tolerance: None,
         auto_stake: None,
         receiver,
+        min_lp_to_receive,
     };
 
     let coins = [
@@ -623,6 +753,7 @@ fn provide_lp_for_single_token() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let err = app
@@ -651,6 +782,7 @@ fn provide_lp_for_single_token() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -675,6 +807,7 @@ fn provide_lp_for_single_token() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -707,6 +840,7 @@ fn provide_lp_for_single_token() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -938,6 +1072,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])
@@ -1496,6 +1631,7 @@ fn check_observe_queries() {
         Uint128::new(1000000_000000),
         Uint128::new(1000000_000000),
         None,
+        None,
     );
     app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -1659,7 +1795,8 @@ fn test_imbalance_withdraw_is_disabled() {
     );
 
     // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None);
+    let (msg, coins) =
+        provide_liquidity_msg(Uint128::new(100000), Uint128::new(100000), None, None);
     router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
         .unwrap();
@@ -1669,6 +1806,7 @@ fn test_imbalance_withdraw_is_disabled() {
         Uint128::new(100000),
         Uint128::new(100000),
         Some("bob".to_string()),
+        None,
     );
     router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
@@ -1682,6 +1820,7 @@ fn test_imbalance_withdraw_is_disabled() {
             },
             amount: Uint128::from(100u8),
         }],
+        min_assets_to_receive: None,
     };
 
     let err = router
@@ -1763,8 +1902,12 @@ fn test_provide_liquidity_without_funds() {
     );
 
     // provide some liquidity to assume contract have funds (to prevent underflow err)
-    let (msg, coins) =
-        provide_liquidity_msg(Uint128::new(100_000_000), Uint128::new(100_000_000), None);
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
 
     router
         .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
@@ -2016,6 +2159,7 @@ fn test_fee_share(
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &[])

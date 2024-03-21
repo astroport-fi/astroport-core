@@ -308,6 +308,7 @@ impl Helper {
             slippage_tolerance,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app
@@ -323,7 +324,10 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.pair_addr.clone(),
-            &ExecuteMsg::WithdrawLiquidity { assets },
+            &ExecuteMsg::WithdrawLiquidity {
+                assets,
+                min_assets_to_receive: None,
+            },
             &[coin(amount, self.lp_token.to_string())],
         )
     }

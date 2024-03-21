@@ -1,5 +1,5 @@
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{OverflowError, StdError, Uint128};
 use cw_utils::PaymentError;
 use thiserror::Error;
 
@@ -32,6 +32,19 @@ pub enum ContractError {
 
     #[error("Operation exceeds max splippage tolerance")]
     MaxSlippageAssertion {},
+
+    #[error("Slippage is more than expected: received {0}, expected {1} LP tokens")]
+    ProvideSlippageViolation(Uint128, Uint128),
+
+    #[error("Received {received} {asset_name} but expected {expected}")]
+    WithdrawSlippageViolation {
+        asset_name: String,
+        received: Uint128,
+        expected: Uint128,
+    },
+
+    #[error("Wrong asset length: expected {expected}, actual {actual}")]
+    WrongAssetLength { expected: usize, actual: usize },
 
     #[error("Doubling assets in asset infos")]
     DoublingAssets {},

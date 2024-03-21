@@ -996,6 +996,7 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: Some(auto_stake),
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app

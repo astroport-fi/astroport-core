@@ -384,7 +384,10 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(res.events[2].attributes[2], attr("to", "bob"));
     assert_eq!(res.events[2].attributes[3], attr("amount", 100.to_string()));
 
-    let msg = ExecuteMsg::WithdrawLiquidity { assets: vec![] };
+    let msg = ExecuteMsg::WithdrawLiquidity {
+        assets: vec![],
+        min_assets_to_receive: None,
+    };
 
     // Try to send withdraw liquidity with uluna token
     let err = router
@@ -460,6 +463,7 @@ fn provide_liquidity_msg(
         slippage_tolerance: Option::from(slippage_tolerance),
         auto_stake: None,
         receiver,
+        min_lp_to_receive: None,
     };
 
     let coins = [
@@ -638,6 +642,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     app.execute_contract(
@@ -1097,6 +1102,7 @@ fn asset_balances_tracking_works_correctly() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let send_funds = [
@@ -1394,7 +1400,10 @@ fn asset_balances_tracking_works_correctly() {
     app.execute_contract(
         owner.clone(),
         pair_instance.clone(),
-        &ExecuteMsg::WithdrawLiquidity { assets: vec![] },
+        &ExecuteMsg::WithdrawLiquidity {
+            assets: vec![],
+            min_assets_to_receive: None,
+        },
         &[coin(500_000000u128, lp_token_address)],
     )
     .unwrap();
@@ -1866,6 +1875,7 @@ fn test_imbalanced_withdraw_is_disabled() {
             },
             amount: Uint128::from(100u8),
         }],
+        min_assets_to_receive: None,
     };
 
     let err = router

@@ -103,6 +103,7 @@ fn test_provide_and_withdraw() {
                 slippage_tolerance: None,
                 auto_stake: Some(true),
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &[
                 helper.assets[&test_coins[0]]
@@ -132,6 +133,7 @@ fn test_provide_and_withdraw() {
                 slippage_tolerance: None,
                 auto_stake: Some(false),
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &[
                 helper.assets[&test_coins[0]]
@@ -475,6 +477,7 @@ fn test_provide_liquidity_without_funds() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let err = helper

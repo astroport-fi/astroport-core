@@ -329,6 +329,7 @@ fn provide_liquidity(
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         },
         &funds,
     )
@@ -446,6 +447,7 @@ fn change_provide_liquidity(
                 slippage_tolerance: Some(Decimal::percent(50)),
                 auto_stake: None,
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &vec![],
         )

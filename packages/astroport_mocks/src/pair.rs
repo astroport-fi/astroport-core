@@ -154,6 +154,7 @@ where
                     slippage_tolerance,
                     auto_stake: Some(auto_stake),
                     receiver: receiver.into(),
+                    min_lp_to_receive: None,
                 },
                 &coins,
             )
