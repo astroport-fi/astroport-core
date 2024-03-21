@@ -20,4 +20,4 @@ thiserror = "1"
 cw2 = "1.0.1"
 
 [dev-dependencies]
-cw-multi-test = { version="0.16.4", features=["stargate"] }
+cw-multi-test = "0.20.1"

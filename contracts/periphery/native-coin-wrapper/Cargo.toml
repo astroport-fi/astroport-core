@@ -34,5 +34,5 @@ thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", version = "3" }
 
 [dev-dependencies]
-cw-multi-test = "0.15"
+cw-multi-test = "0.20.1"
 astroport-token = { path = "../../token" }

@@ -33,7 +33,7 @@ astroport-token = { path = "../../token" }
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 astroport-pair-stable = { path = "../../pair_stable" }
-cw-multi-test = "0.15"
+cw-multi-test = "0.20.1"
 itertools = "0.10"
 anyhow = "1.0"
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }

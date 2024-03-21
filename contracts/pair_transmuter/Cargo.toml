@@ -27,6 +27,6 @@ itertools = "0.12.0"
 anyhow = "1"
 derivative = "2"
 astroport-token = { path = "../token" }
-cw-multi-test = "0.20.0"
+cw-multi-test = "0.20.1"
 astroport-factory = { path = "../factory" }
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1" }

@@ -36,6 +36,6 @@ cosmwasm-schema = "1.1"
 [dev-dependencies]
 astroport-token = { path = "../token" }
 astroport-factory = { path = "../factory" }
-cw-multi-test = "0.15"
+cw-multi-test = "0.20.1"
 astroport-staking = { path = "../tokenomics/staking" }
 astroport-xastro-token = { path = "../tokenomics/xastro_token" }
