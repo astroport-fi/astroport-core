@@ -37,6 +37,7 @@ cw-utils = "1.0.1"
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
+astroport-incentives = { path = "../tokenomics/incentives"}
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"

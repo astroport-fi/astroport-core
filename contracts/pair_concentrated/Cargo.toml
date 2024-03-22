@@ -42,6 +42,7 @@ astroport-pair-concentrated_v1 = { package = "astroport-pair-concentrated", vers
 
 [dev-dependencies]
 astroport-token = { path = "../token" }
+astroport-incentives = { path = "../tokenomics/incentives"}
 astroport-mocks = { path = "../../packages/astroport_mocks/" }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"

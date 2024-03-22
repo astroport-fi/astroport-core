@@ -142,6 +142,13 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
         .with_reply_empty(astroport_factory::contract::reply),
     )
 }
+fn generator() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astroport_incentives::execute::execute,
+        astroport_incentives::instantiate::instantiate,
+        astroport_incentives::query::query,
+    ))
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -154,6 +161,7 @@ pub struct Helper {
     pub pair_addr: Addr,
     pub lp_token: Addr,
     pub fake_maker: Addr,
+    pub generator: Addr,
 }
 
 impl Helper {
@@ -197,7 +205,6 @@ impl Helper {
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
         let pair_type = PairType::Custom("concentrated".to_string());
-
         let fake_maker = Addr::unchecked("fake_maker");
 
         let coin_registry_id = app.store_code(coin_registry_contract());
@@ -257,6 +264,40 @@ impl Helper {
             None,
         )?;
 
+        let generator = app.store_code(generator());
+
+        let generator_address = app
+            .instantiate_contract(
+                generator,
+                owner.clone(),
+                &astroport::incentives::InstantiateMsg {
+                    astro_token: native_asset_info("astro".to_string()),
+                    factory: factory.to_string(),
+                    owner: owner.to_string(),
+                    guardian: None,
+                    incentivization_fee_info: None,
+                    vesting_contract: "vesting".to_string(),
+                },
+                &[],
+                "generator",
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            owner.clone(),
+            factory.clone(),
+            &astroport::factory::ExecuteMsg::UpdateConfig {
+                token_code_id: None,
+                fee_address: None,
+                generator_address: Some(generator_address.to_string()),
+                whitelist_code_id: None,
+                coin_registry_address: None,
+            },
+            &[],
+        )
+        .unwrap();
+
         let asset_infos = asset_infos_vec
             .clone()
             .into_iter()
@@ -280,6 +321,7 @@ impl Helper {
             owner: owner.clone(),
             assets: asset_infos_vec.into_iter().collect(),
             factory,
+            generator: generator_address,
             pair_addr: resp.contract_addr,
             lp_token: resp.liquidity_token,
             fake_maker,
@@ -292,6 +334,27 @@ impl Helper {
             assets,
             Some(f64_to_dec(0.5)), // 50% slip tolerance for testing purposes
         )
+    }
+
+    pub fn provide_liquidity_with_auto_staking(
+        &mut self,
+        sender: &Addr,
+        assets: &[Asset],
+        slippage_tolerance: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
+        let funds =
+            assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
+
+        let msg = ExecuteMsg::ProvideLiquidity {
+            assets: assets.to_vec(),
+            slippage_tolerance: Some(slippage_tolerance.unwrap_or(f64_to_dec(0.5))),
+            auto_stake: Some(true),
+            receiver: None,
+            min_lp_to_receive: None,
+        };
+
+        self.app
+            .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
     }
 
     pub fn provide_liquidity_with_slip_tolerance(
@@ -385,6 +448,19 @@ impl Helper {
                     .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
             }
         }
+    }
+
+    pub fn query_incentives_deposit(&self, denom: impl Into<String>, user: &Addr) -> Uint128 {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.generator,
+                &astroport::incentives::QueryMsg::Deposit {
+                    lp_token: denom.into(),
+                    user: user.to_string(),
+                },
+            )
+            .unwrap()
     }
 
     pub fn simulate_swap(

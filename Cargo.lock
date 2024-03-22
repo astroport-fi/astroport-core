@@ -339,6 +339,7 @@ version = "1.5.0"
 dependencies = [
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
+ "astroport-incentives",
  "astroport-mocks",
  "astroport-token",
  "cosmwasm-schema",
@@ -443,6 +444,7 @@ dependencies = [
  "astroport 3.12.1",
  "astroport-circular-buffer 0.1.0",
  "astroport-factory 1.7.0",
+ "astroport-incentives",
  "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair-concentrated 1.2.13",
@@ -468,6 +470,7 @@ dependencies = [
  "astroport 3.12.1",
  "astroport-circular-buffer 0.1.0",
  "astroport-factory 1.7.0",
+ "astroport-incentives",
  "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-token",
@@ -512,6 +515,7 @@ version = "1.6.0"
 dependencies = [
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
+ "astroport-incentives",
  "astroport-mocks",
  "astroport-pair 1.5.0",
  "astroport-pair 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",

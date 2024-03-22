@@ -4,11 +4,10 @@ use anyhow::Result as AnyResult;
 use astroport::asset::AssetInfo;
 use astroport::factory::{PairConfig, PairType};
 use astroport_mocks::cw_multi_test::{
-    App, AppResponse, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
-    MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+    AppResponse, ContractWrapper, Executor, StargateApp as TestApp,
 };
 
-use cosmwasm_std::{Addr, Binary, Empty, GovMsg, IbcMsg, IbcQuery, MemoryStorage};
+use cosmwasm_std::{Addr, Binary};
 use cw20::MinterResponse;
 
 pub struct FactoryHelper {

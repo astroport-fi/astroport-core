@@ -1,10 +1,6 @@
 #![cfg(not(tarpaulin_include))]
 
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::rc::Rc;
-
-use astroport::asset::{native_asset_info, Asset, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
@@ -17,17 +13,13 @@ use astroport::pair::{
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport_mocks::cw_multi_test::{
-    App, AppBuilder, BankKeeper, ContractWrapper, DistributionKeeper, Executor, FailingModule,
-    MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+    AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
 };
-use astroport_mocks::{astroport_address, MockXykPairBuilder};
+
 use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair::error::ContractError;
-use cosmwasm_std::testing::MockApi;
-use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, Empty, GovMsg, IbcMsg, IbcQuery, Uint128,
-    Uint64,
-};
+
+use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
@@ -72,6 +64,16 @@ fn store_factory_code(app: &mut TestApp) -> u64 {
     );
 
     app.store_code(factory_contract)
+}
+
+fn store_generator_code(app: &mut TestApp) -> u64 {
+    let generator_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_incentives::execute::execute,
+        astroport_incentives::instantiate::instantiate,
+        astroport_incentives::query::query,
+    ));
+
+    app.store_code(generator_contract)
 }
 
 fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
@@ -1808,48 +1810,210 @@ fn enable_disable_fee_sharing() {
 
 #[test]
 fn provide_liquidity_with_autostaking_to_generator() {
-    /* let astroport = astroport_address();
-
-    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
-        router
-            .bank
-            .init_balance(
-                storage,
-                &astroport,
-                vec![Coin {
-                    denom: "ustake".to_owned(),
-                    amount: Uint128::new(1_000_000_000000),
-                }],
-            )
-            .unwrap();
-    })));
-
-    let generator = MockGeneratorBuilder::new(&app).instantiate();
-
-    let factory = generator.factory();
-
-    let astro_token_info = generator.astro_token_info();
-    let ustake = native_asset_info("ustake".to_owned());
-
-    let pair = MockXykPairBuilder::new(&app)
-        .with_factory(&factory)
-        .with_asset(&astro_token_info)
-        .with_asset(&ustake)
-        .instantiate();
-
-    pair.mint_allow_provide_and_stake(
-        &astroport,
-        &[
-            astro_token_info.with_balance(1_000_000000u128),
-            ustake.with_balance(1_000_000000u128),
+    let owner = Addr::unchecked("owner");
+    let alice_address = Addr::unchecked("alice");
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "cny".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
         ],
     );
 
-    assert_eq!(pair.lp_token().balance(&pair.address), Uint128::new(1000));
-    assert_eq!(
-        generator.query_deposit(&pair.lp_token(), &astroport),
-        Uint128::new(999_999000),
-    ); */
+    // Set Alice's balances
+    router
+        .send_tokens(
+            owner.clone(),
+            alice_address.clone(),
+            &[
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233_000_000u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(2_00_000_000u128),
+                },
+                Coin {
+                    denom: "cny".to_string(),
+                    amount: Uint128::from(100_000_000u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    let token_contract_code_id = store_token_code(&mut router);
+
+    let pair_contract_code_id = store_pair_code(&mut router);
+    let factory_code_id = store_factory_code(&mut router);
+
+    let generator_code_id = store_generator_code(&mut router);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: pair_contract_code_id,
+            maker_fee_bps: 0,
+            pair_type: PairType::Xyk {},
+            total_fee_bps: 0,
+            is_disabled: false,
+            is_generator_disabled: false,
+            permissioned: false,
+        }],
+        token_code_id: token_contract_code_id,
+        generator_address: None,
+        owner: owner.to_string(),
+        whitelist_code_id: 234u64,
+        coin_registry_address: "coin_registry".to_string(),
+    };
+
+    let factory_instance = router
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    let generator_instance = router
+        .instantiate_contract(
+            generator_code_id,
+            owner.clone(),
+            &astroport::incentives::InstantiateMsg {
+                astro_token: native_asset_info("astro".to_string()),
+                factory: factory_instance.to_string(),
+                owner: owner.to_string(),
+                guardian: None,
+                incentivization_fee_info: None,
+                vesting_contract: "vesting".to_string(),
+            },
+            &[],
+            "generator",
+            None,
+        )
+        .unwrap();
+
+    router
+        .execute_contract(
+            owner.clone(),
+            factory_instance.clone(),
+            &astroport::factory::ExecuteMsg::UpdateConfig {
+                token_code_id: None,
+                fee_address: None,
+                generator_address: Some(generator_instance.to_string()),
+                whitelist_code_id: None,
+                coin_registry_address: None,
+            },
+            &[],
+        )
+        .unwrap();
+
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        pair_type: PairType::Xyk {},
+        init_params: Some(
+            to_json_binary(&XYKPoolParams {
+                track_asset_balances: Some(true),
+            })
+            .unwrap(),
+        ),
+    };
+
+    router
+        .execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let uusd_amount = Uint128::new(100_000_000);
+    let uluna_amount = Uint128::new(100_000_000);
+
+    let msg = ExecuteMsg::ProvideLiquidity {
+        assets: vec![
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uusd".to_string(),
+                },
+                amount: uusd_amount.clone(),
+            },
+            Asset {
+                info: AssetInfo::NativeToken {
+                    denom: "uluna".to_string(),
+                },
+                amount: uluna_amount.clone(),
+            },
+        ],
+        slippage_tolerance: None,
+        auto_stake: Some(true),
+        receiver: None,
+        min_lp_to_receive: None,
+    };
+
+    let coins = [
+        Coin {
+            denom: "uluna".to_string(),
+            amount: uluna_amount.clone(),
+        },
+        Coin {
+            denom: "uusd".to_string(),
+            amount: uusd_amount.clone(),
+        },
+    ];
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(
+            &factory_instance,
+            &FactoryQueryMsg::Pair {
+                asset_infos: vec![
+                    AssetInfo::NativeToken {
+                        denom: "uluna".to_string(),
+                    },
+                    AssetInfo::NativeToken {
+                        denom: "uusd".to_string(),
+                    },
+                ],
+            },
+        )
+        .unwrap();
+
+    let pair_instance = res.contract_addr;
+    let lp_token_address = res.liquidity_token;
+
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    let amount: Uint128 = router
+        .wrap()
+        .query_wasm_smart(
+            generator_instance.to_string(),
+            &astroport::incentives::QueryMsg::Deposit {
+                lp_token: lp_token_address.to_string(),
+                user: alice_address.to_string(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(amount, Uint128::new(99999000));
 }
 
 #[test]

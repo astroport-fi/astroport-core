@@ -9,9 +9,8 @@ use std::str::FromStr;
 use anyhow::Result as AnyResult;
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::testing::MockApi;
+use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Empty, StdResult, Uint128};
-use cosmwasm_std::{Decimal, GovMsg, IbcMsg, IbcQuery, MemoryStorage};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
 use itertools::Itertools;
@@ -23,8 +22,8 @@ use astroport::pair::{
     ReverseSimulationResponse, SimulationResponse,
 };
 use astroport_mocks::cw_multi_test::{
-    App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper, DistributionKeeper,
-    Executor, FailingModule, MockStargate, StakeKeeper, StargateApp as TestApp, WasmKeeper,
+    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
+    StargateApp as TestApp,
 };
 use astroport_pair_transmuter::contract::{execute, instantiate, reply};
 use astroport_pair_transmuter::queries::query;
