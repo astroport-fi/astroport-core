@@ -28,4 +28,4 @@ snafu = { version = "0.6" }
 cosmwasm-schema = "1.1"
 
 [dev-dependencies]
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"

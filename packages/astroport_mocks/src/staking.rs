@@ -1,19 +1,18 @@
-use std::fmt::Debug;
-
 use astroport::{
     staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg, QueryMsg},
     token::ExecuteMsg,
 };
-use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Storage, Uint128};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
-use schemars::JsonSchema;
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomMsg, CustomQuery, Storage, Uint128};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use serde::de::DeserializeOwned;
 
 use crate::{
     astroport_address, token::MockTokenOpt, MockToken, MockTokenBuilder, WKApp, ASTROPORT,
 };
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -23,7 +22,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     use astroport_staking as cnt;
@@ -39,12 +39,12 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockStakingBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
-    pub astro_token: MockTokenOpt<B, A, S, C, X, D, I, G>,
+pub struct MockStakingBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
+    pub astro_token: MockTokenOpt<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockStakingBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockStakingBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -54,17 +54,18 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self {
             app: app.clone(),
             astro_token: None,
         }
     }
 
-    pub fn with_astro_token(mut self, astro_token: &MockToken<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn with_astro_token(mut self, astro_token: &MockToken<B, A, S, C, X, D, I, G, T>) -> Self {
         self.astro_token = Some(MockToken {
             app: self.app.clone(),
             address: astro_token.address.clone(),
@@ -72,7 +73,7 @@ where
         self
     }
 
-    pub fn instantiate(self) -> MockStaking<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockStaking<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -107,12 +108,12 @@ where
     }
 }
 
-pub struct MockStaking<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockStaking<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockStaking<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockStaking<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -122,10 +123,11 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn astro_token(&self) -> MockToken<B, A, S, C, X, D, I, G> {
+    pub fn astro_token(&self) -> MockToken<B, A, S, C, X, D, I, G, T> {
         let config: ConfigResponse = self
             .app
             .borrow()
@@ -156,7 +158,7 @@ where
             .unwrap();
     }
 
-    pub fn xastro_token(&self) -> MockToken<B, A, S, C, X, D, I, G> {
+    pub fn xastro_token(&self) -> MockToken<B, A, S, C, X, D, I, G, T> {
         let config: ConfigResponse = self
             .app
             .borrow()

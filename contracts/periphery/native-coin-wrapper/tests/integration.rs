@@ -254,7 +254,10 @@ fn check_wrap_and_unwrap() {
             &[],
         )
         .unwrap_err();
-    assert_eq!("Cannot Sub with 0 and 10", err.root_cause().to_string());
+    assert_eq!(
+        "Overflow: Cannot Sub with 0 and 10",
+        err.root_cause().to_string()
+    );
 
     // check user1's wrapped cw20 token balance
     assert_eq!(

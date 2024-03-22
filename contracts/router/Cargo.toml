@@ -37,4 +37,4 @@ astroport-factory = { path = "../factory" }
 astroport-token = { path = "../token" }
 astroport-pair = { path = "../pair" }
 anyhow = "1.0"
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"

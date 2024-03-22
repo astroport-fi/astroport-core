@@ -1282,7 +1282,7 @@ fn generator_without_reward_proxies() {
             .unwrap_err()
             .root_cause()
             .to_string(),
-        "Cannot Sub with 9 and 10".to_string()
+        "Overflow: Cannot Sub with 9 and 10".to_string()
     );
 
     mint_tokens(&mut app, pair_cny_eur.clone(), &lp_cny_eur, &user1, 1);
@@ -1955,7 +1955,7 @@ fn generator_with_vkr_reward_proxy() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Cannot Sub with 9 and 10".to_string()
+        "Overflow: Cannot Sub with 9 and 10".to_string()
     );
 
     mint_tokens(&mut app, pair_val_eur.clone(), &lp_val_eur, &user1, 1);

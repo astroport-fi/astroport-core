@@ -7,9 +7,9 @@ description = "The Astroport ASTRO-xASTRO pair contract implementation"
 license = "MIT"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -36,6 +36,6 @@ cosmwasm-schema = "1.1"
 [dev-dependencies]
 astroport-token = { path = "../token" }
 astroport-factory = { path = "../factory" }
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"
 astroport-staking = { path = "../tokenomics/staking" }
 astroport-xastro-token = { path = "../tokenomics/xastro_token" }

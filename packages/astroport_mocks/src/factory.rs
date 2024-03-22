@@ -1,5 +1,4 @@
 use anyhow::Result as AnyResult;
-use std::fmt::Debug;
 
 use astroport::{
     asset::{AssetInfo, PairInfo},
@@ -7,11 +6,10 @@ use astroport::{
     pair::StablePoolParams,
     pair_concentrated::ConcentratedPoolParams,
 };
-use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Decimal, Storage};
+use cosmwasm_std::{to_json_binary, Addr, Api, CustomMsg, CustomQuery, Decimal, Storage};
 use cw_multi_test::{
-    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
 };
-use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
 use crate::{
@@ -19,7 +17,7 @@ use crate::{
     MockStablePair, MockXykPair, WKApp, ASTROPORT,
 };
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -29,7 +27,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     use astroport_factory as cnt;
@@ -45,11 +44,11 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockFactoryBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockFactoryBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockFactoryBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockFactoryBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -59,14 +58,15 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self { app: app.clone() }
     }
 
-    pub fn instantiate(self) -> MockFactory<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockFactory<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -137,14 +137,14 @@ where
     }
 }
 
-pub struct MockFactory<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockFactory<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-pub type MockFactoryOpt<B, A, S, C, X, D, I, G> = Option<MockFactory<B, A, S, C, X, D, I, G>>;
+pub type MockFactoryOpt<B, A, S, C, X, D, I, G, T> = Option<MockFactory<B, A, S, C, X, D, I, G, T>>;
 
-impl<B, A, S, C, X, D, I, G> MockFactory<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockFactory<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -154,7 +154,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     pub fn whitelist_code_id(&self) -> u64 {
@@ -182,7 +183,7 @@ where
     pub fn instantiate_xyk_pair(
         &self,
         asset_infos: &[AssetInfo],
-    ) -> MockXykPair<B, A, S, C, X, D, I, G> {
+    ) -> MockXykPair<B, A, S, C, X, D, I, G, T> {
         let astroport = astroport_address();
 
         self.app
@@ -222,7 +223,7 @@ where
         &self,
         asset_infos: &[AssetInfo],
         init_params: Option<&StablePoolParams>,
-    ) -> MockStablePair<B, A, S, C, X, D, I, G> {
+    ) -> MockStablePair<B, A, S, C, X, D, I, G, T> {
         let astroport = astroport_address();
 
         let default_params = StablePoolParams {
@@ -264,7 +265,7 @@ where
         }
     }
 
-    pub fn coin_registry(&self) -> MockCoinRegistry<B, A, S, C, X, D, I, G> {
+    pub fn coin_registry(&self) -> MockCoinRegistry<B, A, S, C, X, D, I, G, T> {
         let config: ConfigResponse = self
             .app
             .borrow()
@@ -283,7 +284,7 @@ where
         &self,
         asset_infos: &[AssetInfo],
         init_params: Option<&ConcentratedPoolParams>,
-    ) -> MockConcentratedPair<B, A, S, C, X, D, I, G> {
+    ) -> MockConcentratedPair<B, A, S, C, X, D, I, G, T> {
         let astroport = astroport_address();
 
         let default_params = ConcentratedPoolParams {
