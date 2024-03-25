@@ -21,12 +21,12 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse,
 };
-use astroport_mocks::cw_multi_test::{
-    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
-    StargateApp as TestApp,
-};
 use astroport_pair_transmuter::contract::{execute, instantiate, reply};
 use astroport_pair_transmuter::queries::query;
+use astroport_test::cw_multi_test::{
+    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor,
+};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 

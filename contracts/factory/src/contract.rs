@@ -3,9 +3,8 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, CosmosMsg, CustomQuery, Deps, DepsMut, Empty, Env, MessageInfo,
-    Order, Reply, ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult,
-    WasmMsg,
+    attr, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply,
+    ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_utils::parse_instantiate_response_data;
@@ -334,10 +333,7 @@ pub fn execute_create_pair(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply<T>(deps: DepsMut<T>, _env: Env, msg: Reply) -> Result<Response, ContractError>
-where
-    T: CustomQuery,
-{
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
             id: INSTANTIATE_PAIR_REPLY_ID,

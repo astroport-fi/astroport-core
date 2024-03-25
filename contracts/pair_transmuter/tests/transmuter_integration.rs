@@ -5,8 +5,8 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport_mocks::cw_multi_test::Executor;
 use astroport_pair_transmuter::error::ContractError;
+use astroport_test::cw_multi_test::Executor;
 
 use crate::helper::{Helper, TestCoin};
 

@@ -29,4 +29,4 @@ derivative = "2"
 astroport-token = { path = "../token" }
 astroport-factory = { path = "../factory" }
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1" }
-astroport-mocks = { path = "../../packages/astroport_mocks/" }
+astroport-test = { path = "../../packages/astroport_test/" }

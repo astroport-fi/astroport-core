@@ -1,5 +1,5 @@
 [package]
-name = "astroport-mocks"
+name = "astroport-test"
 version = "0.2.0"
 authors = ["Astroport"]
 edition = "2021"
@@ -13,7 +13,9 @@ homepage = "https://astroport.fi"
 [dependencies]
 astroport = { path = "../astroport" }
 astroport-factory = { path = "../../contracts/factory" }
+astroport-generator = { path = "../../contracts/tokenomics/generator" }
 astroport-native-coin-registry = { path = "../../contracts/periphery/native_coin_registry" }
+astroport-shared-multisig = { path = "../../contracts/periphery/shared_multisig" }
 astroport-pair = { path = "../../contracts/pair" }
 astroport-pair-stable = { path = "../../contracts/pair_stable" }
 astroport-pair-concentrated = { path = "../../contracts/pair_concentrated" }
@@ -24,7 +26,7 @@ astroport-whitelist = { path = "../../contracts/whitelist" }
 astroport-xastro-token = { path = "../../contracts/tokenomics/xastro_token" }
 cosmwasm-schema = "1.2.5"
 cosmwasm-std = "1.2.5"
-multi-test = { package = "cw-multi-test", version = "0.20.0", features = ["cosmwasm_1_1"] }
+cw-multi-test = { package = "cw-multi-test", version = "0.20.0", features = ["cosmwasm_1_1"] }
 
 injective-cosmwasm = "0.2"
 schemars = "0.8.1"

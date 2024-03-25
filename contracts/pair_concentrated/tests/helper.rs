@@ -31,10 +31,8 @@ use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pcl_common::state::Config;
 
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
-    StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 

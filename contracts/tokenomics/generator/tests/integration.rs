@@ -29,10 +29,9 @@ use astroport::{
 use astroport::generator_proxy::ConfigResponse;
 use astroport::pair::StablePoolParams;
 use astroport_generator::error::ContractError;
-use astroport_mocks::cw_multi_test::{
-    next_block, App, ContractWrapper, Executor, StargateApp as TestApp,
-};
 use astroport_mocks::{astroport_address, MockGeneratorBuilder, MockToken, MockTokenBuilder};
+use astroport_test::cw_multi_test::{next_block, App, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
 use cosmwasm_std::{from_json, to_json_binary, Addr, Binary, StdResult, Uint128, Uint64};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 

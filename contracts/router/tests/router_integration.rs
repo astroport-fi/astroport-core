@@ -6,10 +6,9 @@ use cw20::Cw20ExecuteMsg;
 use astroport::asset::{native_asset_info, token_asset_info};
 use astroport::factory::PairType;
 use astroport::router::{ExecuteMsg, InstantiateMsg, SwapOperation, SwapResponseData};
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, Contract, ContractWrapper, Executor, MockStargate, StargateApp as App,
-};
 use astroport_router::error::ContractError;
+use astroport_test::cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 
 use crate::factory_helper::{instantiate_token, mint, mint_native, FactoryHelper};
 

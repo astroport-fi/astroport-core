@@ -2,7 +2,8 @@
 
 use astroport_governance::utils::{get_period, EPOCH_START};
 
-use astroport_mocks::cw_multi_test::{AppBuilder, MockStargate, StargateApp as TestApp};
+use astroport_test::cw_multi_test::AppBuilder;
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 #[allow(clippy::all)]
 #[allow(dead_code)]

@@ -11,9 +11,8 @@ use astroport::factory::{
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
 use astroport_factory::error::ContractError;
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 fn mock_app() -> TestApp {
     AppBuilder::new_custom()

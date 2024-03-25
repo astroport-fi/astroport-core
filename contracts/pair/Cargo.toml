@@ -41,4 +41,4 @@ astroport-incentives = { path = "../tokenomics/incentives"}
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
-astroport-mocks = { path = "../../packages/astroport_mocks/" }
+astroport-test = { path = "../../packages/astroport_test" }

@@ -6,9 +6,9 @@ use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomR
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, CustomQuery,
-    Decimal, Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo, QuerierWrapper, Reply,
-    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, Decimal,
+    Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -123,10 +123,7 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply<T>(deps: DepsMut<T>, _env: Env, msg: Reply) -> Result<Response, ContractError>
-where
-    T: CustomQuery,
-{
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
             id: CREATE_DENOM_REPLY_ID,

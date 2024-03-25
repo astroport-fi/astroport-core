@@ -2,10 +2,8 @@
 
 use anyhow::Result;
 use astroport_governance::voting_escrow_delegation as escrow_delegation;
-use astroport_mocks::cw_multi_test::{
-    AppResponse, Contract, ContractWrapper, Executor, StargateApp as TestApp,
-};
-
+use astroport_test::cw_multi_test::{AppResponse, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
 use cosmwasm_std::{to_json_binary, Addr, Empty, QueryRequest, StdResult, Uint128, WasmQuery};
 
 use cw721_base::helpers::Cw721Contract;

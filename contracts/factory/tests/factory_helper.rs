@@ -3,9 +3,8 @@
 use anyhow::Result as AnyResult;
 use astroport::asset::AssetInfo;
 use astroport::factory::{PairConfig, PairType};
-use astroport_mocks::cw_multi_test::{
-    AppResponse, ContractWrapper, Executor, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
 
 use cosmwasm_std::{Addr, Binary};
 use cw20::MinterResponse;

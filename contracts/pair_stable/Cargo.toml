@@ -44,5 +44,5 @@ astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-astroport-mocks = { path = "../../packages/astroport_mocks/" }
 astroport-incentives = { path = "../tokenomics/incentives"}
+astroport-test = { path = "../../packages/astroport_test/" }

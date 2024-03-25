@@ -14,11 +14,10 @@ use astroport::pair_xyk_sale_tax::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
-};
 use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair_xyk_sale_tax::error::ContractError;
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
 use test_case::test_case;

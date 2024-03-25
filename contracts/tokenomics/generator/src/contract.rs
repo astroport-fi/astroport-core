@@ -718,10 +718,7 @@ fn get_proxy_rewards(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply<T>(deps: DepsMut<T>, _env: Env, msg: Reply) -> Result<Response, ContractError>
-where
-    T: CustomQuery,
-{
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
             id: INIT_REWARDS_HOLDER_ID,

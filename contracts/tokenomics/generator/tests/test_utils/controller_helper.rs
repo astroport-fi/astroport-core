@@ -10,9 +10,8 @@ use astroport::vesting::{Cw20HookMsg as VestingHookMsg, VestingAccount};
 use astroport::vesting::{InstantiateMsg, VestingSchedule, VestingSchedulePoint};
 use astroport_governance::generator_controller::{ExecuteMsg, QueryMsg};
 use astroport_governance::generator_controller::{UserInfoResponse, VotedPoolInfoResponse};
-use astroport_mocks::cw_multi_test::{
-    AppResponse, ContractWrapper, Executor, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
 use cosmwasm_std::{to_json_binary, Addr, StdResult, Uint128, Uint64};
 use cw20::Cw20ExecuteMsg;
 

@@ -3,9 +3,8 @@
 use std::str::FromStr;
 
 use astroport_governance::utils::EPOCH_START;
-use astroport_mocks::cw_multi_test::{
-    next_block, AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{next_block, AppBuilder, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
 };

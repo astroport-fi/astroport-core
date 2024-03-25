@@ -36,5 +36,5 @@ cosmwasm-schema = "1.1"
 astroport-factory = { path = "../factory" }
 astroport-token = { path = "../token" }
 astroport-pair = { path = "../pair" }
-astroport-mocks = { path = "../../packages/astroport_mocks" }
+astroport-test= { path = "../../packages/astroport_test" }
 anyhow = "1.0"

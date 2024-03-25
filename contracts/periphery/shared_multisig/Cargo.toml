@@ -25,6 +25,6 @@ itertools = "0.10"
 astroport = { path = "../../../packages/astroport", version = "3" }
 
 [dev-dependencies]
-astroport-mocks = { path = "../../../packages/astroport_mocks"}
+astroport-test = { path = "../../../packages/astroport_test"}
 astroport-pair = { path = "../../pair" }
 astroport-pair-concentrated = { path = "../../pair_concentrated" }

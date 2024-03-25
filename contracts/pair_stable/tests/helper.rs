@@ -7,10 +7,8 @@ use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
 
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, MockStargate,
-    StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;

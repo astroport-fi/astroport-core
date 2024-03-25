@@ -91,6 +91,7 @@ pub(crate) fn prepare_provide_msg(
             slippage_tolerance,
             auto_stake,
             receiver: None,
+            min_lp_to_receive: None,
         })?,
     }))
 }

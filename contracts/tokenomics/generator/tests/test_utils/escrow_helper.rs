@@ -5,9 +5,8 @@ use astroport::{staking as xastro, token as astro};
 use astroport_governance::voting_escrow::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, LockInfoResponse, QueryMsg, VotingPowerResponse,
 };
-use astroport_mocks::cw_multi_test::{
-    AppResponse, ContractWrapper, Executor, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
 
 use cosmwasm_std::{attr, to_json_binary, Addr, QueryRequest, StdResult, Uint128, WasmQuery};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};

@@ -1,9 +1,8 @@
 #![cfg(not(tarpaulin_include))]
 
 use anyhow::Result;
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, AppResponse, ContractWrapper, Executor, MockStargate, StargateApp as App,
-};
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 use cosmwasm_std::{
     attr, to_json_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128,
     WasmQuery,

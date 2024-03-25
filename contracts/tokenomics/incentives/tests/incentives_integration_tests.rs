@@ -8,7 +8,7 @@ use astroport::incentives::{
     MAX_REWARD_TOKENS,
 };
 use astroport_incentives::error::ContractError;
-use astroport_mocks::cw_multi_test::Executor;
+use astroport_test::cw_multi_test::Executor;
 
 use crate::helper::{assert_rewards, dec256_to_u128_floor, Helper, TestAddr};
 

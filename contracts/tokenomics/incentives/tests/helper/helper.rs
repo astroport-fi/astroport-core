@@ -4,10 +4,11 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use astroport_mocks::cw_multi_test::{
+use astroport_test::cw_multi_test::{
     AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper,
-    DistributionKeeper, Executor, FailingModule, MockStargate, StakeKeeper, WasmKeeper,
+    DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
 };
+use astroport_test::modules::stargate::MockStargate;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
 use cosmwasm_std::{
     to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env, GovMsg,

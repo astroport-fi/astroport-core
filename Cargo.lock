@@ -109,7 +109,7 @@ name = "astroport-escrow-fee-distributor"
 version = "1.0.2"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main#3071dab091f88fac33594574cf3bdb34d9674189"
 dependencies = [
- "astroport-governance 1.4.1",
+ "astroport-governance 1.4.1 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -140,8 +140,8 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.1",
- "astroport-mocks",
  "astroport-pair 1.5.0",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -167,6 +167,23 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-generator"
+version = "2.3.2"
+dependencies = [
+ "astroport 3.12.1",
+ "astroport-governance 1.4.1 (git+https://github.com/astroport-fi/hidden_astroport_governance)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.3",
+ "cw1-whitelist",
+ "cw2 0.15.1",
+ "cw20 0.15.1",
+ "protobuf",
  "thiserror",
 ]
 
@@ -209,16 +226,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-governance"
+version = "1.4.1"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance#3071dab091f88fac33594574cf3bdb34d9674189"
+dependencies = [
+ "astroport 3.12.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw20 0.15.1",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-incentives"
 version = "1.0.1"
 dependencies = [
  "anyhow",
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
- "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.0",
  "astroport-pair-stable",
+ "astroport-test",
  "astroport-vesting",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -240,11 +270,11 @@ dependencies = [
  "astroport 3.12.1",
  "astroport-escrow-fee-distributor",
  "astroport-factory 1.7.0",
- "astroport-governance 1.4.1",
- "astroport-mocks",
+ "astroport-governance 1.4.1 (git+https://github.com/astroport-fi/hidden_astroport_governance?branch=main)",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.0",
  "astroport-pair-stable",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -252,33 +282,6 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "thiserror",
-]
-
-[[package]]
-name = "astroport-mocks"
-version = "0.2.0"
-dependencies = [
- "anyhow",
- "astroport 3.12.1",
- "astroport-factory 1.7.0",
- "astroport-native-coin-registry",
- "astroport-pair 1.5.0",
- "astroport-pair-concentrated 2.3.0",
- "astroport-pair-stable",
- "astroport-staking",
- "astroport-token",
- "astroport-vesting",
- "astroport-whitelist",
- "astroport-xastro-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test 0.20.0",
- "cw-utils 1.0.3",
- "cw20 0.15.1",
- "cw3",
- "injective-cosmwasm",
- "schemars",
- "serde",
 ]
 
 [[package]]
@@ -318,10 +321,10 @@ dependencies = [
  "anyhow",
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
- "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.0",
  "astroport-pair-stable",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -340,7 +343,7 @@ dependencies = [
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
  "astroport-incentives",
- "astroport-mocks",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -445,10 +448,10 @@ dependencies = [
  "astroport-circular-buffer 0.1.0",
  "astroport-factory 1.7.0",
  "astroport-incentives",
- "astroport-mocks",
  "astroport-native-coin-registry",
  "astroport-pair-concentrated 1.2.13",
  "astroport-pcl-common",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -471,8 +474,8 @@ dependencies = [
  "astroport-circular-buffer 0.1.0",
  "astroport-factory 1.7.0",
  "astroport-incentives",
- "astroport-mocks",
  "astroport-native-coin-registry",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -495,8 +498,8 @@ dependencies = [
  "anyhow",
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
- "astroport-mocks",
  "astroport-native-coin-registry",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -516,9 +519,9 @@ dependencies = [
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
  "astroport-incentives",
- "astroport-mocks",
  "astroport-pair 1.5.0",
  "astroport-pair 1.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -556,8 +559,8 @@ dependencies = [
  "anyhow",
  "astroport 3.12.1",
  "astroport-factory 1.7.0",
- "astroport-mocks",
  "astroport-pair 1.5.0",
+ "astroport-test",
  "astroport-token",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -565,6 +568,22 @@ dependencies = [
  "cw2 0.15.1",
  "cw20 0.15.1",
  "integer-sqrt",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-shared-multisig"
+version = "1.0.0"
+dependencies = [
+ "astroport 3.12.1",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 0.15.1",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 0.15.1",
+ "cw3",
+ "itertools 0.10.5",
  "thiserror",
 ]
 
@@ -584,6 +603,35 @@ dependencies = [
  "cw20 0.15.1",
  "protobuf",
  "thiserror",
+]
+
+[[package]]
+name = "astroport-test"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "astroport 3.12.1",
+ "astroport-factory 1.7.0",
+ "astroport-generator",
+ "astroport-native-coin-registry",
+ "astroport-pair 1.5.0",
+ "astroport-pair-concentrated 2.3.0",
+ "astroport-pair-stable",
+ "astroport-shared-multisig",
+ "astroport-staking",
+ "astroport-token",
+ "astroport-vesting",
+ "astroport-whitelist",
+ "astroport-xastro-token",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-multi-test 0.20.0",
+ "cw-utils 1.0.3",
+ "cw20 0.15.1",
+ "cw3",
+ "injective-cosmwasm",
+ "schemars",
+ "serde",
 ]
 
 [[package]]

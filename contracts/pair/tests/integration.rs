@@ -12,9 +12,8 @@ use astroport::pair::{
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use astroport_mocks::cw_multi_test::{
-    AppBuilder, ContractWrapper, Executor, MockStargate, StargateApp as TestApp,
-};
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair::error::ContractError;
