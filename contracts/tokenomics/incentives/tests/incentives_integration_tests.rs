@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, coins, Decimal, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
 use cw_multi_test::Executor;
 
 use astroport::asset::{native_asset_info, AssetInfo, AssetInfoExt};
@@ -10,7 +10,7 @@ use astroport::incentives::{
 };
 use astroport_incentives::error::ContractError;
 
-use crate::helper::{assert_rewards, Helper, TestAddr};
+use crate::helper::{assert_rewards, dec256_to_u128_floor, Helper, TestAddr};
 
 mod helper;
 
@@ -518,6 +518,67 @@ fn test_cw20_incentives() {
 }
 
 #[test]
+fn test_large_incentives() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro).unwrap();
+    let owner = helper.owner.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair_info = helper.create_pair(&asset_infos).unwrap();
+    let lp_token = pair_info.liquidity_token.to_string();
+
+    let provide_assets = [
+        asset_infos[0].with_balance(100000u64),
+        asset_infos[1].with_balance(100000u64),
+    ];
+    // Owner provides liquidity first just make following calculations easier
+    // since first depositor gets small cut of LP tokens
+    helper
+        .provide_liquidity(
+            &owner,
+            &provide_assets,
+            &pair_info.contract_addr,
+            false, // Owner doesn't stake in generator
+        )
+        .unwrap();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(&user, &provide_assets, &pair_info.contract_addr, true)
+        .unwrap();
+
+    let bank = TestAddr::new("bank");
+    let reward_asset_info = AssetInfo::native("reward");
+    let reward = reward_asset_info.with_balance(2839081665193567584256u128);
+    helper.mint_assets(&bank, &[reward.clone()]);
+
+    let (schedule, internal_sch) = helper.create_schedule(&reward, 1).unwrap();
+    helper.mint_coin(&bank, &incentivization_fee);
+    helper
+        .incentivize(
+            &bank,
+            &lp_token,
+            schedule.clone(),
+            &[incentivization_fee.clone()],
+        )
+        .unwrap();
+
+    // Test claims between short periods
+    for _ in 0..10 {
+        helper.next_block(100);
+        helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
+    }
+
+    // Jump to the end of the schedule
+    helper
+        .app
+        .update_block(|block| block.time = Timestamp::from_seconds(internal_sch.end_ts));
+
+    helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
+}
+
+#[test]
 fn test_multiple_schedules_same_reward() {
     let astro = native_asset_info("astro".to_string());
     let mut helper = Helper::new("owner", &astro).unwrap();
@@ -753,7 +814,7 @@ fn test_multiple_schedules_different_reward() {
             .info
             .query_pool(&helper.app.wrap(), &user)
             .unwrap();
-        // Total amount is a bit off because of rounding due to Decimal type
+        // Total amount is a bit off because of rounding due to Decimal256 type
         assert_eq!(
             reward_balance.u128(),
             999_999980,
@@ -1086,20 +1147,20 @@ fn test_blocked_tokens() {
 
     // For simplicity we have no stakers in this test. However, all rewards are accrued in 'orphaned_rewards'
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // 50 astro * 1000 passed seconds
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // 50 astro * 1000 passed seconds
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000);
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000);
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 0); // This pair was just incentivized in this block
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 0); // This pair was just incentivized in this block
 
     helper.next_block(1000);
 
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // deactivated pool didn't get anything
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // deactivated pool didn't get anything
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 2000);
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 2000);
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000);
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000);
 
     // Block poor 'blk' token again. It should automatically deactivate blk_pair
     helper
@@ -1109,14 +1170,14 @@ fn test_blocked_tokens() {
     helper.next_block(1000);
 
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // deactivated pool didn't get anything
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // deactivated pool didn't get anything
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
     assert_eq!(
-        reward_info[0].orphaned.to_uint_floor().u128(),
+        dec256_to_u128_floor(reward_info[0].orphaned),
         50 * 2000 + 100 * 1000
     ); // this pools is the only active atm
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // deactivated blk pair didn't get anything
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // deactivated blk pair didn't get anything
 }
 
 #[test]
@@ -1157,12 +1218,12 @@ fn test_blocked_pair_types() {
 
     // For simplicity we have no stakers in this test. However, all rewards are accrued in 'orphaned_rewards'
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // 50 astro * 1000 passed seconds
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // 50 astro * 1000 passed seconds
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000);
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000);
     // Although this pair is blocked, it still gets rewards until manually deactivated
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000);
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000);
 
     // Deactivate 'blk' pair
     helper.deactivate_blocked().unwrap();
@@ -1171,16 +1232,16 @@ fn test_blocked_pair_types() {
 
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
     assert_eq!(
-        reward_info[0].orphaned.to_uint_floor().u128(),
+        dec256_to_u128_floor(reward_info[0].orphaned),
         50 * 1000 + 75 * 1000
     );
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
     assert_eq!(
-        reward_info[0].orphaned.to_uint_floor().u128(),
+        dec256_to_u128_floor(reward_info[0].orphaned),
         50 * 1000 + 75 * 1000
     );
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // deactivated blk pair didn't get anything
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // deactivated blk pair didn't get anything
 
     // Next time setup pool won't allow to activate 'blk' pair
     let err = helper
@@ -1233,16 +1294,16 @@ fn test_blocked_pair_types() {
 
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
     assert_eq!(
-        reward_info[0].orphaned.to_uint_floor().u128(),
+        dec256_to_u128_floor(reward_info[0].orphaned),
         50 * 1000 + 75 * 1000 // deactivated pool gets nothing
     );
     let reward_info = helper.query_reward_info(norm_pair2_info.liquidity_token.as_str());
     assert_eq!(
-        reward_info[0].orphaned.to_uint_floor().u128(),
+        dec256_to_u128_floor(reward_info[0].orphaned),
         50 * 1000 + 75 * 1000 + 150 * 1000
     );
     let reward_info = helper.query_reward_info(blk_pair_info.liquidity_token.as_str());
-    assert_eq!(reward_info[0].orphaned.to_uint_floor().u128(), 50 * 1000); // deactivated blk pair still gets nothing
+    assert_eq!(dec256_to_u128_floor(reward_info[0].orphaned), 50 * 1000); // deactivated blk pair still gets nothing
 }
 
 #[test]
@@ -1626,27 +1687,27 @@ fn test_queries() {
         res,
         [
             ScheduleResponse {
-                rps: Decimal::from_str("2398.02426572720408957").unwrap(),
+                rps: Decimal256::from_str("2398.02426572720408957").unwrap(),
                 start_ts: 1696810000,
                 end_ts: 1698019200,
             },
             ScheduleResponse {
-                rps: Decimal::from_str("1571.031212468851459733").unwrap(),
+                rps: Decimal256::from_str("1571.031212468851459733").unwrap(),
                 start_ts: 1698019200,
                 end_ts: 1698624000,
             },
             ScheduleResponse {
-                rps: Decimal::from_str("1019.76329626157472324").unwrap(),
+                rps: Decimal256::from_str("1019.76329626157472324").unwrap(),
                 start_ts: 1698624000,
                 end_ts: 1699228800,
             },
             ScheduleResponse {
-                rps: Decimal::from_str("606.335150073382231096").unwrap(),
+                rps: Decimal256::from_str("606.335150073382231096").unwrap(),
                 start_ts: 1699228800,
                 end_ts: 1699833600,
             },
             ScheduleResponse {
-                rps: Decimal::from_str("275.603571822290816888").unwrap(),
+                rps: Decimal256::from_str("275.603571822290816888").unwrap(),
                 start_ts: 1699833600,
                 end_ts: 1700438400,
             },

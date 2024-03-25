@@ -47,7 +47,7 @@ pub fn claim_rewards(
         // Reset user reward index for all finished schedules
         pos.reset_user_index(storage, lp_token_asset, pool_info)?;
 
-        for (is_external, reward_asset) in pool_info.calculate_rewards(pos) {
+        for (is_external, reward_asset) in pool_info.calculate_rewards(pos)? {
             attrs.push(attr("claimed_reward", reward_asset.to_string()));
 
             if !reward_asset.amount.is_zero() {

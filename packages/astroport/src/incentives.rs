@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Env, StdError, StdResult, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal256, Env, StdError, StdResult, Uint128};
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::{Asset, AssetInfo};
@@ -46,7 +46,7 @@ pub struct IncentivesSchedule {
     /// Reward asset info
     pub reward_info: AssetInfo,
     /// Reward per second for the whole schedule
-    pub rps: Decimal,
+    pub rps: Decimal256,
 }
 
 impl IncentivesSchedule {
@@ -71,9 +71,9 @@ impl IncentivesSchedule {
         };
         let end_ts = next_epoch_start_ts + input.duration_periods * EPOCH_LENGTH;
 
-        let rps = Decimal::from_ratio(input.reward.amount, end_ts - block_ts);
+        let rps = Decimal256::from_ratio(input.reward.amount, end_ts - block_ts);
 
-        if rps < Decimal::one() {
+        if rps < Decimal256::one() {
             return Err(StdError::generic_err(format!(
                 "Reward per second must be at least 1 unit but actual is {rps}",
             )));
@@ -368,12 +368,12 @@ pub struct RewardInfo {
     /// Defines [`AssetInfo`] of reward token as well as its type: protocol or external.
     pub reward: RewardType,
     /// Reward tokens per second for the whole pool
-    pub rps: Decimal,
+    pub rps: Decimal256,
     /// Last checkpointed reward per LP token
-    pub index: Decimal,
+    pub index: Decimal256,
     /// Orphaned rewards might appear between the time when pool
     /// gets incentivized and the time when first user stakes
-    pub orphaned: Decimal,
+    pub orphaned: Decimal256,
 }
 
 #[cw_serde]
@@ -388,7 +388,7 @@ pub struct PoolInfoResponse {
 
 #[cw_serde]
 pub struct ScheduleResponse {
-    pub rps: Decimal,
+    pub rps: Decimal256,
     pub start_ts: u64,
     pub end_ts: u64,
 }
@@ -418,7 +418,7 @@ mod tests {
 
         assert_eq!(schedule.next_epoch_start_ts, EPOCHS_START);
         assert_eq!(schedule.end_ts, schedule.next_epoch_start_ts + EPOCH_LENGTH);
-        assert_eq!(schedule.rps, Decimal::one());
+        assert_eq!(schedule.rps, Decimal256::one());
 
         let err = IncentivesSchedule::from_input(
             &env,
@@ -481,6 +481,6 @@ mod tests {
             schedule.end_ts,
             schedule.next_epoch_start_ts + 3 * EPOCH_LENGTH
         );
-        assert_eq!(schedule.rps, Decimal::one());
+        assert_eq!(schedule.rps, Decimal256::one());
     }
 }

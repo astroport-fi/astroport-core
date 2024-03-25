@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, Env, Order, StdError, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Decimal256, Env, Order, StdError, StdResult, Storage, Uint128, Uint256};
 use cw_storage_plus::{Bound, Item, Map};
 use itertools::Itertools;
 
@@ -28,7 +28,7 @@ pub const BLOCKED_TOKENS: Map<&[u8], ()> = Map::new("blocked_tokens");
 /// Contains reward indexes for finished rewards. They are removed from [`PoolInfo`] and stored here.
 /// Next time user claims rewards they will be able to claim outstanding rewards from this index.
 /// key: (LP token asset, deregistration timestamp), value: array of tuples (reward token asset, reward index).
-pub const FINISHED_REWARD_INDEXES: Map<(&AssetInfo, u64), Vec<(AssetInfo, Decimal)>> =
+pub const FINISHED_REWARD_INDEXES: Map<(&AssetInfo, u64), Vec<(AssetInfo, Decimal256)>> =
     Map::new("fin_rew_inds");
 
 /// key: lp_token (either cw20 or native), value: pool info
@@ -36,7 +36,7 @@ pub const POOLS: Map<&AssetInfo, PoolInfo> = Map::new("pools");
 /// key: (lp_token, user_addr), value: user info
 pub const USER_INFO: Map<(&AssetInfo, &Addr), UserInfo> = Map::new("user_info");
 /// key: (LP token asset, reward token asset, schedule end point), value: reward per second
-pub const EXTERNAL_REWARD_SCHEDULES: Map<(&AssetInfo, &AssetInfo, u64), Decimal> =
+pub const EXTERNAL_REWARD_SCHEDULES: Map<(&AssetInfo, &AssetInfo, u64), Decimal256> =
     Map::new("reward_schedules");
 
 /// Accumulates all orphaned rewards i.e. those which were added to a pool
@@ -51,7 +51,7 @@ impl RewardInfoExt for RewardInfo {
     /// calculates the reward amount.
     /// Otherwise it assumes user never claimed this particular reward and their reward index is 0.
     /// Their position will be synced with pool indexes later on.
-    fn calculate_reward(&self, user_info: &UserInfo) -> Uint128 {
+    fn calculate_reward(&self, user_info: &UserInfo) -> StdResult<Uint128> {
         let user_index_opt = user_info
             .last_rewards_index
             .iter()
@@ -62,13 +62,16 @@ impl RewardInfoExt for RewardInfo {
         // rewards from past schedules.
         // Outstanding rewards from finished schedules are handled in claim_finished_rewards().
         // To account current active period properly we need to consider user index as 0.
-        match user_index_opt {
+        let user_amount = Uint256::from(user_info.amount);
+        let u256_result = match user_index_opt {
             Some((_, user_reward_index)) if *user_reward_index > self.index => {
-                self.index * user_info.amount
+                self.index * user_amount
             }
-            None => self.index * user_info.amount,
-            Some((_, user_reward_index)) => (self.index - *user_reward_index) * user_info.amount,
-        }
+            None => self.index * user_amount,
+            Some((_, user_reward_index)) => (self.index - *user_reward_index) * user_amount,
+        };
+
+        Ok(u256_result.try_into()?)
     }
 }
 
@@ -85,7 +88,7 @@ pub struct PoolInfo {
     /// Key: reward type, value: (reward index, orphaned rewards)
     /// NOTE: this is not part of serialized structure in state!
     #[serde(skip)]
-    pub rewards_to_remove: HashMap<RewardType, (Decimal, Decimal)>,
+    pub rewards_to_remove: HashMap<RewardType, (Decimal256, Decimal256)>,
 }
 
 impl PoolInfo {
@@ -106,7 +109,7 @@ impl PoolInfo {
         }
 
         for reward_info in self.rewards.iter_mut() {
-            let mut collected_rewards = Decimal::zero();
+            let mut collected_rewards = Decimal256::zero();
             let mut time_passed_inner = time_passed;
 
             // Whether we need to remove this reward from pool info. Only applicable for finished external rewards.
@@ -122,7 +125,7 @@ impl PoolInfo {
                 if next_update_ts <= block_ts {
                     // Schedule ended. Collect leftovers from the last update time
                     collected_rewards += reward_info.rps
-                        * Decimal::from_ratio(next_update_ts - self.last_update_ts, 1u8);
+                        * Decimal256::from_ratio(next_update_ts - self.last_update_ts, 1u8);
 
                     // Find which passed schedules should be processed (can be multiple ones)
                     let schedules = EXTERNAL_REWARD_SCHEDULES.prefix((lp_asset, info)).range(
@@ -148,7 +151,7 @@ impl PoolInfo {
 
                         // Process schedules one by one and collect rewards
                         collected_rewards += period_reward_per_sec
-                            * Decimal::from_ratio(update_ts - next_update_ts, 1u8);
+                            * Decimal256::from_ratio(update_ts - next_update_ts, 1u8);
                         next_update_ts = update_ts;
                     }
 
@@ -156,20 +159,20 @@ impl PoolInfo {
                     if next_update_ts <= block_ts {
                         // Remove reward from pool info
                         need_remove = true;
-                        reward_info.rps = Decimal::zero();
+                        reward_info.rps = Decimal256::zero();
                     }
                 }
             }
 
-            collected_rewards += reward_info.rps * Decimal::from_ratio(time_passed_inner, 1u8);
+            collected_rewards += reward_info.rps * Decimal256::from_ratio(time_passed_inner, 1u8);
 
             if self.total_lp.is_zero() {
                 reward_info.orphaned += collected_rewards;
             } else {
                 // Allowing the first depositor to claim orphaned rewards
                 reward_info.index += (reward_info.orphaned + collected_rewards)
-                    / Decimal::from_ratio(self.total_lp, 1u8);
-                reward_info.orphaned = Decimal::zero();
+                    / Decimal256::from_ratio(self.total_lp, 1u8);
+                reward_info.orphaned = Decimal256::zero();
             }
 
             if need_remove {
@@ -191,15 +194,15 @@ impl PoolInfo {
 
     /// This function calculates all rewards for a specific user position.
     /// Converts them to [`Asset`]. Returns array of tuples (is_external_reward, Asset).
-    pub fn calculate_rewards(&self, user_info: &mut UserInfo) -> Vec<(bool, Asset)> {
+    pub fn calculate_rewards(&self, user_info: &mut UserInfo) -> StdResult<Vec<(bool, Asset)>> {
         self.rewards
             .iter()
             .map(|reward_info| {
-                let amount = reward_info.calculate_reward(user_info);
-                (
+                let amount = reward_info.calculate_reward(user_info)?;
+                Ok((
                     reward_info.reward.is_external(),
                     reward_info.reward.asset_info().with_balance(amount),
-                )
+                ))
             })
             .collect()
     }
@@ -207,18 +210,18 @@ impl PoolInfo {
     /// Set astro per second for this pool according to alloc points and general astro per second value
     pub fn set_astro_rewards(&mut self, config: &Config, alloc_points: Uint128) {
         if let Some(astro_reward_info) = self.rewards.iter_mut().find(|r| !r.reward.is_external()) {
-            astro_reward_info.rps = Decimal::from_ratio(
+            astro_reward_info.rps = Decimal256::from_ratio(
                 config.astro_per_second * alloc_points,
                 config.total_alloc_points,
             );
         } else {
             self.rewards.push(RewardInfo {
                 reward: RewardType::Int(config.astro_token.clone()),
-                rps: Decimal::from_ratio(
+                rps: Decimal256::from_ratio(
                     config.astro_per_second * alloc_points,
                     config.total_alloc_points,
                 ),
-                index: Decimal::zero(),
+                index: Default::default(),
                 orphaned: Default::default(),
             });
         }
@@ -236,7 +239,7 @@ impl PoolInfo {
     /// because users still should be able to claim outstanding rewards according to indexes.
     pub fn disable_astro_rewards(&mut self) {
         if let Some(astro_reward_info) = self.rewards.iter_mut().find(|r| !r.reward.is_external()) {
-            astro_reward_info.rps = Decimal::zero();
+            astro_reward_info.rps = Decimal256::zero();
         }
     }
 
@@ -347,7 +350,7 @@ impl PoolInfo {
                     next_update_ts: schedule.end_ts,
                 },
                 rps: schedule.rps,
-                index: Decimal::zero(),
+                index: Default::default(),
                 orphaned: Default::default(),
             });
         }
@@ -384,7 +387,7 @@ impl PoolInfo {
 
         // Assume update_rewards() was called before
         let mut remaining = reward_info.rps
-            * Decimal::from_ratio(next_update_ts.saturating_sub(self.last_update_ts), 1u8);
+            * Decimal256::from_ratio(next_update_ts.saturating_sub(self.last_update_ts), 1u8);
 
         // Remove active schedule from state
         EXTERNAL_REWARD_SCHEDULES.remove(storage, (lp_asset, reward_asset, next_update_ts));
@@ -407,8 +410,8 @@ impl PoolInfo {
                 .into_iter()
                 .for_each(|(update_ts, period_reward_per_sec)| {
                     if update_ts > next_update_ts {
-                        remaining +=
-                            period_reward_per_sec * Decimal::from_ratio(update_ts - prev_time, 1u8);
+                        remaining += period_reward_per_sec
+                            * Decimal256::from_ratio(update_ts - prev_time, 1u8);
                         prev_time = update_ts;
                     }
 
@@ -419,7 +422,7 @@ impl PoolInfo {
         // Take orphaned rewards as well
         remaining += reward_info.orphaned;
 
-        Ok(remaining.to_uint_floor())
+        Ok(remaining.to_uint_floor().try_into()?)
     }
 
     pub fn load(storage: &dyn Storage, lp_token: &AssetInfo) -> StdResult<Self> {
@@ -457,7 +460,8 @@ impl PoolInfo {
                                 storage,
                                 &asset_info_key(&reward),
                                 |amount| {
-                                    Ok(amount.unwrap_or_default() + orphaned_amount.to_uint_floor())
+                                    Ok(amount.unwrap_or_default()
+                                        + Uint128::try_from(orphaned_amount.to_uint_floor())?)
                                 },
                             )?;
                         }
@@ -510,7 +514,7 @@ pub struct UserInfo {
     /// Amount of LP tokens staked
     pub amount: Uint128,
     /// Last rewards indexes per reward token
-    pub last_rewards_index: Vec<(RewardType, Decimal)>,
+    pub last_rewards_index: Vec<(RewardType, Decimal256)>,
     /// The last time user claimed rewards
     pub last_claim_time: u64,
 }
@@ -587,7 +591,7 @@ impl UserInfo {
 
         for (reward, index) in self.last_rewards_index.iter_mut() {
             if reward.is_external() && finished.contains(reward.asset_info()) {
-                *index = Decimal::zero();
+                *index = Decimal256::zero();
             }
         }
 
@@ -624,6 +628,8 @@ impl UserInfo {
             .iter()
             .map(|(reward, (index, _))| (reward.asset_info().clone(), *index));
 
+        let lp_tokens_amount = Uint256::from(self.amount);
+
         finished_iter
             .chain(to_remove_iter)
             .into_group_map_by(|(reward_info, _)| reward_info.clone())
@@ -648,14 +654,14 @@ impl UserInfo {
                                 })
                                 .unwrap_or_default();
 
-                            (finished_index - user_reward_index) * self.amount
+                            (finished_index - user_reward_index) * lp_tokens_amount
                         } else {
                             // Subsequent finished schedules consider user never claimed rewards
                             // thus their index was 0
-                            finished_index * self.amount
+                            finished_index * lp_tokens_amount
                         };
 
-                        Ok(reward_info.with_balance(amount))
+                        Ok(reward_info.with_balance(Uint128::try_from(amount)?))
                     })
             })
             .collect()

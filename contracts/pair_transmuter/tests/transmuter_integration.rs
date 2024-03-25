@@ -19,6 +19,7 @@ fn test_instantiate() {
     let err = Helper::new(
         &owner,
         vec![TestCoin::native("usdt"), TestCoin::cw20("USDC")],
+        vec![],
     )
     .unwrap_err();
     assert_eq!(
@@ -26,7 +27,7 @@ fn test_instantiate() {
         ContractError::Cw20TokenNotSupported {}
     );
 
-    let err = Helper::new(&owner, vec![TestCoin::native("usdt")]).unwrap_err();
+    let err = Helper::new(&owner, vec![TestCoin::native("usdt")], vec![]).unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::InvalidAssetLength {}
@@ -42,6 +43,7 @@ fn test_instantiate() {
             TestCoin::native("usdt5"),
             TestCoin::native("usdt6"),
         ],
+        vec![],
     )
     .unwrap_err();
     assert_eq!(
@@ -52,6 +54,7 @@ fn test_instantiate() {
     let err = Helper::new(
         &owner,
         vec![TestCoin::native("usdt"), TestCoin::native("usdt")],
+        vec![],
     )
     .unwrap_err();
     assert_eq!(
@@ -63,6 +66,7 @@ fn test_instantiate() {
     Helper::new(
         &owner,
         vec![TestCoin::native("usdt"), TestCoin::native("usdc")],
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
     )
     .unwrap();
 }
@@ -73,7 +77,12 @@ fn test_provide_and_withdraw() {
 
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
+    )
+    .unwrap();
 
     let user = Addr::unchecked("user");
     let provide_assets = [
@@ -279,7 +288,12 @@ fn test_swap() {
 
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
+    )
+    .unwrap();
 
     helper
         .provide_liquidity(
@@ -334,7 +348,16 @@ fn test_multipool_swap() {
         TestCoin::native("usdc"),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![
+            ("usdc.axl".to_string(), 6),
+            ("usdc.eth".to_string(), 6),
+            ("usdc".to_string(), 6),
+        ],
+    )
+    .unwrap();
 
     helper
         .provide_liquidity(
@@ -427,7 +450,12 @@ fn test_provide_liquidity_without_funds() {
 
     let test_coins = vec![TestCoin::native("usdc"), TestCoin::native("usdc.axl")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdc".to_string(), 6), ("usdc.axl".to_string(), 6)],
+    )
+    .unwrap();
 
     let user1 = Addr::unchecked("user1");
 
@@ -479,7 +507,12 @@ fn test_queries() {
 
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
+    )
+    .unwrap();
 
     helper
         .provide_liquidity(
@@ -591,7 +624,12 @@ fn test_queries() {
 fn test_drain_pool() {
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
+    )
+    .unwrap();
     helper
         .provide_liquidity(
             &owner,
@@ -631,7 +669,12 @@ fn test_drain_pool() {
 fn test_unbalanced_withdraw() {
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];
-    let mut helper = Helper::new(&owner, test_coins.clone()).unwrap();
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdc".to_string(), 6)],
+    )
+    .unwrap();
     let user = Addr::unchecked("user");
     let provide_assets = [
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -673,5 +716,319 @@ fn test_unbalanced_withdraw() {
     assert_eq!(
         helper.coin_balance(&test_coins[1], &user),
         100_000_000000u128
+    );
+}
+
+#[test]
+fn test_different_decimals() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdt.eth")];
+
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdt.eth".to_string(), 8)],
+    )
+    .unwrap();
+
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+                helper.assets[&test_coins[1]].with_balance(100_000_00000000u128),
+            ],
+        )
+        .unwrap();
+
+    let user = Addr::unchecked("user");
+    let swap_asset = helper.assets[&test_coins[0]].with_balance(10_000_000000u128);
+    let simulation = helper.simulate_swap(&swap_asset, None).unwrap();
+
+    let reverse_simulation = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[1]].with_balance(10_000_00000000u128),
+            None,
+        )
+        .unwrap();
+    assert_eq!(reverse_simulation.offer_amount, swap_asset.amount);
+
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    helper.swap(&user, &swap_asset, None, None).unwrap();
+
+    assert_eq!(helper.coin_balance(&test_coins[0], &user), 0);
+    assert_eq!(
+        helper.coin_balance(&test_coins[1], &user),
+        10_000_00000000u128
+    );
+    assert_eq!(simulation.return_amount.u128(), 10_000_00000000u128);
+
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(110_000_000000u128),
+            helper.assets[&test_coins[1]].with_balance(90_000_00000000u128),
+        ]
+    );
+
+    let user = Addr::unchecked("user2");
+    let swap_asset = helper.assets[&test_coins[0]].with_balance(91_000_000000u128);
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    let err = helper.swap(&user, &swap_asset, None, None).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientPoolBalance {
+            asset: helper.assets[&test_coins[1]].to_string(),
+            want: 91_000_00000000u128.into(),
+            available: 90_000_00000000u128.into(),
+        }
+    );
+
+    let swap_asset = helper.assets[&test_coins[1]].with_balance(10_000_00000000u128);
+    let user = Addr::unchecked("user3");
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    helper.swap(&user, &swap_asset, None, None).unwrap();
+
+    assert_eq!(
+        helper.coin_balance(&test_coins[0], &user),
+        10_000_000000u128
+    );
+
+    let user = Addr::unchecked("user3");
+    let swap_asset = helper.assets[&test_coins[1]].with_balance(101_000_00000000u128);
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    let err = helper.swap(&user, &swap_asset, None, None).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientPoolBalance {
+            asset: helper.assets[&test_coins[0]].to_string(),
+            want: 101_000_000000u128.into(),
+            available: 100_000_000000u128.into(),
+        }
+    );
+}
+
+#[test]
+fn test_provide_and_withdraw_different_decimals() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdt.eth")];
+
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdt".to_string(), 6), ("usdt.eth".to_string(), 8)],
+    )
+    .unwrap();
+
+    let user = Addr::unchecked("user");
+    let provide_assets = [
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_00000000u128),
+    ];
+
+    helper.give_me_money(&provide_assets, &user);
+
+    helper.provide_liquidity(&user, &provide_assets).unwrap();
+
+    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    assert_eq!(lp_balance, 2 * 100_000_00000000u128);
+
+    // withdraw half. balanced
+    helper
+        .withdraw_liquidity(&user, 100_000_00000000u128, vec![])
+        .unwrap();
+
+    let lp_balance = helper.token_balance(&helper.lp_token, &user);
+    assert_eq!(lp_balance, 100_000_00000000u128);
+
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(50_000_000000u128),
+            helper.assets[&test_coins[1]].with_balance(50_000_00000000u128),
+        ]
+    );
+
+    assert_eq!(
+        helper.coin_balance(&test_coins[0], &user),
+        50_000_000000u128
+    );
+    assert_eq!(
+        helper.coin_balance(&test_coins[1], &user),
+        50_000_00000000u128
+    );
+
+    // withdraw imbalanced
+    helper
+        .withdraw_liquidity(
+            &user,
+            50_000_00000000u128,
+            vec![helper.assets[&test_coins[0]].with_balance(50_000_000000u128)],
+        )
+        .unwrap();
+
+    assert_eq!(
+        helper.coin_balance(&test_coins[0], &user),
+        100_000_000000u128
+    );
+
+    // LP tokens left
+    assert_eq!(
+        helper.token_balance(&helper.lp_token, &user),
+        50_000_00000000u128
+    );
+
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(0u128),
+            helper.assets[&test_coins[1]].with_balance(50_000_00000000u128),
+        ]
+    );
+
+    // Try withdraw more than available
+    let err = helper
+        .withdraw_liquidity(
+            &user,
+            5_000_000000u128,
+            vec![helper.assets[&test_coins[1]].with_balance(10_000_000000u128)],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientLpTokens {
+            required: 10_000_000000u128.into(),
+            available: 5_000_000000u128.into()
+        }
+    );
+
+    // Supply more LP tokens than required
+    helper
+        .withdraw_liquidity(
+            &user,
+            10_000_00000000u128,
+            vec![helper.assets[&test_coins[1]].with_balance(5_000_00000000u128)],
+        )
+        .unwrap();
+
+    // 5k LP tokens returned to user balance
+    assert_eq!(
+        helper.token_balance(&helper.lp_token, &user),
+        45_000_00000000u128
+    );
+
+    // imbalanced provide
+    let user = Addr::unchecked("user2");
+    let provide_assets = [helper.assets[&test_coins[0]].with_balance(10_000_000000u128)];
+    helper.give_me_money(&provide_assets, &user);
+
+    helper.provide_liquidity(&user, &provide_assets).unwrap();
+
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(10_000_000000u128),
+            helper.assets[&test_coins[1]].with_balance(45_000_00000000u128),
+        ]
+    );
+}
+
+#[test]
+fn test_swap_multipool_different_decimals() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::native("usdt"),
+        TestCoin::native("usdt.e"),
+        TestCoin::native("usdt.a"),
+    ];
+
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![
+            ("usdt".to_string(), 6),
+            ("usdt.e".to_string(), 7),
+            ("usdt.a".to_string(), 8),
+        ],
+    )
+    .unwrap();
+
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+                helper.assets[&test_coins[1]].with_balance(100_000_0000000u128),
+                helper.assets[&test_coins[2]].with_balance(100_000_00000000u128),
+            ],
+        )
+        .unwrap();
+
+    let user = Addr::unchecked("user");
+    let swap_asset = helper.assets[&test_coins[0]].with_balance(10_000_000000u128);
+    let simulation = helper
+        .simulate_swap(&swap_asset, Some(helper.assets[&test_coins[2]].clone()))
+        .unwrap();
+
+    let reverse_simulation = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[2]].with_balance(10_000_00000000u128),
+            Some(helper.assets[&test_coins[0]].clone()),
+        )
+        .unwrap();
+    assert_eq!(reverse_simulation.offer_amount, swap_asset.amount);
+
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    helper
+        .swap(
+            &user,
+            &swap_asset,
+            Some(helper.assets[&test_coins[2]].clone()),
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(helper.coin_balance(&test_coins[0], &user), 0);
+    assert_eq!(
+        helper.coin_balance(&test_coins[2], &user),
+        10_000_00000000u128
+    );
+    assert_eq!(simulation.return_amount.u128(), 10_000_00000000u128);
+
+    let pool_info = helper.query_pool().unwrap();
+    assert_eq!(
+        pool_info.assets,
+        vec![
+            helper.assets[&test_coins[0]].with_balance(110_000_000000u128),
+            helper.assets[&test_coins[1]].with_balance(100_000_0000000u128),
+            helper.assets[&test_coins[2]].with_balance(90_000_00000000u128),
+        ]
+    );
+
+    let user = Addr::unchecked("user2");
+    let swap_asset = helper.assets[&test_coins[0]].with_balance(91_000_000000u128);
+    helper.give_me_money(&[swap_asset.clone()], &user);
+    let err = helper
+        .swap(
+            &user,
+            &swap_asset,
+            Some(helper.assets[&test_coins[2]].clone()),
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsufficientPoolBalance {
+            asset: helper.assets[&test_coins[2]].to_string(),
+            want: 91_000_00000000u128.into(),
+            available: 90_000_00000000u128.into(),
+        }
     );
 }
