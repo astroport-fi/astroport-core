@@ -8,9 +8,9 @@ use cosmwasm_std::{
     testing::{MockApi, MockStorage},
     Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Empty, Storage, SubMsgResponse,
 };
-use cw_multi_test::Stargate as StargateTrait;
+use multi_test::Stargate as StargateTrait;
 
-pub use cw_multi_test::*;
+pub use multi_test::*;
 
 pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
     BankKeeper,

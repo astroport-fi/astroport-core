@@ -1,5 +1,8 @@
 use std::fmt::Debug;
 
+use crate::cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use crate::{astroport_address, MockTokenBuilder, WKApp, ASTROPORT};
 use astroport::{
     asset::AssetInfo,
@@ -7,9 +10,6 @@ use astroport::{
     vesting::{ConfigResponse, InstantiateMsg},
 };
 use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
-use cw_multi_test::{
-    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
-};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 

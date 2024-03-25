@@ -24,7 +24,7 @@ astroport-whitelist = { path = "../../contracts/whitelist" }
 astroport-xastro-token = { path = "../../contracts/tokenomics/xastro_token" }
 cosmwasm-schema = "1.2.5"
 cosmwasm-std = "1.2.5"
-cw-multi-test = { package = "cw-multi-test", version = "0.20.0", features = ["cosmwasm_1_1"] }
+multi-test = { package = "cw-multi-test", version = "0.20.0", features = ["cosmwasm_1_1"] }
 
 injective-cosmwasm = "0.2"
 schemars = "0.8.1"

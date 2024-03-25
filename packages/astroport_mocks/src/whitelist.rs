@@ -1,7 +1,9 @@
 use std::fmt::Debug;
 
+use crate::cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking, Stargate,
+};
 use cosmwasm_std::{Api, CustomQuery, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking, Stargate};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 

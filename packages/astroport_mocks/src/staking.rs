@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 
+use crate::cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use astroport::{
     staking::{ConfigResponse, Cw20HookMsg, InstantiateMsg, QueryMsg},
     token::ExecuteMsg,
 };
 use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Storage, Uint128};
-use cw_multi_test::{
-    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
-};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 

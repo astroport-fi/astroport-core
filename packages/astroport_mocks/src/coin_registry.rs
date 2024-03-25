@@ -1,10 +1,10 @@
 use std::fmt::Debug;
 
-use astroport::native_coin_registry::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
-use cw_multi_test::{
+use crate::cw_multi_test::{
     AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
 };
+use astroport::native_coin_registry::{ExecuteMsg, InstantiateMsg};
+use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 

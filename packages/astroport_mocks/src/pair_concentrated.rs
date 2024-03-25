@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
+use crate::cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking, Stargate,
+};
 use astroport::{
     asset::{Asset, AssetInfo, PairInfo},
     pair::QueryMsg,
     pair_concentrated::ConcentratedPoolParams,
 };
 use cosmwasm_std::{Addr, Api, CustomQuery, Decimal, Storage};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Gov, Ibc, Module, Staking, Stargate};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 

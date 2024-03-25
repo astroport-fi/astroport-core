@@ -1,6 +1,9 @@
 use anyhow::Result as AnyResult;
 use std::fmt::Debug;
 
+use crate::cw_multi_test::{
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use astroport::{
     asset::{AssetInfo, PairInfo},
     factory::{ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, QueryMsg},
@@ -8,9 +11,6 @@ use astroport::{
     pair_concentrated::ConcentratedPoolParams,
 };
 use cosmwasm_std::{to_json_binary, Addr, Api, CustomQuery, Decimal, Storage};
-use cw_multi_test::{
-    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
-};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
