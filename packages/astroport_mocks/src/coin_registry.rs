@@ -1,16 +1,13 @@
-use std::fmt::Debug;
-
 use astroport::native_coin_registry::{ExecuteMsg, InstantiateMsg};
-use cosmwasm_std::{Addr, Api, CustomQuery, Storage};
+use cosmwasm_std::{Addr, Api, CustomMsg, CustomQuery, Storage};
 use cw_multi_test::{
-    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking,
+    AppResponse, Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
 };
-use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 
 use crate::{astroport_address, WKApp, ASTROPORT};
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -20,7 +17,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     use astroport_native_coin_registry as cnt;
@@ -33,11 +31,11 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockCoinRegistryBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockCoinRegistryBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
 }
 
-impl<B, A, S, C, X, D, I, G> MockCoinRegistryBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockCoinRegistryBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -47,13 +45,14 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> Self {
         Self { app: app.clone() }
     }
-    pub fn instantiate(self) -> MockCoinRegistry<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockCoinRegistry<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -91,12 +90,12 @@ where
     }
 }
 
-pub struct MockCoinRegistry<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockCoinRegistry<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-impl<B, A, S, C, X, D, I, G> MockCoinRegistry<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockCoinRegistry<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -106,7 +105,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     pub fn add(&self, coins: Vec<(String, u8)>) -> AppResponse {

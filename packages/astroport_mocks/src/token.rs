@@ -1,17 +1,16 @@
-use std::fmt::Debug;
-
 use astroport::{
     asset::AssetInfo,
     token::{BalanceResponse, ExecuteMsg, InstantiateMsg, MinterResponse, QueryMsg},
 };
-use cosmwasm_std::{Addr, Api, CustomQuery, Storage, Uint128};
-use cw_multi_test::{Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking};
-use schemars::JsonSchema;
+use cosmwasm_std::{Addr, Api, CustomMsg, CustomQuery, Storage, Uint128};
+use cw_multi_test::{
+    Bank, ContractWrapper, Distribution, Executor, Gov, Ibc, Module, Staking, Stargate,
+};
 use serde::de::DeserializeOwned;
 
 use crate::{astroport_address, WKApp, ASTROPORT};
 
-pub fn store_code<B, A, S, C, X, D, I, G>(app: &WKApp<B, A, S, C, X, D, I, G>) -> u64
+pub fn store_code<B, A, S, C, X, D, I, G, T>(app: &WKApp<B, A, S, C, X, D, I, G, T>) -> u64
 where
     B: Bank,
     A: Api,
@@ -21,7 +20,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     use astroport_token as cnt;
@@ -34,12 +34,12 @@ where
     app.borrow_mut().store_code(contract)
 }
 
-pub struct MockTokenBuilder<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockTokenBuilder<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub symbol: String,
 }
 
-impl<B, A, S, C, X, D, I, G> MockTokenBuilder<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockTokenBuilder<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -49,17 +49,18 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G>, symbol: &str) -> Self {
+    pub fn new(app: &WKApp<B, A, S, C, X, D, I, G, T>, symbol: &str) -> Self {
         Self {
             app: app.clone(),
             symbol: symbol.into(),
         }
     }
 
-    pub fn instantiate(self) -> MockToken<B, A, S, C, X, D, I, G> {
+    pub fn instantiate(self) -> MockToken<B, A, S, C, X, D, I, G, T> {
         let code_id = store_code(&self.app);
         let astroport = astroport_address();
 
@@ -93,14 +94,14 @@ where
     }
 }
 
-pub struct MockToken<B, A, S, C: Module, X, D, I, G> {
-    pub app: WKApp<B, A, S, C, X, D, I, G>,
+pub struct MockToken<B, A, S, C: Module, X, D, I, G, T> {
+    pub app: WKApp<B, A, S, C, X, D, I, G, T>,
     pub address: Addr,
 }
 
-pub type MockTokenOpt<B, A, S, C, X, D, I, G> = Option<MockToken<B, A, S, C, X, D, I, G>>;
+pub type MockTokenOpt<B, A, S, C, X, D, I, G, T> = Option<MockToken<B, A, S, C, X, D, I, G, T>>;
 
-impl<B, A, S, C, X, D, I, G> MockToken<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> MockToken<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -110,7 +111,8 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     pub fn asset_info(&self) -> AssetInfo {
@@ -179,8 +181,8 @@ where
             .unwrap();
     }
 }
-impl<B, A, S, C, X, D, I, G> TryFrom<(&WKApp<B, A, S, C, X, D, I, G>, &AssetInfo)>
-    for MockToken<B, A, S, C, X, D, I, G>
+impl<B, A, S, C, X, D, I, G, T> TryFrom<(&WKApp<B, A, S, C, X, D, I, G, T>, &AssetInfo)>
+    for MockToken<B, A, S, C, X, D, I, G, T>
 where
     B: Bank,
     A: Api,
@@ -190,13 +192,14 @@ where
     D: Distribution,
     I: Ibc,
     G: Gov,
-    C::ExecT: Clone + Debug + PartialEq + JsonSchema + DeserializeOwned + 'static,
+    T: Stargate,
+    C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
     type Error = String;
     fn try_from(
-        value: (&WKApp<B, A, S, C, X, D, I, G>, &AssetInfo),
-    ) -> Result<MockToken<B, A, S, C, X, D, I, G>, Self::Error> {
+        value: (&WKApp<B, A, S, C, X, D, I, G, T>, &AssetInfo),
+    ) -> Result<MockToken<B, A, S, C, X, D, I, G, T>, Self::Error> {
         match value.1 {
             AssetInfo::Token { contract_addr } => Ok(MockToken {
                 app: value.0.clone(),

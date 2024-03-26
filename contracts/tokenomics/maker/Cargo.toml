@@ -5,9 +5,9 @@ authors = ["Astroport"]
 edition = "2021"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -34,7 +34,7 @@ astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc
 astroport-token = { path = "../../token" }
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance" }
 astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance" }

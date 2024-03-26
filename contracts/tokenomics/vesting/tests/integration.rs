@@ -469,7 +469,10 @@ fn register_vesting_accounts() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(res.root_cause().to_string(), "Cannot Sub with 0 and 100");
+    assert_eq!(
+        res.root_cause().to_string(),
+        "Overflow: Cannot Sub with 0 and 100"
+    );
 
     let res = app
         .execute_contract(owner.clone(), noname_token_instance.clone(), &msg, &[])

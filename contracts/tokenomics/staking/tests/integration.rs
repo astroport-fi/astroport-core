@@ -523,7 +523,7 @@ fn should_not_allow_withdraw_more_than_what_you_have() {
 
     assert_eq!(
         res.root_cause().to_string(),
-        "Cannot Sub with 1000 and 2000"
+        "Overflow: Cannot Sub with 1000 and 2000"
     );
 }
 

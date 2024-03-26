@@ -5,9 +5,9 @@ authors = ["Astroport"]
 edition = "2021"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,4 +31,4 @@ thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", version = "3" }
 
 [dev-dependencies]
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"

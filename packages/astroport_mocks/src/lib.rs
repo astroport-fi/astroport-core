@@ -38,6 +38,8 @@ pub fn astroport_address() -> Addr {
     Addr::unchecked(ASTROPORT)
 }
 
-pub type WKApp<B, A, S, C, X, D, I, G> = Rc<
-    RefCell<App<B, A, S, C, WasmKeeper<<C as Module>::ExecT, <C as Module>::QueryT>, X, D, I, G>>,
+pub type WKApp<B, A, S, C, X, D, I, G, T> = Rc<
+    RefCell<
+        App<B, A, S, C, WasmKeeper<<C as Module>::ExecT, <C as Module>::QueryT>, X, D, I, G, T>,
+    >,
 >;

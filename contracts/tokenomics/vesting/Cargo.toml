@@ -23,5 +23,5 @@ cw-utils = "0.15"
 cosmwasm-schema = { version = "1.1", default-features = false }
 
 [dev-dependencies]
-cw-multi-test = "0.20.1"
+cw-multi-test = "1.0.0"
 astroport-token = { path = "../../token" }
