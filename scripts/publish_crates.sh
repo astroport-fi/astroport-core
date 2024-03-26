@@ -48,7 +48,7 @@ publish() {
   [ $ret_code -eq 0 ] && [ -z "$DRY_FLAGS" ] && sleep 60
 
   # Check if the error is related to the crate version already being uploaded
-  if [[ $cargo_error =~ "the remote server responded with an error: crate version" && $cargo_error =~ "is already uploaded" ]]; then
+  if [[ $cargo_error =~ "the remote server responded with an error" && $cargo_error =~ "is already uploaded" ]]; then
     ret_code=0
   fi
 
