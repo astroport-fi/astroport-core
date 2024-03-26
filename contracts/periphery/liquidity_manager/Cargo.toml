@@ -1,7 +1,11 @@
 [package]
 name = "astroport-liquidity-manager"
-version = "1.0.3"
+version = "1.0.4"
 edition = "2021"
+description = "Astroport Liquidity Manager contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [features]
 library = []
@@ -17,7 +21,7 @@ cw20 = "0.15"
 thiserror = "1.0"
 astroport = { path = "../../../packages/astroport", version = "3" }
 cw20-base = { version = "0.15", features = ["library"] }
-astroport-pair = { path = "../../pair", features = ["library"], version = "1" }
+astroport-pair = { path = "../../pair", features = ["library"], version = "1.5" }
 astroport-pair-stable = { path = "../../pair_stable", features = ["library"], version = "3" }
 astroport-factory = { path = "../../factory", features = ["library"], version = "1" }
 
