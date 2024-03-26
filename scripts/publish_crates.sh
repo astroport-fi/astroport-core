@@ -66,7 +66,7 @@ publish() {
 ROOT_DIR="$(realpath "$1")"
 
 FIRST_CRATES="astroport-circular-buffer astroport astroport-factory astroport-pcl-common"
-SKIP_CRATES="astroport-pair-astro-xastro astroport-native-coin-wrapper astroport-shared-multisig astroport-token astroport-xastro-outpost-token astroport-pair-xyk-sale-tax"
+SKIP_CRATES="astroport-pair-astro-xastro astroport-native-coin-wrapper astroport-shared-multisig astroport-token astroport-xastro-outpost-token astroport-pair-xyk-sale-tax astroport-pair-concentrated"
 
 for contract in $FIRST_CRATES; do
   publish "$contract"
