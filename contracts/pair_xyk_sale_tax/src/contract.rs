@@ -368,7 +368,7 @@ pub fn provide_liquidity(
             Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
                 attr("action", "mint"),
                 attr("to", env.contract.address.as_str()),
-                attr("amount", &MINIMUM_LIQUIDITY_AMOUNT.to_string()),
+                attr("amount", MINIMUM_LIQUIDITY_AMOUNT.to_string()),
             ]),
         );
 
@@ -551,14 +551,11 @@ pub fn withdraw_liquidity(
         .into_iter()
         .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
-    messages.push(
-        tf_burn_msg(
-            env.contract.address,
-            coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-            info.sender.to_string(),
-        )
-        .into(),
-    );
+    messages.push(tf_burn_msg(
+        env.contract.address,
+        coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
+        info.sender.to_string(),
+    ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),

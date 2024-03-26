@@ -197,7 +197,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
-        min_lp_to_receive: None
+        min_lp_to_receive: None,
     };
 
     let env = mock_env();
@@ -288,25 +288,20 @@ fn provide_liquidity() {
         &[Coin {
             denom: "uusd".to_string(),
             amount: Uint128::new(200_000000000000000000 + 200_000000000000000000 /* user deposit must be pre-applied */),
-        }],
-        
-    ),
+        }]),
     (
         &String::from("liquidity0000"),
         &[coin(100_000000000000000000u128, denom.to_string())],
     ),
     ]);
 
-    deps.querier.with_token_balances(&[
-       
-        (
-            &String::from("asset0000"),
-            &[(
-                &String::from(MOCK_CONTRACT_ADDR),
-                &Uint128::new(200_000000000000000000),
-            )],
-        ),
-    ]);
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(
+            &String::from(MOCK_CONTRACT_ADDR),
+            &Uint128::new(200_000000000000000000),
+        )],
+    )]);
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: vec![
@@ -326,7 +321,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
-        min_lp_to_receive: None
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -404,7 +399,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
-        min_lp_to_receive: None
+        min_lp_to_receive: None,
     };
 
     let env = mock_env();
@@ -481,7 +476,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
-        min_lp_to_receive: None
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -522,7 +517,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
-        min_lp_to_receive: None
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -588,7 +583,10 @@ fn withdraw_liquidity() {
     store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     // Withdraw liquidity
-    let msg = ExecuteMsg::WithdrawLiquidity { assets: vec![], min_assets_to_receive: None };
+    let msg = ExecuteMsg::WithdrawLiquidity {
+        assets: vec![],
+        min_assets_to_receive: None,
+    };
 
     let env = mock_env();
     let info = mock_info("addr0000", &[coin(100u128, denom.clone())]);

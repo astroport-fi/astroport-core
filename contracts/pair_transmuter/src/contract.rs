@@ -207,14 +207,11 @@ pub fn withdraw_liquidity(
         .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.extend(send_msgs);
-    messages.push(
-        tf_burn_msg(
-            env.contract.address,
-            coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-            info.sender.to_string(),
-        )
-        .into(),
-    );
+    messages.push(tf_burn_msg(
+        env.contract.address,
+        coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
+        info.sender.to_string(),
+    ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),

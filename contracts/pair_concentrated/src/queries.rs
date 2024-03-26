@@ -110,7 +110,7 @@ fn query_share(deps: Deps, amount: Uint128) -> Result<Vec<Asset>, ContractError>
         &precisions,
     )?;
     let total_share =
-        query_native_supply(&deps.querier, &config.pair_info.liquidity_token.to_string())?;
+        query_native_supply(&deps.querier, config.pair_info.liquidity_token.to_string())?;
     let refund_assets =
         get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
 
