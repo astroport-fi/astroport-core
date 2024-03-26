@@ -35,7 +35,7 @@ thiserror = { version = "1.0" }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
 cw-utils = "1.0.1"
-astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 
 [dev-dependencies]
 anyhow = "1.0"
