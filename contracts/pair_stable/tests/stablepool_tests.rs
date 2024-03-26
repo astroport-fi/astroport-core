@@ -421,7 +421,7 @@ fn check_pool_prices() {
 
     let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
     let err = helper.query_prices().unwrap_err();
-    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\": { \"seconds_ago\": ... } } instead.")
+    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
                , err);
 
     let assets = vec![
