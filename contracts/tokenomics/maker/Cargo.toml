@@ -36,6 +36,6 @@ astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "0.15"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
