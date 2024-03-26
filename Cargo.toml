@@ -15,14 +15,16 @@ members = [
     "contracts/whitelist",
     #  "contracts/cw20_ics20", # contract is being deprecated
     "templates/*",
-    "contracts/tokenomics/*",
-    "contracts/periphery/*",
-]
-
-exclude = [
-    "contracts/tokenomics/generator",
-    "contracts/periphery/liquidity_manager",
-    "contracts/periphery/shared_multisig",
+    "contracts/tokenomics/incentives",
+    "contracts/tokenomics/maker",
+    "contracts/tokenomics/staking",
+    "contracts/tokenomics/vesting",
+    "contracts/tokenomics/xastro_outpost_token",
+    "contracts/tokenomics/xastro_token",
+    "contracts/periphery/fee_granter",
+    "contracts/periphery/native_coin_registry",
+    "contracts/periphery/native-coin-wrapper",
+    "contracts/periphery/oracle",
 ]
 
 [profile.release]
