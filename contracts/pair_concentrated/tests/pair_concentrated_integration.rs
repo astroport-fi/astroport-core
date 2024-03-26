@@ -17,9 +17,12 @@ use astroport::pair_concentrated::{
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
+
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::{dec_to_f64, f64_to_dec};
 use astroport_test::cw_multi_test::Executor;
 
-use crate::helper::{common_pcl_params, dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
+use crate::helper::{common_pcl_params, AppExtension, Helper};
 
 mod helper;
 

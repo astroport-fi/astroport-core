@@ -2,11 +2,10 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
 
+use astroport_test::coins::TestCoin;
 use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
@@ -25,42 +24,6 @@ pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
 
 const INIT_BALANCE: u128 = 1_000_000_000000;
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TestCoin {
-    Cw20(String),
-    Cw20Precise(String, u8),
-    Native(String),
-}
-
-impl TestCoin {
-    pub fn denom(&self) -> Option<String> {
-        match self {
-            TestCoin::Native(denom) => Some(denom.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn cw20_init_data(&self) -> Option<(String, u8)> {
-        match self {
-            TestCoin::Cw20(name) => Some((name.clone(), 6u8)),
-            TestCoin::Cw20Precise(name, precision) => Some((name.clone(), *precision)),
-            _ => None,
-        }
-    }
-
-    pub fn native(denom: &str) -> Self {
-        Self::Native(denom.to_string())
-    }
-
-    pub fn cw20(name: &str) -> Self {
-        Self::Cw20(name.to_string())
-    }
-
-    pub fn cw20precise(name: &str, precision: u8) -> Self {
-        Self::Cw20Precise(name.to_string(), precision)
-    }
-}
 
 pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
     test_coins
@@ -536,12 +499,4 @@ impl AppExtension for TestApp {
             block.height += 1
         });
     }
-}
-
-pub fn f64_to_dec<T>(val: f64) -> T
-where
-    T: FromStr,
-    T::Err: Error,
-{
-    T::from_str(&val.to_string()).unwrap()
 }

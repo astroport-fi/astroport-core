@@ -371,25 +371,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-    use std::fmt::Display;
-    use std::str::FromStr;
-
     use crate::state::PoolParams;
+    use astroport_test::convert::{dec_to_f64, f64_to_dec};
 
     use super::*;
-
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
-
-    pub fn dec_to_f64(val: impl Display) -> f64 {
-        f64::from_str(&val.to_string()).unwrap()
-    }
 
     #[test]
     fn test_provide_fees() {

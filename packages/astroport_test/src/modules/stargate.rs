@@ -1,16 +1,19 @@
-use std::fmt::Debug;
-
-use anyhow::Result as AnyResult;
-use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
-use cosmwasm_schema::{schemars::JsonSchema, serde::de::DeserializeOwned};
+use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
     coins,
     testing::{MockApi, MockStorage},
-    Addr, Api, BankMsg, Binary, BlockInfo, CustomQuery, Empty, Storage, SubMsgResponse,
+    Addr, Api, BankMsg, Binary, BlockInfo, CustomMsg, CustomQuery, Empty, Querier, Storage,
+    SubMsgResponse,
 };
-use cw_multi_test::Stargate as StargateTrait;
+use cw_multi_test::{
+    App, AppResponse, BankKeeper, BankSudo, CosmosRouter, DistributionKeeper, FailingModule,
+    GovFailingModule, IbcFailingModule, Module, StakeKeeper, Stargate, StargateMsg, StargateQuery,
+    WasmKeeper,
+};
 
-pub use cw_multi_test::*;
+use anyhow::{Ok, Result as AnyResult};
+
+use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 
 pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
     BankKeeper,
@@ -28,7 +31,13 @@ pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
 #[derive(Default)]
 pub struct MockStargate {}
 
-impl StargateTrait for MockStargate {
+impl Stargate for MockStargate {}
+
+impl Module for MockStargate {
+    type ExecT = StargateMsg;
+    type QueryT = StargateQuery;
+    type SudoT = Empty;
+
     fn execute<ExecC, QueryC>(
         &self,
         api: &dyn Api,
@@ -36,13 +45,16 @@ impl StargateTrait for MockStargate {
         router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
         block: &BlockInfo,
         sender: Addr,
-        type_url: String,
-        value: Binary,
+        msg: Self::ExecT,
     ) -> AnyResult<AppResponse>
     where
-        ExecC: Debug + Clone + PartialEq + JsonSchema + DeserializeOwned + 'static,
+        ExecC: CustomMsg + DeserializeOwned + 'static,
         QueryC: CustomQuery + DeserializeOwned + 'static,
     {
+        let StargateMsg {
+            type_url, value, ..
+        } = msg;
+
         match type_url.as_str() {
             MsgCreateDenom::TYPE_URL => {
                 let tf_msg: MsgCreateDenom = value.try_into()?;
@@ -91,5 +103,29 @@ impl StargateTrait for MockStargate {
                 "Unexpected exec msg {type_url} from {sender:?}",
             )),
         }
+    }
+    fn query(
+        &self,
+        _api: &dyn Api,
+        _storage: &dyn Storage,
+        _querier: &dyn Querier,
+        _block: &BlockInfo,
+        _request: Self::QueryT,
+    ) -> AnyResult<Binary> {
+        Ok(Binary::default())
+    }
+    fn sudo<ExecC, QueryC>(
+        &self,
+        _api: &dyn Api,
+        _storage: &mut dyn Storage,
+        _router: &dyn CosmosRouter<ExecC = ExecC, QueryC = QueryC>,
+        _block: &BlockInfo,
+        _msg: Self::SudoT,
+    ) -> AnyResult<AppResponse>
+    where
+        ExecC: CustomMsg + DeserializeOwned + 'static,
+        QueryC: CustomQuery + DeserializeOwned + 'static,
+    {
+        unimplemented!("Sudo not implemented")
     }
 }

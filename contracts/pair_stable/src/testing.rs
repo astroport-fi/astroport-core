@@ -1,6 +1,3 @@
-use std::error::Error;
-use std::str::FromStr;
-
 use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
@@ -32,6 +29,7 @@ use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{CONFIG, OBSERVATIONS};
 use crate::utils::{compute_swap, select_pools};
+use astroport_test::convert::f64_to_dec;
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {
@@ -1177,14 +1175,6 @@ fn test_query_share() {
 
     assert_eq!(res[0].amount, Uint128::new(125));
     assert_eq!(res[1].amount, Uint128::new(500));
-}
-
-pub fn f64_to_dec<T>(val: f64) -> T
-where
-    T: FromStr,
-    T::Err: Error,
-{
-    T::from_str(&val.to_string()).unwrap()
 }
 
 #[test]

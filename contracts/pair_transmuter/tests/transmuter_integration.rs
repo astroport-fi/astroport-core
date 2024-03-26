@@ -6,9 +6,10 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport_pair_transmuter::error::ContractError;
+use astroport_test::coins::TestCoin;
 use astroport_test::cw_multi_test::Executor;
 
-use crate::helper::{Helper, TestCoin};
+use crate::helper::Helper;
 
 mod helper;
 

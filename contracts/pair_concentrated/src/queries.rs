@@ -307,23 +307,14 @@ pub fn query_asset_balances_at(
 
 #[cfg(test)]
 mod testing {
-    use std::error::Error;
-    use std::str::FromStr;
 
     use astroport::observation::{query_observation, Observation, OracleObservation};
     use astroport_circular_buffer::BufferManager;
+    use astroport_test::convert::f64_to_dec;
     use cosmwasm_std::testing::{mock_dependencies, mock_env};
     use cosmwasm_std::Timestamp;
 
     use super::*;
-
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
 
     #[test]
     fn observations_full_buffer() {

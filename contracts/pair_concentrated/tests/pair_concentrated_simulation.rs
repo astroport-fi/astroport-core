@@ -4,7 +4,10 @@ extern crate core;
 
 mod helper;
 
-use crate::helper::{common_pcl_params, dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::{dec_to_f64, f64_to_dec};
+
+use crate::helper::{common_pcl_params, AppExtension, Helper};
 use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::pair_concentrated::{ConcentratedPoolParams, ConcentratedPoolUpdateParams};

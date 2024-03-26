@@ -7,9 +7,11 @@ use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
 use astroport_pair_stable::error::ContractError;
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::f64_to_dec;
 use helper::AppExtension;
 
-use crate::helper::{f64_to_dec, Helper, TestCoin};
+use crate::helper::Helper;
 
 mod helper;
 
