@@ -8,12 +8,11 @@ members = [
     "contracts/pair_concentrated",
     "contracts/pair_transmuter",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
-    "contracts/pair_astro_xastro",
+    #  "contracts/pair_astro_xastro", # unused
     "contracts/pair_xyk_sale_tax",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
-    #  "contracts/cw20_ics20", # contract is being deprecated
     "templates/*",
     "contracts/tokenomics/*",
     "contracts/periphery/*",
