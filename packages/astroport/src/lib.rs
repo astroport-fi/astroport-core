@@ -1,7 +1,6 @@
 pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
-pub mod cw20_ics20;
 pub mod factory;
 pub mod fee_granter;
 pub mod generator;
@@ -25,6 +24,7 @@ pub mod router;
 pub mod shared_multisig;
 pub mod staking;
 pub mod token;
+pub mod tokenfactory_tracker;
 pub mod vesting;
 pub mod xastro_outpost_token;
 pub mod xastro_token;
