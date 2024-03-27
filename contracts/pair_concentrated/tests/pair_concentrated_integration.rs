@@ -4,7 +4,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, StdError, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128};
 use itertools::{max, Itertools};
 
 use astroport::asset::{
@@ -16,7 +16,7 @@ use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
-use astroport_mocks::cw_multi_test::{BasicApp, Executor};
+use astroport_mocks::cw_multi_test::{next_block, BasicApp, Executor};
 use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
@@ -866,10 +866,62 @@ fn check_prices() {
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
 
-    let helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
-    let err = helper.query_prices().unwrap_err();
-    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
-    , err);
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    helper.app.update_block(next_block);
+
+    let check_prices = |helper: &Helper| {
+        let prices = helper.query_prices().unwrap();
+
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[from_coin]) && to.eq(&helper.assets[to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
+    };
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(1000);
+
+    let user1 = Addr::unchecked("user1");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+
+    helper.swap(&user1, &offer_asset, None).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(86400);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000000u128),
+    ];
+    helper.give_me_money(&assets, &user1);
+
+    helper.provide_liquidity(&user1, &assets).unwrap();
+    check_prices(&helper);
+
+    helper.app.next_block(14 * 86400);
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+    helper.swap(&user1, &offer_asset, None).unwrap();
+    check_prices(&helper);
 }
 
 #[test]

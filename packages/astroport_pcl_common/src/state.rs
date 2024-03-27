@@ -3,7 +3,7 @@ use std::fmt::Display;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     attr, Addr, Attribute, CustomQuery, Decimal, Decimal256, DepsMut, Env, Order, StdError,
-    StdResult, Storage,
+    StdResult, Storage, Uint128,
 };
 use cw_storage_plus::Map;
 
@@ -27,6 +27,10 @@ pub struct Config {
     pub pair_info: PairInfo,
     /// The factory contract address
     pub factory_addr: Addr,
+    /// The last timestamp when the pair contract updated the asset cumulative prices
+    pub block_time_last: u64,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     /// Pool parameters
     pub pool_params: PoolParams,
     /// Pool state
