@@ -1,15 +1,17 @@
 [package]
 name = "astroport-pair-stable"
-version = "3.4.0"
+version = "3.4.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
-license = "MIT"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -33,7 +35,7 @@ thiserror = { version = "1.0" }
 itertools = "0.10"
 cosmwasm-schema = "1.1"
 cw-utils = "1.0.1"
-astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 
 [dev-dependencies]
 anyhow = "1.0"
@@ -44,4 +46,4 @@ astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-astroport-mocks = { path = "../../packages/astroport_mocks/" }
+astroport-mocks = { path = "../../packages/astroport_mocks" }

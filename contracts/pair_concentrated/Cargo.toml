@@ -4,7 +4,9 @@ version = "2.3.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
-license = "MIT"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -25,10 +27,8 @@ library = []
 
 [dependencies]
 astroport = { path = "../../packages/astroport", version = "3" }
-astroport-factory = { path = "../factory", features = [
-    "library",
-], version = "1" }
-astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.1" }
+astroport-factory = { path = "../factory", features = ["library"], version = "1" }
+astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "1" }
 cw2 = "0.15"
 cw20 = "0.15"

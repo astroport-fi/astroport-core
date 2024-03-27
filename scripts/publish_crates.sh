@@ -48,7 +48,7 @@ publish() {
   [ $ret_code -eq 0 ] && [ -z "$DRY_FLAGS" ] && sleep 60
 
   # Check if the error is related to the crate version already being uploaded
-  if [[ $cargo_error =~ "the remote server responded with an error: crate version" && $cargo_error =~ "is already uploaded" ]]; then
+  if [[ $cargo_error =~ "the remote server responded with an error" && $cargo_error =~ "is already uploaded" ]]; then
     ret_code=0
   fi
 
@@ -65,8 +65,8 @@ publish() {
 
 ROOT_DIR="$(realpath "$1")"
 
-FIRST_CRATES="astroport-circular-buffer astroport astroport-factory"
-SKIP_CRATES="astroport-pair-astro-xastro"
+FIRST_CRATES="astroport-circular-buffer astroport astroport-factory astroport-pcl-common"
+SKIP_CRATES="astroport-pair-astro-xastro astroport-native-coin-wrapper astroport-shared-multisig astroport-token astroport-xastro-outpost-token astroport-pair-xyk-sale-tax astroport-pair-concentrated"
 
 for contract in $FIRST_CRATES; do
   publish "$contract"

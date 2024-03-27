@@ -2,6 +2,10 @@
 name = "astroport-fee-granter"
 version = "0.1.0"
 edition = "2021"
+description = "Astroport contract responsable for setting up fee grants"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
