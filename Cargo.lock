@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-liquidity-manager"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",
@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "3.4.1"
+version = "3.5.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",

@@ -1,6 +1,7 @@
 #![cfg(not(tarpaulin_include))]
 
 use cosmwasm_std::{Addr, Decimal, StdError};
+use itertools::Itertools;
 use std::str::FromStr;
 
 use astroport::asset::AssetInfoExt;
@@ -401,15 +402,87 @@ fn check_withdraw_charges_fees() {
 }
 
 #[test]
+fn check_twap_based_prices() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
+
+    let check_prices = |helper: &Helper| {
+        let prices = helper.query_prices().unwrap();
+
+        test_coins
+            .iter()
+            .cartesian_product(test_coins.iter())
+            .filter(|(a, b)| a != b)
+            .for_each(|(from_coin, to_coin)| {
+                let price = prices
+                    .cumulative_prices
+                    .iter()
+                    .filter(|(from, to, _)| {
+                        from.eq(&helper.assets[&from_coin]) && to.eq(&helper.assets[&to_coin])
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(price.len(), 1);
+                assert!(!price[0].2.is_zero());
+            });
+    };
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.app.next_block(1000);
+    check_prices(&helper);
+
+    let user1 = Addr::unchecked("user1");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+
+    helper
+        .swap(
+            &user1,
+            &offer_asset,
+            Some(helper.assets[&test_coins[1]].clone()),
+        )
+        .unwrap();
+
+    helper.app.next_block(86400);
+    check_prices(&helper);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000000u128),
+    ];
+    helper.give_me_money(&assets, &user1);
+
+    // Imbalanced provide
+    helper.provide_liquidity(&user1, &assets).unwrap();
+    helper.app.next_block(14 * 86400);
+    check_prices(&helper);
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user1);
+    helper
+        .swap(
+            &user1,
+            &offer_asset,
+            Some(helper.assets[&test_coins[0]].clone()),
+        )
+        .unwrap();
+    helper.app.next_block(86400);
+    check_prices(&helper);
+}
+
+#[test]
 fn check_pool_prices() {
     let owner = Addr::unchecked("owner");
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
-    let err = helper.query_prices().unwrap_err();
-    assert_eq!(StdError::generic_err("Querier contract error: Generic error: Not implemented.Use { \"observe\" : { \"seconds_ago\" : ... } } instead.")
-               , err);
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
