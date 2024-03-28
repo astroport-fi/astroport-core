@@ -25,7 +25,7 @@ use astroport::pair::{
     ReverseSimulationResponse, SimulationResponse, StablePoolParams, XYKPoolParams,
 };
 use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg as PairQueryMsg};
-use astroport::{factory, generator};
+use astroport::{factory, incentives};
 use astroport_liquidity_manager::contract::{execute, instantiate, reply};
 use astroport_liquidity_manager::query::query;
 
@@ -93,9 +93,9 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
 
 fn token_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ))
 }
 
@@ -140,22 +140,14 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
-fn whitelist_contract() -> Box<dyn Contract<Empty>> {
-    Box::new(ContractWrapper::new_with_empty(
-        cw1_whitelist::contract::execute,
-        cw1_whitelist::contract::instantiate,
-        cw1_whitelist::contract::query,
-    ))
-}
-
 fn generator_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
         ContractWrapper::new_with_empty(
-            astroport_generator::contract::execute,
-            astroport_generator::contract::instantiate,
-            astroport_generator::contract::query,
+            astroport_incentives::execute::execute,
+            astroport_incentives::instantiate::instantiate,
+            astroport_incentives::query::query,
         )
-        .with_reply_empty(astroport_generator::contract::reply),
+        .with_reply_empty(astroport_incentives::reply::reply),
     )
 }
 
@@ -277,24 +269,18 @@ impl Helper {
             None,
         )?;
 
-        let whitelist_code_id = app.store_code(whitelist_contract());
         let generator_code_id = app.store_code(generator_contract());
         let generator = app
             .instantiate_contract(
                 generator_code_id,
                 owner.clone(),
-                &generator::InstantiateMsg {
+                &incentives::InstantiateMsg {
                     owner: owner.to_string(),
                     factory: factory.to_string(),
-                    generator_controller: None,
-                    voting_escrow_delegation: None,
-                    voting_escrow: None,
                     guardian: None,
                     astro_token: native_asset_info("astro".to_string()),
-                    tokens_per_block: Default::default(),
-                    start_block: Default::default(),
                     vesting_contract: "vesting".to_string(),
-                    whitelist_code_id,
+                    incentivization_fee_info: None,
                 },
                 &[],
                 "Generator",
@@ -659,7 +645,7 @@ impl Helper {
     pub fn query_staked_lp(&self, user: &Addr) -> StdResult<Uint128> {
         self.app.wrap().query_wasm_smart(
             &self.generator,
-            &generator::QueryMsg::Deposit {
+            &incentives::QueryMsg::Deposit {
                 lp_token: self.lp_token.to_string(),
                 user: user.to_string(),
             },

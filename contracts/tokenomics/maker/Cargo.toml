@@ -25,13 +25,13 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = "1.5"
-cw2 = "1"
+cosmwasm-std.workspace = true
+cw2.workspace = true
 cw20 = "1"
-cw-storage-plus = "0.15"
-astroport = { path = "../../../packages/astroport", version = "3.12" }
-thiserror = "1"
-cosmwasm-schema = "1.5"
+cw-storage-plus.workspace = true
+astroport = { path = "../../../packages/astroport", version = "4" }
+thiserror.workspace = true
+cosmwasm-schema.workspace = true
 astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "1" }
 
 [dev-dependencies]
@@ -40,6 +40,5 @@ astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "1.0.0"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
+astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "2" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }

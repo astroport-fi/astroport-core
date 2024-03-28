@@ -103,9 +103,9 @@ where
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
-                        recipient.to_string(),
-                    ))?,
+                    msg: to_json_binary(&astroport::incentives::Cw20Msg::Deposit {
+                        recipient: Some(recipient.to_string()),
+                    })?,
                 },
                 vec![],
             )?

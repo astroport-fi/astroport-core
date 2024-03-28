@@ -42,7 +42,7 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 hex = "0.4.3"
 
 [dev-dependencies]
-astroport-token = { path = "../token" }
+cw20-base = "1.1
 astroport-mocks = { path = "../../packages/astroport_mocks" }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"

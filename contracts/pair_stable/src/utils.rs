@@ -207,7 +207,7 @@ pub(crate) fn mint_liquidity_token_message(
                 &Cw20ExecuteMsg::Send {
                     contract: generator.to_string(),
                     amount,
-                    msg: to_json_binary(&astroport::generator::Cw20HookMsg::DepositFor(
+                    msg: to_json_binary(&astroport::incentives::Cw20Msg::DepositFor(
                         recipient.to_string(),
                     ))?,
                 },

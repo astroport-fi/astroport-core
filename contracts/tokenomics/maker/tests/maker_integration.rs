@@ -4,10 +4,11 @@ use std::str::FromStr;
 
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
+    attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
+    MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, ContractWrapper, Executor};
+use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
 
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
@@ -86,6 +87,24 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
     }
 
     coin_registry_address
+}
+
+fn mock_fee_distributor_contract() -> Box<dyn Contract<Empty>> {
+    let instantiate = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+        Ok(Default::default())
+    };
+    let execute = |_: DepsMut,
+                   _: Env,
+                   _: MessageInfo,
+                   _: astroport_governance::escrow_fee_distributor::ExecuteMsg|
+     -> StdResult<Response> { Ok(Default::default()) };
+    let empty_query = |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() };
+
+    Box::new(ContractWrapper::new_with_empty(
+        execute,
+        instantiate,
+        empty_query,
+    ))
 }
 
 fn instantiate_contracts(
@@ -198,27 +217,13 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_escrow_fee_distributor::contract::execute,
-        astroport_escrow_fee_distributor::contract::instantiate,
-        astroport_escrow_fee_distributor::contract::query,
-    ));
-
-    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
-
-    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
-        owner: owner.to_string(),
-        astro_token: astro_token_instance.to_string(),
-        voting_escrow_addr: "voting".to_string(),
-        claim_many_limit: None,
-        is_claim_disabled: None,
-    };
+    let escrow_fee_distributor_code_id = router.store_code(mock_fee_distributor_contract());
 
     let governance_instance = router
         .instantiate_contract(
             escrow_fee_distributor_code_id,
             owner.clone(),
-            &init_msg,
+            &Empty {},
             &[],
             "Astroport escrow fee distributor",
             None,

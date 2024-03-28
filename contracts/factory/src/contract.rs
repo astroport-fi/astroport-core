@@ -16,7 +16,7 @@ use astroport::factory::{
     Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
     PairsResponse, QueryMsg,
 };
-use astroport::generator::ExecuteMsg::DeactivatePool;
+use astroport::incentives::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
 use crate::error::ContractError;

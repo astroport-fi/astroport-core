@@ -5,7 +5,7 @@ use cosmwasm_std::{
 };
 
 use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
-use astroport::generator::QueryMsg as GeneratorQueryMsg;
+use astroport::incentives::QueryMsg as GeneratorQueryMsg;
 use astroport::liquidity_manager::CompatPairStableConfig;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::U256;
