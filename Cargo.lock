@@ -68,18 +68,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astro-token-converter-neutron"
-version = "1.0.0"
-dependencies = [
- "astro-token-converter",
- "astroport 3.13.0",
- "cosmwasm-std",
- "cw-utils 1.0.3",
- "cw2 1.1.2",
- "neutron-sdk",
-]
-
-[[package]]
 name = "astroport"
 version = "2.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -282,11 +270,11 @@ dependencies = [
  "astroport-pair 1.5.0",
  "astroport-pair-stable",
  "astroport-token",
- "astroport-whitelist",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
  "cw-storage-plus 1.2.0",
+ "cw1-whitelist",
  "cw20 0.15.1",
  "cw20-base 0.15.1",
  "derivative",
@@ -333,12 +321,12 @@ dependencies = [
  "astroport-staking",
  "astroport-token",
  "astroport-vesting 1.4.0",
- "astroport-whitelist",
  "astroport-xastro-token",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.16.5 (git+https://github.com/astroport-fi/cw-multi-test.git?rev=269a2c829d1ad25d67caa4600f72d2a21fb8fdeb)",
  "cw-utils 1.0.3",
+ "cw1-whitelist",
  "cw20 0.15.1",
  "cw3",
  "injective-cosmwasm",
@@ -357,22 +345,6 @@ dependencies = [
  "cw-multi-test 0.15.1",
  "cw-storage-plus 0.15.1",
  "cw2 0.15.1",
- "thiserror",
-]
-
-[[package]]
-name = "astroport-native-coin-wrapper"
-version = "0.1.0"
-dependencies = [
- "astroport 3.13.0",
- "astroport-token",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test 0.15.1",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
  "thiserror",
 ]
 
@@ -733,13 +705,13 @@ dependencies = [
 
 [[package]]
 name = "astroport-whitelist"
-version = "1.0.1"
+version = "2.0.0"
 dependencies = [
- "astroport 3.13.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw1-whitelist",
- "cw2 0.15.1",
+ "cw2 1.1.2",
+ "neutron-sdk",
  "thiserror",
 ]
 
@@ -1414,9 +1386,9 @@ dependencies = [
 
 [[package]]
 name = "cw1"
-version = "0.15.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbe0783ec4210ba4e0cdfed9874802f469c6db0880f742ad427cb950e940b21c"
+checksum = "f1605722190afd93bfea6384b88224d1cfe50ebf70d2e10641535da79fa70e83"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -1426,16 +1398,16 @@ dependencies = [
 
 [[package]]
 name = "cw1-whitelist"
-version = "0.15.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233dd13f61495f1336da57c8bdca0536fa9f8dd59c12d2bbfc59928ea580e478"
+checksum = "81bb3e9dc87f4ff26547f4e27e0ba3c82034372f21b2f55527fb52b542637d8d"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw1",
- "cw2 0.15.1",
+ "cw2 1.1.2",
  "schemars",
  "serde",
  "thiserror",

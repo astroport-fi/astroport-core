@@ -142,9 +142,9 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
 
 fn whitelist_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
-        astroport_whitelist::contract::execute,
-        astroport_whitelist::contract::instantiate,
-        astroport_whitelist::contract::query,
+        cw1_whitelist::contract::execute,
+        cw1_whitelist::contract::instantiate,
+        cw1_whitelist::contract::query,
     ))
 }
 

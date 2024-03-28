@@ -16,7 +16,10 @@ members = [
     "contracts/whitelist",
     "templates/*",
     "contracts/tokenomics/*",
-    "contracts/periphery/*",
+    "contracts/periphery/fee_granter",
+    "contracts/periphery/liquidity_manager",
+    "contracts/periphery/native_coin_registry",
+    "contracts/periphery/oracle",
 ]
 
 [profile.release]
