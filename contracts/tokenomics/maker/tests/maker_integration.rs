@@ -18,8 +18,8 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
     SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_maker::error::ContractError;
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
 const OWNER: &str = "owner";
 
@@ -107,9 +107,9 @@ fn instantiate_contracts(
     collect_cooldown: Option<u64>,
 ) -> (Addr, Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let astro_token_code_id = router.store_code(astro_token_contract);
@@ -274,9 +274,9 @@ fn instantiate_contracts(
 
 fn instantiate_token(router: &mut TestApp, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let token_code_id = router.store_code(token_contract);
@@ -531,6 +531,7 @@ fn update_config() {
         max_spread: Some(new_max_spread),
         second_receiver_params: None,
         collect_cooldown: None,
+        astro_token: None,
     };
 
     // Assert cannot update with improper owner
@@ -573,6 +574,7 @@ fn update_config() {
             second_receiver_cut: Default::default(),
         }),
         collect_cooldown: None,
+        astro_token: None,
     };
 
     let err = router
@@ -592,6 +594,7 @@ fn update_config() {
             second_receiver_cut: Uint64::new(10),
         }),
         collect_cooldown: None,
+        astro_token: None,
     };
 
     router
@@ -621,6 +624,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.start() - 1),
+        astro_token: None,
     };
 
     let err = router
@@ -643,6 +647,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.end() + 1),
+        astro_token: None,
     };
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
@@ -664,6 +669,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some((*COOLDOWN_LIMITS.end() - *COOLDOWN_LIMITS.start()) / 2),
+        astro_token: None,
     };
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])

@@ -3,11 +3,15 @@ name = "astroport-native-coin-registry"
 version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Native Coin Registry serves as a simple on-chain registry for native coin precisions which must be governed by trustfull parties like DAO."
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -31,4 +35,4 @@ thiserror = { version = "1.0" }
 astroport = { path = "../../../packages/astroport", version = "3" }
 
 [dev-dependencies]
-cw-multi-test = "0.15"
+cw-multi-test = "1.0.0"

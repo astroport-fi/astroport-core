@@ -24,8 +24,9 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{
-    ConfigResponse, FeeShareConfig, InstantiateMsg, StablePoolParams, StablePoolUpdateParams,
-    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS, MIN_TRADE_SIZE,
+    ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
+    StablePoolUpdateParams, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
+    MIN_TRADE_SIZE,
 };
 
 use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
@@ -46,9 +47,9 @@ use crate::state::{
     get_precision, store_precisions, Config, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_swap_sizes, adjust_precision, check_asset_infos, check_assets, check_cw20_in_pool,
-    compute_current_amp, compute_swap, determine_base_quote_amount, get_share_in_assets,
-    mint_liquidity_token_message, select_pools, SwapResult,
+    accumulate_prices, accumulate_swap_sizes, adjust_precision, check_asset_infos, check_assets,
+    check_cw20_in_pool, compute_current_amp, compute_swap, determine_base_quote_amount,
+    get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.
@@ -91,6 +92,16 @@ pub fn instantiate(
     let factory_addr = deps.api.addr_validate(&msg.factory_addr)?;
     let greatest_precision = store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
+    // Initializing cumulative prices
+    let mut cumulative_prices = vec![];
+    for from_pool in &msg.asset_infos {
+        for to_pool in &msg.asset_infos {
+            if !from_pool.eq(to_pool) {
+                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
+            }
+        }
+    }
+
     let config = Config {
         owner: addr_opt_validate(deps.api, &params.owner)?,
         pair_info: PairInfo {
@@ -106,6 +117,7 @@ pub fn instantiate(
         next_amp: params.amp * AMP_PRECISION,
         next_amp_time: env.block.time.seconds(),
         greatest_precision,
+        cumulative_prices,
         fee_share: None,
     };
 
@@ -338,7 +350,7 @@ pub fn provide_liquidity(
     check_assets(deps.api, &assets)?;
 
     let auto_stake = auto_stake.unwrap_or(false);
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     info.funds
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
@@ -514,6 +526,21 @@ pub fn provide_liquidity(
         auto_stake,
     )?);
 
+    let pools = pools
+        .into_iter()
+        .map(|(info, amount)| {
+            let precision = get_precision(deps.storage, &info)?;
+            Ok(DecimalAsset {
+                info,
+                amount: Decimal256::with_precision(amount, precision)?,
+            })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    if accumulate_prices(deps.storage, &env, &mut config, &pools)? {
+        CONFIG.save(deps.storage, &config)?;
+    }
+
     events.insert(
         events.len(),
         Event::new("astroport-pool.v1.Mint").add_attributes([
@@ -545,7 +572,7 @@ pub fn withdraw_liquidity(
     assets: Vec<Asset>,
     min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     let Coin { amount, denom } = one_coin(&info)?;
 
@@ -572,10 +599,22 @@ pub fn withdraw_liquidity(
         .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.push(tf_burn_msg(
-        env.contract.address,
+        env.contract.address.to_string(),
         coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
         info.sender.to_string(),
     ));
+
+    let pools = pools
+        .iter()
+        .map(|pool| {
+            let precision = get_precision(deps.storage, &pool.info)?;
+            pool.to_decimal_asset(precision)
+        })
+        .collect::<StdResult<Vec<DecimalAsset>>>()?;
+
+    if accumulate_prices(deps.storage, &env, &mut config, &pools)? {
+        CONFIG.save(deps.storage, &config)?;
+    }
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
@@ -609,7 +648,7 @@ pub fn swap(
     max_spread: Option<Decimal>,
     to: Option<Addr>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
     // If the asset balance already increased
     // We should subtract the user deposit from the pool offer asset amount
@@ -697,7 +736,7 @@ pub fn swap(
     // and the remainder is then split between LPs and maker
     let mut fees_commission_amount = commission_amount;
     let mut fee_share_amount = Uint128::zero();
-    if let Some(fee_share) = config.fee_share {
+    if let Some(ref fee_share) = config.fee_share {
         // Calculate the fee share amount from the full commission amount
         let share_fee_rate = Decimal::from_ratio(fee_share.bps, 10000u16);
         fee_share_amount = fees_commission_amount * share_fee_rate;
@@ -711,7 +750,7 @@ pub fn swap(
                 info: ask_pool.info.clone(),
                 amount: fee_share_amount,
             }
-            .into_msg(fee_share.recipient)?;
+            .into_msg(&fee_share.recipient)?;
             messages.push(fee_share_msg);
         }
     }
@@ -727,6 +766,10 @@ pub fn swap(
             maker_fee_amount = f.amount;
             messages.push(f.into_msg(fee_address)?);
         }
+    }
+
+    if accumulate_prices(deps.storage, &env, &mut config, &pools)? {
+        CONFIG.save(deps.storage, &config)?;
     }
 
     // Store observation from precommit data
@@ -831,9 +874,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             ask_asset,
             offer_asset_info,
         )?),
-        QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
-            stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
-        )),
+        QueryMsg::CumulativePrices {} => to_json_binary(&query_cumulative_prices(deps, env)?),
         QueryMsg::Observe { seconds_ago } => {
             to_json_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
         }
@@ -1025,6 +1066,29 @@ pub fn query_reverse_simulation(
         commission_amount: fee_info
             .total_fee_rate
             .checked_mul_uint128(before_commission.to_uint128_with_precision(ask_precision)?)?,
+    })
+}
+
+/// Returns information about cumulative prices for the assets in the pool using a [`CumulativePricesResponse`] object.
+pub fn query_cumulative_prices(deps: Deps, env: Env) -> StdResult<CumulativePricesResponse> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let (assets, total_share) = pool_info(deps.querier, &config)?;
+    let decimal_assets = assets
+        .iter()
+        .cloned()
+        .map(|asset| {
+            let precision = get_precision(deps.storage, &asset.info)?;
+            asset.to_decimal_asset(precision)
+        })
+        .collect::<StdResult<Vec<DecimalAsset>>>()?;
+
+    accumulate_prices(deps.storage, &env, &mut config, &decimal_assets)
+        .map_err(|err| StdError::generic_err(format!("{err}")))?;
+
+    Ok(CumulativePricesResponse {
+        assets,
+        total_share,
+        cumulative_prices: config.cumulative_prices,
     })
 }
 

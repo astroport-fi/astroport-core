@@ -3,8 +3,8 @@ use std::cmp::Ordering;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::token_factory::tf_mint_msg;
 use cosmwasm_std::{
-    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Env, QuerierWrapper,
-    StdResult, Storage, Uint128, Uint64,
+    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
+    QuerierWrapper, StdResult, Storage, Uint128, Uint64,
 };
 
 use itertools::Itertools;
@@ -13,6 +13,7 @@ use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::observation::{
     safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
 };
+use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_factory_config;
 use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
@@ -278,6 +279,54 @@ pub(crate) fn compute_swap(
         return_amount,
         spread_amount,
     })
+}
+
+/// Accumulate token prices for the assets in the pool.
+///
+/// * **pools** array with assets available in the pool.
+pub fn accumulate_prices(
+    storage: &dyn Storage,
+    env: &Env,
+    config: &mut Config,
+    pools: &[DecimalAsset],
+) -> Result<bool, ContractError> {
+    let block_time = env.block.time.seconds();
+    if block_time <= config.block_time_last {
+        return Ok(false);
+    }
+
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    if pools.iter().all(|pool| !pool.amount.is_zero()) {
+        let immut_config = config.clone();
+        for (from, to, value) in config.cumulative_prices.iter_mut() {
+            let offer_asset = DecimalAsset {
+                info: from.clone(),
+                amount: Decimal256::one(),
+            };
+
+            let (offer_pool, ask_pool) = select_pools(Some(from), Some(to), pools)?;
+            let SwapResult { return_amount, .. } = compute_swap(
+                storage,
+                env,
+                &immut_config,
+                &offer_asset,
+                &offer_pool,
+                &ask_pool,
+                pools,
+            )?;
+
+            *value = value.wrapping_add(time_elapsed.checked_mul(adjust_precision(
+                return_amount,
+                get_precision(storage, &ask_pool.info)?,
+                TWAP_PRECISION,
+            )?)?);
+        }
+    }
+
+    config.block_time_last = block_time;
+
+    Ok(true)
 }
 
 /// Calculate and save price moving average

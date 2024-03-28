@@ -1,0 +1,20 @@
+[package]
+name = "astro-token-converter"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+library = []
+
+[dependencies]
+astroport = { path = "../../../packages/astroport", version = "3" }
+cosmwasm-std = { version = "1.5", features = ["stargate"]}
+cosmwasm-schema = "1.5"
+cw-storage-plus = "1.2"
+cw2 = "1"
+cw20 = "0.15"
+cw-utils = "1"
+thiserror = "1"

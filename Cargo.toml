@@ -6,25 +6,19 @@ members = [
     "contracts/pair",
     "contracts/pair_stable",
     "contracts/pair_concentrated",
+    "contracts/pair_astro_converter",
     "contracts/pair_transmuter",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
-    "contracts/pair_astro_xastro",
+    #  "contracts/pair_astro_xastro", # unused
     "contracts/pair_xyk_sale_tax",
     "contracts/router",
     "contracts/token",
     "contracts/whitelist",
-    #  "contracts/cw20_ics20", # contract is being deprecated
     "templates/*",
-    "contracts/tokenomics/incentives",
-    "contracts/tokenomics/maker",
-    "contracts/tokenomics/staking",
-    "contracts/tokenomics/vesting",
-    "contracts/tokenomics/xastro_outpost_token",
-    "contracts/tokenomics/xastro_token",
+    "contracts/tokenomics/*",
     "contracts/periphery/fee_granter",
     "contracts/periphery/native_coin_registry",
-    "contracts/periphery/native-coin-wrapper",
-    "contracts/periphery/oracle",
+    "contracts/periphery/oracle"
 ]
 
 [profile.release]

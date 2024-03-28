@@ -1,0 +1,23 @@
+[package]
+name = "astroport-tokenfactory-tracker"
+version = "1.0.0"
+edition = "2021"
+
+[features]
+library = []
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+cw2 = "1.1"
+cosmwasm-std = "1.5"
+cw-storage-plus = "1.2"
+cosmwasm-schema = "1.5"
+thiserror = "1.0"
+astroport = { path = "../../../packages/astroport", version = "3" }
+
+[dev-dependencies]
+osmosis-std = "0.21"
+osmosis-test-tube = "21.0.0"
+test-tube = "0.3.0"

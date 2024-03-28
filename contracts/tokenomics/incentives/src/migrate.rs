@@ -2,20 +2,18 @@
 
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
-
-use astroport::generator::MigrateMsg;
+use cosmwasm_std::{DepsMut, Empty, Env, Response};
 
 use crate::error::ContractError;
 use crate::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = cw2::get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-incentives" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.0" | "1.0.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

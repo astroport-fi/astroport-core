@@ -1,12 +1,14 @@
-use astroport::factory::QueryMsg::{Config, FeeInfo};
-use astroport::factory::{Config as FactoryConfig, ConfigResponse, FeeInfoResponse};
+use std::collections::HashMap;
+
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, Coin, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest,
     SystemError, SystemResult, Uint128, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
-use std::collections::HashMap;
+
+use astroport::factory::QueryMsg::{Config, FeeInfo};
+use astroport::factory::{Config as FactoryConfig, ConfigResponse, FeeInfoResponse};
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
 /// This uses the Astroport CustomQuerier.

@@ -1,27 +1,29 @@
 #![cfg(not(tarpaulin_include))]
 
-use astroport::asset::{native_asset_info, token_asset_info};
-use astroport::querier::query_balance;
-use astroport::vesting::{QueryMsg, VestingAccountResponse, VestingAccountsResponse, VestingInfo};
-use astroport::{
-    token::InstantiateMsg as TokenInstantiateMsg,
-    vesting::{
-        Cw20HookMsg, ExecuteMsg, InstantiateMsg, VestingAccount, VestingSchedule,
-        VestingSchedulePoint,
-    },
-};
-use astroport_vesting::error::ContractError;
-use astroport_vesting::state::Config;
 use cosmwasm_std::{coin, coins, to_json_binary, Addr, StdResult, Timestamp, Uint128};
 use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 use cw_multi_test::{App, ContractWrapper, Executor};
 use cw_utils::PaymentError;
+
+use astroport::asset::{native_asset_info, token_asset_info, AssetInfo};
+use astroport::astro_converter;
+use astroport::astro_converter::OutpostBurnParams;
+use astroport::querier::query_balance;
+use astroport::vesting::{
+    Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, VestingAccount, VestingSchedule,
+    VestingSchedulePoint,
+};
+use astroport::vesting::{QueryMsg, VestingAccountResponse, VestingAccountsResponse, VestingInfo};
+use astroport_vesting::error::ContractError;
+use astroport_vesting::state::Config;
 
 const OWNER1: &str = "owner1";
 const USER1: &str = "user1";
 const USER2: &str = "user2";
 const TOKEN_INITIAL_AMOUNT: u128 = 1_000_000_000_000000;
 const IBC_ASTRO: &str = "ibc/ASTRO-TOKEN";
+const NEW_ASTRO_DENOM: &str = "astro";
 
 #[test]
 fn claim() {
@@ -384,6 +386,109 @@ fn claim_native() {
 }
 
 #[test]
+fn claim_after_migration() {
+    let user1 = Addr::unchecked(USER1);
+    let owner = Addr::unchecked(OWNER1);
+
+    let mut app = mock_app(&owner);
+
+    let current_time = app.block_info().time.seconds();
+    let vesting_instance = instantiate_vesting_131(&mut app);
+
+    let msg = ExecuteMsg::RegisterVestingAccounts {
+        vesting_accounts: vec![VestingAccount {
+            address: user1.to_string(),
+            schedules: vec![VestingSchedule {
+                start_point: VestingSchedulePoint {
+                    time: current_time,
+                    amount: Uint128::zero(),
+                },
+                end_point: Some(VestingSchedulePoint {
+                    time: current_time + 100_000,
+                    amount: Uint128::new(100_000),
+                }),
+            }],
+        }],
+    };
+
+    app.execute_contract(
+        owner.clone(),
+        vesting_instance.clone(),
+        &msg,
+        &coins(100_000, IBC_ASTRO),
+    )
+    .unwrap();
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(20_000);
+    });
+
+    let claim_msg = ExecuteMsg::Claim {
+        recipient: None,
+        amount: None,
+    };
+    app.execute_contract(user1.clone(), vesting_instance.clone(), &claim_msg, &[])
+        .unwrap();
+
+    let user_bal = query_balance(&app.wrap(), &user1, IBC_ASTRO).unwrap();
+    assert_eq!(user_bal.u128(), 20_000);
+
+    // Init converter and migrate vesting
+    migrate_vesting(&mut app, &vesting_instance);
+
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(20_000);
+    });
+    app.execute_contract(user1.clone(), vesting_instance.clone(), &claim_msg, &[])
+        .unwrap();
+
+    // Old astro balance stays the same
+    let old_astro_bal = query_balance(&app.wrap(), &user1, IBC_ASTRO).unwrap();
+    assert_eq!(old_astro_bal.u128(), 20_000);
+
+    // Claimed new ASTRO
+    let new_astro_bal = query_balance(&app.wrap(), &user1, NEW_ASTRO_DENOM).unwrap();
+    assert_eq!(new_astro_bal.u128(), 20_000);
+
+    // Vesting converted all the old ASTRO to the new ASTRO
+    let vesting_bal = query_balance(&app.wrap(), &vesting_instance, IBC_ASTRO).unwrap();
+    assert_eq!(vesting_bal.u128(), 0);
+    let vesting_bal = query_balance(&app.wrap(), &vesting_instance, NEW_ASTRO_DENOM).unwrap();
+    assert_eq!(vesting_bal.u128(), 60_000);
+
+    // Old arithmetic in vesting preserved
+    let msg = QueryMsg::VestingAccount {
+        address: user1.to_string(),
+    };
+    let vesting_res: VestingAccountResponse = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(vesting_res.info.released_amount, Uint128::from(40_000u128));
+
+    // Pass full vesting period
+    app.update_block(|b| {
+        b.time = b.time.plus_seconds(1_000_000);
+    });
+
+    let msg = QueryMsg::AvailableAmount {
+        address: user1.to_string(),
+    };
+    let user1_vesting_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &msg)
+        .unwrap();
+    assert_eq!(user1_vesting_amount.clone(), Uint128::new(60_000u128));
+
+    // Assert new asset info in config
+    let config: Config = app
+        .wrap()
+        .query_wasm_smart(vesting_instance.clone(), &QueryMsg::Config {})
+        .unwrap();
+    assert_eq!(config.vesting_token, AssetInfo::native(NEW_ASTRO_DENOM));
+}
+
+#[test]
 fn register_vesting_accounts() {
     let user1 = Addr::unchecked(USER1);
     let user2 = Addr::unchecked(USER2);
@@ -469,7 +574,10 @@ fn register_vesting_accounts() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(res.root_cause().to_string(), "Cannot Sub with 0 and 100");
+    assert_eq!(
+        res.root_cause().to_string(),
+        "Overflow: Cannot Sub with 0 and 100"
+    );
 
     let res = app
         .execute_contract(owner.clone(), noname_token_instance.clone(), &msg, &[])
@@ -1339,9 +1447,9 @@ fn mock_app(owner: &Addr) -> App {
 
 fn store_token_code(app: &mut App) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(astro_token_contract)
@@ -1447,6 +1555,91 @@ fn instantiate_vesting_remote_chain(app: &mut App) -> Addr {
         None,
     )
     .unwrap()
+}
+
+fn instantiate_vesting_131(app: &mut App) -> Addr {
+    let vesting_contract = Box::new(ContractWrapper::new_with_empty(
+        astroport_vesting_131::contract::execute,
+        astroport_vesting_131::contract::instantiate,
+        astroport_vesting_131::contract::query,
+    ));
+    let owner = Addr::unchecked(OWNER1);
+    let vesting_code_id = app.store_code(vesting_contract);
+
+    let init_msg = InstantiateMsg {
+        owner: OWNER1.to_string(),
+        vesting_token: native_asset_info(IBC_ASTRO.to_string()),
+    };
+
+    app.instantiate_contract(
+        vesting_code_id,
+        owner.clone(),
+        &init_msg,
+        &[],
+        "Vesting",
+        Some(OWNER1.to_string()),
+    )
+    .unwrap()
+}
+
+fn migrate_vesting(app: &mut App, vesting: &Addr) {
+    // Setup converter
+    let converter_contract = Box::new(ContractWrapper::new_with_empty(
+        astro_token_converter::contract::execute,
+        astro_token_converter::contract::instantiate,
+        astro_token_converter::contract::query,
+    ));
+    let converter_code_id = app.store_code(converter_contract);
+
+    let msg = astro_converter::InstantiateMsg {
+        old_astro_asset_info: AssetInfo::native(IBC_ASTRO),
+        new_astro_denom: NEW_ASTRO_DENOM.to_string(),
+        outpost_burn_params: Some(OutpostBurnParams {
+            terra_burn_addr: "terra1xxxx".to_string(),
+            old_astro_transfer_channel: "channel-228".to_string(),
+        }),
+    };
+
+    let converter_contract = app
+        .instantiate_contract(
+            converter_code_id,
+            Addr::unchecked(OWNER1),
+            &msg,
+            &[],
+            "Converter",
+            None,
+        )
+        .unwrap();
+
+    app.init_modules(|app, _, storage| {
+        app.bank
+            .init_balance(
+                storage,
+                &converter_contract,
+                vec![coin(u128::MAX, NEW_ASTRO_DENOM)],
+            )
+            .unwrap()
+    });
+
+    let vesting_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_vesting::contract::execute,
+            astroport_vesting::contract::instantiate,
+            astroport_vesting::contract::query,
+        )
+        .with_migrate(astroport_vesting::contract::migrate),
+    );
+    let vesting_code_id = app.store_code(vesting_contract);
+
+    app.migrate_contract(
+        Addr::unchecked(OWNER1),
+        vesting.clone(),
+        &MigrateMsg {
+            converter_contract: converter_contract.to_string(),
+        },
+        vesting_code_id,
+    )
+    .unwrap();
 }
 
 fn mint_tokens(app: &mut App, token: &Addr, recipient: &Addr, amount: u128) {

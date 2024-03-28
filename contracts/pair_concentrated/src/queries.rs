@@ -9,22 +9,21 @@ use astroport::asset::{Asset, AssetInfo};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::observation::query_observation;
 use astroport::pair::{
-    ConfigResponse, PoolResponse, ReverseSimulationResponse, SimulationResponse,
+    ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
+    SimulationResponse,
 };
-
 use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
-
-use crate::contract::LP_TOKEN_PRECISION;
-use crate::error::ContractError;
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::utils::{
-    before_swap_check, compute_offer_amount, compute_swap, get_share_in_assets,
+    accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
+    get_share_in_assets,
 };
 use astroport_pcl_common::{calc_d, get_xcp};
 
+use crate::contract::LP_TOKEN_PRECISION;
+use crate::error::ContractError;
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS};
-
 use crate::utils::{pool_info, query_pools};
 
 /// Exposes all the queries available in the contract.
@@ -66,9 +65,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             &query_reverse_simulation(deps, env, ask_asset)
                 .map_err(|err| StdError::generic_err(format!("{err}")))?,
         ),
-        QueryMsg::CumulativePrices {} => Err(StdError::generic_err(
-            stringify!(Not implemented. Use {"observe": {"seconds_ago": ... }} instead.),
-        )),
+        QueryMsg::CumulativePrices {} => to_json_binary(
+            &query_cumulative_prices(deps, env)
+                .map_err(|err| StdError::generic_err(format!("{err}")))?,
+        ),
         QueryMsg::Observe { seconds_ago } => {
             to_json_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
         }
@@ -217,6 +217,29 @@ pub fn query_reverse_simulation(
     })
 }
 
+/// Returns information about cumulative prices for the assets in the pool.
+fn query_cumulative_prices(
+    deps: Deps,
+    env: Env,
+) -> Result<CumulativePricesResponse, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    let precisions = Precisions::new(deps.storage)?;
+    let pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+
+    let xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let last_real_price = calc_last_prices(&xs, &config, &env)?;
+
+    accumulate_prices(&env, &mut config, last_real_price);
+
+    let (assets, total_share) = pool_info(deps.querier, &config)?;
+
+    Ok(CumulativePricesResponse {
+        assets,
+        total_share,
+        cumulative_prices: config.cumulative_prices,
+    })
+}
+
 /// Compute the current LP token virtual price.
 pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
@@ -254,7 +277,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
     Ok(ConfigResponse {
-        block_time_last: 0, // keeping this field for backwards compatibility
+        block_time_last: config.block_time_last,
         params: Some(to_json_binary(&ConcentratedPoolConfig {
             amp: amp_gamma.amp,
             gamma: amp_gamma.gamma,

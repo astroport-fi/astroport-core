@@ -1,0 +1,28 @@
+{
+  "private_key": "f5cbe80991c82afe42d51e2dc9946332c4322aff69cbc23fc25a4f05a73eb419",
+  "public_key": "0316b8bfc0d651848fdab2dd4befdd86bbf89bf37251ee2f68789586284e53c993",
+  "address": [
+    176,
+    38,
+    16,
+    211,
+    8,
+    248,
+    39,
+    201,
+    118,
+    208,
+    144,
+    133,
+    133,
+    123,
+    87,
+    213,
+    158,
+    241,
+    140,
+    89
+  ],
+  "address_type": "Cosmos",
+  "account": "terra1kqnpp5cglqnujaksjzzc276h6k00rrzecgml0t"
+}

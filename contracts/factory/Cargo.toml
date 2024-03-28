@@ -4,12 +4,14 @@ version = "1.7.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
-license = "MIT"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

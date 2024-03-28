@@ -1,7 +1,6 @@
 pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
-pub mod cw20_ics20;
 pub mod factory;
 pub mod fee_granter;
 pub mod generator;
@@ -26,6 +25,7 @@ pub mod shared_multisig;
 pub mod staking;
 pub mod token;
 pub mod token_factory;
+pub mod tokenfactory_tracker;
 pub mod vesting;
 pub mod xastro_outpost_token;
 pub mod xastro_token;
@@ -33,6 +33,7 @@ pub mod xastro_token;
 #[cfg(test)]
 mod mock_querier;
 
+pub mod astro_converter;
 pub mod incentives;
 pub mod liquidity_manager;
 #[cfg(test)]

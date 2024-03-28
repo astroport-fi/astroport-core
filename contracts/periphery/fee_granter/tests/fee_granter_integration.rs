@@ -248,9 +248,7 @@ fn test_update_admins() {
         )
         .unwrap_err();
     assert!(
-        err.root_cause()
-            .to_string()
-            .contains("Cannot execute Stargate"),
+        err.root_cause().to_string().contains("Unexpected exec msg"),
         "{err}"
     );
 

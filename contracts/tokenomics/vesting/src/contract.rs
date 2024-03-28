@@ -1,21 +1,22 @@
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdError, StdResult, SubMsg, Uint128,
+    attr, coins, ensure, entry_point, from_json, to_json_binary, wasm_execute, Addr, Binary, Deps,
+    DepsMut, Env, MessageInfo, Response, StdError, StdResult, SubMsg, Uint128,
 };
+use cw2::{get_contract_version, set_contract_version};
+use cw20::Cw20ReceiveMsg;
+use cw_utils::must_pay;
 
-use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
-
-use crate::error::ContractError;
 use astroport::asset::{addr_opt_validate, token_asset_info, AssetInfo, AssetInfoExt};
+use astroport::astro_converter;
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::vesting::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, OrderBy, QueryMsg,
     VestingAccount, VestingAccountResponse, VestingAccountsResponse, VestingInfo, VestingSchedule,
     VestingSchedulePoint,
 };
-use cw2::{get_contract_version, set_contract_version};
-use cw20::Cw20ReceiveMsg;
-use cw_utils::must_pay;
+
+use crate::error::ContractError;
+use crate::state::{read_vesting_infos, Config, CONFIG, OWNERSHIP_PROPOSAL, VESTING_INFO};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = "astroport-vesting";
@@ -518,12 +519,58 @@ pub fn query_vesting_available_amount(deps: Deps, env: Env, address: String) -> 
 
 /// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
+
+    let mut resp = Response::default();
 
     match contract_version.contract.as_ref() {
         "astroport-vesting" => match contract_version.version.as_ref() {
-            "1.1.0" | "1.2.0" | "1.3.0" | "1.3.1" => {}
+            // injective-888 1.1.0
+            // pacific-1, injective-1, pisco-1, atlantic-2 1.2.0
+            // phoenix-1 1.3.0
+            // neutron-1, pion-1 1.3.1
+            "1.1.0" | "1.2.0" | "1.3.0" | "1.3.1" => {
+                let mut config = CONFIG.load(deps.storage)?;
+
+                let converter_config: astro_converter::Config = deps.querier.query_wasm_smart(
+                    &msg.converter_contract,
+                    &astro_converter::QueryMsg::Config {},
+                )?;
+
+                ensure!(
+                    converter_config.old_astro_asset_info == config.vesting_token,
+                    StdError::generic_err(format!(
+                        "Old astro asset info mismatch between vesting {} and converter {}",
+                        config.vesting_token, converter_config.old_astro_asset_info
+                    ))
+                );
+
+                let total_amount = config
+                    .vesting_token
+                    .query_pool(&deps.querier, env.contract.address)?;
+
+                let convert_msg = match &config.vesting_token {
+                    AssetInfo::Token { contract_addr } => wasm_execute(
+                        contract_addr,
+                        &cw20::Cw20ExecuteMsg::Send {
+                            contract: msg.converter_contract,
+                            amount: total_amount,
+                            msg: to_json_binary(&astro_converter::Cw20HookMsg { receiver: None })?,
+                        },
+                        vec![],
+                    )?,
+                    AssetInfo::NativeToken { denom } => wasm_execute(
+                        &msg.converter_contract,
+                        &astro_converter::ExecuteMsg::Convert { receiver: None },
+                        coins(total_amount.u128(), denom.to_string()),
+                    )?,
+                };
+                resp.messages.push(SubMsg::new(convert_msg));
+
+                config.vesting_token = AssetInfo::native(&converter_config.new_astro_denom);
+                CONFIG.save(deps.storage, &config)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -531,7 +578,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::default()
+    Ok(resp
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)

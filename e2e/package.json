@@ -1,0 +1,20 @@
+{
+  "name": "e2e-astroport-tests",
+  "version": "1.0.0",
+  "scripts": {
+    "bootstrap": "docker compose -f docker/docker-compose.yml up -d",
+    "init": "ts-node ./src/init.ts",
+    "test": "ts-mocha --timeout 5000 'tests/**/*.test.ts'"
+  },
+  "devDependencies": {
+    "@terra-money/feather.js": "^2.0.0-beta.15",
+    "@types/chai": "^4.3.11",
+    "@types/mocha": "^10.0.6",
+    "chai": "^4.3.10",
+    "crypto": "^1.0.1",
+    "mocha": "^10.2.0",
+    "ts-mocha": "^10.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.2.2"
+  }
+}

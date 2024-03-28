@@ -3,11 +3,15 @@ name = "astroport-maker"
 version = "1.4.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Maker contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -21,21 +25,21 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = "1.1"
-cw2 = "0.15"
-cw20 = "0.15"
+cosmwasm-std = "1.5"
+cw2 = "1"
+cw20 = "1"
 cw-storage-plus = "0.15"
-astroport = { path = "../../../packages/astroport", version = "3.10" }
-thiserror = { version = "1.0" }
-cosmwasm-schema = "1.1"
-astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "0.1" }
+astroport = { path = "../../../packages/astroport", version = "3.12" }
+thiserror = "1"
+cosmwasm-schema = "1.5"
+astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "1" }
 
 [dev-dependencies]
-astroport-token = { path = "../../token" }
+cw20-base = "1"
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 astroport-test = { path = "../../../packages/astroport_test" }
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", branch = "main" }
+astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
+astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }

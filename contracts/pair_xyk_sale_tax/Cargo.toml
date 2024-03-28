@@ -4,12 +4,14 @@ version = "1.6.0"
 authors = ["Astroport", "Sturdy"]
 edition = "2021"
 description = "The Astroport constant product pool contract implementation"
-license = "MIT"
+license = "Apache-2.0"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -43,5 +45,5 @@ astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
 astroport-test = { path = "../../packages/astroport_test/" }
-astroport-pair-1_3_1 = { package = "astroport-pair", version = "1.3.1", features = ["library"] }
+astroport-pair-1_3_3 = { package = "astroport-pair", version = "=1.3.3" }
 test-case = "3.3.1"

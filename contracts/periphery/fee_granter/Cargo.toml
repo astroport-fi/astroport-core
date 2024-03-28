@@ -2,6 +2,10 @@
 name = "astroport-fee-granter"
 version = "0.1.0"
 edition = "2021"
+description = "Astroport contract responsable for setting up fee grants"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -20,4 +24,4 @@ thiserror = "1"
 cw2 = "1.0.1"
 
 [dev-dependencies]
-cw-multi-test = { version="0.16.4", features=["stargate"] }
+cw-multi-test = "1.0.0"
