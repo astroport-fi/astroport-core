@@ -129,23 +129,6 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "3.13.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#f8720e20192d47d6e7a4c3058d368954d9c9df2d"
-dependencies = [
- "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-asset",
- "cw-storage-plus 0.15.1",
- "cw-utils 1.0.3",
- "cw20 0.15.1",
- "cw3",
- "itertools 0.10.5",
- "uint 0.9.5",
-]
-
-[[package]]
-name = "astroport"
 version = "4.0.0"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
@@ -159,6 +142,22 @@ dependencies = [
  "itertools 0.12.1",
  "test-case",
  "thiserror",
+ "uint 0.9.5",
+]
+
+[[package]]
+name = "astroport"
+version = "4.0.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/v4_refactoring#8ff4c0f03c2968de4387f07d2c145ef4f28d7a19"
+dependencies = [
+ "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/v4_refactoring)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-asset",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw20 1.1.2",
+ "itertools 0.12.1",
  "uint 0.9.5",
 ]
 
@@ -187,11 +186,11 @@ dependencies = [
 [[package]]
 name = "astroport-circular-buffer"
 version = "0.2.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_core#f8720e20192d47d6e7a4c3058d368954d9c9df2d"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/v4_refactoring#8ff4c0f03c2968de4387f07d2c145ef4f28d7a19"
 dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
+ "cw-storage-plus 1.2.0",
  "thiserror",
 ]
 
@@ -261,9 +260,9 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "2.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance#1a39c2d985138f9c293b82a9ba8a6088a9d21ff0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/bump_astroport_v4#1acf430ea19ccf88701f50b58e218c98d2f8e454"
 dependencies = [
- "astroport 3.13.0",
+ "astroport 4.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core?branch=feat/v4_refactoring)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
