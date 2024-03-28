@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated"
-version = "2.3.0"
+version = "3.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
@@ -29,7 +29,7 @@ library = []
 astroport = { path = "../../packages/astroport", version = "3" }
 astroport-factory = { path = "../factory", features = ["library"], version = "1" }
 astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
-astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "1" }
+astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 cw2 = "0.15"
 cw20 = "0.15"
 cosmwasm-std = "1.1"

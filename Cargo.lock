@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-liquidity-manager"
-version = "1.0.4"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",
@@ -290,7 +290,7 @@ dependencies = [
  "astroport-generator",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
- "astroport-pair-concentrated 2.3.0",
+ "astroport-pair-concentrated 3.0.0",
  "astroport-pair-stable",
  "astroport-shared-multisig",
  "astroport-staking",
@@ -476,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "2.3.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",
@@ -501,7 +501,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "3.4.1"
+version = "3.5.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",
@@ -571,7 +571,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pcl-common"
-version = "1.1.1"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "astroport 3.12.2",
@@ -611,7 +611,7 @@ dependencies = [
  "astroport-generator",
  "astroport-mocks",
  "astroport-pair 1.5.1",
- "astroport-pair-concentrated 2.3.0",
+ "astroport-pair-concentrated 3.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",

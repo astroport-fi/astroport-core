@@ -1,11 +1,12 @@
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{Addr, DepsMut, StdResult, Storage, Uint128};
+use cw_storage_plus::{Item, Map};
+
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::observation::Observation;
 use astroport::pair::FeeShareConfig;
 use astroport_circular_buffer::CircularBuffer;
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, DepsMut, StdResult, Storage};
-use cw_storage_plus::{Item, Map};
 
 /// This structure stores the main stableswap pair parameters.
 #[cw_serde]
@@ -28,6 +29,8 @@ pub struct Config {
     pub next_amp_time: u64,
     /// The greatest precision of assets in the pool
     pub greatest_precision: u8,
+    /// The vector contains cumulative prices for each pair of assets in the pool
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     // The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
 }
