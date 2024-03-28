@@ -1,6 +1,6 @@
 # Astroport Core
 
-[![codecov](https://codecov.io/gh/astroport-fi/astroport-core/branch/main/graph/badge.svg?token=ROOLZTGZMM)](https://codecov.io/gh/astroport-fi/astroport-core)
+[![codecov](https://codecov.io/gh/astroport-fi/hidden_astroport_core/branch/main/graph/badge.svg?token=D8539UWBST)](https://codecov.io/gh/astroport-fi/hidden_astroport_core)
 
 Multi pool type automated market-maker (AMM) protocol powered by smart contracts on the [Terra](https://terra.money) blockchain.
 
