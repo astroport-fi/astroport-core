@@ -34,14 +34,14 @@ use astroport_pcl_common::state::{
     AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
 };
 use astroport_pcl_common::utils::{
-    assert_max_spread, assert_slippage_tolerance, before_swap_check, calc_provide_fee,
-    check_asset_infos, check_assets, check_cw20_in_pool, check_pair_registered, compute_swap,
-    get_share_in_assets, mint_liquidity_token_message,
+    accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
+    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
+    check_pair_registered, compute_swap, get_share_in_assets, mint_liquidity_token_message,
 };
 use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::migration::migrate_config;
+use crate::migration::{migrate_config, migrate_config_v2};
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
 use crate::utils::{accumulate_swap_sizes, query_pools};
 
@@ -83,6 +83,20 @@ pub fn instantiate(
 
     Precisions::store_precisions(deps.branch(), &msg.asset_infos, &factory_addr)?;
 
+    // Initializing cumulative prices
+    let cumulative_prices = vec![
+        (
+            msg.asset_infos[0].clone(),
+            msg.asset_infos[1].clone(),
+            Uint128::zero(),
+        ),
+        (
+            msg.asset_infos[1].clone(),
+            msg.asset_infos[0].clone(),
+            Uint128::zero(),
+        ),
+    ];
+
     let mut pool_params = PoolParams::default();
     pool_params.update_params(UpdatePoolParams {
         mid_fee: Some(params.mid_fee),
@@ -116,6 +130,8 @@ pub fn instantiate(
             pair_type: PairType::Custom("concentrated".to_string()),
         },
         factory_addr,
+        block_time_last: env.block.time.seconds(),
+        cumulative_prices,
         pool_params,
         pool_state,
         owner: None,
@@ -473,6 +489,7 @@ pub fn provide_liquidity(
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
     let new_d = calc_d(&new_xp, &amp_gamma)?;
+    let old_real_price = config.pool_state.price_state.last_price;
 
     let share = if total_share.is_zero() {
         let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
@@ -569,6 +586,8 @@ pub fn provide_liquidity(
             )?;
         }
     }
+
+    accumulate_prices(&env, &mut config, old_real_price);
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -727,6 +746,7 @@ fn swap(
     before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
+    let old_real_price = calc_last_prices(&xs, &config, &env)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -810,6 +830,8 @@ fn swap(
             messages.push(fee.into_msg(fee_address)?);
         }
     }
+
+    accumulate_prices(&env, &mut config, old_real_price);
 
     // Store observation from precommit data
     accumulate_swap_sizes(deps.storage, &env)?;
@@ -953,7 +975,7 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -961,6 +983,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
             "1.2.13" | "1.2.14" => {
                 migrate_config(deps.storage)?;
                 BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
+            }
+            "2.3.0" => {
+                migrate_config_v2(deps.storage, &env)?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

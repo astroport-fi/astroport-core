@@ -1,7 +1,11 @@
 [package]
 name = "astroport-pcl-common"
-version = "1.1.0"
+version = "2.0.0"
 edition = "2021"
+description = "Common package contains math tools and utils for Astroport PCL pairs"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -12,7 +16,7 @@ cw-storage-plus = "1"
 cw20 = "1"
 thiserror = "1"
 astroport = { path = "../astroport", version = "3.7" }
-astroport-factory = { path = "../../contracts/factory", version = "1.6", features = ["library"] }
+astroport-factory = { path = "../../contracts/factory", version = "1.5", features = ["library"] }
 itertools = "0.11"
 
 [dev-dependencies]

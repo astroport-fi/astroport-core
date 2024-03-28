@@ -64,6 +64,16 @@ pub fn migrate_config_to_v210(mut deps: DepsMut) -> StdResult<Config> {
         &cfg_v100.factory_addr,
     )?;
 
+    // Initializing cumulative prices
+    let mut cumulative_prices = vec![];
+    for from_pool in &cfg_v100.pair_info.asset_infos {
+        for to_pool in &cfg_v100.pair_info.asset_infos {
+            if !from_pool.eq(to_pool) {
+                cumulative_prices.push((from_pool.clone(), to_pool.clone(), Uint128::zero()))
+            }
+        }
+    }
+
     let cfg = Config {
         owner: None,
         pair_info: cfg_v100.pair_info,
@@ -74,6 +84,7 @@ pub fn migrate_config_to_v210(mut deps: DepsMut) -> StdResult<Config> {
         next_amp: cfg_v100.next_amp,
         next_amp_time: cfg_v100.next_amp_time,
         greatest_precision,
+        cumulative_prices,
         fee_share: None,
     };
 
@@ -124,6 +135,7 @@ pub fn migrate_config_from_v21(deps: DepsMut) -> StdResult<()> {
         next_amp: cfg_v212.next_amp,
         next_amp_time: cfg_v212.next_amp_time,
         greatest_precision: cfg_v212.greatest_precision,
+        cumulative_prices: cfg_v212.cumulative_prices,
         fee_share: None,
     };
 

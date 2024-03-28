@@ -3,7 +3,10 @@ name = "astroport-staking"
 version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
-license = "GPL-3"
+description = "Astroport Staking Contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -33,7 +36,5 @@ osmosis-std = "0.21"
 anyhow = "1"
 itertools = "0.12"
 cosmwasm-schema = "1.5"
-#cw-multi-test = { version = "0.20", features = ["cosmwasm_1_1"] }
-#cw-multi-test = { path = "../../../../cw-multi-test", features = ["cosmwasm_1_1"] }
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
 astroport-tokenfactory-tracker = { path = "../../periphery/tokenfactory_tracker" }
