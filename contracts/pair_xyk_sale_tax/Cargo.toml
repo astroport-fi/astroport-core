@@ -42,5 +42,5 @@ astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
 astroport-mocks = { path = "../../packages/astroport_mocks/" }
-astroport-pair-1_3_1 = { package = "astroport-pair", version = "1.3.1", features = ["library"] }
+astroport-pair-1_3_3 = { package = "astroport-pair", version = "1.3.3", features = ["library"] }
 test-case = "3.3.1"

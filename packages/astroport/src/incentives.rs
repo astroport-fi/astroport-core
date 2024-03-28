@@ -158,6 +158,8 @@ pub enum ExecuteMsg {
     /// Update config.
     /// Only the owner can execute it.
     UpdateConfig {
+        /// The new ASTRO token info
+        astro_token: Option<AssetInfo>,
         /// The new vesting contract address
         vesting_contract: Option<String>,
         /// The new generator controller contract address
@@ -328,7 +330,7 @@ impl RewardType {
 
     pub fn matches(&self, other: &Self) -> bool {
         match (&self, other) {
-            (RewardType::Int(info1), RewardType::Int(info2)) => info1 == info2,
+            (RewardType::Int(..), RewardType::Int(..)) => true,
             (RewardType::Ext { info: info1, .. }, RewardType::Ext { info: info2, .. }) => {
                 info1 == info2
             }

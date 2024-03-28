@@ -15,7 +15,7 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory;
 use astroport::factory::PairType;
-use astroport::incentives::{Cw20Msg, ExecuteMsg, IncentivizationFeeInfo};
+use astroport::incentives::{Cw20Msg, ExecuteMsg, IncentivizationFeeInfo, RewardType};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -114,6 +114,7 @@ pub fn execute(
             claim_orphaned_rewards(deps, info, limit, receiver)
         }
         ExecuteMsg::UpdateConfig {
+            astro_token,
             vesting_contract,
             generator_controller,
             guardian,
@@ -121,6 +122,7 @@ pub fn execute(
         } => update_config(
             deps,
             info,
+            astro_token,
             vesting_contract,
             generator_controller,
             guardian,
@@ -371,6 +373,7 @@ fn set_tokens_per_second(
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
+    astro_token: Option<AssetInfo>,
     vesting_contract: Option<String>,
     generator_controller: Option<String>,
     guardian: Option<String>,
@@ -384,6 +387,28 @@ fn update_config(
     }
 
     let mut attrs = vec![attr("action", "update_config")];
+
+    if let Some(astro_token) = astro_token {
+        astro_token.check(deps.api)?;
+        attrs.push(attr("new_astro_token", astro_token.to_string()));
+        config.astro_token = astro_token;
+
+        // Loop through all active pools and update astro asset info
+        for (lp_token, _) in ACTIVE_POOLS.load(deps.storage)? {
+            let mut pool_info = PoolInfo::load(deps.storage, &lp_token)?;
+            let protocol_reward = pool_info
+                .rewards
+                .iter_mut()
+                .find(|r| !r.reward.is_external())
+                .ok_or_else(|| {
+                    StdError::generic_err(format!(
+                        "Protocol ASTRO reward not found in active pool {lp_token}",
+                    ))
+                })?;
+            protocol_reward.reward = RewardType::Int(config.astro_token.clone());
+            pool_info.save(deps.storage, &lp_token)?;
+        }
+    }
 
     if let Some(vesting_contract) = vesting_contract {
         config.vesting_contract = deps.api.addr_validate(&vesting_contract)?;

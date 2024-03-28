@@ -15,7 +15,8 @@ target/
 # Auto-gen
 .cargo-ok
 /scripts/.env
-/scripts/node_modules/
+*/node_modules/*
 #/scripts/package-lock.json
 /artifacts/
 /contracts/**/schema/
+/e2e/config.json

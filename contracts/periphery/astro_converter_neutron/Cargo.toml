@@ -1,0 +1,18 @@
+[package]
+name = "astro-token-converter-neutron"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+library = []
+
+[dependencies]
+neutron-sdk = "0.8.0"
+astroport = { path = "../../../packages/astroport", version = "3" }
+astro-token-converter = { path = "../astro_converter", version = "1.0", features = ["library"] }
+cosmwasm-std = "1.5"
+cw2 = "1.1"
+cw-utils = "1"

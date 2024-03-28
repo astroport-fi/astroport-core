@@ -6,6 +6,7 @@ members = [
     "contracts/pair",
     "contracts/pair_stable",
     "contracts/pair_concentrated",
+    "contracts/pair_astro_converter",
     "contracts/pair_transmuter",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
     #  "contracts/pair_astro_xastro", # unused

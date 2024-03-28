@@ -93,6 +93,8 @@ pub enum ExecuteMsg {
         second_receiver_params: Option<SecondReceiverParams>,
         /// Defines the period when maker collect can be called
         collect_cooldown: Option<u64>,
+        /// The ASTRO token asset info
+        astro_token: Option<AssetInfo>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {

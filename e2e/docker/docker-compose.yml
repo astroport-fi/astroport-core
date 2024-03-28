@@ -1,0 +1,38 @@
+version: "3"
+
+services:
+  terra:
+    container_name: terra
+    build: terra
+    entrypoint: [ "terrad", "start" ]
+    restart: on-failure
+    ports:
+      - "26657:26657"
+      - "9090:9090"
+      - "1317:1317"
+    networks:
+      - shared
+  neutron:
+    container_name: neutron
+    build: neutron
+    entrypoint: [ "neutrond", "start" ]
+    restart: on-failure
+    ports:
+      - "36657:26657"
+      - "39090:9090"
+      - "31317:1317"
+    networks:
+      - shared
+  hermes:
+    depends_on:
+      - neutron
+      - terra
+    entrypoint: "/root/.hermes/entrypoint.sh"
+    restart: on-failure
+    container_name: hermes
+    build: hermes
+    networks:
+      - shared
+
+networks:
+  shared:
