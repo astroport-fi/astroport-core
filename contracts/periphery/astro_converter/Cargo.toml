@@ -11,7 +11,7 @@ library = []
 
 [dependencies]
 astroport = { path = "../../../packages/astroport", version = "4" }
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["stargate"] }
 cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true
 cw2.workspace = true
