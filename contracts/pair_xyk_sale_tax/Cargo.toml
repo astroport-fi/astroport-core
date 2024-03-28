@@ -36,8 +36,6 @@ thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 astroport-pair = { path = "../pair", features = ["library"], version = "1.5" }
-# TODO: remove it
-protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cw20-base = "1.1"

@@ -34,8 +34,6 @@ thiserror.workspace = true
 itertools.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-# TODO: remove it
-protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
 cw-multi-test = "1.0.0"

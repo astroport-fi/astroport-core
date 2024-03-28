@@ -9,9 +9,9 @@ repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
-  "contract.wasm",
-  "hash.txt",
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -35,11 +35,9 @@ cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-# TODO: remove it
-protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
-cw20-base = { version="1.1", features = ["library"] }
+cw20-base = { version = "1.1", features = ["library"] }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
