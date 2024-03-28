@@ -3,6 +3,10 @@ name = "astroport-maker"
 version = "1.4.0"
 authors = ["Astroport"]
 edition = "2021"
+description = "Astroport Maker contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -34,7 +38,7 @@ astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc
 cw20-base = "1"
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
-cw-multi-test = "0.20"
+cw-multi-test = "1.0.0"
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }
 astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "1" }

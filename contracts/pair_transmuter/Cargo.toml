@@ -3,8 +3,10 @@ name = "astroport-pair-transmuter"
 version = "1.1.1"
 authors = ["Astroport"]
 edition = "2021"
-description = "The Astroport constant sum pair contract implementation"
-license = "GPL-3"
+description = "The Astroport constant sum pair contract implementation. Handles no fee pools with constant 1:1 ratio."
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -27,6 +29,6 @@ itertools = "0.12.0"
 anyhow = "1"
 derivative = "2"
 astroport-token = { path = "../token" }
-cw-multi-test = "0.20.0"
+cw-multi-test = "1.0.0"
 astroport-factory = { path = "../factory" }
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1" }

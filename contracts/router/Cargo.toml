@@ -1,10 +1,12 @@
 [package]
 name = "astroport-router"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport router contract - provides multi-hop swap functionality for Astroport pools"
-license = "Apache-2.0"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -37,4 +39,4 @@ astroport-factory = { path = "../factory" }
 astroport-token = { path = "../token" }
 astroport-pair = { path = "../pair" }
 anyhow = "1.0"
-cw-multi-test = "0.15"
+cw-multi-test = "1.0.0"

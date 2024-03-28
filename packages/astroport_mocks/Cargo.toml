@@ -25,7 +25,7 @@ astroport-vesting = { path = "../../contracts/tokenomics/vesting" }
 astroport-xastro-token = { path = "../../contracts/tokenomics/xastro_token" }
 cosmwasm-schema = "1.2.5"
 cosmwasm-std = "1.2.5"
-cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test.git", rev = "269a2c829d1ad25d67caa4600f72d2a21fb8fdeb" }
+cw-multi-test = "1.0.0"
 injective-cosmwasm = "0.2"
 schemars = "0.8.1"
 serde = "1.0"

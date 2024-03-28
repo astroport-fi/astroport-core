@@ -5,12 +5,14 @@ use cosmwasm_std::{
 use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::querier::query_factory_config;
 use astroport_factory::state::pair_key;
 
-use crate::consts::{DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWO};
+use crate::consts::{
+    DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC, TWO,
+};
 use crate::error::PclError;
 use crate::state::{Config, PoolParams, PriceState};
 use crate::{calc_d, calc_y};
@@ -238,6 +240,36 @@ pub fn calc_last_prices(xs: &[Decimal256], config: &Config, env: &Env) -> StdRes
     .calc_last_price(offer_amount, 0);
 
     Ok(last_price)
+}
+
+/// Accumulate token prices for the assets in the pool.
+pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decimal256) {
+    let block_time = env.block.time.seconds();
+    if block_time <= config.block_time_last {
+        return;
+    }
+
+    let time_elapsed = Uint128::from(block_time - config.block_time_last);
+
+    for (from, _, value) in config.cumulative_prices.iter_mut() {
+        let price = if &config.pair_info.asset_infos[0] == from {
+            last_real_price.inv().unwrap()
+        } else {
+            last_real_price
+        };
+        // Price max value = 1e18 bc smallest value in Decimal is 1e-18.
+        // Thus highest inverted price is 1/1e-18.
+        // (price * twap) max value = 1e24 which fits into Uint128 thus we use unwrap here
+        let price: Uint128 = (price * TWAP_PRECISION_DEC)
+            .to_uint128_with_precision(0u8)
+            .unwrap();
+        // time_elapsed * price does not need checked_mul.
+        // price max value = 1e24, u128 max value = 340282366920938463463374607431768211455
+        // overflow is possible if time_elapsed > 340282366920939 seconds ~ 10790283 years
+        *value = value.wrapping_add(time_elapsed * price);
+    }
+
+    config.block_time_last = block_time;
 }
 
 /// Calculate swap result.
