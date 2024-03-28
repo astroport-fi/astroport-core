@@ -23,6 +23,11 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GOV_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v2
       - uses: actions/cache@v3
@@ -35,6 +40,8 @@ jobs:
             ~/.cargo/registry/index
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+      - run: |
+          git config url."ssh://git@github.com/astroport-fi/hidden_astroport_governance.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_governance"
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1

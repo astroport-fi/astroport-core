@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
   test_and_check:
@@ -20,8 +21,12 @@ jobs:
         with:
           access_token: ${{ github.token }}
 
-      - name: Checkout sources
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
+      - uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.GOV_PRIVATE_KEY }}
+
       - uses: actions/cache@v3
         if: always()
         with:
@@ -35,6 +40,9 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - run: |
+          git config url."ssh://git@github.com/astroport-fi/hidden_astroport_governance.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_governance"
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
