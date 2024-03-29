@@ -26,13 +26,12 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cosmwasm-schema = "1.1"
-cosmwasm-std = "1.1"
-cosmwasm-storage = "1.1"
+cosmwasm-schema.workspace = true
+cosmwasm-std.workspace = true
 cw-storage-plus = "0.15"
-cw2 = "0.15"
-thiserror = { version = "1.0" }
-astroport = { path = "../../../packages/astroport", version = "3" }
+cw2.workspace = true
+thiserror.workspace = true
+astroport = "3"
 
 [dev-dependencies]
 cw-multi-test = "1.0.0"

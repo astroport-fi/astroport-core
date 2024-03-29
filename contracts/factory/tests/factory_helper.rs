@@ -19,9 +19,9 @@ pub struct FactoryHelper {
 impl FactoryHelper {
     pub fn init(router: &mut TestApp, owner: &Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-            astroport_token::contract::execute,
-            astroport_token::contract::instantiate,
-            astroport_token::contract::query,
+            cw20_base::contract::execute,
+            cw20_base::contract::instantiate,
+            cw20_base::contract::query,
         ));
 
         let cw20_token_code_id = router.store_code(astro_token_contract);

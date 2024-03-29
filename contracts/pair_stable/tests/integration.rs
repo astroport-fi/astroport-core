@@ -5,6 +5,7 @@ use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
 };
+use astroport::observation::OracleObservation;
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
     PoolResponse, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams,
@@ -16,7 +17,6 @@ use astroport_pair_stable::error::ContractError;
 
 use std::str::FromStr;
 
-use astroport::observation::OracleObservation;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
@@ -41,9 +41,9 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
 
 fn store_token_code(app: &mut TestApp) -> u64 {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     app.store_code(astro_token_contract)

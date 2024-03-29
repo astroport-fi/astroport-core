@@ -24,17 +24,17 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "1.5", features = ["cosmwasm_1_1"] }
-cw-storage-plus = "1.2"
-thiserror = "1"
-cw2 = "1.1"
-astroport = { path = "../../../packages/astroport", version = "3" }
-cw-utils = "1"
-osmosis-std = "0.21"
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+cw2.workspace = true
+astroport = { path = "../../../packages/astroport", version = "4" }
+cw-utils.workspace = true
+osmosis-std = "0.21.0"
 
 [dev-dependencies]
 anyhow = "1"
-itertools = "0.12"
-cosmwasm-schema = "1.5"
+itertools.workspace = true
+cosmwasm-schema.workspace = true
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
 astroport-tokenfactory-tracker = { path = "../../periphery/tokenfactory_tracker" }

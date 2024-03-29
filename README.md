@@ -2,7 +2,9 @@
 
 [![codecov](https://codecov.io/gh/astroport-fi/hidden_astroport_core/branch/main/graph/badge.svg?token=D8539UWBST)](https://codecov.io/gh/astroport-fi/hidden_astroport_core)
 
-Multi pool type automated market-maker (AMM) protocol powered by smart contracts on the [Terra](https://terra.money) blockchain.
+Multi pool type automated market-maker (AMM) protocol powered by smart contracts on the Terra, Injective, Neutron, Sei
+and Osmosis
+blockchains.
 
 ## Contracts diagram
 
@@ -10,37 +12,38 @@ Multi pool type automated market-maker (AMM) protocol powered by smart contracts
 
 ## General Contracts
 
-| Name                                                       | Description                                  |
-| ---------------------------------------------------------- | -------------------------------------------- |
-| [`factory`](contracts/factory)                             | Pool creation factory                        |
-| [`pair`](contracts/pair)                                   | Pair with x*y=k curve                        |
-| [`pair_stable`](contracts/pair_stable)                     | Pair with stableswap invariant curve         |
-| [`pair_stable_bluna`](contracts/pair_stable_bluna)         | Pair with stableswap invariant curve handling bLUNA rewards for LPs |
-| [`token`](contracts/token)                                 | CW20 (ERC20 equivalent) token implementation |
-| [`router`](contracts/router)                               | Multi-hop trade router                       |
-| [`oracle`](contracts/periphery/oracle)                     | TWAP oracles for x*y=k pool types            |
-| [`whitelist`](contracts/whitelist)                         | CW1 whitelist contract                       |
+| Name                                               | Description                                                         |
+|----------------------------------------------------|---------------------------------------------------------------------|
+| [`factory`](contracts/factory)                     | Pool creation factory                                               |
+| [`pair`](contracts/pair)                           | Pair with x*y=k curve                                               |
+| [`pair`](contracts/pair_astro_converter)           | One way swap pair to convert ASTRO.cw20 to TokenFactory ASTRO       |
+| [`pair_concentrated`](contracts/pair_concentrated) | Passive Concentrated Liquidity pair inspired by Curve v2 whitepaper |
+| [`pair_stable`](contracts/pair_stable)             | Pair with stableswap invariant curve                                |
+| [`pair_transmuter`](contracts/pair_transmuter)     | Constant sum pair with no fee ans slippage for 1:1 assets           |
+| [`pair_xyk_sale_tax`](contracts/pair_xyk_sale_tax) | XYK pair with buy and sell taxes                                    |
+| [`router`](contracts/router)                       | Multi-hop trade router                                              |
+| [`whitelist`](contracts/whitelist)                 | CW1 whitelist contract (Astroport treasury)                         |
 
 ## Tokenomics Contracts
 
 Tokenomics related smart contracts are hosted on ../contracts/tokenomics.
 
-| Name                                                       | Description                                      |
-| ---------------------------------------------------------- | ------------------------------------------------ |
-| [`generator`](contracts/tokenomics/generator)                                   | Rewards generator for liquidity providers        |
-| [`generator_proxy_to_mirror`](contracts/tokenomics/generator_proxy_to_mirror)   | Rewards generator proxy for liquidity providers  |
-| [`maker`](contracts/tokenomics/maker)                                           | Fee collector and swapper                        |
-| [`staking`](contracts/tokenomics/staking)                                       | xASTRO staking contract                          |
-| [`vesting`](contracts/tokenomics/vesting)                                       | ASTRO distributor for generator rewards          |
-| [`xastro_token`](contracts/tokenomics/xastro_token)                             | xASTRO token contract                            |
+| Name                                                | Description                                                         |
+|-----------------------------------------------------|---------------------------------------------------------------------|
+| [`incentives`](contracts/tokenomics/generator)      | Rewards distributor for liquidity providers                         |
+| [`maker`](contracts/tokenomics/maker)               | Fee collector and swapper                                           |
+| [`staking`](contracts/tokenomics/staking)           | xASTRO staking contract                                             |
+| [`vesting`](contracts/tokenomics/vesting)           | ASTRO distributor for generator rewards                             |
+| [`xastro_token`](contracts/tokenomics/xastro_token) | xASTRO token contract (extended cw20 with onchain balances history) |
 
 ## Building Contracts
 
-You will need Rust 1.64.0+ with wasm32-unknown-unknown target installed.
+You will need Rust 1.68.0+ with wasm32-unknown-unknown target installed.
 
 ### You can compile each contract:
-Go to contract directory and run 
-    
+
+Go to contract directory and run
+
 ```
 cargo wasm
 cp ../../target/wasm32-unknown-unknown/release/astroport_token.wasm .
@@ -49,6 +52,7 @@ sha256sum astroport_token.wasm
 ```
 
 ### You can run tests for all contracts
+
 Run the following from the repository root
 
 ```
@@ -56,6 +60,7 @@ cargo test
 ```
 
 ### For a production-ready (compressed) build:
+
 Run the following from the repository root
 
 ```
@@ -66,7 +71,8 @@ The optimized contracts are generated in the artifacts/ directory.
 
 ## Deployment
 
-You can find versions and commits for actually deployed contracts [here](https://github.com/astroport-fi/astroport-changelog).
+You can find versions and commits for actual deployed
+contracts [here](https://github.com/astroport-fi/astroport-changelog).
 
 ## Docs
 

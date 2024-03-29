@@ -48,9 +48,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          # some deps require 1.72.0+ like cosm-rs which is used in tube-based tests
-          # however, we can't bump optimizer rust version because SEI still use CW VM which doesn't support wasm builds with rust >1.69.0
-          toolchain: 1.72.0
+          toolchain: 1.75.0
           override: true
           components: rustfmt, clippy
 
