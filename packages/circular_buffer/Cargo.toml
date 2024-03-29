@@ -9,7 +9,7 @@ repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
 
 [dependencies]
-cw-storage-plus = "0.15"
-cosmwasm-schema = "1.1"
-cosmwasm-std = "1.1"
-thiserror = "1.0"
+cw-storage-plus.workspace = true
+cosmwasm-schema.workspace = true
+cosmwasm-std.workspace = true
+thiserror.workspace = true

@@ -1,6 +1,6 @@
 [package]
 name = "astroport"
-version = "3.13.0"
+version = "4.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Common Astroport types, queriers and other utils"
@@ -17,20 +17,19 @@ backtraces = ["cosmwasm-std/backtraces"]
 injective = ["injective-math", "thiserror"]
 
 [dependencies]
-cw20 = { version = "0.15" }
-cosmwasm-std = { version = "1.1" }
+cw20 = "1.1"
+cosmwasm-std.workspace = true
 uint = "0.9"
-cw-storage-plus = "0.15"
-itertools = "0.10"
-cosmwasm-schema = "1.1"
+cw-storage-plus.workspace = true
+itertools.workspace = true
+cosmwasm-schema.workspace = true
 astroport-circular-buffer = { version = "0.2", path = "../circular_buffer" }
-cw-utils = "1.0"
-cw3 = "1.0"
+cw-utils.workspace = true
 cw-asset = "3.0.0"
 
 # optional
 injective-math = { version = "0.1", optional = true }
-thiserror = { version = "1.0", optional = true }
+thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 test-case = "3.1.0"

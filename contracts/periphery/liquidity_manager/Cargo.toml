@@ -14,24 +14,22 @@ library = []
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-cosmwasm-std = "1.1"
-cosmwasm-schema = "1.1"
-cw-storage-plus = "1.0"
-cw20 = "0.15"
-thiserror = "1.0"
-astroport = { path = "../../../packages/astroport", version = "3" }
-cw20-base = { version = "0.15", features = ["library"] }
+cosmwasm-std.workspace = true
+cosmwasm-schema.workspace = true
+cw-storage-plus.workspace = true
+cw20 = "1.1"
+thiserror.workspace = true
+astroport = { path = "../../../packages/astroport", version = "4" }
+cw20-base = { version = "1.1", features = ["library"] }
 astroport-pair = { path = "../../pair", features = ["library"], version = "1.5" }
 astroport-pair-stable = { path = "../../pair_stable", features = ["library"], version = "3" }
 astroport-factory = { path = "../../factory", features = ["library"], version = "1" }
 
 [dev-dependencies]
 cw-multi-test = "1.0.0"
-astroport-token = { path = "../../token" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
-astroport-generator = { path = "../../tokenomics/generator" }
-cw1-whitelist = { version = "1.1.2", features = ["library"] }
+astroport-incentives = { path = "../../tokenomics/incentives", version = "1" }
 serde_json = "1.0.96"
 anyhow = "1"
 derivative = "2.2"
-itertools = "0.10"
+itertools.workspace = true

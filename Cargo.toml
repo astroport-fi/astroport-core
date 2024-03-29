@@ -9,18 +9,21 @@ members = [
     "contracts/pair_astro_converter",
     "contracts/pair_transmuter",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
-    #  "contracts/pair_astro_xastro", # unused
     "contracts/pair_xyk_sale_tax",
     "contracts/router",
-    "contracts/token",
     "contracts/whitelist",
-    "templates/*",
     "contracts/tokenomics/*",
-    "contracts/periphery/fee_granter",
-    "contracts/periphery/liquidity_manager",
-    "contracts/periphery/native_coin_registry",
-    "contracts/periphery/oracle",
+    "contracts/periphery/*"
 ]
+
+[workspace.dependencies]
+cosmwasm-std = "1.5"
+cw-storage-plus = "1.2"
+cw2 = "1"
+thiserror = "1.0"
+itertools = "0.12"
+cosmwasm-schema = "1.5"
+cw-utils = "1"
 
 [profile.release]
 opt-level = "z"
