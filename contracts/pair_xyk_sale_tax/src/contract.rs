@@ -125,7 +125,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
 
             CONFIG.update(deps.storage, |mut config| {
-                if !config.pair_info.liquidity_token.as_str().is_empty() {
+                if !config.pair_info.liquidity_token.is_empty() {
                     return Err(ContractError::Unauthorized {});
                 }
 

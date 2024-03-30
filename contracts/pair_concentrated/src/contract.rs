@@ -15,11 +15,10 @@ use itertools::Itertools;
 
 use astroport::asset::AssetInfoExt;
 use astroport::asset::{
-    addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, Decimal256Ext, PairInfo,
-    MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
@@ -34,16 +33,17 @@ use astroport_pcl_common::state::{
     AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
 };
 use astroport_pcl_common::utils::{
-    accumulate_prices, assert_max_spread, assert_slippage_tolerance, before_swap_check,
-    calc_last_prices, calc_provide_fee, check_asset_infos, check_assets, check_cw20_in_pool,
-    check_pair_registered, compute_swap, get_share_in_assets, mint_liquidity_token_message,
+    accumulate_prices, assert_max_spread, before_swap_check, calc_last_prices, check_asset_infos,
+    check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message,
 };
 use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
 use crate::migration::{migrate_config, migrate_config_v2};
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
-use crate::utils::{accumulate_swap_sizes, query_pools};
+use crate::utils::{
+    accumulate_swap_sizes, calculate_shares, get_assets_with_precision, query_pools,
+};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -182,7 +182,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
 
             CONFIG.update(deps.storage, |mut config| {
-                if !config.pair_info.liquidity_token.as_str().is_empty() {
+                if !config.pair_info.liquidity_token.is_empty() {
                     return Err(ContractError::Unauthorized {});
                 }
 
@@ -373,64 +373,25 @@ pub fn provide_liquidity(
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
-    if !check_pair_registered(
-        deps.querier,
-        &config.factory_addr,
-        &config.pair_info.asset_infos,
-    )? {
-        return Err(ContractError::PairIsNotRegistered {});
-    }
-
-    match assets.len() {
-        0 => {
-            return Err(StdError::generic_err("Nothing to provide").into());
-        }
-        1 => {
-            // Append omitted asset with explicit zero amount
-            let (given_ind, _) = config
-                .pair_info
-                .asset_infos
-                .iter()
-                .find_position(|pool| pool.equal(&assets[0].info))
-                .ok_or_else(|| ContractError::InvalidAsset(assets[0].info.to_string()))?;
-            assets.push(Asset {
-                info: config.pair_info.asset_infos[1 ^ given_ind].clone(),
-                amount: Uint128::zero(),
-            });
-        }
-        2 => {}
-        _ => {
-            return Err(ContractError::InvalidNumberOfAssets(
-                config.pair_info.asset_infos.len(),
-            ))
-        }
-    }
-
-    check_assets(deps.api, &assets)?;
-
-    info.funds
-        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
-
-    let precisions = Precisions::new(deps.storage)?;
-    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
-
-    if pools[0].info.equal(&assets[1].info) {
-        assets.swap(0, 1);
-    }
-
-    // precisions.get_precision() also validates that the asset belongs to the pool
-    let deposits = [
-        Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
-        Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
-    ];
-
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
 
-    // Initial provide can not be one-sided
-    if total_share.is_zero() && (deposits[0].is_zero() || deposits[1].is_zero()) {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
+    let precisions = Precisions::new(deps.storage)?;
+
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)?;
+
+    let old_real_price = config.pool_state.price_state.last_price;
+
+    let deposits = get_assets_with_precision(
+        deps.as_ref(),
+        &config,
+        &mut assets,
+        pools.clone(),
+        &precisions,
+    )?;
+
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     let mut messages = vec![];
     for (i, pool) in pools.iter_mut().enumerate() {
@@ -458,23 +419,16 @@ pub fn provide_liquidity(
         }
     }
 
-    let mut new_xp = pools
-        .iter()
-        .enumerate()
-        .map(|(ind, pool)| pool.amount + deposits[ind])
-        .collect_vec();
-    new_xp[1] *= config.pool_state.price_state.price_scale;
+    let (share_uint128, slippage) = calculate_shares(
+        &env,
+        &mut config,
+        &mut pools,
+        total_share,
+        deposits.clone(),
+        slippage_tolerance,
+    )?;
 
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
-    let new_d = calc_d(&new_xp, &amp_gamma)?;
-    let old_real_price = config.pool_state.price_state.last_price;
-
-    let share = if total_share.is_zero() {
-        let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
-        let mint_amount = xcp
-            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
-            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
-
+    if total_share.is_zero() {
         messages.extend(mint_liquidity_token_message(
             deps.querier,
             &config,
@@ -483,61 +437,7 @@ pub fn provide_liquidity(
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
-
-        // share cannot become zero after minimum liquidity subtraction
-        if mint_amount.is_zero() {
-            return Err(ContractError::MinimumLiquidityAmountError {});
-        }
-
-        config.pool_state.price_state.xcp_profit_real = Decimal256::one();
-        config.pool_state.price_state.xcp_profit = Decimal256::one();
-
-        mint_amount
-    } else {
-        let mut old_xp = pools.iter().map(|a| a.amount).collect_vec();
-        old_xp[1] *= config.pool_state.price_state.price_scale;
-        let old_d = calc_d(&old_xp, &amp_gamma)?;
-        let share = (total_share * new_d / old_d).saturating_sub(total_share);
-
-        let mut ideposits = deposits;
-        ideposits[1] *= config.pool_state.price_state.price_scale;
-
-        share * (Decimal256::one() - calc_provide_fee(&ideposits, &new_xp, &config.pool_params))
-    };
-
-    // calculate accrued share
-    let share_ratio = share / (total_share + share);
-    let balanced_share = [
-        new_xp[0] * share_ratio,
-        new_xp[1] * share_ratio / config.pool_state.price_state.price_scale,
-    ];
-    let assets_diff = [
-        deposits[0].diff(balanced_share[0]),
-        deposits[1].diff(balanced_share[1]),
-    ];
-
-    let mut slippage = Decimal256::zero();
-
-    // If deposit doesn't diverge too much from the balanced share, we don't update the price
-    if assets_diff[0] >= MIN_TRADE_SIZE && assets_diff[1] >= MIN_TRADE_SIZE {
-        slippage = assert_slippage_tolerance(
-            &deposits,
-            share,
-            &config.pool_state.price_state,
-            slippage_tolerance,
-        )?;
-
-        let last_price = assets_diff[0] / assets_diff[1];
-        config.pool_state.update_price(
-            &config.pool_params,
-            &env,
-            total_share + share,
-            &new_xp,
-            last_price,
-        )?;
     }
-
-    let share_uint128 = share.to_uint(LP_TOKEN_PRECISION)?;
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());

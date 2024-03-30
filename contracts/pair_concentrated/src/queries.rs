@@ -24,7 +24,7 @@ use astroport_pcl_common::{calc_d, get_xcp};
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS};
-use crate::utils::{pool_info, query_pools};
+use crate::utils::{calculate_shares, get_assets_with_precision, pool_info, query_pools};
 
 /// Exposes all the queries available in the contract.
 ///
@@ -79,6 +79,18 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             asset_info,
             block_height,
         } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
+        QueryMsg::SimulateProvide {
+            assets,
+            slippage_tolerance,
+        } => to_json_binary(&query_simulate_provide(
+            deps,
+            env,
+            assets,
+            slippage_tolerance,
+        )?),
+        QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(
+            &query_share(deps, lp_amount).map_err(|err| StdError::generic_err(err.to_string()))?,
+        ),
     }
 }
 
@@ -326,6 +338,39 @@ pub fn query_asset_balances_at(
     block_height: Uint64,
 ) -> StdResult<Option<Uint128>> {
     BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
+}
+
+pub fn query_simulate_provide(
+    deps: Deps,
+    env: Env,
+    mut assets: Vec<Asset>,
+    slippage_tolerance: Option<Decimal>,
+) -> StdResult<Uint128> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
+        .to_decimal256(LP_TOKEN_PRECISION)?;
+
+    let precisions = Precisions::new(deps.storage)?;
+
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    let deposits =
+        get_assets_with_precision(deps, &config, &mut assets, pools.clone(), &precisions)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    let (share_uint128, _) = calculate_shares(
+        &env,
+        &mut config,
+        &mut pools,
+        total_share,
+        deposits.clone(),
+        slippage_tolerance,
+    )
+    .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    Ok(share_uint128)
 }
 
 #[cfg(test)]

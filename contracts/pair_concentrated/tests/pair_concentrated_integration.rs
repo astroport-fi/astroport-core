@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Decimal, Decimal256, StdError, Uint128};
 use itertools::{max, Itertools};
 
 use astroport::asset::{
@@ -208,39 +208,22 @@ fn provide_and_withdraw() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         random_coin.clone(),
     ];
+
     helper.give_me_money(&wrong_assets, &user1);
-    let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
+
+    // Provide with empty assets
+    let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
     assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
+        "Generic error: Nothing to provide",
         err.root_cause().to_string()
     );
 
-    // Provide with asset which does not belong to the pair
-    let err = helper
-        .provide_liquidity(
-            &user1,
-            &[
-                random_coin.clone(),
-                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-            ],
-        )
-        .unwrap_err();
-    assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
-        err.root_cause().to_string()
-    );
-
+    // Provide just one asset which does not belong to the pair
     let err = helper
         .provide_liquidity(&user1, &[random_coin.clone()])
         .unwrap_err();
     assert_eq!(
         "The asset random-coin does not belong to the pair",
-        err.root_cause().to_string()
-    );
-
-    let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
-    assert_eq!(
-        "Generic error: Nothing to provide",
         err.root_cause().to_string()
     );
 
@@ -552,6 +535,71 @@ fn swap_different_precisions() {
     assert_eq!(
         sim_resp.return_amount.u128(),
         helper.coin_balance(&test_coins[1], &user)
+    );
+}
+
+#[test]
+fn simulate_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("uusdc")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let user1 = Addr::unchecked("user1");
+
+    let shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: None,
+            },
+        )
+        .unwrap();
+
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    assert_eq!(
+        shares.u128(),
+        helper.native_balance(&helper.lp_token, &user1)
+    );
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_0000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let err = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Uint128>(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: Option::from(Decimal::percent(1)),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err,
+        StdError::generic_err(
+            "Querier contract error: Generic error: Operation exceeds max spread limit"
+        )
     );
 }
 
