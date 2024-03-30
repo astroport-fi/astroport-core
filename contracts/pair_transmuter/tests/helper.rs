@@ -91,7 +91,7 @@ pub struct Helper {
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
     pub pair_addr: Addr,
-    pub lp_token: Addr,
+    pub lp_token: String,
     pub fake_maker: Addr,
 }
 

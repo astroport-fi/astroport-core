@@ -1450,7 +1450,7 @@ fn test_accumulate_prices() {
                         },
                     ],
                     contract_addr: Addr::unchecked("pair"),
-                    liquidity_token: Addr::unchecked("lp_token"),
+                    liquidity_token: "lp_token".to_owned(),
                     pair_type: PairType::Xyk {}, // Implemented in mock querier
                 },
                 factory_addr: Addr::unchecked("factory"),

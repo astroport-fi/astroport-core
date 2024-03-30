@@ -603,8 +603,8 @@ pub struct PairInfo {
     pub asset_infos: Vec<AssetInfo>,
     /// Pair contract address
     pub contract_addr: Addr,
-    /// Pair LP token address
-    pub liquidity_token: Addr,
+    /// Pair LP token denom
+    pub liquidity_token: String,
     /// The pool type (xyk, stableswap etc) available in [`PairType`]
     pub pair_type: PairType,
 }

@@ -387,7 +387,6 @@ fn provide_and_withdraw() {
         70710_677118 - 7071_067711,
         helper.native_balance(&helper.lp_token, &user1)
     );
-    dbg!(helper.coin_balance(&test_coins[1], &user1));
     assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(5330_688045, helper.coin_balance(&test_coins[1], &user1));
 

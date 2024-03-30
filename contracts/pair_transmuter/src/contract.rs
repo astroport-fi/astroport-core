@@ -4,8 +4,8 @@ use astroport::token_factory::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, Addr, BankMsg, Coin, DepsMut, Empty, Env, Event, MessageInfo,
-    Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
+    attr, coin, ensure, ensure_eq, BankMsg, Coin, DepsMut, Empty, Env, Event, MessageInfo, Reply,
+    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
 use cw_utils::{one_coin, PaymentError};
@@ -49,7 +49,7 @@ pub fn instantiate(
 
     let pair_info = PairInfo {
         contract_addr: env.contract.address.clone(),
-        liquidity_token: Addr::unchecked(""),
+        liquidity_token: "".to_owned(),
         asset_infos: msg.asset_infos.clone(),
         pair_type: PairType::Custom("transmuter".to_string()),
     };
@@ -85,7 +85,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                     return Err(ContractError::Unauthorized {});
                 }
 
-                config.pair_info.liquidity_token = Addr::unchecked(&new_token_denom);
+                config.pair_info.liquidity_token = new_token_denom.clone();
                 Ok(config)
             })?;
 

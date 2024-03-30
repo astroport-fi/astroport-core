@@ -2340,7 +2340,6 @@ fn test_orphaned_rewards() {
     let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
     let pair_info = helper.create_pair(&asset_infos).unwrap();
     let lp_token = pair_info.liquidity_token.to_string();
-    dbg!(&lp_token);
 
     let bank = TestAddr::new("bank");
 

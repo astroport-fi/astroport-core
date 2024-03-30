@@ -77,7 +77,7 @@ pub fn instantiate(
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
-            liquidity_token: Addr::unchecked(""),
+            liquidity_token: "".to_owned(),
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Xyk {},
         },
@@ -132,7 +132,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                     return Err(ContractError::Unauthorized {});
                 }
 
-                config.pair_info.liquidity_token = Addr::unchecked(&new_token_denom);
+                config.pair_info.liquidity_token = new_token_denom.clone();
                 Ok(config)
             })?;
 
@@ -276,7 +276,6 @@ pub fn receive_cw20(
                 to_addr,
             )
         }
-        _ => Err(StdError::generic_err("Unsupported message").into()),
     }
 }
 
@@ -539,14 +538,14 @@ pub fn withdraw_liquidity(
 
     let (pools, total_share) = pool_info(deps.querier, &config)?;
 
-    let mut refund_assets = if assets.is_empty() {
+    let refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
         get_share_in_assets(&pools, amount, total_share)
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
 
-    ensure_min_assets_to_receive(&config, &mut refund_assets, min_assets_to_receive)?;
+    ensure_min_assets_to_receive(&config, refund_assets.clone(), min_assets_to_receive)?;
 
     if config.track_asset_balances {
         for (i, pool) in pools.iter().enumerate() {
@@ -983,7 +982,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             block_height,
         } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
         QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(&query_share(deps, lp_amount)?),
-        QueryMsg::SimulateProvide { msg } => simulate_provide(deps, msg),
+        QueryMsg::SimulateProvide {
+            assets,
+            slippage_tolerance,
+        } => to_json_binary(&simulate_provide(deps, assets, slippage_tolerance)?),
         _ => Err(StdError::generic_err("Query is not supported")),
     }
 }
@@ -1383,7 +1385,7 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
 
 fn ensure_min_assets_to_receive(
     config: &Config,
-    refund_assets: &mut [Asset],
+    mut refund_assets: Vec<Asset>,
     min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<(), ContractError> {
     if let Some(min_assets_to_receive) = min_assets_to_receive {
@@ -1424,71 +1426,65 @@ fn ensure_min_assets_to_receive(
     Ok(())
 }
 
-fn simulate_provide(deps: Deps, msg: ExecuteMsg) -> StdResult<Binary> {
-    match msg {
-        ExecuteMsg::ProvideLiquidity {
-            mut assets,
-            slippage_tolerance,
-            ..
-        } => {
-            if assets.len() != 2 {
-                return Err(StdError::generic_err(format!(
-                    "{}",
-                    StdError::generic_err("Invalid number of assets")
-                )));
-            }
-            let config = CONFIG.load(deps.storage)?;
-
-            let (pools, _) = pool_info(deps.querier, &config)?;
-
-            let mut predicted_lp_amount = calculate_provide_simulation(
-                deps.querier,
-                &pools,
-                &config.pair_info,
-                slippage_tolerance,
-                assets.clone(),
-            )
-            .map_err(|err| StdError::generic_err(format!("{err}")))?;
-
-            // Initial provide is always fair because initial LP dictates the price
-            if !pools[0].amount.is_zero() && !pools[1].amount.is_zero() {
-                if pools[0].info.ne(&assets[0].info) {
-                    assets.swap(0, 1);
-                }
-
-                // Add user's deposits
-                let balances_with_deposit = pools
-                    .clone()
-                    .into_iter()
-                    .zip(assets.iter())
-                    .map(|(mut pool, asset)| {
-                        pool.amount += asset.amount;
-                        pool
-                    })
-                    .collect::<Vec<_>>();
-                let total_share =
-                    query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-                let accrued_share = get_share_in_assets(
-                    &balances_with_deposit,
-                    predicted_lp_amount,
-                    total_share + predicted_lp_amount,
-                );
-
-                // Simulate provide again without excess tokens
-                predicted_lp_amount = calculate_provide_simulation(
-                    deps.querier,
-                    &pools,
-                    &config.pair_info,
-                    slippage_tolerance,
-                    accrued_share,
-                )
-                .map_err(|err| StdError::generic_err(format!("{err}")))?;
-            }
-
-            to_json_binary(&predicted_lp_amount)
-        }
-        _ => Err(StdError::generic_err("Invalid simulate message")),
+fn simulate_provide(
+    deps: Deps,
+    mut assets: Vec<Asset>,
+    slippage_tolerance: Option<Decimal>,
+) -> StdResult<Uint128> {
+    if assets.len() != 2 {
+        return Err(StdError::generic_err(format!(
+            "{}",
+            StdError::generic_err("Invalid number of assets")
+        )));
     }
+    let config = CONFIG.load(deps.storage)?;
+
+    let (pools, _) = pool_info(deps.querier, &config)?;
+
+    let mut predicted_lp_amount = calculate_provide_simulation(
+        deps.querier,
+        &pools,
+        &config.pair_info,
+        slippage_tolerance,
+        assets.clone(),
+    )
+    .map_err(|err| StdError::generic_err(format!("{err}")))?;
+
+    // Initial provide is always fair because initial LP dictates the price
+    if !pools[0].amount.is_zero() && !pools[1].amount.is_zero() {
+        if pools[0].info.ne(&assets[0].info) {
+            assets.swap(0, 1);
+        }
+
+        // Add user's deposits
+        let balances_with_deposit = pools
+            .clone()
+            .into_iter()
+            .zip(assets.iter())
+            .map(|(mut pool, asset)| {
+                pool.amount += asset.amount;
+                pool
+            })
+            .collect::<Vec<_>>();
+        let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+        let accrued_share = get_share_in_assets(
+            &balances_with_deposit,
+            predicted_lp_amount,
+            total_share + predicted_lp_amount,
+        );
+
+        // Simulate provide again without excess tokens
+        predicted_lp_amount = calculate_provide_simulation(
+            deps.querier,
+            &pools,
+            &config.pair_info,
+            slippage_tolerance,
+            accrued_share,
+        )
+        .map_err(|err| StdError::generic_err(format!("{err}")))?;
+    }
+
+    Ok(predicted_lp_amount)
 }
 
 pub fn calculate_provide_simulation(

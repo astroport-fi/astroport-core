@@ -29,7 +29,7 @@ library = []
 astroport = { path = "../../packages/astroport", version = "4" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 itertools.workspace = true

@@ -26,10 +26,9 @@ impl TryFrom<Binary> for MsgCreateDenomResponse {
     type Error = StdError;
     fn try_from(binary: Binary) -> Result<Self, Self::Error> {
         Self::decode(binary.as_slice()).map_err(|e| {
-            StdError::parse_err(
-                stringify!(MsgCreateDenomResponse),
+            StdError::generic_err(
                 format!(
-                    "Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
+                    "MsgCreateDenomResponse Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
                     binary,
                     binary.to_vec(),
                     e
@@ -60,15 +59,12 @@ impl TryFrom<Binary> for MsgCreateDenom {
     type Error = StdError;
     fn try_from(binary: Binary) -> Result<Self, Self::Error> {
         Self::decode(binary.as_slice()).map_err(|e| {
-            StdError::parse_err(
-                stringify!(MsgCreateDenom),
-                format!(
-                    "Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
-                    binary,
-                    binary.to_vec(),
-                    e
-                ),
-            )
+            StdError::generic_err(format!(
+                "MsgCreateDenom Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
+                binary,
+                binary.to_vec(),
+                e
+            ))
         })
     }
 }
@@ -95,15 +91,12 @@ impl TryFrom<Binary> for MsgBurn {
     type Error = StdError;
     fn try_from(binary: Binary) -> Result<Self, Self::Error> {
         Self::decode(binary.as_slice()).map_err(|e| {
-            StdError::parse_err(
-                stringify!(MsgBurn),
-                format!(
-                    "Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
-                    binary,
-                    binary.to_vec(),
-                    e
-                ),
-            )
+            StdError::generic_err(format!(
+                "MsgBurn Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
+                binary,
+                binary.to_vec(),
+                e
+            ))
         })
     }
 }
@@ -130,15 +123,12 @@ impl TryFrom<Binary> for MsgMint {
     type Error = StdError;
     fn try_from(binary: Binary) -> Result<Self, Self::Error> {
         Self::decode(binary.as_slice()).map_err(|e| {
-            StdError::parse_err(
-                stringify!(MsgMint),
-                format!(
-                    "Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
-                    binary,
-                    binary.to_vec(),
-                    e
-                ),
-            )
+            StdError::generic_err(format!(
+                "MsgMint Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
+                binary,
+                binary.to_vec(),
+                e
+            ))
         })
     }
 }

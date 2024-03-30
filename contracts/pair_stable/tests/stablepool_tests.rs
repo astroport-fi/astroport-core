@@ -39,7 +39,7 @@ fn provide_and_withdraw_no_fee() {
 
     helper.provide_liquidity(&user1, &assets, None).unwrap();
 
-    assert_eq!(299999000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(299999000, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user1));
@@ -53,7 +53,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user2);
     helper.provide_liquidity(&user2, &assets, None).unwrap();
-    assert_eq!(300_000000, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(300_000000, helper.native_balance(&helper.lp_token, &user2));
 
     // The user3 makes imbalanced provide thus he is charged with fees
     let user3 = Addr::unchecked("user3");
@@ -63,7 +63,7 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user3);
     helper.provide_liquidity(&user3, &assets, None).unwrap();
-    assert_eq!(299_629321, helper.token_balance(&helper.lp_token, &user3));
+    assert_eq!(299_629321, helper.native_balance(&helper.lp_token, &user3));
 
     // Providing last asset with explicit zero amount should give nearly the same result
     let user4 = Addr::unchecked("user4");
@@ -74,13 +74,13 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user4);
     helper.provide_liquidity(&user4, &assets, None).unwrap();
-    assert_eq!(299_056292, helper.token_balance(&helper.lp_token, &user4));
+    assert_eq!(299_056292, helper.native_balance(&helper.lp_token, &user4));
 
     helper
         .withdraw_liquidity(&user1, 299999000, vec![], None)
         .unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user1));
     // Previous imbalanced provides resulted in different share in assets
     assert_eq!(150163977, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(100109318, helper.coin_balance(&test_coins[1], &user1));
@@ -97,7 +97,7 @@ fn provide_and_withdraw_no_fee() {
         .unwrap();
 
     // Previous imbalanced provides resulted in small LP balance residual
-    assert_eq!(619390, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(619390, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(300_000000, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user2));
@@ -129,7 +129,7 @@ fn provide_and_withdraw_no_fee() {
     // initial balance - spent amount; 100 goes back to the user3
     assert_eq!(
         299_629321 - 100679731,
-        helper.token_balance(&helper.lp_token, &user3)
+        helper.native_balance(&helper.lp_token, &user3)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user3));
     assert_eq!(101_000000, helper.coin_balance(&test_coins[1], &user3));
@@ -383,7 +383,7 @@ fn check_withdraw_charges_fees() {
         .unwrap();
 
     // Withdraw 100 x USDC
-    let lp_tokens_amount = helper.token_balance(&helper.lp_token, &user2);
+    let lp_tokens_amount = helper.native_balance(&helper.lp_token, &user2);
     let err = helper
         .withdraw_liquidity(
             &user2,
@@ -407,7 +407,7 @@ fn check_withdraw_charges_fees() {
         .unwrap();
 
     // A small residual of LP tokens is left
-    assert_eq!(8, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(8, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(
         usual_swap_amount,
         helper.coin_balance(&test_coins[1], &user2)

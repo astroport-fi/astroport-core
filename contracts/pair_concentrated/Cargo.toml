@@ -32,7 +32,7 @@ astroport-circular-buffer = { path = "../../packages/circular_buffer", version =
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true

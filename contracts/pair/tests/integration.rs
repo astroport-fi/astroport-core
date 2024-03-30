@@ -256,7 +256,23 @@ fn test_provide_and_withdraw_liquidity() {
         .wrap()
         .query_wasm_smart(
             pair_instance.clone(),
-            &QueryMsg::SimulateProvide { msg: msg.clone() },
+            &QueryMsg::SimulateProvide {
+                assets: vec![
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: Uint128::new(100_000_000),
+                    },
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uluna".to_string(),
+                        },
+                        amount: Uint128::new(100_000_000),
+                    },
+                ],
+                slippage_tolerance: None,
+            },
         )
         .unwrap();
 
@@ -284,7 +300,23 @@ fn test_provide_and_withdraw_liquidity() {
         .wrap()
         .query_wasm_smart(
             pair_instance.clone(),
-            &QueryMsg::SimulateProvide { msg: msg.clone() },
+            &QueryMsg::SimulateProvide {
+                assets: vec![
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uusd".to_string(),
+                        },
+                        amount: Uint128::new(100),
+                    },
+                    Asset {
+                        info: AssetInfo::NativeToken {
+                            denom: "uluna".to_string(),
+                        },
+                        amount: Uint128::new(100),
+                    },
+                ],
+                slippage_tolerance: None,
+            },
         )
         .unwrap();
 

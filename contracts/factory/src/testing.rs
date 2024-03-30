@@ -560,7 +560,7 @@ fn register() {
     let pair0_info = PairInfo {
         asset_infos: asset_infos.clone(),
         contract_addr: Addr::unchecked("pair0000"),
-        liquidity_token: Addr::unchecked("liquidity0000"),
+        liquidity_token: "liquidity0000".to_owned(),
         pair_type: PairType::Xyk {},
     };
 
@@ -602,7 +602,7 @@ fn register() {
     assert_eq!(
         pair_res,
         PairInfo {
-            liquidity_token: Addr::unchecked("liquidity0000"),
+            liquidity_token: "liquidity0000".to_owned(),
             contract_addr: Addr::unchecked("pair0000"),
             asset_infos: asset_infos.clone(),
             pair_type: PairType::Xyk {},
@@ -637,7 +637,7 @@ fn register() {
     let pair1_info = PairInfo {
         asset_infos: asset_infos_2.clone(),
         contract_addr: Addr::unchecked("pair0001"),
-        liquidity_token: Addr::unchecked("liquidity0001"),
+        liquidity_token: "liquidity0001".to_owned(),
         pair_type: PairType::Xyk {},
     };
 
@@ -677,13 +677,13 @@ fn register() {
         pairs_res.pairs,
         vec![
             PairInfo {
-                liquidity_token: Addr::unchecked("liquidity0000"),
+                liquidity_token: "liquidity0000".to_owned(),
                 contract_addr: Addr::unchecked("pair0000"),
                 asset_infos: asset_infos.clone(),
                 pair_type: PairType::Xyk {},
             },
             PairInfo {
-                liquidity_token: Addr::unchecked("liquidity0001"),
+                liquidity_token: "liquidity0001".to_owned(),
                 contract_addr: Addr::unchecked("pair0001"),
                 asset_infos: asset_infos_2.clone(),
                 pair_type: PairType::Xyk {},
@@ -701,7 +701,7 @@ fn register() {
     assert_eq!(
         pairs_res.pairs,
         vec![PairInfo {
-            liquidity_token: Addr::unchecked("liquidity0000"),
+            liquidity_token: "liquidity0000".to_owned(),
             contract_addr: Addr::unchecked("pair0000"),
             asset_infos: asset_infos.clone(),
             pair_type: PairType::Xyk {},
@@ -718,7 +718,7 @@ fn register() {
     assert_eq!(
         pairs_res.pairs,
         vec![PairInfo {
-            liquidity_token: Addr::unchecked("liquidity0001"),
+            liquidity_token: "liquidity0001".to_owned(),
             contract_addr: Addr::unchecked("pair0001"),
             asset_infos: asset_infos_2.clone(),
             pair_type: PairType::Xyk {},
@@ -765,7 +765,7 @@ fn register() {
     assert_eq!(
         pairs_res.pairs,
         vec![PairInfo {
-            liquidity_token: Addr::unchecked("liquidity0000"),
+            liquidity_token: "liquidity0000".to_owned(),
             contract_addr: Addr::unchecked("pair0000"),
             asset_infos: asset_infos.clone(),
             pair_type: PairType::Xyk {},

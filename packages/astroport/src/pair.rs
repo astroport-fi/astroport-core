@@ -88,11 +88,6 @@ pub enum Cw20HookMsg {
         max_spread: Option<Decimal>,
         to: Option<String>,
     },
-    /// Withdraw liquidity from the pool
-    WithdrawLiquidity {
-        #[serde(default)]
-        assets: Vec<Asset>,
-    },
 }
 
 /// This structure describes the query messages available in the contract.
@@ -141,7 +136,10 @@ pub enum QueryMsg {
     #[returns(Vec<Asset>)]
     SimulateWithdraw { lp_amount: Uint128 },
     #[returns(Uint128)]
-    SimulateProvide { msg: ExecuteMsg },
+    SimulateProvide {
+        assets: Vec<Asset>,
+        slippage_tolerance: Option<Decimal>,
+    },
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
@@ -338,11 +336,5 @@ mod tests {
         .unwrap();
 
         let _: ConfigResponse = from_json(&ser_msg).unwrap();
-    }
-
-    #[test]
-    fn check_empty_vec_deserialization() {
-        let variant: Cw20HookMsg = from_json(br#"{"withdraw_liquidity": {} }"#).unwrap();
-        assert_eq!(variant, Cw20HookMsg::WithdrawLiquidity { assets: vec![] });
     }
 }

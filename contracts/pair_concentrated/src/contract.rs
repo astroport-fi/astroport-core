@@ -127,7 +127,7 @@ pub fn instantiate(
     let config = Config {
         pair_info: PairInfo {
             contract_addr: env.contract.address.clone(),
-            liquidity_token: Addr::unchecked(""),
+            liquidity_token: "".to_owned(),
             asset_infos: msg.asset_infos.clone(),
             pair_type: PairType::Custom("concentrated".to_string()),
         },
@@ -186,7 +186,7 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                     return Err(ContractError::Unauthorized {});
                 }
 
-                config.pair_info.liquidity_token = Addr::unchecked(&new_token_denom);
+                config.pair_info.liquidity_token = new_token_denom.clone();
                 Ok(config)
             })?;
 
@@ -345,7 +345,6 @@ fn receive_cw20(
                 to_addr,
             )
         }
-        _ => Err(StdError::generic_err("Unsupported message").into()),
     }
 }
 

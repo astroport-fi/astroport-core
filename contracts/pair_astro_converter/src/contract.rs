@@ -84,7 +84,6 @@ pub fn receive_cw20(
             AssetInfo::cw20_unchecked(info.sender).with_balance(cw20_msg.amount),
             to,
         ),
-        _ => Err(ContractError::NotSupported {}),
     }
 }
 
