@@ -18,7 +18,7 @@ use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
-use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, StdError, Uint128};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
 use test_case::test_case;
 
@@ -478,6 +478,142 @@ fn provide_liquidity_msg(
     ];
 
     (msg, coins)
+}
+
+#[test]
+fn simulate_provide() {
+    let owner = Addr::unchecked("owner");
+    let alice_address = Addr::unchecked("alice");
+
+    let mut router = mock_app(
+        owner.clone(),
+        vec![
+            Coin {
+                denom: "uusd".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+            Coin {
+                denom: "uluna".to_string(),
+                amount: Uint128::new(100_000_000_000u128),
+            },
+        ],
+    );
+
+    // Set Alice's balances
+    router
+        .send_tokens(
+            owner.clone(),
+            alice_address.clone(),
+            &[
+                Coin {
+                    denom: "uusd".to_string(),
+                    amount: Uint128::new(233_000_000u128),
+                },
+                Coin {
+                    denom: "uluna".to_string(),
+                    amount: Uint128::new(2_00_000_000u128),
+                },
+            ],
+        )
+        .unwrap();
+
+    let pair_instance = instantiate_pair(&mut router, &owner);
+
+    let res: PairInfo = router
+        .wrap()
+        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Pair {})
+        .unwrap();
+
+    let lp_token = res.liquidity_token;
+
+    assert_eq!(
+        res.asset_infos,
+        [
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+    );
+
+    let assets = vec![
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Uint128::new(100_000_000),
+        },
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            amount: Uint128::new(100_000_000),
+        },
+    ];
+
+    // Provide liquidity
+    let (msg, coins) = provide_liquidity_msg(
+        Uint128::new(100_000_000),
+        Uint128::new(100_000_000),
+        None,
+        None,
+    );
+
+    let shares: Uint128 = router
+        .wrap()
+        .query_wasm_smart(
+            pair_instance.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: None,
+            },
+        )
+        .unwrap();
+
+    router
+        .execute_contract(alice_address.clone(), pair_instance.clone(), &msg, &coins)
+        .unwrap();
+
+    let user_balance = router
+        .wrap()
+        .query_balance(alice_address, lp_token)
+        .unwrap();
+    assert_eq!(shares, user_balance.amount);
+
+    let assets = vec![
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            amount: Uint128::new(100_000_0000u128),
+        },
+        Asset {
+            info: AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+            amount: Uint128::new(50_000_000000u128),
+        },
+    ];
+
+    let err = router
+        .wrap()
+        .query_wasm_smart::<Uint128>(
+            pair_instance.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: Option::from(Decimal::percent(1)),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err,
+        StdError::generic_err(
+            "Querier contract error: Generic error: Operation exceeds max splippage tolerance"
+        )
+    );
 }
 
 #[test]
