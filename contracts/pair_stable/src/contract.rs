@@ -47,9 +47,10 @@ use crate::state::{
     get_precision, store_precisions, Config, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
-    accumulate_prices, accumulate_swap_sizes, adjust_precision, check_asset_infos, check_assets,
-    check_cw20_in_pool, compute_current_amp, compute_swap, determine_base_quote_amount,
-    get_share_in_assets, mint_liquidity_token_message, select_pools, SwapResult,
+    accumulate_prices, accumulate_swap_sizes, adjust_precision, calculate_shares,
+    check_asset_infos, check_cw20_in_pool, compute_current_amp, compute_swap,
+    determine_base_quote_amount, get_assets_collection, get_share_in_assets,
+    mint_liquidity_token_message, select_pools, SwapResult,
 };
 
 /// Contract name that is used for migration.
@@ -346,63 +347,20 @@ pub fn provide_liquidity(
     receiver: Option<String>,
     min_lp_to_receive: Option<Uint128>,
 ) -> Result<Response, ContractError> {
-    check_assets(deps.api, &assets)?;
-
-    let auto_stake = auto_stake.unwrap_or(false);
     let mut config = CONFIG.load(deps.storage)?;
-    info.funds
-        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
-    if assets.len() != config.pair_info.asset_infos.len() {
-        return Err(ContractError::InvalidNumberOfAssets(
-            config.pair_info.asset_infos.len(),
-        ));
-    }
-
-    let pools: HashMap<_, _> = config
+    let pools = config
         .pair_info
         .query_pools(&deps.querier, &env.contract.address)?
         .into_iter()
         .map(|pool| (pool.info, pool.amount))
         .collect();
 
-    let mut non_zero_flag = false;
+    let mut assets_collection =
+        get_assets_collection(deps.as_ref(), &config, &pools, assets.clone())?;
 
-    let mut assets_collection = assets
-        .clone()
-        .into_iter()
-        .map(|asset| {
-            // Check that at least one asset is non-zero
-            if !asset.amount.is_zero() {
-                non_zero_flag = true;
-            }
-
-            // Get appropriate pool
-            let pool = pools
-                .get(&asset.info)
-                .copied()
-                .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
-
-            Ok((asset, pool))
-        })
-        .collect::<Result<Vec<_>, ContractError>>()?;
-
-    // If some assets are omitted then add them explicitly with 0 deposit
-    pools.iter().for_each(|(pool_info, pool_amount)| {
-        if !assets.iter().any(|asset| asset.info.eq(pool_info)) {
-            assets_collection.push((
-                Asset {
-                    amount: Uint128::zero(),
-                    info: pool_info.clone(),
-                },
-                *pool_amount,
-            ));
-        }
-    });
-
-    if !non_zero_flag {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
+    info.funds
+        .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     let mut messages = vec![];
     let mut events = vec![];
@@ -434,39 +392,13 @@ pub fn provide_liquidity(
         }
     }
 
-    let assets_collection = assets_collection
-        .iter()
-        .cloned()
-        .map(|(asset, pool)| {
-            let coin_precision = get_precision(deps.storage, &asset.info)?;
-            Ok((
-                asset.to_decimal_asset(coin_precision)?,
-                Decimal256::with_precision(pool, coin_precision)?,
-            ))
-        })
-        .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
-
-    let amp = compute_current_amp(&config, &env)?;
-
-    // Invariant (D) after deposit added
-    let new_balances = assets_collection
-        .iter()
-        .map(|(deposit, pool)| Ok(pool + deposit.amount))
-        .collect::<StdResult<Vec<_>>>()?;
-    let deposit_d = compute_d(amp, &new_balances)?;
-
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    let share = if total_share.is_zero() {
-        let share = deposit_d
-            .to_uint128_with_precision(config.greatest_precision)?
-            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
-            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
-        // share cannot become zero after minimum liquidity subtraction
-        if share.is_zero() {
-            return Err(ContractError::MinimumLiquidityAmountError {});
-        }
+    let auto_stake = auto_stake.unwrap_or(false);
 
+    let share = calculate_shares(deps.as_ref(), &env, &config, total_share, assets_collection)?;
+
+    if total_share.is_zero() {
         messages.extend(mint_liquidity_token_message(
             deps.querier,
             &config,
@@ -484,26 +416,7 @@ pub fn provide_liquidity(
                 attr("amount", MINIMUM_LIQUIDITY_AMOUNT.to_string()),
             ]),
         );
-
-        share
-    } else {
-        // Initial invariant (D)
-        let old_balances = assets_collection
-            .iter()
-            .map(|(_, pool)| *pool)
-            .collect_vec();
-        let init_d = compute_d(amp, &old_balances)?;
-
-        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
-            .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
-            .to_uint128_with_precision(config.greatest_precision)?;
-
-        if share.is_zero() {
-            return Err(ContractError::LiquidityAmountTooSmall {});
-        }
-
-        share
-    };
+    }
 
     let min_amount_lp = min_lp_to_receive.unwrap_or(Uint128::zero());
 
@@ -880,7 +793,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
         QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(&query_share(deps, lp_amount)?),
         QueryMsg::SimulateProvide { assets, .. } => to_json_binary(
-            &simulate_provide(deps, env, assets)
+            &query_simulate_provide(deps, env, assets)
                 .map_err(|e| StdError::generic_err(e.to_string()))?,
         ),
         QueryMsg::QueryComputeD {} => to_json_binary(&query_compute_d(deps, env)?),
@@ -1385,14 +1298,12 @@ fn ensure_min_assets_to_receive(
     Ok(())
 }
 
-fn simulate_provide(deps: Deps, env: Env, assets: Vec<Asset>) -> Result<Uint128, ContractError> {
+fn query_simulate_provide(
+    deps: Deps,
+    env: Env,
+    assets: Vec<Asset>,
+) -> Result<Uint128, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-
-    if assets.len() != config.pair_info.asset_infos.len() {
-        return Err(ContractError::InvalidNumberOfAssets(
-            config.pair_info.asset_infos.len(),
-        ));
-    }
 
     let pools: HashMap<_, _> = config
         .pair_info
@@ -1401,103 +1312,10 @@ fn simulate_provide(deps: Deps, env: Env, assets: Vec<Asset>) -> Result<Uint128,
         .map(|pool| (pool.info, pool.amount))
         .collect();
 
-    let mut non_zero_flag = false;
-
-    let mut assets_collection = assets
-        .clone()
-        .into_iter()
-        .map(|asset| {
-            // Check that at least one asset is non-zero
-            if !asset.amount.is_zero() {
-                non_zero_flag = true;
-            }
-
-            // Get appropriate pool
-            let pool = pools
-                .get(&asset.info)
-                .copied()
-                .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
-
-            Ok((asset, pool))
-        })
-        .collect::<Result<Vec<_>, ContractError>>()?;
-
-    // If some assets are omitted then add them explicitly with 0 deposit
-    pools.iter().for_each(|(pool_info, pool_amount)| {
-        if !assets.iter().any(|asset| asset.info.eq(pool_info)) {
-            assets_collection.push((
-                Asset {
-                    amount: Uint128::zero(),
-                    info: pool_info.clone(),
-                },
-                *pool_amount,
-            ));
-        }
-    });
-
-    if !non_zero_flag {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
-
-    for (deposit, pool) in assets_collection.iter_mut() {
-        // We cannot put a zero amount into an empty pool.
-        if deposit.amount.is_zero() && pool.is_zero() {
-            return Err(ContractError::InvalidProvideLPsWithSingleToken {});
-        }
-    }
-
-    let assets_collection = assets_collection
-        .iter()
-        .cloned()
-        .map(|(asset, pool)| {
-            let coin_precision = get_precision(deps.storage, &asset.info)?;
-            Ok((
-                asset.to_decimal_asset(coin_precision)?,
-                Decimal256::with_precision(pool, coin_precision)?,
-            ))
-        })
-        .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
-
-    let amp = compute_current_amp(&config, &env)?;
-
-    // Invariant (D) after deposit added
-    let new_balances = assets_collection
-        .iter()
-        .map(|(deposit, pool)| Ok(pool + deposit.amount))
-        .collect::<StdResult<Vec<_>>>()?;
-    let deposit_d = compute_d(amp, &new_balances)?;
+    let assets_collection = get_assets_collection(deps, &config, &pools, assets)?;
 
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
-    let share = if total_share.is_zero() {
-        let share = deposit_d
-            .to_uint128_with_precision(config.greatest_precision)?
-            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
-            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
-
-        // share cannot become zero after minimum liquidity subtraction
-        if share.is_zero() {
-            return Err(ContractError::MinimumLiquidityAmountError {});
-        }
-
-        share
-    } else {
-        // Initial invariant (D)
-        let old_balances = assets_collection
-            .iter()
-            .map(|(_, pool)| *pool)
-            .collect::<Vec<_>>();
-        let init_d = compute_d(amp, &old_balances)?;
-
-        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
-            .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
-            .to_uint128_with_precision(config.greatest_precision)?;
-
-        if share.is_zero() {
-            return Err(ContractError::LiquidityAmountTooSmall {});
-        }
-
-        share
-    };
+    let share = calculate_shares(deps, &env, &config, total_share, assets_collection)?;
 
     Ok(share)
 }

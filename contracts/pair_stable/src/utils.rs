@@ -1,15 +1,16 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::token_factory::tf_mint_msg;
 use cosmwasm_std::{
-    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
-    QuerierWrapper, StdResult, Storage, Uint128, Uint64,
+    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps,
+    Env, QuerierWrapper, StdResult, Storage, Uint128, Uint64,
 };
 
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::observation::{
     safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
 };
@@ -19,7 +20,7 @@ use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
-use crate::math::calc_y;
+use crate::math::{calc_y, compute_d};
 use crate::state::{get_precision, Config, OBSERVATIONS};
 
 /// Helper function to check if the given asset infos are valid.
@@ -408,4 +409,120 @@ pub(crate) fn determine_base_quote_amount(
     };
 
     Ok((base_amount, quote_amount))
+}
+
+pub(crate) fn calculate_shares(
+    deps: Deps,
+    env: &Env,
+    config: &Config,
+    total_share: Uint128,
+    assets_collection: Vec<(Asset, Uint128)>,
+) -> Result<Uint128, ContractError> {
+    let amp = compute_current_amp(config, env)?;
+
+    let assets_collection = assets_collection
+        .iter()
+        .cloned()
+        .map(|(asset, pool)| {
+            let coin_precision = get_precision(deps.storage, &asset.info)?;
+            Ok((
+                asset.to_decimal_asset(coin_precision)?,
+                Decimal256::with_precision(pool, coin_precision)?,
+            ))
+        })
+        .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
+
+    // Invariant (D) after deposit added
+    let new_balances = assets_collection
+        .iter()
+        .map(|(deposit, pool)| Ok(pool + deposit.amount))
+        .collect::<StdResult<Vec<_>>>()?;
+    let deposit_d = compute_d(amp, &new_balances)?;
+
+    let share = if total_share.is_zero() {
+        let share = deposit_d
+            .to_uint128_with_precision(config.greatest_precision)?
+            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
+        share
+    } else {
+        // Initial invariant (D)
+        let old_balances = assets_collection
+            .iter()
+            .map(|(_, pool)| *pool)
+            .collect_vec();
+        let init_d = compute_d(amp, &old_balances)?;
+
+        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
+            .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
+            .to_uint128_with_precision(config.greatest_precision)?;
+
+        if share.is_zero() {
+            return Err(ContractError::LiquidityAmountTooSmall {});
+        }
+
+        share
+    };
+    Ok(share)
+}
+
+pub(crate) fn get_assets_collection(
+    deps: Deps,
+    config: &Config,
+    pools: &HashMap<AssetInfo, Uint128>,
+    assets: Vec<Asset>,
+) -> Result<Vec<(Asset, Uint128)>, ContractError> {
+    check_assets(deps.api, &assets)?;
+
+    if assets.len() != config.pair_info.asset_infos.len() {
+        return Err(ContractError::InvalidNumberOfAssets(
+            config.pair_info.asset_infos.len(),
+        ));
+    }
+
+    let mut non_zero_flag = false;
+
+    let mut assets_collection = assets
+        .clone()
+        .into_iter()
+        .map(|asset| {
+            // Check that at least one asset is non-zero
+            if !asset.amount.is_zero() {
+                non_zero_flag = true;
+            }
+
+            // Get appropriate pool
+            let pool = pools
+                .get(&asset.info)
+                .copied()
+                .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
+
+            Ok((asset, pool))
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
+
+    // If some assets are omitted then add them explicitly with 0 deposit
+    pools.iter().for_each(|(pool_info, pool_amount)| {
+        if !assets.iter().any(|asset| asset.info.eq(pool_info)) {
+            assets_collection.push((
+                Asset {
+                    amount: Uint128::zero(),
+                    info: pool_info.clone(),
+                },
+                *pool_amount,
+            ));
+        }
+    });
+
+    if !non_zero_flag {
+        return Err(ContractError::InvalidZeroAmount {});
+    }
+
+    Ok(assets_collection)
 }
