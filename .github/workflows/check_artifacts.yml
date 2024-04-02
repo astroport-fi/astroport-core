@@ -8,59 +8,17 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 jobs:
-  fetch_deps:
-    name: Fetch cargo dependencies
+  check-artifacts-size:
     runs-on: ubuntu-latest
-
+    name: Check Artifacts Size
     steps:
       - name: Cancel Previous Runs
         uses: styfle/cancel-workflow-action@0.11.0
         with:
           access_token: ${{ github.token }}
 
-      - uses: actions/checkout@v3
-      - uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: |
-            ${{ secrets.GOV_PRIVATE_KEY }}
-
-      - uses: actions/cache@v3
-        if: always()
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/git/checkouts
-            ~/.cargo/git/db
-            ~/.cargo/registry/cache
-            ~/.cargo/registry/index
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - run: |
-          git config url."ssh://git@github.com/astroport-fi/hidden_astroport_governance.git".insteadOf "https://github.com/astroport-fi/hidden_astroport_governance"
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.75.0
-          override: true
-
-      - name: Fetch cargo deps
-        uses: actions-rs/cargo@v1
-        with:
-          command: fetch
-          args: --locked
-
-  check-artifacts-size:
-    runs-on: ubuntu-latest
-    name: Check Artifacts Size
-    needs: fetch_deps
-    steps:
       - name: Checkout sources
         uses: actions/checkout@v3
 
@@ -73,8 +31,6 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/registry/index
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          # docker can't pull private sources, so we fail if cache is missing
-          fail-on-cache-miss: true
 
       - name: Build Artifacts
         run: |
@@ -82,7 +38,7 @@ jobs:
             -v "$GITHUB_WORKSPACE":/code \
             -v ~/.cargo/registry:/usr/local/cargo/registry \
             -v ~/.cargo/git:/usr/local/cargo/git \
-            cosmwasm/workspace-optimizer:0.12.13
+            cosmwasm/workspace-optimizer:0.15.1
 
       - name: Save artifacts cache
         uses: actions/cache/save@v3

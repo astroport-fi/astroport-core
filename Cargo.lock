@@ -131,6 +131,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport"
+version = "4.0.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#48991e8ce09749538858dadb45507e6c862ec915"
+dependencies = [
+ "astroport-circular-buffer 0.2.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-asset",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw20 1.1.2",
+ "itertools 0.12.1",
+ "uint 0.9.5",
+]
+
+[[package]]
 name = "astroport-circular-buffer"
 version = "0.2.0"
 dependencies = [
@@ -149,6 +165,17 @@ dependencies = [
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
+ "thiserror",
+]
+
+[[package]]
+name = "astroport-circular-buffer"
+version = "0.2.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_core#48991e8ce09749538858dadb45507e6c862ec915"
+dependencies = [
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
  "thiserror",
 ]
 
@@ -220,7 +247,7 @@ name = "astroport-governance"
 version = "3.0.0"
 source = "git+https://github.com/astroport-fi/hidden_astroport_governance#e1c4475708c5d92acece729ae939d8caac4295d6"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.0 (git+https://github.com/astroport-fi/hidden_astroport_core)",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
