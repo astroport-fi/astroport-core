@@ -217,8 +217,8 @@ dependencies = [
 
 [[package]]
 name = "astroport-governance"
-version = "2.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance?branch=feat/bump_astroport_v4#1acf430ea19ccf88701f50b58e218c98d2f8e454"
+version = "3.0.0"
+source = "git+https://github.com/astroport-fi/hidden_astroport_governance#e1c4475708c5d92acece729ae939d8caac4295d6"
 dependencies = [
  "astroport 4.0.0",
  "cosmwasm-schema",
@@ -284,7 +284,7 @@ dependencies = [
  "astro-satellite-package",
  "astroport 4.0.0",
  "astroport-factory 1.7.0",
- "astroport-governance 2.0.0",
+ "astroport-governance 3.0.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
  "astroport-pair-stable",
