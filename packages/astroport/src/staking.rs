@@ -39,7 +39,7 @@ pub enum QueryMsg {
     #[returns(TrackerData)]
     TrackerConfig {},
     /// BalanceAt returns xASTRO balance of the given address at at the given timestamp.
-    /// Returns current balance if unset if timestamp unset.
+    /// Returns current balance if timestamp unset.
     #[returns(Uint128)]
     BalanceAt {
         address: String,
