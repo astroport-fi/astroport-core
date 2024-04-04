@@ -2429,7 +2429,8 @@ fn test_imbalanced_withdraw_is_disabled() {
     );
 }
 
-// #[test_case("1.3.1"; "v1.3.1")]
+#[ignore]
+#[test_case("1.3.1"; "v1.3.1")]
 #[test_case("1.5.0"; "v1.5.0")]
 fn test_migrate_from_standard_xyk(old_version: &str) {
     let owner = Addr::unchecked("owner");

@@ -27,7 +27,7 @@ library = []
 
 [dependencies]
 integer-sqrt = "0.1"
-astroport = { path = "../../packages/astroport", version = "5" }
+astroport = { path = "../../packages/astroport", version = "4" }
 cw2.workspace = true
 cw20 = "1.1"
 cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}

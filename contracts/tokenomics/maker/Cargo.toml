@@ -29,7 +29,7 @@ cosmwasm-std.workspace = true
 cw2.workspace = true
 cw20 = "1"
 cw-storage-plus.workspace = true
-astroport = { path = "../../../packages/astroport", version = "5" }
+astroport = { path = "../../../packages/astroport", version = "4" }
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "1" }
