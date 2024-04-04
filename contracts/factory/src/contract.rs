@@ -14,7 +14,7 @@ use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
     Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
-    PairType, PairsResponse, QueryMsg, TrackerConfig, TrackerConfigResponse,
+    PairType, PairsResponse, QueryMsg, TrackerConfig,
 };
 use astroport::incentives::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -552,13 +552,11 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     })
 }
 
-pub fn query_tracker_config(deps: Deps) -> StdResult<TrackerConfigResponse> {
+pub fn query_tracker_config(deps: Deps) -> StdResult<TrackerConfig> {
     let tracker_config = TRACKER_CONFIG.load(deps.storage)?;
-    let config = CONFIG.load(deps.storage)?;
-    Ok(TrackerConfigResponse {
+    Ok(TrackerConfig {
         code_id: tracker_config.code_id,
         token_factory_addr: tracker_config.token_factory_addr,
-        admin: config.owner.to_string(),
     })
 }
 

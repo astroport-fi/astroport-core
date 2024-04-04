@@ -1,6 +1,7 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::factory::{
     Config as FactoryConfig, FeeInfoResponse, PairType, PairsResponse, QueryMsg as FactoryQueryMsg,
+    TrackerConfig,
 };
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
@@ -161,6 +162,21 @@ where
         Ok(res)
     } else {
         Err(StdError::generic_err("The factory config not found!"))
+    }
+}
+
+/// Returns the tracker configuration from the factory contract.
+pub fn query_tracker_config<C>(
+    querier: &QuerierWrapper<C>,
+    factory_contract: impl Into<String>,
+) -> StdResult<TrackerConfig>
+where
+    C: CustomQuery,
+{
+    if let Some(res) = querier.query_wasm_raw(factory_contract, b"tracker_config".as_slice())? {
+        Ok(from_json(res)?)
+    } else {
+        Err(StdError::generic_err("The tracker config not found!"))
     }
 }
 

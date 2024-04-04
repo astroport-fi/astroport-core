@@ -17,7 +17,7 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
     MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::factory::{PairType, QueryMsg as FactoryQueryMsg, TrackerConfigResponse};
+use astroport::factory::PairType;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::{
     ConfigResponse, FeeShareConfig, ReplyIds, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
@@ -27,7 +27,10 @@ use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
     QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
-use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
+
+use astroport::querier::{
+    query_factory_config, query_fee_info, query_native_supply, query_tracker_config,
+};
 use astroport::token_factory::{
     tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
 };
@@ -126,14 +129,12 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
                 let mut sub_msgs = vec![];
                 if config.track_asset_balances {
-                    let tracker_config: TrackerConfigResponse = deps.querier.query_wasm_smart(
-                        config.factory_addr,
-                        &FactoryQueryMsg::TrackerConfig {},
-                    )?;
+                    let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
+                    let tracker_config = query_tracker_config(&deps.querier, config.factory_addr)?;
                     // Instantiate tracking contract
                     let sub_msg: Vec<SubMsg> = vec![SubMsg::reply_on_success(
                         WasmMsg::Instantiate {
-                            admin: Some(tracker_config.admin.to_string()),
+                            admin: Some(factory_config.owner.to_string()),
                             code_id: tracker_config.code_id,
                             msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
                                 tokenfactory_module_address: tracker_config
@@ -826,14 +827,12 @@ pub fn update_config(
 
             CONFIG.save(deps.storage, &config)?;
 
-            let tracker_config: TrackerConfigResponse = deps
-                .querier
-                .query_wasm_smart(config.factory_addr, &FactoryQueryMsg::TrackerConfig {})?;
+            let tracker_config = query_tracker_config(&deps.querier, config.factory_addr)?;
 
             // Instantiate tracking contract
             let sub_msgs: Vec<SubMsg> = vec![SubMsg::reply_on_success(
                 WasmMsg::Instantiate {
-                    admin: Some(tracker_config.admin.to_string()),
+                    admin: Some(factory_config.owner.to_string()),
                     code_id: tracker_config.code_id,
                     msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
                         tokenfactory_module_address: tracker_config.token_factory_addr.to_string(),

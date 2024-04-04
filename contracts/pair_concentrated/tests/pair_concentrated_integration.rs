@@ -436,8 +436,6 @@ fn check_imbalanced_provide() {
     helper.give_me_money(&assets, &user1);
     helper.provide_liquidity(&user1, &assets).unwrap();
 
-    dbg!(&helper.lp_token);
-
     assert_eq!(
         200495_366531,
         helper.native_balance(&helper.lp_token, &user1)
@@ -1966,7 +1964,7 @@ fn test_tracker_contract() {
         ..common_pcl_params()
     };
 
-    // Instantiate pair without asset balances tracking
+    // Instantiate pair with asset balances tracking
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
     let assets = vec![

@@ -2,7 +2,7 @@
 
 use anyhow::Result as AnyResult;
 use astroport::asset::AssetInfo;
-use astroport::factory::{PairConfig, PairType, TrackerConfigResponse};
+use astroport::factory::{PairConfig, PairType, TrackerConfig};
 use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use astroport_test::modules::stargate::StargateApp as TestApp;
 
@@ -70,7 +70,6 @@ impl FactoryHelper {
         );
 
         let factory_code_id = router.store_code(factory_contract);
-        dbg!(&factory_code_id);
 
         let msg = astroport::factory::InstantiateMsg {
             pair_configs: vec![
@@ -183,14 +182,11 @@ impl FactoryHelper {
         router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
     }
 
-    pub fn query_tracker_config(
-        &mut self,
-        router: &mut TestApp,
-    ) -> StdResult<TrackerConfigResponse> {
+    pub fn query_tracker_config(&mut self, router: &mut TestApp) -> StdResult<TrackerConfig> {
         let msg = astroport::factory::QueryMsg::TrackerConfig {};
         router
             .wrap()
-            .query_wasm_smart::<TrackerConfigResponse>(self.factory.clone(), &msg)
+            .query_wasm_smart::<TrackerConfig>(self.factory.clone(), &msg)
     }
 }
 

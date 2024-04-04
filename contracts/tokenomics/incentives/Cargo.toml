@@ -21,7 +21,7 @@ cosmwasm-schema.workspace = true
 cw2.workspace = true
 cw20 = "1"
 cw-utils.workspace = true
-astroport = { path = "../../../packages/astroport", version = "4" }
+astroport = { path = "../../../packages/astroport", version = "5" }
 thiserror.workspace = true
 itertools.workspace = true
 

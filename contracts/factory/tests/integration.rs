@@ -475,7 +475,7 @@ fn tracker_config() {
 
     let tracker_config = app
         .wrap()
-        .query_wasm_smart::<astroport::factory::TrackerConfigResponse>(
+        .query_wasm_smart::<astroport::factory::TrackerConfig>(
             factory.clone(),
             &astroport::factory::QueryMsg::TrackerConfig {},
         )

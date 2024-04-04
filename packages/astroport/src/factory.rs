@@ -194,7 +194,7 @@ pub enum QueryMsg {
     /// Returns a vector that contains blacklisted pair types
     #[returns(Vec<PairType>)]
     BlacklistedPairTypes {},
-    #[returns(TrackerConfigResponse)]
+    #[returns(TrackerConfig)]
     TrackerConfig {},
 }
 
@@ -255,14 +255,4 @@ pub struct TrackerConfig {
     pub code_id: u64,
     /// Token factory module address
     pub token_factory_addr: String,
-}
-
-#[cw_serde]
-pub struct TrackerConfigResponse {
-    /// Tracking contract code id
-    pub code_id: u64,
-    /// Token factory module address
-    pub token_factory_addr: String,
-    /// Admin of the tracker contract
-    pub admin: String,
 }
