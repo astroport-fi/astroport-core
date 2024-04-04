@@ -1,6 +1,6 @@
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
 use cosmwasm_std::{OverflowError, StdError, Uint128};
-use cw_utils::PaymentError;
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 /// This enum describes pair contract errors
@@ -11,6 +11,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("Unauthorized")]
     Unauthorized {},

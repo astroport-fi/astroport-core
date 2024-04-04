@@ -8,12 +8,14 @@ use cosmwasm_std::{
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BankSudo, CosmosRouter, DistributionKeeper, FailingModule,
     GovFailingModule, IbcFailingModule, Module, StakeKeeper, Stargate, StargateMsg, StargateQuery,
-    WasmKeeper,
+    SudoMsg, WasmKeeper,
 };
 
 use anyhow::{Ok, Result as AnyResult};
 
-use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
+use astroport::token_factory::{
+    MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
+};
 
 pub type StargateApp<ExecC = Empty, QueryC = Empty> = App<
     BankKeeper,
@@ -98,6 +100,14 @@ impl Module for MockStargate {
                     Addr::unchecked(tf_msg.sender),
                     burn_msg.into(),
                 )
+            }
+            MsgSetBeforeSendHook::TYPE_URL => {
+                let before_hook_msg: MsgSetBeforeSendHook = value.try_into()?;
+                let msg = BankSudo::SetHook {
+                    contract_addr: before_hook_msg.cosmwasm_address,
+                    denom: before_hook_msg.denom,
+                };
+                router.sudo(api, storage, block, SudoMsg::Bank(msg))
             }
             _ => Err(anyhow::anyhow!(
                 "Unexpected exec msg {type_url} from {sender:?}",

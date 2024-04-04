@@ -18,19 +18,21 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
     MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::factory::PairType;
+use astroport::factory::{PairType, QueryMsg as FactoryQueryMsg, TrackerConfigResponse};
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
-use astroport::pair::{ConfigResponse, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
+use astroport::pair::{ConfigResponse, ReplyIds, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::token_factory::{
-    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
+    tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
 };
-use astroport::U256;
-use cw_utils::{one_coin, PaymentError};
+use astroport::{tokenfactory_tracker, U256};
+use cw_utils::{
+    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
+};
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
@@ -84,6 +86,7 @@ pub fn instantiate(
         track_asset_balances: init_params.track_asset_balances,
         tax_configs: init_params.tax_configs.check(deps.api, &msg.asset_infos)?,
         tax_config_admin: deps.api.addr_validate(&init_params.tax_config_admin)?,
+        tracker_addr: None,
     };
 
     if init_params.track_asset_balances {
@@ -113,29 +116,75 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg {
-        Reply {
-            id: CREATE_DENOM_REPLY_ID,
-            result:
-                SubMsgResult::Ok(SubMsgResponse {
-                    data: Some(data), ..
-                }),
-        } => {
-            let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match ReplyIds::try_from(msg.id)? {
+        ReplyIds::CreateDenom => {
+            if let SubMsgResult::Ok(SubMsgResponse { data: Some(b), .. }) = msg.result {
+                let MsgCreateDenomResponse { new_token_denom } = b.try_into()?;
+                let config = CONFIG.load(deps.storage)?;
 
-            CONFIG.update(deps.storage, |mut config| {
-                if !config.pair_info.liquidity_token.is_empty() {
-                    return Err(ContractError::Unauthorized {});
+                let mut sub_msgs = vec![];
+                if config.track_asset_balances {
+                    let tracker_config: TrackerConfigResponse = deps.querier.query_wasm_smart(
+                        config.factory_addr,
+                        &FactoryQueryMsg::TrackerConfig {},
+                    )?;
+                    // Instantiate tracking contract
+                    let sub_msg: Vec<SubMsg> = vec![SubMsg::reply_on_success(
+                        WasmMsg::Instantiate {
+                            admin: Some(tracker_config.admin.to_string()),
+                            code_id: tracker_config.code_id,
+                            msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
+                                tokenfactory_module_address: tracker_config
+                                    .token_factory_addr
+                                    .to_string(),
+                                tracked_denom: new_token_denom.clone(),
+                            })?,
+                            funds: vec![],
+                            label: format!("{new_token_denom} tracking contract"),
+                        },
+                        ReplyIds::InstantiateTrackingContract as u64,
+                    )];
+
+                    sub_msgs.extend(sub_msg);
                 }
 
-                config.pair_info.liquidity_token = new_token_denom.clone();
-                Ok(config)
+                CONFIG.update(deps.storage, |mut config| {
+                    if !config.pair_info.liquidity_token.is_empty() {
+                        return Err(ContractError::Unauthorized {});
+                    }
+
+                    config.pair_info.liquidity_token = new_token_denom.clone();
+                    Ok(config)
+                })?;
+
+                Ok(Response::new()
+                    .add_submessages(sub_msgs)
+                    .add_attribute("lp_denom", new_token_denom))
+            } else {
+                Err(ContractError::FailedToParseReply {})
+            }
+        }
+        ReplyIds::InstantiateTrackingContract => {
+            let MsgInstantiateContractResponse {
+                contract_address, ..
+            } = parse_reply_instantiate_data(msg)?;
+
+            let config = CONFIG.update::<_, StdError>(deps.storage, |mut c| {
+                c.tracker_addr = Some(deps.api.addr_validate(&contract_address)?);
+                Ok(c)
             })?;
 
-            Ok(Response::new().add_attribute("lp_denom", new_token_denom))
+            let set_hook_msg = tf_before_send_hook_msg(
+                env.contract.address,
+                config.pair_info.liquidity_token,
+                contract_address.clone(),
+            );
+
+            Ok(Response::new()
+                .add_message(set_hook_msg)
+                .add_attribute("tracker_contract", contract_address))
         }
-        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 
@@ -751,10 +800,35 @@ pub fn update_config(
         for pool in pools.iter() {
             BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
         }
+
+        let tracker_config: TrackerConfigResponse = deps.querier.query_wasm_smart(
+            config.factory_addr.clone(),
+            &FactoryQueryMsg::TrackerConfig {},
+        )?;
+
+        // Instantiate tracking contract
+        let sub_msgs: Vec<SubMsg> = vec![SubMsg::reply_on_success(
+            WasmMsg::Instantiate {
+                admin: Some(tracker_config.admin.to_string()),
+                code_id: tracker_config.code_id,
+                msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
+                    tokenfactory_module_address: tracker_config.token_factory_addr.to_string(),
+                    tracked_denom: config.pair_info.liquidity_token.clone(),
+                })?,
+                funds: vec![],
+                label: format!(
+                    "{} tracking contract",
+                    config.pair_info.liquidity_token.clone()
+                ),
+            },
+            ReplyIds::InstantiateTrackingContract as u64,
+        )];
+
         response.attributes.push(attr(
             "asset_balances_tracking".to_owned(),
             "enabled".to_owned(),
         ));
+        response.messages.extend(sub_msgs);
     }
 
     if let Some(new_tax_config) = config_updates.tax_configs {
@@ -1076,6 +1150,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
+        tracker_addr: config.tracker_addr,
     })
 }
 
@@ -1437,6 +1512,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             price0_cumulative_last: old_config.price0_cumulative_last,
             price1_cumulative_last: old_config.price1_cumulative_last,
             track_asset_balances: old_config.track_asset_balances,
+            tracker_addr: None,
         };
         CONFIG.save(deps.storage, &new_config)?;
     } else {

@@ -86,6 +86,7 @@ pub fn migrate_config_to_v210(mut deps: DepsMut) -> StdResult<Config> {
         greatest_precision,
         cumulative_prices,
         fee_share: None,
+        tracker_addr: None,
     };
 
     CONFIG.save(deps.storage, &cfg)?;
@@ -137,6 +138,7 @@ pub fn migrate_config_from_v21(deps: DepsMut) -> StdResult<()> {
         greatest_precision: cfg_v212.greatest_precision,
         cumulative_prices: cfg_v212.cumulative_prices,
         fee_share: None,
+        tracker_addr: None,
     };
 
     CONFIG.save(deps.storage, &cfg)?;

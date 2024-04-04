@@ -226,6 +226,7 @@ fn test_queries() {
             params: None,
             owner: owner.clone(),
             factory_addr: helper.factory.clone(),
+            tracker_addr: None
         }
     );
 

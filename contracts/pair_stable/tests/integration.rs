@@ -151,6 +151,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        tracker_config: None,
     };
 
     let factory_addr = router
@@ -682,6 +683,7 @@ fn provide_lp_for_single_token() {
         owner: String::from("owner0000"),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = app
@@ -1021,6 +1023,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         owner: String::from("owner0000"),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = app
@@ -1336,6 +1339,7 @@ fn update_pair_config() {
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = router
@@ -1583,6 +1587,7 @@ fn enable_disable_fee_sharing() {
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = router
@@ -1881,6 +1886,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = router
@@ -2369,6 +2375,7 @@ fn test_fee_share(
         owner: String::from("owner0000"),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = app

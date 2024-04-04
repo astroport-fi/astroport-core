@@ -33,6 +33,8 @@ pub struct Config {
     pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
     // The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
+    /// The tracker contract address
+    pub tracker_addr: Option<Addr>,
 }
 
 /// Circular buffer to store trade size observations

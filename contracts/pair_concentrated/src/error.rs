@@ -1,7 +1,7 @@
 use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
-use cw_utils::PaymentError;
+use cw_utils::{ParseReplyError, PaymentError};
 
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
 use astroport_circular_buffer::error::BufferError;
@@ -15,6 +15,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     ConversionOverflowError(#[from] ConversionOverflowError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("{0}")]
     OverflowError(#[from] OverflowError),

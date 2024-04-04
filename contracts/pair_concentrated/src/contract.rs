@@ -1,16 +1,20 @@
 use std::vec;
 
-use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
+use astroport::token_factory::{
+    tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse,
+};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure_eq, from_json, wasm_execute, Addr, Attribute, Binary, Coin, CosmosMsg,
+    attr, coin, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin, CosmosMsg,
     Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128,
+    SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_utils::{one_coin, PaymentError};
+use cw_utils::{
+    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
+};
 use itertools::Itertools;
 
 use astroport::asset::AssetInfoExt;
@@ -19,15 +23,17 @@ use astroport::asset::{
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
-use astroport::factory::PairType;
+use astroport::factory::{PairType, QueryMsg as FactoryQueryMsg, TrackerConfigResponse};
 use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, FeeShareConfig, InstantiateMsg, MAX_FEE_SHARE_BPS, MIN_TRADE_SIZE,
+    Cw20HookMsg, ExecuteMsg, FeeShareConfig, InstantiateMsg, ReplyIds, MAX_FEE_SHARE_BPS,
+    MIN_TRADE_SIZE,
 };
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
+use astroport::tokenfactory_tracker;
 use astroport_circular_buffer::BufferManager;
 use astroport_pcl_common::state::{
     AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
@@ -49,8 +55,6 @@ use crate::utils::{
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Reply ID for create denom reply
-const CREATE_DENOM_REPLY_ID: u64 = 1;
 /// Tokenfactory LP token subdenom
 pub const LP_SUBDENOM: &str = "astroport/share";
 /// An LP token's precision.
@@ -139,6 +143,7 @@ pub fn instantiate(
         owner: None,
         track_asset_balances: params.track_asset_balances.unwrap_or_default(),
         fee_share: None,
+        tracker_addr: None,
     };
 
     if config.track_asset_balances {
@@ -154,7 +159,7 @@ pub fn instantiate(
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
         tf_create_denom_msg(env.contract.address.to_string(), LP_SUBDENOM),
-        CREATE_DENOM_REPLY_ID,
+        ReplyIds::CreateDenom as u64,
     );
 
     Ok(Response::new().add_submessage(sub_msg).add_attribute(
@@ -170,29 +175,75 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
-    match msg {
-        Reply {
-            id: CREATE_DENOM_REPLY_ID,
-            result:
-                SubMsgResult::Ok(SubMsgResponse {
-                    data: Some(data), ..
-                }),
-        } => {
-            let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+    match ReplyIds::try_from(msg.id)? {
+        ReplyIds::CreateDenom => {
+            if let SubMsgResult::Ok(SubMsgResponse { data: Some(b), .. }) = msg.result {
+                let MsgCreateDenomResponse { new_token_denom } = b.try_into()?;
+                let config = CONFIG.load(deps.storage)?;
 
-            CONFIG.update(deps.storage, |mut config| {
-                if !config.pair_info.liquidity_token.is_empty() {
-                    return Err(ContractError::Unauthorized {});
+                let mut sub_msgs = vec![];
+                if config.track_asset_balances {
+                    let tracker_config: TrackerConfigResponse = deps.querier.query_wasm_smart(
+                        config.factory_addr,
+                        &FactoryQueryMsg::TrackerConfig {},
+                    )?;
+                    // Instantiate tracking contract
+                    let sub_msg: Vec<SubMsg> = vec![SubMsg::reply_on_success(
+                        WasmMsg::Instantiate {
+                            admin: Some(tracker_config.admin.to_string()),
+                            code_id: tracker_config.code_id,
+                            msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
+                                tokenfactory_module_address: tracker_config
+                                    .token_factory_addr
+                                    .to_string(),
+                                tracked_denom: new_token_denom.clone(),
+                            })?,
+                            funds: vec![],
+                            label: format!("{new_token_denom} tracking contract"),
+                        },
+                        ReplyIds::InstantiateTrackingContract as u64,
+                    )];
+
+                    sub_msgs.extend(sub_msg);
                 }
 
-                config.pair_info.liquidity_token = new_token_denom.clone();
-                Ok(config)
+                CONFIG.update(deps.storage, |mut config| {
+                    if !config.pair_info.liquidity_token.is_empty() {
+                        return Err(ContractError::Unauthorized {});
+                    }
+
+                    config.pair_info.liquidity_token = new_token_denom.clone();
+                    Ok(config)
+                })?;
+
+                Ok(Response::new()
+                    .add_submessages(sub_msgs)
+                    .add_attribute("lp_denom", new_token_denom))
+            } else {
+                Err(ContractError::FailedToParseReply {})
+            }
+        }
+        ReplyIds::InstantiateTrackingContract => {
+            let MsgInstantiateContractResponse {
+                contract_address, ..
+            } = parse_reply_instantiate_data(msg)?;
+
+            let config = CONFIG.update::<_, StdError>(deps.storage, |mut c| {
+                c.tracker_addr = Some(deps.api.addr_validate(&contract_address)?);
+                Ok(c)
             })?;
 
-            Ok(Response::new().add_attribute("lp_denom", new_token_denom))
+            let set_hook_msg = tf_before_send_hook_msg(
+                env.contract.address,
+                config.pair_info.liquidity_token,
+                contract_address.clone(),
+            );
+
+            Ok(Response::new()
+                .add_message(set_hook_msg)
+                .add_attribute("tracker_contract", contract_address))
         }
-        _ => Err(ContractError::FailedToParseReply {}),
     }
 }
 
@@ -778,20 +829,23 @@ fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut attrs: Vec<Attribute> = vec![];
+    let mut response = Response::default();
 
-    let action = match from_json::<ConcentratedPoolUpdateParams>(&params)? {
+    match from_json::<ConcentratedPoolUpdateParams>(&params)? {
         ConcentratedPoolUpdateParams::Update(update_params) => {
             config.pool_params.update_params(update_params)?;
-            "update_params"
+
+            response.attributes.push(attr("action", "update_params"));
         }
         ConcentratedPoolUpdateParams::Promote(promote_params) => {
             config.pool_state.promote_params(&env, promote_params)?;
-            "promote_params"
+            response.attributes.push(attr("action", "promote_params"));
         }
         ConcentratedPoolUpdateParams::StopChangingAmpGamma {} => {
             config.pool_state.stop_promotion(&env);
-            "stop_changing_amp_gamma"
+            response
+                .attributes
+                .push(attr("action", "stop_changing_amp_gamma"));
         }
         ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {} => {
             if config.track_asset_balances {
@@ -807,7 +861,29 @@ fn update_config(
                 BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
             }
 
-            "enable_asset_balances_tracking"
+            let tracker_config: TrackerConfigResponse = deps.querier.query_wasm_smart(
+                config.factory_addr.clone(),
+                &FactoryQueryMsg::TrackerConfig {},
+            )?;
+
+            // Instantiate tracking contract
+            let sub_msgs: Vec<SubMsg> = vec![SubMsg::reply_on_success(
+                WasmMsg::Instantiate {
+                    admin: Some(tracker_config.admin.to_string()),
+                    code_id: tracker_config.code_id,
+                    msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
+                        tokenfactory_module_address: tracker_config.token_factory_addr.to_string(),
+                        tracked_denom: config.pair_info.liquidity_token.clone(),
+                    })?,
+                    funds: vec![],
+                    label: format!("{} tracking contract", config.pair_info.liquidity_token),
+                },
+                ReplyIds::InstantiateTrackingContract as u64,
+            )];
+            response.messages.extend(sub_msgs);
+            response
+                .attributes
+                .push(attr("action", "enable_asset_balances_tracking"));
         }
         ConcentratedPoolUpdateParams::EnableFeeShare {
             fee_share_bps,
@@ -828,25 +904,24 @@ fn update_config(
                 recipient: deps.api.addr_validate(&fee_share_address)?,
             });
 
-            CONFIG.save(deps.storage, &config)?;
-
-            attrs.push(attr("fee_share_bps", fee_share_bps.to_string()));
-            attrs.push(attr("fee_share_address", fee_share_address));
-            "enable_fee_share"
+            response.attributes.extend(vec![
+                attr("action", "enable_fee_share"),
+                attr("fee_share_bps", fee_share_bps.to_string()),
+                attr("fee_share_address", fee_share_address),
+            ]);
         }
         ConcentratedPoolUpdateParams::DisableFeeShare => {
             // Disable fee sharing for this contract by setting bps and
             // address back to None
             config.fee_share = None;
-            CONFIG.save(deps.storage, &config)?;
-            "disable_fee_share"
+            response
+                .attributes
+                .push(attr("action", "disable_fee_share"));
         }
     };
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(Response::new()
-        .add_attribute("action", action)
-        .add_attributes(attrs))
+    Ok(response)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

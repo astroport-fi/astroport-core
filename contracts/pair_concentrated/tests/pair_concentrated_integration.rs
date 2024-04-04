@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Decimal, Decimal256, StdError, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, StdError, Uint128};
 use itertools::{max, Itertools};
 
 use astroport::asset::{
@@ -14,13 +14,16 @@ use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
+use astroport::tokenfactory_tracker::{
+    ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
+};
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
 
 use astroport_test::coins::TestCoin;
 use astroport_test::convert::{dec_to_f64, f64_to_dec};
-use astroport_test::cw_multi_test::Executor;
+use astroport_test::cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 
 use crate::helper::{common_pcl_params, AppExtension, Helper};
 
@@ -1950,4 +1953,87 @@ fn test_provide_liquidity_without_funds() {
         err.root_cause().to_string(),
         "Generic error: Native token balance mismatch between the argument (100000000000uluna) and the transferred (0uluna)"
     )
+}
+
+#[test]
+fn test_tracker_contract() {
+    let owner = Addr::unchecked("owner");
+    let alice = Addr::unchecked("alice");
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
+
+    let params = ConcentratedPoolParams {
+        track_asset_balances: Some(true),
+        ..common_pcl_params()
+    };
+
+    // Instantiate pair without asset balances tracking
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(5_000000u128),
+        helper.assets[&test_coins[1]].with_balance(5_000000u128),
+    ];
+
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let config = helper.query_config().unwrap();
+
+    let tracker_addr = config.tracker_addr.unwrap();
+
+    let tracker_config: TrackerConfigResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(tracker_addr.clone(), &TrackerQueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        tracker_config.token_factory_module,
+        TOKEN_FACTORY_MODULE.to_string()
+    );
+    assert_eq!(tracker_config.tracked_denom, helper.lp_token.to_string());
+
+    let owner_lp_funds = helper
+        .app
+        .wrap()
+        .query_balance(owner.clone(), helper.lp_token.clone())
+        .unwrap();
+
+    let total_supply = owner_lp_funds.amount + MINIMUM_LIQUIDITY_AMOUNT;
+
+    // Set Alice's balances
+    helper
+        .app
+        .send_tokens(
+            owner.clone(),
+            alice.clone(),
+            &[Coin {
+                denom: helper.lp_token.to_string(),
+                amount: Uint128::new(100),
+            }],
+        )
+        .unwrap();
+
+    let tracker_total_supply: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            tracker_addr.clone(),
+            &TrackerQueryMsg::TotalSupplyAt { timestamp: None },
+        )
+        .unwrap();
+
+    assert_eq!(total_supply, tracker_total_supply);
+
+    let alice_balance: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            tracker_addr,
+            &TrackerQueryMsg::BalanceAt {
+                address: alice.to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(alice_balance, Uint128::new(100));
 }

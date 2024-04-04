@@ -1466,6 +1466,7 @@ fn test_accumulate_prices() {
                 track_asset_balances: false,
                 tax_configs: TaxConfigsChecked::default(),
                 tax_config_admin: Addr::unchecked("tax_config_admin"),
+                tracker_addr: None,
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),

@@ -133,6 +133,34 @@ impl TryFrom<Binary> for MsgMint {
     }
 }
 
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MsgSetBeforeSendHook {
+    #[prost(string, tag = "1")]
+    pub sender: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub denom: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub cosmwasm_address: ::prost::alloc::string::String,
+}
+
+impl MsgSetBeforeSendHook {
+    pub const TYPE_URL: &'static str = "/osmosis.tokenfactory.v1beta1.MsgSetBeforeSendHook";
+}
+
+impl TryFrom<Binary> for MsgSetBeforeSendHook {
+    type Error = StdError;
+    fn try_from(binary: Binary) -> Result<Self, Self::Error> {
+        Self::decode(binary.as_slice()).map_err(|e| {
+            StdError::generic_err(format!(
+                "MsgSetBeforeSendHook Unable to decode binary: \n  - base64: {}\n  - bytes array: {:?}\n\n{:?}",
+                binary,
+                binary.to_vec(),
+                e
+            ))
+        })
+    }
+}
+
 pub fn tf_create_denom_msg<T>(sender: impl Into<String>, denom: impl Into<String>) -> CosmosMsg<T>
 where
     T: CustomMsg,
@@ -191,5 +219,25 @@ where
     CosmosMsg::Stargate {
         type_url: MsgBurn::TYPE_URL.to_string(),
         value: Binary::from(burn_msg.encode_to_vec()),
+    }
+}
+
+pub fn tf_before_send_hook_msg<T>(
+    sender: impl Into<String>,
+    denom: impl Into<String>,
+    cosmwasm_address: impl Into<String>,
+) -> CosmosMsg<T>
+where
+    T: CustomMsg,
+{
+    let msg = MsgSetBeforeSendHook {
+        sender: sender.into(),
+        denom: denom.into(),
+        cosmwasm_address: cosmwasm_address.into(),
+    };
+
+    CosmosMsg::Stargate {
+        type_url: MsgSetBeforeSendHook::TYPE_URL.to_string(),
+        value: Binary::from(msg.encode_to_vec()),
     }
 }

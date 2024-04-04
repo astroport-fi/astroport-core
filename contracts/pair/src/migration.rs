@@ -39,6 +39,7 @@ pub(crate) fn add_asset_balances_tracking_flag(
         price1_cumulative_last: old_config.price1_cumulative_last,
         track_asset_balances: false,
         fee_share: None,
+        tracker_addr: None,
     };
 
     CONFIG.save(storage, &new_config)?;

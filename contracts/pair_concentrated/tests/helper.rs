@@ -7,8 +7,8 @@ use anyhow::Result as AnyResult;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
-    Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, DepsMut, Empty, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
@@ -30,7 +30,9 @@ use astroport_pcl_common::state::Config;
 
 use astroport_test::coins::TestCoin;
 use astroport_test::convert::f64_to_dec;
-use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use astroport_test::cw_multi_test::{
+    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, TOKEN_FACTORY_MODULE,
+};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
@@ -111,6 +113,19 @@ fn generator() -> Box<dyn Contract<Empty>> {
     ))
 }
 
+fn tracker_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+                unimplemented!()
+            },
+            astroport_tokenfactory_tracker::contract::instantiate,
+            astroport_tokenfactory_tracker::query::query,
+        )
+        .with_sudo_empty(astroport_tokenfactory_tracker::contract::sudo),
+    )
+}
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
@@ -141,6 +156,7 @@ impl Helper {
             });
 
         let token_code_id = app.store_code(token_contract());
+        let tracker_code_id = app.store_code(tracker_contract());
 
         let asset_infos_vec = test_coins
             .iter()
@@ -214,6 +230,10 @@ impl Helper {
             owner: owner.to_string(),
             whitelist_code_id: 234u64,
             coin_registry_address: coin_registry_address.to_string(),
+            tracker_config: Some(astroport::factory::TrackerConfig {
+                code_id: tracker_code_id,
+                token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
+            }),
         };
 
         let factory = app.instantiate_contract(

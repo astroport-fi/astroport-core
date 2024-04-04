@@ -49,3 +49,4 @@ proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+astroport-tokenfactory-tracker = { path = "../periphery/tokenfactory_tracker"}

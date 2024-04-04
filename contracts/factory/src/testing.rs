@@ -68,6 +68,7 @@ fn proper_initialization() {
         owner: owner.clone(),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -92,6 +93,7 @@ fn proper_initialization() {
         owner: owner.clone(),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -129,6 +131,7 @@ fn proper_initialization() {
         owner: owner.clone(),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -166,6 +169,7 @@ fn update_config() {
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -230,6 +234,7 @@ fn update_owner() {
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -318,6 +323,7 @@ fn update_pair_config() {
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -432,6 +438,7 @@ fn create_pair() {
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();
@@ -531,6 +538,7 @@ fn register() {
         owner: owner.to_string(),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let env = mock_env();

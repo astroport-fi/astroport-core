@@ -1459,6 +1459,7 @@ fn test_accumulate_prices() {
                 price1_cumulative_last: Uint128::new(case.last1),
                 track_asset_balances: false,
                 fee_share: None,
+                tracker_addr: None,
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),

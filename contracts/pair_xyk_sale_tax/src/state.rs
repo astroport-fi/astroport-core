@@ -25,6 +25,8 @@ pub struct Config {
     pub tax_configs: TaxConfigs<Addr>,
     /// The address that is allowed to updated the tax configs
     pub tax_config_admin: Addr,
+    /// Stores the tracker contract address
+    pub tracker_addr: Option<Addr>,
 }
 
 /// Stores the config struct at the given key

@@ -20,6 +20,7 @@ pub(crate) fn migrate_config(storage: &mut dyn Storage) -> Result<(), StdError> 
         owner: old_config.owner,
         track_asset_balances: old_config.track_asset_balances,
         fee_share: None,
+        tracker_addr: None,
     };
 
     CONFIG.save(storage, &new_config)?;
@@ -63,6 +64,7 @@ pub(crate) fn migrate_config_v2(storage: &mut dyn Storage, env: &Env) -> Result<
         owner: old_config.owner,
         track_asset_balances: old_config.track_asset_balances,
         fee_share: old_config.fee_share,
+        tracker_addr: None,
     };
 
     CONFIG.save(storage, &new_config)?;

@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, StdError, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -164,6 +164,8 @@ pub struct ConfigResponse {
     pub owner: Addr,
     /// The factory contract address
     pub factory_addr: Addr,
+    /// Tracker contract address
+    pub tracker_addr: Option<Addr>,
 }
 
 /// Holds the configuration for fee sharing
@@ -280,6 +282,28 @@ pub enum StablePoolUpdateParams {
         fee_share_address: String,
     },
     DisableFeeShare,
+}
+
+/// A `reply` call code ID used for sub-messages.
+#[cw_serde]
+pub enum ReplyIds {
+    CreateDenom = 1,
+    InstantiateTrackingContract = 2,
+}
+
+impl TryFrom<u64> for ReplyIds {
+    type Error = StdError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(ReplyIds::CreateDenom),
+            2 => Ok(ReplyIds::InstantiateTrackingContract),
+            _ => Err(StdError::ParseErr {
+                target_type: "ReplyIds".to_string(),
+                msg: "Failed to parse reply".to_string(),
+            }),
+        }
+    }
 }
 
 #[cfg(test)]

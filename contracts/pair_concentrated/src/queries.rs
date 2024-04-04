@@ -305,6 +305,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         })?),
         owner: config.owner.unwrap_or(factory_config.owner),
         factory_addr: config.factory_addr,
+        tracker_addr: config.tracker_addr,
     })
 }
 
