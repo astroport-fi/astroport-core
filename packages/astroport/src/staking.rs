@@ -1,58 +1,83 @@
-use crate::xastro_token::InstantiateMarketingInfo;
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Uint128};
-use cw20::Cw20ReceiveMsg;
+use cosmwasm_std::Uint128;
 
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// The contract owner address
-    pub owner: String,
-    /// CW20 token code identifier
-    pub token_code_id: u64,
     /// The ASTRO token contract address
-    pub deposit_token_addr: String,
-    /// the marketing info of type [`InstantiateMarketingInfo`]
-    pub marketing: Option<InstantiateMarketingInfo>,
+    pub deposit_token_denom: String,
+    /// Tracking contract admin
+    pub tracking_admin: String,
+    // The Code ID of contract used to track the TokenFactory token balances
+    pub tracking_code_id: u64,
+    /// Token factory module address. Contract creator must ensure that the address is exact token factory module address.
+    pub token_factory_addr: String,
 }
 
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-    Receive(Cw20ReceiveMsg),
+    /// Deposits ASTRO in exchange for xASTRO
+    Enter {},
+    /// Burns xASTRO in exchange for ASTRO
+    Leave {},
 }
 
 /// This structure describes the query messages available in the contract.
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
-    /// Config returns the contract configuration specified in a custom [`ConfigResponse`] structure
-    #[returns(ConfigResponse)]
+    /// Config returns the contract configuration specified in a custom [`Config`] structure
+    #[returns(Config)]
     Config {},
+    /// Returns xASTRO total supply. Duplicates TotalSupplyAt { timestamp: None } logic but kept for backward compatibility.
     #[returns(Uint128)]
     TotalShares {},
+    /// Returns total ASTRO staked in the contract
     #[returns(Uint128)]
     TotalDeposit {},
+    #[returns(TrackerData)]
+    TrackerConfig {},
+    /// BalanceAt returns xASTRO balance of the given address at at the given timestamp.
+    /// Returns current balance if timestamp unset.
+    #[returns(Uint128)]
+    BalanceAt {
+        address: String,
+        timestamp: Option<u64>,
+    },
+    /// TotalSupplyAt returns xASTRO total token supply at the given timestamp.
+    /// Returns current total supply if timestamp unset.
+    #[returns(Uint128)]
+    TotalSupplyAt { timestamp: Option<u64> },
 }
 
+/// This structure stores the main parameters for the staking contract.
 #[cw_serde]
-pub struct ConfigResponse {
-    /// The ASTRO token address
-    pub deposit_token_addr: Addr,
-    /// The xASTRO token address
-    pub share_token_addr: Addr,
+pub struct Config {
+    /// The ASTRO token denom
+    pub astro_denom: String,
+    /// The xASTRO token denom
+    pub xastro_denom: String,
 }
 
-/// This structure describes a migration message.
+/// This structure stores the tracking contract data.
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct TrackerData {
+    /// Tracking contract code id
+    pub code_id: u64,
+    /// Tracking contract admin
+    pub admin: String,
+    /// Token factory module address
+    pub token_factory_addr: String,
+    /// Tracker contract address
+    pub tracker_addr: String,
+}
 
-/// This structure describes a CW20 hook message.
+// The structure returned as part of set_data when staking or unstaking
 #[cw_serde]
-pub enum Cw20HookMsg {
-    /// Deposits ASTRO in exchange for xASTRO
-    Enter {},
-    /// Burns xASTRO in exchange for ASTRO
-    Leave {},
+pub struct StakingResponse {
+    /// The ASTRO denom
+    pub astro_amount: Uint128,
+    /// The xASTRO denom
+    pub xastro_amount: Uint128,
 }

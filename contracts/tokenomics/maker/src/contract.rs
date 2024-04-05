@@ -189,6 +189,7 @@ pub fn execute(
             max_spread,
             second_receiver_params,
             collect_cooldown,
+            astro_token,
         } => update_config(
             deps,
             info,
@@ -200,6 +201,7 @@ pub fn execute(
             max_spread,
             second_receiver_params,
             collect_cooldown,
+            astro_token,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
         ExecuteMsg::SwapBridgeAssets { assets, depth } => {
@@ -695,6 +697,7 @@ fn update_config(
     max_spread: Option<Decimal>,
     second_receiver_params: Option<SecondReceiverParams>,
     collect_cooldown: Option<u64>,
+    astro_token: Option<AssetInfo>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -778,6 +781,12 @@ fn update_config(
         validate_cooldown(Some(collect_cooldown))?;
         config.collect_cooldown = Some(collect_cooldown);
         attributes.push(attr("collect_cooldown", collect_cooldown.to_string()));
+    }
+
+    if let Some(astro_token) = astro_token {
+        astro_token.check(deps.api)?;
+        attributes.push(attr("new_astro_token", astro_token.to_string()));
+        config.astro_token = astro_token;
     }
 
     CONFIG.save(deps.storage, &config)?;

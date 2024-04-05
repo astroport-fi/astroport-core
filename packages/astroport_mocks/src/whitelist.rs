@@ -18,7 +18,7 @@ where
     C::ExecT: CustomMsg + DeserializeOwned + 'static,
     C::QueryT: CustomQuery + DeserializeOwned + 'static,
 {
-    use astroport_whitelist as cnt;
+    use cw1_whitelist as cnt;
     let contract = Box::new(ContractWrapper::new_with_empty(
         cnt::contract::execute,
         cnt::contract::instantiate,

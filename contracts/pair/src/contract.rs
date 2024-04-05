@@ -17,7 +17,7 @@ use astroport::asset::{
     PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::factory::PairType;
-use astroport::generator::Cw20HookMsg as GeneratorHookMsg;
+use astroport::incentives::Cw20Msg as GeneratorHookMsg;
 use astroport::pair::{
     ConfigResponse, FeeShareConfig, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,

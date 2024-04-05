@@ -25,21 +25,20 @@ crate-type = ["cdylib", "rlib"]
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = "1.1"
-cw2 = "0.15"
-cw20 = "0.15"
-cw-storage-plus = "0.15"
-astroport = { path = "../../../packages/astroport", version = "3.10" }
-thiserror = { version = "1.0" }
-cosmwasm-schema = "1.1"
+cosmwasm-std.workspace = true
+cw2.workspace = true
+cw20 = "1"
+cw-storage-plus.workspace = true
+astroport = { path = "../../../packages/astroport", version = "4" }
+thiserror.workspace = true
+cosmwasm-schema.workspace = true
 astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "1" }
 
 [dev-dependencies]
-astroport-token = { path = "../../token" }
+cw20-base = "1"
 astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "1.0.0"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance" }
-astroport-escrow-fee-distributor = { git = "https://github.com/astroport-fi/astroport-governance" }
+astroport-governance = { git = "https://github.com/astroport-fi/astroport-governance", version = "3", branch = "feat/astroport_governance_v3" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }

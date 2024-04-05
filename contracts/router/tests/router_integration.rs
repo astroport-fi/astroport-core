@@ -661,7 +661,10 @@ fn test_swap_route() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Invalid zero amount");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Swap amount must not be zero"
+    );
 
     // Query attacker balance and calculate profit
     let balance_res: BalanceResponse = app
@@ -851,7 +854,10 @@ fn test_swap_route() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Invalid zero amount");
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Swap amount must not be zero"
+    );
 
     let balance_res: BalanceResponse = app
         .wrap()

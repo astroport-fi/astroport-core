@@ -1,3 +1,4 @@
+// TODO: DEPRECATE
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use cosmwasm_std::{StdError, StdResult, Uint128};

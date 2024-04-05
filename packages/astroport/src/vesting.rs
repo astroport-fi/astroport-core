@@ -164,10 +164,13 @@ impl Into<Order> for OrderBy {
     }
 }
 
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
+/// This structure describes migration message.
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    /// Special migration message needed during the Hub move.
+    /// Cw admin must be very cautious supplying correct converter contract.
+    pub converter_contract: String,
+}
 
 /// This structure describes a CW20 hook message.
 #[cw_serde]

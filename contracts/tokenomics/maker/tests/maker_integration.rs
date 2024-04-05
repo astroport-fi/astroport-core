@@ -4,10 +4,11 @@ use std::str::FromStr;
 
 use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, Uint64, WasmQuery,
+    attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
+    MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, ContractWrapper, Executor};
+use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
 
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
@@ -17,8 +18,8 @@ use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
     SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_maker::error::ContractError;
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
 const OWNER: &str = "owner";
 
@@ -88,6 +89,24 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
     coin_registry_address
 }
 
+fn mock_fee_distributor_contract() -> Box<dyn Contract<Empty>> {
+    let instantiate = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+        Ok(Default::default())
+    };
+    let execute = |_: DepsMut,
+                   _: Env,
+                   _: MessageInfo,
+                   _: astroport_governance::escrow_fee_distributor::ExecuteMsg|
+     -> StdResult<Response> { Ok(Default::default()) };
+    let empty_query = |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() };
+
+    Box::new(ContractWrapper::new_with_empty(
+        execute,
+        instantiate,
+        empty_query,
+    ))
+}
+
 fn instantiate_contracts(
     mut router: &mut App,
     owner: Addr,
@@ -99,9 +118,9 @@ fn instantiate_contracts(
     collect_cooldown: Option<u64>,
 ) -> (Addr, Addr, Addr, Addr) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let astro_token_code_id = router.store_code(astro_token_contract);
@@ -198,27 +217,13 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let escrow_fee_distributor_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_escrow_fee_distributor::contract::execute,
-        astroport_escrow_fee_distributor::contract::instantiate,
-        astroport_escrow_fee_distributor::contract::query,
-    ));
-
-    let escrow_fee_distributor_code_id = router.store_code(escrow_fee_distributor_contract);
-
-    let init_msg = astroport_governance::escrow_fee_distributor::InstantiateMsg {
-        owner: owner.to_string(),
-        astro_token: astro_token_instance.to_string(),
-        voting_escrow_addr: "voting".to_string(),
-        claim_many_limit: None,
-        is_claim_disabled: None,
-    };
+    let escrow_fee_distributor_code_id = router.store_code(mock_fee_distributor_contract());
 
     let governance_instance = router
         .instantiate_contract(
             escrow_fee_distributor_code_id,
             owner.clone(),
-            &init_msg,
+            &Empty {},
             &[],
             "Astroport escrow fee distributor",
             None,
@@ -266,9 +271,9 @@ fn instantiate_contracts(
 
 fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let token_code_id = router.store_code(token_contract);
@@ -516,6 +521,7 @@ fn update_config() {
         max_spread: Some(new_max_spread),
         second_receiver_params: None,
         collect_cooldown: None,
+        astro_token: None,
     };
 
     // Assert cannot update with improper owner
@@ -558,6 +564,7 @@ fn update_config() {
             second_receiver_cut: Default::default(),
         }),
         collect_cooldown: None,
+        astro_token: None,
     };
 
     let err = router
@@ -577,6 +584,7 @@ fn update_config() {
             second_receiver_cut: Uint64::new(10),
         }),
         collect_cooldown: None,
+        astro_token: None,
     };
 
     router
@@ -606,6 +614,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.start() - 1),
+        astro_token: None,
     };
 
     let err = router
@@ -628,6 +637,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.end() + 1),
+        astro_token: None,
     };
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
@@ -649,6 +659,7 @@ fn update_config() {
         max_spread: None,
         second_receiver_params: None,
         collect_cooldown: Some((*COOLDOWN_LIMITS.end() - *COOLDOWN_LIMITS.start()) / 2),
+        astro_token: None,
     };
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])

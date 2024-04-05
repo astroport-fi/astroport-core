@@ -1,10 +1,8 @@
 #![cfg(not(tarpaulin_include))]
 
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
 use itertools::{max, Itertools};
 
 use astroport::asset::{
@@ -16,8 +14,7 @@ use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
-use astroport_mocks::cw_multi_test::{next_block, BasicApp, Executor};
-use astroport_mocks::{astroport_address, MockConcentratedPairBuilder, MockGeneratorBuilder};
+use astroport_mocks::cw_multi_test::{next_block, Executor};
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
@@ -1327,52 +1324,6 @@ fn provides_and_swaps_and_withdraw() {
         .unwrap();
 
     assert_eq!(res.total_share.u128(), 1000u128);
-}
-
-#[test]
-fn provide_liquidity_with_autostaking_to_generator() {
-    let astroport = astroport_address();
-
-    let app = Rc::new(RefCell::new(BasicApp::new(|router, _, storage| {
-        router
-            .bank
-            .init_balance(
-                storage,
-                &astroport,
-                vec![Coin {
-                    denom: "ustake".to_owned(),
-                    amount: Uint128::new(1_000_000_000000),
-                }],
-            )
-            .unwrap();
-    })));
-
-    let generator = MockGeneratorBuilder::new(&app).instantiate();
-
-    let factory = generator.factory();
-
-    let astro_token_info = generator.astro_token_info();
-    let ustake = native_asset_info("ustake".to_owned());
-
-    let pair = MockConcentratedPairBuilder::new(&app)
-        .with_factory(&factory)
-        .with_asset(&astro_token_info)
-        .with_asset(&ustake)
-        .instantiate(None);
-
-    pair.mint_allow_provide_and_stake(
-        &astroport,
-        &[
-            astro_token_info.with_balance(1_000_000000u128),
-            ustake.with_balance(1_000_000000u128),
-        ],
-    );
-
-    assert_eq!(pair.lp_token().balance(&pair.address), Uint128::new(1000));
-    assert_eq!(
-        generator.query_deposit(&pair.lp_token(), &astroport),
-        Uint128::new(999_999000),
-    );
 }
 
 #[test]

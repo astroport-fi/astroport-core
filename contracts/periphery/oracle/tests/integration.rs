@@ -74,9 +74,9 @@ fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>
 
 fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64) {
     let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let astro_token_code_id = router.store_code(astro_token_contract);
@@ -192,9 +192,9 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
 
 fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_token::contract::execute,
-        astroport_token::contract::instantiate,
-        astroport_token::contract::query,
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
     ));
 
     let token_code_id = router.store_code(token_contract);

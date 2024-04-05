@@ -1,11 +1,13 @@
-use astroport::asset::PairInfo;
-use astroport::pair::QueryMsg;
+use std::collections::HashMap;
+
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_json, to_json_binary, Coin, Empty, OwnedDeps, Querier, QuerierResult, QueryRequest,
     SystemError, SystemResult, WasmQuery,
 };
-use std::collections::HashMap;
+
+use astroport::asset::PairInfo;
+use astroport::pair::QueryMsg;
 
 /// mock_dependencies is a drop-in replacement for cosmwasm_std::testing::mock_dependencies.
 /// This uses the Astroport CustomQuerier.

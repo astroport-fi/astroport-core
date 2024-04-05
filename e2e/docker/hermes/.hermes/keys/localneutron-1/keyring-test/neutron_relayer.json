@@ -1,0 +1,28 @@
+{
+  "private_key": "8482bce4e5f250bb775f788ce89abc4717980e97c618a1f26278b195b3b6b05f",
+  "public_key": "0229fc5e5a420a15020e62cde603b5285f4908918f27632daf85435f3ab9d293d5",
+  "address": [
+    14,
+    183,
+    127,
+    68,
+    52,
+    65,
+    17,
+    181,
+    230,
+    149,
+    38,
+    142,
+    122,
+    1,
+    95,
+    232,
+    11,
+    31,
+    130,
+    99
+  ],
+  "address_type": "Cosmos",
+  "account": "neutron1p6mh73p5gygmte54y6885q2laq93lqnreltjl8"
+}
