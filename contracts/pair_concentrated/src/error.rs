@@ -61,9 +61,6 @@ pub enum ContractError {
     #[error("Contract can't be migrated!")]
     MigrationError {},
 
-    #[error("Asset balances tracking is already enabled")]
-    AssetBalancesTrackingIsAlreadyEnabled {},
-
     #[error(
         "Fee share is 0 or exceeds maximum allowed value of {} bps",
         MAX_FEE_SHARE_BPS

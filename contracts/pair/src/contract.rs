@@ -266,7 +266,7 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
+        ExecuteMsg::UpdateConfig { params } => update_config(deps, info, params),
         ExecuteMsg::WithdrawLiquidity {
             assets,
             min_assets_to_receive,
@@ -797,7 +797,6 @@ pub fn swap(
 /// * **params** new parameter values.
 pub fn update_config(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     params: Binary,
 ) -> Result<Response, ContractError> {
@@ -811,45 +810,6 @@ pub fn update_config(
     let mut response = Response::default();
 
     match from_json::<XYKPoolUpdateParams>(&params)? {
-        XYKPoolUpdateParams::EnableAssetBalancesTracking => {
-            if config.track_asset_balances {
-                return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
-            }
-            config.track_asset_balances = true;
-
-            let pools = config
-                .pair_info
-                .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-            for pool in pools.iter() {
-                BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
-            }
-
-            CONFIG.save(deps.storage, &config)?;
-
-            let tracker_config = query_tracker_config(&deps.querier, config.factory_addr)?;
-
-            // Instantiate tracking contract
-            let sub_msgs: Vec<SubMsg> = vec![SubMsg::reply_on_success(
-                WasmMsg::Instantiate {
-                    admin: Some(factory_config.owner.to_string()),
-                    code_id: tracker_config.code_id,
-                    msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
-                        tokenfactory_module_address: tracker_config.token_factory_addr.to_string(),
-                        tracked_denom: config.pair_info.liquidity_token.clone(),
-                    })?,
-                    funds: vec![],
-                    label: format!("{} tracking contract", config.pair_info.liquidity_token),
-                },
-                ReplyIds::InstantiateTrackingContract as u64,
-            )];
-
-            response.attributes.push(attr(
-                "asset_balances_tracking".to_owned(),
-                "enabled".to_owned(),
-            ));
-            response.messages.extend(sub_msgs);
-        }
         XYKPoolUpdateParams::EnableFeeShare {
             fee_share_bps,
             fee_share_address,

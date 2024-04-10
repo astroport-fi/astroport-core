@@ -259,7 +259,7 @@ pub fn execute(
                 to_addr,
             )
         }
-        ExecuteMsg::UpdateConfig { params } => update_config(deps, env, info, params),
+        ExecuteMsg::UpdateConfig { params } => update_config(deps, info, params),
         ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
         _ => Err(ContractError::NonSupported {}),
     }
@@ -768,7 +768,6 @@ pub fn swap(
 /// * **params** new parameter values.
 pub fn update_config(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
     params: Binary,
 ) -> Result<Response, ContractError> {
@@ -779,55 +778,7 @@ pub fn update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut response = Response::default();
-
     let config_updates = from_json::<SaleTaxConfigUpdates>(&params)?;
-
-    let track_asset_balances = config_updates.track_asset_balances.unwrap_or_default();
-    if track_asset_balances {
-        if info.sender != factory_config.owner {
-            return Err(ContractError::Unauthorized {});
-        }
-
-        if config.track_asset_balances {
-            return Err(ContractError::AssetBalancesTrackingIsAlreadyEnabled {});
-        }
-        config.track_asset_balances = true;
-
-        let pools = config
-            .pair_info
-            .query_pools(&deps.querier, &config.pair_info.contract_addr)?;
-
-        for pool in pools.iter() {
-            BALANCES.save(deps.storage, &pool.info, &pool.amount, env.block.height)?;
-        }
-
-        let tracker_config = query_tracker_config(&deps.querier, config.factory_addr.clone())?;
-
-        // Instantiate tracking contract
-        let sub_msgs: Vec<SubMsg> = vec![SubMsg::reply_on_success(
-            WasmMsg::Instantiate {
-                admin: Some(factory_config.owner.to_string()),
-                code_id: tracker_config.code_id,
-                msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
-                    tokenfactory_module_address: tracker_config.token_factory_addr.to_string(),
-                    tracked_denom: config.pair_info.liquidity_token.clone(),
-                })?,
-                funds: vec![],
-                label: format!(
-                    "{} tracking contract",
-                    config.pair_info.liquidity_token.clone()
-                ),
-            },
-            ReplyIds::InstantiateTrackingContract as u64,
-        )];
-
-        response.attributes.push(attr(
-            "asset_balances_tracking".to_owned(),
-            "enabled".to_owned(),
-        ));
-        response.messages.extend(sub_msgs);
-    }
 
     if let Some(new_tax_config) = config_updates.tax_configs {
         if info.sender != config.tax_config_admin {
@@ -844,7 +795,7 @@ pub fn update_config(
 
     CONFIG.save(deps.storage, &config)?;
 
-    Ok(response)
+    Ok(Response::default())
 }
 
 /// Accumulate token prices for the assets in the pool.

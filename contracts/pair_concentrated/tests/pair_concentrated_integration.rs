@@ -1115,81 +1115,6 @@ fn query_d_test() {
 }
 
 #[test]
-fn asset_balances_tracking_without_in_params() {
-    let owner = Addr::unchecked("owner");
-    let user1 = Addr::unchecked("user1");
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
-
-    // Instantiate pair without asset balances tracking
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(5_000000u128),
-        helper.assets[&test_coins[1]].with_balance(5_000000u128),
-    ];
-
-    // Check that asset balances are not tracked
-    // The query AssetBalanceAt returns None for this case
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    // Enable asset balances tracking
-    helper
-        .update_config(
-            &owner,
-            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
-        )
-        .unwrap();
-
-    // Check that asset balances were not tracked before this was enabled
-    // The query AssetBalanceAt returns None for this case
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    // Check that asset balances had zero balances before next block upon tracking enabling
-    helper.app.update_block(|b| b.height += 1);
-
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.unwrap().is_zero());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.unwrap().is_zero());
-
-    helper.give_me_money(&assets, &user1);
-    helper.provide_liquidity(&user1, &assets).unwrap();
-
-    // Check that asset balances changed after providing liqudity
-    helper.app.update_block(|b| b.height += 1);
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(5_000000));
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(5_000000));
-}
-
-#[test]
 fn asset_balances_tracking_with_in_params() {
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
@@ -1207,17 +1132,6 @@ fn asset_balances_tracking_with_in_params() {
         helper.assets[&test_coins[1]].with_balance(5_000000u128),
     ];
 
-    // Check that enabling asset balances tracking can not be done if it is already enabled
-    let err = helper
-        .update_config(
-            &owner,
-            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::AssetBalancesTrackingIsAlreadyEnabled {}
-    );
     // Check that asset balances were not tracked before instantiation
     // The query AssetBalanceAt returns None for this case
     let res = helper

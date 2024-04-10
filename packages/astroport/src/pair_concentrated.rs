@@ -68,8 +68,6 @@ pub enum ConcentratedPoolUpdateParams {
     Promote(PromoteParams),
     /// Stops Amp and Gamma update and stores current values.
     StopChangingAmpGamma {},
-    /// Enable asset balances tracking
-    EnableAssetBalancesTracking {},
     /// Enables the sharing of swap fees with an external party.
     EnableFeeShare {
         /// The fee shared with the fee_share_address

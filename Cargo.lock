@@ -1168,7 +1168,7 @@ dependencies = [
 [[package]]
 name = "cw-multi-test"
 version = "1.0.0"
-source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks_1_0#fd4b0de8451012e91fe8ecbddbd2f026b0c4d1ab"
+source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks_1_0#b4ba6101dfd67b73aff3b75a8759915bd215ae85"
 dependencies = [
  "anyhow",
  "bech32 0.11.0",

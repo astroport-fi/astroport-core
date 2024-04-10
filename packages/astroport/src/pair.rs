@@ -51,6 +51,7 @@ pub enum ExecuteMsg {
         min_lp_to_receive: Option<Uint128>,
     },
     WithdrawLiquidity {
+        #[serde(default)]
         assets: Vec<Asset>,
         min_assets_to_receive: Option<Vec<Asset>>,
     },
@@ -236,8 +237,6 @@ pub struct XYKPoolConfig {
 /// This enum stores the option available to enable asset balances tracking over blocks.
 #[cw_serde]
 pub enum XYKPoolUpdateParams {
-    /// Enables asset balances tracking over blocks.
-    EnableAssetBalancesTracking,
     /// Enables the sharing of swap fees with an external party.
     EnableFeeShare {
         /// The fee shared with the fee_share_address

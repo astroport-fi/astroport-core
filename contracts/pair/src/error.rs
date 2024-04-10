@@ -67,9 +67,6 @@ pub enum ContractError {
     #[error("Failed to migrate the contract")]
     MigrationError {},
 
-    #[error("Asset balances tracking is already enabled")]
-    AssetBalancesTrackingIsAlreadyEnabled {},
-
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
 
