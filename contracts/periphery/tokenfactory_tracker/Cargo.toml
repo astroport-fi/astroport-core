@@ -11,13 +11,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cw2.workspace = true
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
 astroport = { path = "../../../packages/astroport", version = "4" }
 
 [dev-dependencies]
-osmosis-std = "0.21"
-osmosis-test-tube = "21.0.0"
-test-tube = "0.3.0"
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
+neutron-sdk = "0.8.0"
+neutron-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube" }
+test-tube = { git = "https://github.com/j0nl1/neutron-test-tube" }

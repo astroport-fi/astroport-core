@@ -1,6 +1,6 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError, Storage, Uint128};
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
 use cw2::set_contract_version;
 
 use astroport::asset::validate_native_denom;
@@ -59,7 +59,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                 // If this function throws error all send, mint and burn actions will be blocked.
                 // However, balances query will still work, hence governance will be able to recover the contract.
                 track_balances(
-                    deps.storage,
+                    deps,
                     env.block.time.seconds(),
                     &config,
                     from,
@@ -88,41 +88,38 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 /// - other scenarios are simple transfers between addresses
 /// Possible errors:
 /// - serialization/deserialization errors. Should never happen if both BALANCES and TOTAL_SUPPLY_HISTORY storage keys and data layout are not changed.
-/// - attempt to subtract from zero balance or reduce empty total supply. Highly unlikely possible. Might happen due to errors in the tokenfactory module.
-/// - attempt to add with overflow. First will happen on total supply increase. Possible if total supply is greater than 2^128 - 1.
 pub fn track_balances(
-    storage: &mut dyn Storage,
+    deps: DepsMut,
     block_seconds: u64,
     config: &Config,
     from: String,
     to: String,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    // If the token is minted directly to an address, we don't need to subtract
-    // as the sender is the module address
-    if from.ne(&config.m) {
-        BALANCES.update::<_, StdError>(storage, &from, block_seconds, |balance| {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        })?;
-    } else {
-        // Minted new tokens
-        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_seconds, |balance| {
-            Ok(balance.unwrap_or_default().checked_add(amount)?)
-        })?;
+    if from != to {
+        if from != config.m {
+            let from_balance = deps.querier.query_balance(&from, &config.d)?.amount;
+            BALANCES.save(
+                deps.storage,
+                &from,
+                &from_balance.checked_sub(amount)?,
+                block_seconds,
+            )?;
+        }
+
+        if to != config.m {
+            let to_balance = deps.querier.query_balance(&to, &config.d)?.amount;
+            BALANCES.save(
+                deps.storage,
+                &to,
+                &to_balance.checked_add(amount)?,
+                block_seconds,
+            )?;
+        }
     }
 
-    // When burning tokens, the receiver is the token factory module address
-    // Sending tokens to the module address isn't allowed by the chain
-    if to.ne(&config.m) {
-        BALANCES.update::<_, StdError>(storage, &to, block_seconds, |balance| {
-            Ok(balance.unwrap_or_default().checked_add(amount)?)
-        })?;
-    } else {
-        // Burned tokens
-        TOTAL_SUPPLY_HISTORY.update::<_, StdError>(storage, block_seconds, |balance| {
-            Ok(balance.unwrap_or_default().checked_sub(amount)?)
-        })?;
-    }
+    let total_supply = deps.querier.query_supply(&config.d)?.amount;
+    TOTAL_SUPPLY_HISTORY.save(deps.storage, &total_supply, block_seconds)?;
 
     Ok(Response::default())
 }
@@ -131,10 +128,11 @@ pub fn track_balances(
 mod tests {
     use cosmwasm_std::testing::mock_dependencies;
     use cosmwasm_std::{
-        from_json,
+        coins,
         testing::{mock_env, mock_info},
-        to_json_binary, Coin, Uint128,
+        to_json_binary, Addr, BankMsg, Coin, Uint128,
     };
+    use cw_multi_test::{App, BankSudo, ContractWrapper, Executor};
 
     use astroport::tokenfactory_tracker::QueryMsg;
 
@@ -155,9 +153,12 @@ mod tests {
 
     #[test]
     fn track_token_balances() {
-        let mut deps = mock_dependencies();
-        let mut env = mock_env();
-        let info = mock_info(OWNER, &[]);
+        let mut app = App::new(|router, _, store| {
+            router
+                .bank
+                .init_balance(store, &Addr::unchecked(MODULE_ADDRESS), coins(200, DENOM))
+                .unwrap();
+        });
 
         let operations = vec![
             // Simulate a mint
@@ -201,110 +202,135 @@ mod tests {
         let expected_user4_balance = Uint128::from(1u128);
         let expected_total_supply = Uint128::from(101u128);
 
-        instantiate(
-            deps.as_mut(),
-            env.clone(),
-            info,
-            InstantiateMsg {
-                tokenfactory_module_address: MODULE_ADDRESS.to_string(),
-                tracked_denom: DENOM.to_string(),
-            },
+        // setup tracker contract
+        let tracker_code_id = app.store_code(Box::new(
+            ContractWrapper::new_with_empty(instantiate, instantiate, query).with_sudo_empty(sudo),
+        ));
+        let tracker_contract = app
+            .instantiate_contract(
+                tracker_code_id,
+                Addr::unchecked(OWNER),
+                &InstantiateMsg {
+                    tokenfactory_module_address: MODULE_ADDRESS.to_string(),
+                    tracked_denom: DENOM.to_string(),
+                },
+                &[],
+                "label",
+                None,
+            )
+            .unwrap();
+        app.sudo(
+            BankSudo::SetHook {
+                denom: DENOM.to_string(),
+                contract_addr: tracker_contract.to_string(),
+            }
+            .into(),
         )
         .unwrap();
 
         for TestOperation { from, to, amount } in operations {
-            sudo(
-                deps.as_mut(),
-                env.clone(),
-                SudoMsg::BlockBeforeSend {
-                    from,
-                    to,
-                    amount: Coin {
-                        denom: DENOM.to_string(),
-                        amount,
-                    },
-                },
+            app.send_tokens(
+                Addr::unchecked(&from),
+                Addr::unchecked(&to),
+                &coins(amount.u128(), DENOM),
             )
             .unwrap();
         }
 
-        env.block.time = env.block.time.plus_seconds(10);
-
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::BalanceAt {
-                address: "user1".to_string(),
-                timestamp: Some(env.block.time.seconds()),
-            },
+        // burn everything from module balance
+        let amount = app.wrap().query_all_balances(MODULE_ADDRESS).unwrap();
+        app.execute(
+            Addr::unchecked(MODULE_ADDRESS),
+            BankMsg::Burn { amount }.into(),
         )
         .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_user1_balance).unwrap());
 
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::BalanceAt {
-                address: "user2".to_string(),
-                timestamp: Some(env.block.time.seconds()),
-            },
-        )
-        .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_user2_balance).unwrap());
+        // send coin to trigger total supply update
+        let user = Addr::unchecked("user4");
+        app.send_tokens(user.clone(), user, &coins(1, DENOM))
+            .unwrap();
 
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::BalanceAt {
-                address: "user3".to_string(),
-                timestamp: Some(env.block.time.seconds()),
-            },
-        )
-        .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_user3_balance).unwrap());
+        let query_at_ts = app.block_info().time.seconds() + 10;
 
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::BalanceAt {
-                address: "user3".to_string(),
-                timestamp: None,
-            },
-        )
-        .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_user3_balance).unwrap());
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::BalanceAt {
+                    address: "user1".to_string(),
+                    timestamp: Some(query_at_ts),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_user1_balance);
 
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::BalanceAt {
-                address: "user4".to_string(),
-                timestamp: None,
-            },
-        )
-        .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_user4_balance).unwrap());
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::BalanceAt {
+                    address: "user2".to_string(),
+                    timestamp: Some(query_at_ts),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_user2_balance);
 
-        let balance = query(
-            deps.as_ref(),
-            env.clone(),
-            QueryMsg::TotalSupplyAt {
-                timestamp: Some(env.block.time.seconds()),
-            },
-        )
-        .unwrap();
-        assert_eq!(
-            from_json::<Uint128>(&balance).unwrap(),
-            expected_total_supply
-        );
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::BalanceAt {
+                    address: "user3".to_string(),
+                    timestamp: Some(query_at_ts),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_user3_balance);
 
-        let balance = query(
-            deps.as_ref(),
-            env,
-            QueryMsg::TotalSupplyAt { timestamp: None },
-        )
-        .unwrap();
-        assert_eq!(balance, to_json_binary(&expected_total_supply).unwrap());
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::BalanceAt {
+                    address: "user3".to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_user3_balance);
+
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::BalanceAt {
+                    address: "user4".to_string(),
+                    timestamp: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_user4_balance);
+
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::TotalSupplyAt {
+                    timestamp: Some(query_at_ts),
+                },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_total_supply);
+
+        let balance: Uint128 = app
+            .wrap()
+            .query_wasm_smart(
+                &tracker_contract,
+                &QueryMsg::TotalSupplyAt { timestamp: None },
+            )
+            .unwrap();
+        assert_eq!(balance, expected_total_supply);
     }
 
     #[test]
