@@ -589,10 +589,11 @@ dependencies = [
  "astroport 4.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test 0.20.0 (git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks)",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
- "osmosis-std",
- "osmosis-test-tube",
+ "neutron-sdk",
+ "neutron-test-tube",
  "test-tube",
  "thiserror",
 ]
@@ -1152,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "cw-multi-test"
 version = "0.20.0"
-source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks#80ebf1aff909d5438fff093b6243c5d7cbf924b3"
+source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks#3220f4cd126b5a8da2ce8b00152afef046a9b391"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2019,15 +2020,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -2185,6 +2177,23 @@ dependencies = [
  "serde-json-wasm 1.0.1",
  "speedate",
  "tendermint-proto 0.34.0",
+ "thiserror",
+]
+
+[[package]]
+name = "neutron-test-tube"
+version = "0.1.0"
+source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
+dependencies = [
+ "base64",
+ "bindgen",
+ "cosmrs",
+ "cosmwasm-std",
+ "neutron-sdk",
+ "prost 0.12.3",
+ "serde",
+ "serde_json",
+ "test-tube",
  "thiserror",
 ]
 
@@ -2350,24 +2359,6 @@ dependencies = [
  "prost-types 0.11.9",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "osmosis-test-tube"
-version = "21.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a528c942d25d3159634f77953ca0e16c5a450fc44578ad922320128e4025fd"
-dependencies = [
- "base64",
- "bindgen",
- "cosmrs",
- "cosmwasm-std",
- "osmosis-std",
- "prost 0.12.3",
- "serde",
- "serde_json",
- "test-tube",
- "thiserror",
 ]
 
 [[package]]
@@ -2589,7 +2580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.48",
@@ -3597,14 +3588,12 @@ dependencies = [
 
 [[package]]
 name = "test-tube"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c17f30e7fea966bde5f9933a4cb2db79dd272115ea19d1656da2aac7ce0700fa"
+version = "0.5.0"
+source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
 dependencies = [
  "base64",
  "cosmrs",
  "cosmwasm-std",
- "osmosis-std",
  "prost 0.12.3",
  "serde",
  "serde_json",
