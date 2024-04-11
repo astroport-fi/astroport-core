@@ -589,10 +589,11 @@ dependencies = [
  "astroport 4.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
+ "cw-multi-test 0.20.0 (git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks)",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
- "osmosis-std",
- "osmosis-test-tube",
+ "neutron-sdk",
+ "neutron-test-tube",
  "test-tube",
  "thiserror",
 ]
@@ -1152,7 +1153,7 @@ dependencies = [
 [[package]]
 name = "cw-multi-test"
 version = "0.20.0"
-source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks#80ebf1aff909d5438fff093b6243c5d7cbf924b3"
+source = "git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks#3220f4cd126b5a8da2ce8b00152afef046a9b391"
 dependencies = [
  "anyhow",
  "bech32 0.9.1",
@@ -2189,6 +2190,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "neutron-test-tube"
+version = "0.1.0"
+source = "git+https://github.com/j0nl1/neutron-test-tube#8b88e0d303b7a552255183bf9c81cea4b689893a"
+dependencies = [
+ "base64",
+ "bindgen",
+ "cosmrs",
+ "cosmwasm-std",
+ "neutron-sdk",
+ "prost 0.12.3",
+ "serde",
+ "serde_json",
+ "test-tube",
+ "thiserror",
+]
+
+[[package]]
 name = "nom"
 version = "7.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2350,24 +2368,6 @@ dependencies = [
  "prost-types 0.11.9",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "osmosis-test-tube"
-version = "21.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3a528c942d25d3159634f77953ca0e16c5a450fc44578ad922320128e4025fd"
-dependencies = [
- "base64",
- "bindgen",
- "cosmrs",
- "cosmwasm-std",
- "osmosis-std",
- "prost 0.12.3",
- "serde",
- "serde_json",
- "test-tube",
- "thiserror",
 ]
 
 [[package]]
@@ -3597,14 +3597,12 @@ dependencies = [
 
 [[package]]
 name = "test-tube"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c17f30e7fea966bde5f9933a4cb2db79dd272115ea19d1656da2aac7ce0700fa"
+version = "0.5.0"
+source = "git+https://github.com/j0nl1/neutron-test-tube#8b88e0d303b7a552255183bf9c81cea4b689893a"
 dependencies = [
  "base64",
  "cosmrs",
  "cosmwasm-std",
- "osmosis-std",
  "prost 0.12.3",
  "serde",
  "serde_json",

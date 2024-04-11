@@ -304,18 +304,27 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     // deposit and shares
     let return_amount = amount.multiply_ratio(total_deposit, total_shares);
 
-    // Burn the received xASTRO tokens
-    let burn_msg = MsgBurn {
-        sender: env.contract.address.to_string(),
-        amount: Some(coin(amount.u128(), config.xastro_denom).into()),
-        burn_from_address: "".to_string(), // This needs to be "" for now
-    };
-
-    // Return the ASTRO tokens to the sender
-    let transfer_msg = BankMsg::Send {
-        to_address: info.sender.to_string(),
-        amount: vec![coin(return_amount.u128(), config.astro_denom)],
-    };
+    let messages: Vec<CosmosMsg> = vec![
+        // Burn the received xASTRO tokens
+        MsgBurn {
+            sender: env.contract.address.to_string(),
+            amount: Some(coin(amount.u128(), &config.xastro_denom).into()),
+            burn_from_address: "".to_string(), // This needs to be "" for now
+        }
+        .into(),
+        // Send ASTRO to the sender
+        BankMsg::Send {
+            to_address: info.sender.to_string(),
+            amount: vec![coin(return_amount.u128(), config.astro_denom)],
+        }
+        .into(),
+        // Send xASTRO to itself to trigger total supply snapshot in tracker contract
+        BankMsg::Send {
+            to_address: env.contract.address.to_string(),
+            amount: vec![coin(1, &config.xastro_denom)],
+        }
+        .into(),
+    ];
 
     // Set the data to be returned in set_data to easy integration with
     // other contracts
@@ -325,8 +334,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
     })?;
 
     Ok(Response::new()
-        .add_message(burn_msg)
-        .add_message(transfer_msg)
+        .add_messages(messages)
         .set_data(staking_response)
         .add_attributes([
             attr("action", "leave"),
