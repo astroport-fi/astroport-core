@@ -7,6 +7,7 @@ description = "The Astroport concentrated liquidity pair"
 license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
+metadata = { build_variants = ["injective", "sei"] }
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -24,6 +25,8 @@ crate-type = ["cdylib", "rlib"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 library = []
+injective = ["astroport/injective"]
+sei = ["astroport/sei"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", version = "4" }

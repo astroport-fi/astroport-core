@@ -48,6 +48,7 @@ pub struct MsgCreateDenom {
 }
 
 impl MsgCreateDenom {
+    #[cfg(not(any(feature = "injective", feature = "sei")))]
     pub const TYPE_URL: &'static str = "/osmosis.tokenfactory.v1beta1.MsgCreateDenom";
     #[cfg(feature = "injective")]
     pub const TYPE_URL: &'static str = "/injective.tokenfactory.v1beta1.MsgCreateDenom";
@@ -80,6 +81,7 @@ pub struct MsgBurn {
 }
 
 impl MsgBurn {
+    #[cfg(not(any(feature = "injective", feature = "sei")))]
     pub const TYPE_URL: &'static str = "/osmosis.tokenfactory.v1beta1.MsgBurn";
     #[cfg(feature = "injective")]
     pub const TYPE_URL: &'static str = "/injective.tokenfactory.v1beta1.MsgBurn";
@@ -112,6 +114,7 @@ pub struct MsgMint {
 }
 
 impl MsgMint {
+    #[cfg(not(any(feature = "injective", feature = "sei")))]
     pub const TYPE_URL: &'static str = "/osmosis.tokenfactory.v1beta1.MsgMint";
     #[cfg(feature = "injective")]
     pub const TYPE_URL: &'static str = "/injective.tokenfactory.v1beta1.MsgMint";
