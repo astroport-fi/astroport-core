@@ -606,7 +606,6 @@ fn withdraw_liquidity(
     messages.push(tf_burn_msg(
         env.contract.address,
         coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-        info.sender.to_string(),
     ));
 
     if config.track_asset_balances {

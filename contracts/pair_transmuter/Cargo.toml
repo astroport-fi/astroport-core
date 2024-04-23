@@ -13,6 +13,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 library = []
+injective = ["astroport/injective"]
+sei = ["astroport/sei"]
 
 [dependencies]
 astroport = { version = "4", path = "../../packages/astroport" }

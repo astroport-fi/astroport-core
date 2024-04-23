@@ -9,6 +9,10 @@ homepage = "https://astroport.fi"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+injective = ["astroport/injective"]
+sei = ["astroport/sei"]
+
 [dependencies]
 cosmwasm-std.workspace = true
 cosmwasm-schema.workspace = true

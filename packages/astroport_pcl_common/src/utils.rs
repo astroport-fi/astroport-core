@@ -18,6 +18,9 @@ use crate::error::PclError;
 use crate::state::{Config, PoolParams, PriceState};
 use crate::{calc_d, calc_y};
 
+#[cfg(any(feature = "injective", feature = "sei"))]
+use cosmwasm_std::BankMsg;
+
 /// Helper function to check the given asset infos are valid.
 pub fn check_asset_infos(api: &dyn Api, asset_infos: &[AssetInfo]) -> Result<(), PclError> {
     if !asset_infos.iter().all_unique() {
@@ -74,7 +77,17 @@ where
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
+        #[cfg(not(any(feature = "injective", feature = "sei")))]
         return Ok(vec![tf_mint_msg(contract_address, coin, recipient)]);
+        #[cfg(any(feature = "injective", feature = "sei"))]
+        return Ok(vec![
+            tf_mint_msg(contract_address, coin.clone(), recipient),
+            BankMsg::Send {
+                to_address: recipient.to_string(),
+                amount: vec![coin],
+            }
+            .into(),
+        ]);
     }
 
     // Mint for the pair contract and stake into the Generator contract

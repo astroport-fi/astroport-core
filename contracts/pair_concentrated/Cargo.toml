@@ -25,8 +25,8 @@ crate-type = ["cdylib", "rlib"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 library = []
-injective = ["astroport/injective"]
-sei = ["astroport/sei"]
+injective = ["astroport/injective", "astroport-pcl-common/injective"]
+sei = ["astroport/sei", "astroport-pcl-common/sei"]
 
 [dependencies]
 astroport = { path = "../../packages/astroport", version = "4" }

@@ -514,7 +514,6 @@ pub fn withdraw_liquidity(
     messages.push(tf_burn_msg(
         env.contract.address.to_string(),
         coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-        info.sender.to_string(),
     ));
 
     let pools = pools

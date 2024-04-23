@@ -477,7 +477,17 @@ where
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
+        #[cfg(not(any(feature = "injective", feature = "sei")))]
         return Ok(vec![tf_mint_msg(contract_address, coin, recipient)]);
+        #[cfg(any(feature = "injective", feature = "sei"))]
+        return Ok(vec![
+            tf_mint_msg(contract_address, coin.clone(), recipient),
+            BankMsg::Send {
+                to_address: recipient.to_string(),
+                amount: vec![coin],
+            }
+            .into(),
+        ]);
     }
 
     // Mint for the pair contract and stake into the Generator contract
@@ -559,7 +569,6 @@ pub fn withdraw_liquidity(
     messages.push(tf_burn_msg(
         env.contract.address,
         coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-        info.sender.to_string(),
     ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![

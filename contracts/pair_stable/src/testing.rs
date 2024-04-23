@@ -641,7 +641,7 @@ fn withdraw_liquidity() {
                             denom: denom.to_string(),
                             amount: Uint128::from(100u128).to_string(),
                         }),
-                        burn_from_address: "addr0000".to_string()
+                        burn_from_address: "".to_string()
                     }
                     .encode_to_vec()
                 ),

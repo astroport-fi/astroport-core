@@ -210,7 +210,6 @@ pub fn withdraw_liquidity(
     messages.push(tf_burn_msg(
         env.contract.address,
         coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
-        info.sender.to_string(),
     ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
@@ -247,12 +246,23 @@ pub fn provide_liquidity(
     // Mint LP token for the caller (or for the receiver if it was set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
 
+    let coin = coin(share.into(), config.pair_info.liquidity_token.to_string());
+
+    #[cfg(not(any(feature = "injective", feature = "sei")))]
+    let messages = vec![tf_mint_msg(env.contract.address, coin, &receiver)];
+
+    #[cfg(any(feature = "injective", feature = "sei"))]
+    let messages = vec![
+        tf_mint_msg(env.contract.address, coin.clone(), receiver.clone()),
+        BankMsg::Send {
+            to_address: receiver.to_string(),
+            amount: vec![coin],
+        }
+        .into(),
+    ];
+
     Ok(Response::new()
-        .add_message(tf_mint_msg(
-            env.contract.address,
-            coin(share.into(), config.pair_info.liquidity_token.to_string()),
-            &receiver,
-        ))
+        .add_messages(messages)
         .add_event(
             Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
                 attr("action", "provide_liquidity"),

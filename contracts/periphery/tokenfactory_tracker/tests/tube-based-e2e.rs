@@ -260,7 +260,7 @@ fn ensure_tracking_on_burn() {
             MsgBurn {
                 sender: ts.owner.address(),
                 amount: Some(coin(1000u128, &denom).into()),
-                burn_from_address: ts.owner.address(),
+                burn_from_address: "".to_string(),
             },
             &ts.owner,
         )
