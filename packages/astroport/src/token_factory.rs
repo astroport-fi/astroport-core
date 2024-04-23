@@ -1,6 +1,9 @@
 pub use cosmos_sdk_proto::cosmos::base::v1beta1::Coin as ProtoCoin;
 use cosmwasm_std::{Binary, Coin, CosmosMsg, CustomMsg, StdError};
 
+#[cfg(any(feature = "injective", feature = "sei"))]
+use cosmwasm_std::BankMsg;
+
 use prost::Message;
 
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -233,7 +236,7 @@ pub fn tf_mint_msg<T>(
     sender: impl Into<String>,
     coin: Coin,
     receiver: impl Into<String>,
-) -> CosmosMsg<T>
+) -> Vec<CosmosMsg<T>>
 where
     T: CustomMsg,
 {
@@ -264,10 +267,24 @@ where
         }),
     };
 
-    CosmosMsg::Stargate {
+    #[cfg(not(any(feature = "injective", feature = "sei")))]
+    return vec![CosmosMsg::Stargate {
         type_url: MsgMint::TYPE_URL.to_string(),
         value: Binary::from(mint_msg.encode_to_vec()),
-    }
+    }];
+
+    #[cfg(any(feature = "injective", feature = "sei"))]
+    return vec![
+        CosmosMsg::Stargate {
+            type_url: MsgMint::TYPE_URL.to_string(),
+            value: Binary::from(mint_msg.encode_to_vec()),
+        },
+        BankMsg::Send {
+            to_address: receiver.into(),
+            amount: vec![coin],
+        }
+        .into(),
+    ];
 }
 
 pub fn tf_burn_msg<T>(sender: impl Into<String>, coin: Coin) -> CosmosMsg<T>

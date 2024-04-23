@@ -248,21 +248,12 @@ pub fn provide_liquidity(
 
     let coin = coin(share.into(), config.pair_info.liquidity_token.to_string());
 
-    #[cfg(not(any(feature = "injective", feature = "sei")))]
-    let messages = vec![tf_mint_msg(env.contract.address, coin, &receiver)];
-
-    #[cfg(any(feature = "injective", feature = "sei"))]
-    let messages = vec![
-        tf_mint_msg(env.contract.address, coin.clone(), receiver.clone()),
-        BankMsg::Send {
-            to_address: receiver.to_string(),
-            amount: vec![coin],
-        }
-        .into(),
-    ];
-
     Ok(Response::new()
-        .add_messages(messages)
+        .add_messages(tf_mint_msg(
+            env.contract.address,
+            coin.clone(),
+            receiver.clone(),
+        ))
         .add_event(
             Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
                 attr("action", "provide_liquidity"),

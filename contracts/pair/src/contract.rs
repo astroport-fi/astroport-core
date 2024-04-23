@@ -39,9 +39,6 @@ use cw_utils::{
     one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
 };
 
-#[cfg(any(feature = "injective", feature = "sei"))]
-use cosmwasm_std::BankMsg;
-
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
 
@@ -501,25 +498,15 @@ where
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
-        #[cfg(not(any(feature = "injective", feature = "sei")))]
-        return Ok(vec![tf_mint_msg(contract_address, coin, recipient)]);
-        #[cfg(any(feature = "injective", feature = "sei"))]
-        return Ok(vec![
-            tf_mint_msg(contract_address, coin.clone(), recipient),
-            BankMsg::Send {
-                to_address: recipient.to_string(),
-                amount: vec![coin],
-            }
-            .into(),
-        ]);
+        return Ok(tf_mint_msg(contract_address, coin, recipient));
     }
 
     // Mint for the pair contract and stake into the Generator contract
     let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
 
     if let Some(generator) = generator {
-        Ok(vec![
-            tf_mint_msg(contract_address, coin.clone(), contract_address),
+        let mut msgs = tf_mint_msg(contract_address, coin.clone(), contract_address);
+        msgs.push(
             wasm_execute(
                 generator,
                 &IncentiveExecuteMsg::Deposit {
@@ -528,7 +515,8 @@ where
                 vec![coin],
             )?
             .into(),
-        ])
+        );
+        Ok(msgs)
     } else {
         Err(ContractError::AutoStakeError {})
     }
