@@ -2021,15 +2021,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -2193,7 +2184,7 @@ dependencies = [
 [[package]]
 name = "neutron-test-tube"
 version = "0.1.0"
-source = "git+https://github.com/j0nl1/neutron-test-tube#8b88e0d303b7a552255183bf9c81cea4b689893a"
+source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
 dependencies = [
  "base64",
  "bindgen",
@@ -2590,7 +2581,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "efb6c9a1dd1def8e2124d17e83a20af56f1570d6c2d2bd9e266ccb768df3840e"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.48",
@@ -3599,7 +3590,7 @@ dependencies = [
 [[package]]
 name = "test-tube"
 version = "0.5.0"
-source = "git+https://github.com/j0nl1/neutron-test-tube#8b88e0d303b7a552255183bf9c81cea4b689893a"
+source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
 dependencies = [
  "base64",
  "cosmrs",
