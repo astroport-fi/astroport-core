@@ -218,9 +218,8 @@ dependencies = [
 [[package]]
 name = "astroport-governance"
 version = "3.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance#e1c4475708c5d92acece729ae939d8caac4295d6"
+source = "git+https://github.com/astroport-fi/astroport-governance?branch=feat/astroport_governance_v3#67cba9037fb9854caa6752a591fd186752b95ee5"
 dependencies = [
- "astroport 4.0.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
