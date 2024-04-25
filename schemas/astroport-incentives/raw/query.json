@@ -1,0 +1,358 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "QueryMsg",
+  "oneOf": [
+    {
+      "description": "Config returns the main contract parameters",
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Deposit returns the LP token amount deposited in a specific generator",
+      "type": "object",
+      "required": [
+        "deposit"
+      ],
+      "properties": {
+        "deposit": {
+          "type": "object",
+          "required": [
+            "lp_token",
+            "user"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "PendingToken returns the amount of rewards that can be claimed by an account that deposited a specific LP token in a generator",
+      "type": "object",
+      "required": [
+        "pending_rewards"
+      ],
+      "properties": {
+        "pending_rewards": {
+          "type": "object",
+          "required": [
+            "lp_token",
+            "user"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": "string"
+            },
+            "user": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "RewardInfo returns reward information for a specified LP token",
+      "type": "object",
+      "required": [
+        "reward_info"
+      ],
+      "properties": {
+        "reward_info": {
+          "type": "object",
+          "required": [
+            "lp_token"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "PoolInfo returns information about a pool associated with the specified LP token",
+      "type": "object",
+      "required": [
+        "pool_info"
+      ],
+      "properties": {
+        "pool_info": {
+          "type": "object",
+          "required": [
+            "lp_token"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns a list of tuples with addresses and their staked amount",
+      "type": "object",
+      "required": [
+        "pool_stakers"
+      ],
+      "properties": {
+        "pool_stakers": {
+          "type": "object",
+          "required": [
+            "lp_token"
+          ],
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "lp_token": {
+              "type": "string"
+            },
+            "start_after": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns paginated list of blocked tokens",
+      "type": "object",
+      "required": [
+        "blocked_tokens_list"
+      ],
+      "properties": {
+        "blocked_tokens_list": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/AssetInfo"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Checks whether fee expected for the specified pool if user wants to add new reward schedule",
+      "type": "object",
+      "required": [
+        "is_fee_expected"
+      ],
+      "properties": {
+        "is_fee_expected": {
+          "type": "object",
+          "required": [
+            "lp_token",
+            "reward"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": "string"
+            },
+            "reward": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the list of all external reward schedules for the specified LP token",
+      "type": "object",
+      "required": [
+        "external_reward_schedules"
+      ],
+      "properties": {
+        "external_reward_schedules": {
+          "type": "object",
+          "required": [
+            "lp_token",
+            "reward"
+          ],
+          "properties": {
+            "limit": {
+              "description": "Limit number of returned schedules.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "lp_token": {
+              "type": "string"
+            },
+            "reward": {
+              "description": "Reward cw20 addr/denom",
+              "type": "string"
+            },
+            "start_after": {
+              "description": "Start after specified timestamp",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the list of all ever incentivized pools",
+      "type": "object",
+      "required": [
+        "list_pools"
+      ],
+      "properties": {
+        "list_pools": {
+          "type": "object",
+          "properties": {
+            "limit": {
+              "description": "Limit number of returned pools.",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "description": "Start after specified LP token",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the list of all pools receiving astro emissions",
+      "type": "object",
+      "required": [
+        "active_pools"
+      ],
+      "properties": {
+        "active_pools": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Addr": {
+      "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+      "type": "string"
+    },
+    "AssetInfo": {
+      "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+      "oneOf": [
+        {
+          "description": "Non-native Token",
+          "type": "object",
+          "required": [
+            "token"
+          ],
+          "properties": {
+            "token": {
+              "type": "object",
+              "required": [
+                "contract_addr"
+              ],
+              "properties": {
+                "contract_addr": {
+                  "$ref": "#/definitions/Addr"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Native token",
+          "type": "object",
+          "required": [
+            "native_token"
+          ],
+          "properties": {
+            "native_token": {
+              "type": "object",
+              "required": [
+                "denom"
+              ],
+              "properties": {
+                "denom": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

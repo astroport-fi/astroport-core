@@ -57,7 +57,7 @@ dependencies = [
 name = "astro-token-converter"
 version = "1.0.0"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -72,7 +72,7 @@ name = "astro-token-converter-neutron"
 version = "1.0.0"
 dependencies = [
  "astro-token-converter",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "cosmwasm-std",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "4.0.0"
+version = "4.0.1"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
  "cosmwasm-schema",
@@ -173,7 +173,7 @@ name = "astroport-factory"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-pair 1.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -208,7 +208,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance#182dd5bc201dd634995b5e4dc9e2774495693703"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -233,7 +233,7 @@ version = "1.1.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
@@ -258,7 +258,7 @@ name = "astroport-liquidity-manager"
 version = "1.1.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-incentives",
  "astroport-native-coin-registry",
@@ -278,10 +278,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "1.4.0"
+version = "1.5.0"
 dependencies = [
  "astro-satellite-package",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-governance 3.0.0",
  "astroport-native-coin-registry",
@@ -302,7 +302,7 @@ name = "astroport-mocks"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
@@ -379,7 +379,7 @@ dependencies = [
 name = "astroport-pair"
 version = "1.5.1"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-mocks",
  "cosmwasm-schema",
@@ -418,7 +418,7 @@ name = "astroport-pair-concentrated"
 version = "3.0.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.7.0",
  "astroport-mocks",
@@ -444,7 +444,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-pair 1.3.3",
  "cosmwasm-schema",
@@ -466,7 +466,7 @@ name = "astroport-pair-stable"
 version = "3.5.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.7.0",
  "astroport-mocks",
@@ -511,7 +511,7 @@ dependencies = [
 name = "astroport-pair-xyk-sale-tax"
 version = "1.6.0"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "astroport-mocks",
  "astroport-pair 1.3.3",
@@ -535,7 +535,7 @@ name = "astroport-pcl-common"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-factory 1.7.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -569,7 +569,7 @@ name = "astroport-staking"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-tokenfactory-tracker",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -586,7 +586,7 @@ dependencies = [
 name = "astroport-tokenfactory-tracker"
 version = "1.0.0"
 dependencies = [
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.20.0 (git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks)",
@@ -619,7 +619,7 @@ name = "astroport-vesting"
 version = "1.4.0"
 dependencies = [
  "astro-token-converter",
- "astroport 4.0.0",
+ "astroport 4.0.1",
  "astroport-vesting 1.3.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -971,9 +971,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-crypto"
-version = "1.5.3"
+version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9934c79e58d9676edfd592557dee765d2a6ef54c09d5aa2edb06156b00148966"
+checksum = "e6b4c3f9c4616d6413d4b5fc4c270a4cc32a374b9be08671e80e1a019f805d8f"
 dependencies = [
  "digest 0.10.7",
  "ecdsa",
@@ -985,9 +985,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-derive"
-version = "1.5.3"
+version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5e72e330bd3bdab11c52b5ecbdeb6a8697a004c57964caeb5d876f0b088b3c"
+checksum = "c586ced10c3b00e809ee664a895025a024f60d65d34fe4c09daed4a4db68a3f3"
 dependencies = [
  "syn 1.0.109",
 ]
@@ -1018,9 +1018,9 @@ dependencies = [
 
 [[package]]
 name = "cosmwasm-std"
-version = "1.5.3"
+version = "1.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef8666e572a3a2519010dde88c04d16e9339ae751b56b2bb35081fe3f7d6be74"
+checksum = "712fe58f39d55c812f7b2c84e097cdede3a39d520f89b6dc3153837e31741927"
 dependencies = [
  "base64",
  "bech32 0.9.1",
