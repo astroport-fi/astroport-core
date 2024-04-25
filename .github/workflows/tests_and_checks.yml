@@ -68,3 +68,9 @@ jobs:
         with:
           command: fmt
           args: --all -- --check
+
+      - name: Generate and check schemas
+        run: |
+          $GITHUB_WORKSPACE/scripts/build_schemas.sh
+          git add -A $GITHUB_WORKSPACE/schemas # consider new contract schemas
+          git diff-index --cached HEAD --exit-code  --

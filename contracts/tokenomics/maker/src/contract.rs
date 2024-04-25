@@ -306,7 +306,6 @@ fn collect(
         &env.contract.address,
         &cfg,
         assets.into_iter().filter(|a| a.info.ne(&astro)).collect(),
-        true,
     )?;
 
     // If no swap messages - send ASTRO directly to x/vxASTRO stakers
@@ -345,7 +344,6 @@ fn swap_assets(
     contract_addr: &Addr,
     cfg: &Config,
     assets: Vec<AssetWithLimit>,
-    with_validation: bool,
 ) -> Result<(Response, Vec<AssetInfo>), ContractError> {
     let mut response = Response::default();
     let mut bridge_assets = HashMap::new();
@@ -360,13 +358,7 @@ fn swap_assets(
         }
 
         if !balance.is_zero() {
-            let swap_msg = if with_validation {
-                swap(deps, cfg, a.info, balance)?
-            } else {
-                swap_no_validate(deps, cfg, a.info, balance)?
-            };
-
-            match swap_msg {
+            match swap(deps, cfg, a.info, balance)? {
                 SwapTarget::Astro(msg) => {
                     response.messages.push(msg);
                 }
@@ -411,10 +403,16 @@ fn swap(
             Some(&bridge_token),
             amount_in,
         )?;
-        return Ok(SwapTarget::Bridge {
-            asset: bridge_token,
-            msg,
-        });
+
+        let swap_msg = if bridge_token == cfg.astro_token {
+            SwapTarget::Astro(msg)
+        } else {
+            SwapTarget::Bridge {
+                asset: bridge_token,
+                msg,
+            }
+        };
+        return Ok(swap_msg);
     }
 
     // 2. Check for a pair with a default bridge
@@ -434,36 +432,6 @@ fn swap(
     // 3. Check for a direct pair with ASTRO
     let swap_to_astro =
         try_build_swap_msg(&deps.querier, cfg, &from_token, &cfg.astro_token, amount_in);
-    if let Ok(msg) = swap_to_astro {
-        return Ok(SwapTarget::Astro(msg));
-    }
-
-    Err(ContractError::CannotSwap(from_token))
-}
-
-/// Performs a swap operation to ASTRO without additional checks.
-/// was successful.
-///
-/// * **from_token** token to swap to ASTRO.
-///
-/// * **amount_in** amount of tokens to swap.
-fn swap_no_validate(
-    deps: Deps,
-    cfg: &Config,
-    from_token: AssetInfo,
-    amount_in: Uint128,
-) -> Result<SwapTarget, ContractError> {
-    let astro = cfg.astro_token.clone();
-
-    // Check if next level bridge exists
-    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
-    if let Ok(asset) = bridge_token {
-        let msg = try_build_swap_msg(&deps.querier, cfg, &from_token, &asset, amount_in)?;
-        return Ok(SwapTarget::Bridge { asset, msg });
-    }
-
-    // Check for a direct swap to ASTRO
-    let swap_to_astro = try_build_swap_msg(&deps.querier, cfg, &from_token, &astro, amount_in);
     if let Ok(msg) = swap_to_astro {
         return Ok(SwapTarget::Astro(msg));
     }
@@ -510,7 +478,7 @@ fn swap_bridge_assets(
         .collect();
 
     let (response, bridge_assets) =
-        swap_assets(deps.as_ref(), &env.contract.address, &cfg, bridges, false)?;
+        swap_assets(deps.as_ref(), &env.contract.address, &cfg, bridges)?;
 
     // There should always be some messages, if there are none - something went wrong
     if response.messages.is_empty() {
@@ -818,10 +786,7 @@ fn update_bridges(
     // Remove old bridges
     if let Some(remove_bridges) = remove {
         for asset in remove_bridges {
-            BRIDGES.remove(
-                deps.storage,
-                deps.api.addr_validate(&asset.to_string())?.to_string(),
-            );
+            BRIDGES.remove(deps.storage, asset.to_string());
         }
     }
 
@@ -931,6 +896,7 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                 migrate_from_v120_plus(deps.branch(), msg)?;
                 LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
             }
+            "1.4.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
