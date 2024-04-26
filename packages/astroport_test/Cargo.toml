@@ -10,6 +10,8 @@ homepage = "https://astroport.fi"
 
 [features]
 default = []
+injective = []
+sei = []
 cosmwasm_1_1 = ["cosmwasm-std/cosmwasm_1_1", "cw-multi-test/cosmwasm_1_1"]
 cosmwasm_1_2 = ["cosmwasm_1_1", "cosmwasm-std/cosmwasm_1_2", "cw-multi-test/cosmwasm_1_2"]
 cosmwasm_1_3 = ["cosmwasm_1_2", "cosmwasm-std/cosmwasm_1_3", "cw-multi-test/cosmwasm_1_3"]

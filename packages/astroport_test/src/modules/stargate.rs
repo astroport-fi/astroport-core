@@ -60,11 +60,15 @@ impl Module for MockStargate {
         match type_url.as_str() {
             MsgCreateDenom::TYPE_URL => {
                 let tf_msg: MsgCreateDenom = value.try_into()?;
+                #[cfg(not(any(feature = "injective", feature = "sei")))]
+                let sender_address = tf_msg.sender.to_string();
+                #[cfg(any(feature = "injective", feature = "sei"))]
+                let sender_address = sender.to_string();
                 let submsg_response = SubMsgResponse {
                     events: vec![],
                     data: Some(
                         MsgCreateDenomResponse {
-                            new_token_denom: format!("factory/{}/{}", sender, tf_msg.subdenom),
+                            new_token_denom: format!("factory/{}/{}", sender_address, tf_msg.subdenom),
                         }
                         .into(),
                     ),
@@ -76,8 +80,12 @@ impl Module for MockStargate {
                 let mint_coins = tf_msg
                     .amount
                     .expect("Empty amount in tokenfactory MsgMint!");
+                #[cfg(not(any(feature = "injective", feature = "sei")))]
+                let to_address = tf_msg.mint_to_address.to_string();
+                #[cfg(any(feature = "injective", feature = "sei"))]
+                let to_address = sender.to_string();
                 let bank_sudo = BankSudo::Mint {
-                    to_address: sender.to_string(),
+                    to_address,
                     amount: coins(mint_coins.amount.parse()?, mint_coins.denom),
                 };
                 router.sudo(api, storage, block, bank_sudo.into())
