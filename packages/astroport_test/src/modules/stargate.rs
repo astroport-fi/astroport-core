@@ -68,7 +68,10 @@ impl Module for MockStargate {
                     events: vec![],
                     data: Some(
                         MsgCreateDenomResponse {
-                            new_token_denom: format!("factory/{}/{}", sender_address, tf_msg.subdenom),
+                            new_token_denom: format!(
+                                "factory/{}/{}",
+                                sender_address, tf_msg.subdenom
+                            ),
                         }
                         .into(),
                     ),
