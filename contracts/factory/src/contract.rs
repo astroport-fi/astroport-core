@@ -332,7 +332,8 @@ pub fn execute_create_pair(
                 factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
-            funds: vec![],
+            // Pass executer funds to pair contract in order to pay for LP token creation
+            funds: info.funds,
             label: "Astroport pair".to_string(),
         }
         .into(),
