@@ -1,5 +1,9 @@
-use crate::error::ContractError;
-use crate::state::BRIDGES;
+use cosmwasm_std::{
+    coins, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
+    QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+};
+use cw20::Cw20ExecuteMsg;
+
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::maker::{
     Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
@@ -8,18 +12,15 @@ use astroport::maker::{
 use astroport::pair::Cw20HookMsg;
 use astroport::querier::query_pair_info;
 
-use cosmwasm_std::{
-    coins, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
-    QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
+use crate::error::ContractError;
+use crate::state::BRIDGES;
 
 /// The default bridge depth for a fee token
 pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
 /// Maximum amount of bridges to use in a multi-hop swap
 pub const BRIDGES_MAX_DEPTH: u64 = 2;
 /// Swap execution depth limit
-pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 3;
+pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 5;
 
 /// The function checks from<>to pool exists and creates swap message.
 ///
@@ -150,26 +151,29 @@ pub fn validate_bridge(
     // Check if the bridge pool exists
     let bridge_pool = get_pool(&deps.querier, factory_contract, from_token, bridge_token)?;
 
-    // Check if the bridge token - ASTRO pool exists
-    let astro_pool = get_pool(&deps.querier, factory_contract, bridge_token, astro_token);
-    if astro_pool.is_err() {
-        if depth >= BRIDGES_MAX_DEPTH {
-            return Err(ContractError::MaxBridgeDepth(depth));
+    // If bridge token is astro itself we don't need to check further
+    if bridge_token != astro_token {
+        // Check if the bridge token - ASTRO pool exists
+        let astro_pool = get_pool(&deps.querier, factory_contract, bridge_token, astro_token);
+        if astro_pool.is_err() {
+            if depth >= BRIDGES_MAX_DEPTH {
+                return Err(ContractError::MaxBridgeDepth(depth));
+            }
+
+            // Check if next level of bridge exists
+            let next_bridge_token = BRIDGES
+                .load(deps.storage, bridge_token.to_string())
+                .map_err(|_| ContractError::InvalidBridgeDestination(from_token.to_string()))?;
+
+            validate_bridge(
+                deps,
+                factory_contract,
+                bridge_token,
+                &next_bridge_token,
+                astro_token,
+                depth + 1,
+            )?;
         }
-
-        // Check if next level of bridge exists
-        let next_bridge_token = BRIDGES
-            .load(deps.storage, bridge_token.to_string())
-            .map_err(|_| ContractError::InvalidBridgeDestination(from_token.to_string()))?;
-
-        validate_bridge(
-            deps,
-            factory_contract,
-            bridge_token,
-            &next_bridge_token,
-            astro_token,
-            depth + 1,
-        )?;
     }
 
     Ok(bridge_pool)

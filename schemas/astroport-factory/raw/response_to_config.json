@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigResponse",
+  "description": "A custom struct for each query response that returns general contract settings/configs.",
+  "type": "object",
+  "required": [
+    "coin_registry_address",
+    "owner",
+    "pair_configs",
+    "token_code_id",
+    "whitelist_code_id"
+  ],
+  "properties": {
+    "coin_registry_address": {
+      "description": "The address of the contract that contains the coins and their accuracy",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
+    },
+    "fee_address": {
+      "description": "Address of contract to send governance fees to (the Maker)",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "generator_address": {
+      "description": "Address of contract used to auto_stake LP tokens for Astroport pairs that are incentivized",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "owner": {
+      "description": "Addres of owner that is allowed to change contract parameters",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
+    },
+    "pair_configs": {
+      "description": "IDs of contracts which are allowed to create pairs",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PairConfig"
+      }
+    },
+    "token_code_id": {
+      "description": "CW20 token contract code identifier",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "whitelist_code_id": {
+      "description": "CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Addr": {
+      "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+      "type": "string"
+    },
+    "PairConfig": {
+      "description": "This structure stores a pair type's configuration.",
+      "type": "object",
+      "required": [
+        "code_id",
+        "maker_fee_bps",
+        "pair_type",
+        "total_fee_bps"
+      ],
+      "properties": {
+        "code_id": {
+          "description": "ID of contract which is allowed to create pairs of this type",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "is_disabled": {
+          "description": "Whether a pair type is disabled or not. If it is disabled, new pairs cannot be created, but existing ones can still read the pair configuration Default is false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "is_generator_disabled": {
+          "description": "Setting this to true means that pairs of this type will not be able to get an ASTRO generator Default is false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "maker_fee_bps": {
+          "description": "The amount of fees (in bps) collected by the Maker contract from this pair type",
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        },
+        "pair_type": {
+          "description": "The pair type (provided in a [`PairType`])",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PairType"
+            }
+          ]
+        },
+        "permissioned": {
+          "description": "If pool type is permissioned, only factory owner can create pairs of this type. Default is false.",
+          "default": false,
+          "type": "boolean"
+        },
+        "total_fee_bps": {
+          "description": "The total fees (in bps) charged by a pair of this type",
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "PairType": {
+      "description": "This enum describes available pair types. ## Available pool types ``` # use astroport::factory::PairType::{Custom, Stable, Xyk}; Xyk {}; Stable {}; Custom(String::from(\"Custom\")); ```",
+      "oneOf": [
+        {
+          "description": "XYK pair type",
+          "type": "object",
+          "required": [
+            "xyk"
+          ],
+          "properties": {
+            "xyk": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Stable pair type",
+          "type": "object",
+          "required": [
+            "stable"
+          ],
+          "properties": {
+            "stable": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Custom pair type",
+          "type": "object",
+          "required": [
+            "custom"
+          ],
+          "properties": {
+            "custom": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

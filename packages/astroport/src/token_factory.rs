@@ -303,7 +303,7 @@ where
 {
     #[cfg(not(any(feature = "injective", feature = "sei")))]
     let burn_msg = MsgBurn {
-        sender: sender_addr.clone(),
+        sender: sender.into(),
         amount: Some(ProtoCoin {
             denom: coin.denom,
             amount: coin.amount.to_string(),

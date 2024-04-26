@@ -1,41 +1,50 @@
 use std::collections::HashMap;
 
 use cosmwasm_std::{coin, Uint128};
-use osmosis_std::types::cosmos::auth::v1beta1::{
+use neutron_sdk::proto_types::osmosis::tokenfactory::v1beta1::{
+    MsgBurn, MsgCreateDenom, MsgMint, MsgSetBeforeSendHook, MsgSetBeforeSendHookResponse,
+};
+use neutron_test_tube::cosmrs::proto::cosmos::bank::v1beta1::{
+    MsgSend, MsgSendResponse, QueryBalanceRequest,
+};
+use neutron_test_tube::cosmrs::proto::prost::Message;
+use neutron_test_tube::{Bank, NeutronTestApp, TokenFactory, Wasm};
+use test_tube::cosmrs::proto::cosmos::auth::v1beta1::{
     ModuleAccount, QueryModuleAccountByNameRequest, QueryModuleAccountByNameResponse,
 };
-use osmosis_std::types::cosmos::bank::v1beta1::{MsgSend, QueryBalanceRequest};
-use osmosis_std::types::cosmos::base::v1beta1::Coin;
-use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
-    MsgBurn, MsgMint, MsgSetBeforeSendHook, MsgSetBeforeSendHookResponse,
-};
-use osmosis_test_tube::osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgCreateDenom;
-use osmosis_test_tube::{OsmosisTestApp, TokenFactory};
-use test_tube::{Account, Bank, Module, Runner, RunnerResult, SigningAccount, Wasm};
+use test_tube::cosmrs::proto::cosmos::base::v1beta1::Coin;
+use test_tube::{Account, Module, Runner, RunnerExecuteResult, RunnerResult, SigningAccount};
 
 use astroport::tokenfactory_tracker::{InstantiateMsg, QueryMsg};
 
 const TRACKER_WASM: &str = "./tests/test_data/astroport_tokenfactory_tracker.wasm";
 
+fn proto_coin(amount: u128, denom: &str) -> Coin {
+    Coin {
+        denom: denom.to_string(),
+        amount: amount.to_string(),
+    }
+}
+
 struct TestSuite<'a> {
-    wasm: Wasm<'a, OsmosisTestApp>,
-    bank: Bank<'a, OsmosisTestApp>,
-    tf: TokenFactory<'a, OsmosisTestApp>,
+    wasm: Wasm<'a, NeutronTestApp>,
+    bank: Bank<'a, NeutronTestApp>,
+    tf: TokenFactory<'a, NeutronTestApp>,
     owner: SigningAccount,
     tokenfactory_module_address: String,
 }
 
 impl<'a> TestSuite<'a> {
-    fn new(app: &'a OsmosisTestApp) -> Self {
+    fn new(app: &'a NeutronTestApp) -> Self {
         let wasm = Wasm::new(app);
         let bank = Bank::new(app);
         let tf = TokenFactory::new(app);
         let signer = app
-            .init_account(&[coin(1_500_000e6 as u128, "uosmo")])
+            .init_account(&[coin(1_500_000e6 as u128, "untrn")])
             .unwrap();
 
-        let ModuleAccount { base_account, .. } = app
-            .query::<QueryModuleAccountByNameRequest, QueryModuleAccountByNameResponse>(
+        let module_account = ModuleAccount::decode(
+            app.query::<QueryModuleAccountByNameRequest, QueryModuleAccountByNameResponse>(
                 "/cosmos.auth.v1beta1.Query/ModuleAccountByName",
                 &QueryModuleAccountByNameRequest {
                     name: "tokenfactory".to_string(),
@@ -44,15 +53,17 @@ impl<'a> TestSuite<'a> {
             .unwrap()
             .account
             .unwrap()
-            .try_into()
-            .unwrap();
+            .value
+            .as_slice(),
+        )
+        .unwrap();
 
         Self {
             wasm,
             bank,
             tf,
             owner: signer,
-            tokenfactory_module_address: base_account.unwrap().address,
+            tokenfactory_module_address: module_account.base_account.unwrap().address,
         }
     }
 
@@ -75,6 +86,8 @@ impl<'a> TestSuite<'a> {
 
     fn mint(&self, denom: &str, amount: impl Into<Uint128>, to: &str) {
         let amount: Uint128 = amount.into();
+
+        // Pass through minter
         self.tf
             .mint(
                 MsgMint {
@@ -83,11 +96,54 @@ impl<'a> TestSuite<'a> {
                         denom: denom.to_string(),
                         amount: amount.to_string(),
                     }),
-                    mint_to_address: to.to_string(),
+                    mint_to_address: self.owner.address(),
                 },
                 &self.owner,
             )
             .unwrap();
+
+        // Send to user
+        self.send(
+            &self.owner,
+            to.to_string(),
+            proto_coin(amount.u128(), denom),
+        )
+        .unwrap();
+    }
+
+    fn burn(&self, denom: &str, amount: impl Into<Uint128>) {
+        let amount: Uint128 = amount.into();
+
+        self.tf
+            .burn(
+                MsgBurn {
+                    sender: self.owner.address(),
+                    amount: Some(proto_coin(amount.u128(), &denom)),
+                    burn_from_address: self.owner.address(),
+                },
+                &self.owner,
+            )
+            .unwrap();
+
+        // Trigger hook
+        self.send(&self.owner, self.owner.address(), proto_coin(1, denom))
+            .unwrap();
+    }
+
+    fn send(
+        &self,
+        signer: &SigningAccount,
+        to_address: String,
+        amount: Coin,
+    ) -> RunnerExecuteResult<MsgSendResponse> {
+        self.bank.send(
+            MsgSend {
+                from_address: signer.address(),
+                to_address,
+                amount: vec![amount],
+            },
+            signer,
+        )
     }
 
     fn instantiate_tracker(&self, denom: &str) -> String {
@@ -112,15 +168,15 @@ impl<'a> TestSuite<'a> {
         tracker_addr
     }
 
-    fn set_before_send_hook(&self, denom: &str, tracker_addr: &str, app: &OsmosisTestApp) {
+    fn set_before_send_hook(&self, denom: &str, tracker_addr: &str, app: &NeutronTestApp) {
         let set_hook_msg = MsgSetBeforeSendHook {
             sender: self.owner.address(),
             denom: denom.to_string(),
-            cosmwasm_address: tracker_addr.to_string(),
+            contract_addr: tracker_addr.to_string(),
         };
         app.execute::<_, MsgSetBeforeSendHookResponse>(
             set_hook_msg,
-            MsgSetBeforeSendHook::TYPE_URL,
+            "/osmosis.tokenfactory.v1beta1.MsgSetBeforeSendHook",
             &self.owner,
         )
         .unwrap();
@@ -149,7 +205,7 @@ impl<'a> TestSuite<'a> {
 
 #[test]
 fn ensure_tracking_on_mint() {
-    let app = OsmosisTestApp::new();
+    let app = NeutronTestApp::new();
     let ts = TestSuite::new(&app);
 
     let denom = ts.create_denom("test");
@@ -190,7 +246,7 @@ fn ensure_tracking_on_mint() {
 
 #[test]
 fn ensure_tracking_on_send() {
-    let app = OsmosisTestApp::new();
+    let app = NeutronTestApp::new();
     let ts = TestSuite::new(&app);
     let denom = ts.create_denom("test");
     let tracker_addr = ts.instantiate_tracker(&denom);
@@ -205,15 +261,7 @@ fn ensure_tracking_on_send() {
     assert_eq!(balance_before.u128(), 0u128);
 
     // Send owner -> user
-    ts.bank
-        .send(
-            MsgSend {
-                from_address: ts.owner.address(),
-                to_address: user.address(),
-                amount: vec![coin(1000u128, &denom).into()],
-            },
-            &ts.owner,
-        )
+    ts.send(&ts.owner, user.address(), proto_coin(1000u128, &denom))
         .unwrap();
 
     app.increase_time(10);
@@ -238,47 +286,44 @@ fn ensure_tracking_on_send() {
 
 #[test]
 fn ensure_tracking_on_burn() {
-    let app = OsmosisTestApp::new();
+    let app = NeutronTestApp::new();
     let ts = TestSuite::new(&app);
     let denom = ts.create_denom("test");
     let tracker_addr = ts.instantiate_tracker(&denom);
     ts.set_before_send_hook(&denom, &tracker_addr, &app);
 
-    // Mint tokens to owner
-    ts.mint(&denom, 1000u128, &ts.owner.address());
+    let user = app
+        .init_account(&[coin(1_500_000e6 as u128, "untrn")])
+        .unwrap();
+
+    // Mint tokens to user
+    ts.mint(&denom, 1000u128, &user.address());
+
+    // Mint 1 token to owner to be able to trigger hook on burn
+    ts.mint(&denom, 1u128, &ts.owner.address());
 
     app.increase_time(10);
 
-    let balance_before = ts
-        .balance_at(&tracker_addr, &ts.owner.address(), None)
-        .unwrap();
+    let balance_before = ts.balance_at(&tracker_addr, &user.address(), None).unwrap();
     assert_eq!(balance_before.u128(), 1000u128);
 
-    // Burn from owner
-    ts.tf
-        .burn(
-            MsgBurn {
-                sender: ts.owner.address(),
-                amount: Some(coin(1000u128, &denom).into()),
-                burn_from_address: "".to_string(),
-            },
-            &ts.owner,
-        )
+    // Send back to minter
+    ts.send(&user, ts.owner.address(), proto_coin(1000u128, &denom))
         .unwrap();
+    // Burn from minter
+    ts.burn(&denom, 1000u128);
 
     app.increase_time(10);
 
-    let balance_after = ts
-        .balance_at(&tracker_addr, &ts.owner.address(), None)
-        .unwrap();
+    let balance_after = ts.balance_at(&tracker_addr, &user.address(), None).unwrap();
     assert_eq!(balance_after.u128(), 0u128);
     let supply_after = ts.supply_at(&tracker_addr, None).unwrap();
-    assert_eq!(supply_after.u128(), 0u128);
+    assert_eq!(supply_after.u128(), 1u128);
 }
 
 #[test]
 fn ensure_sending_to_module_prohibited() {
-    let app = OsmosisTestApp::new();
+    let app = NeutronTestApp::new();
     let ts = TestSuite::new(&app);
     let denom = ts.create_denom("test");
     let tracker_addr = ts.instantiate_tracker(&denom);
@@ -289,14 +334,10 @@ fn ensure_sending_to_module_prohibited() {
 
     // Send owner -> tokenfactory module address
     let err = ts
-        .bank
         .send(
-            MsgSend {
-                from_address: ts.owner.address(),
-                to_address: ts.tokenfactory_module_address.clone(),
-                amount: vec![coin(1000u128, &denom).into()],
-            },
             &ts.owner,
+            ts.tokenfactory_module_address.clone(),
+            proto_coin(1000u128, &denom),
         )
         .unwrap_err();
 
@@ -311,7 +352,7 @@ fn ensure_sending_to_module_prohibited() {
 
 #[test]
 fn test_historical_queries() {
-    let app = OsmosisTestApp::new();
+    let app = NeutronTestApp::new();
     let ts = TestSuite::new(&app);
 
     let denom = ts.create_denom("test");

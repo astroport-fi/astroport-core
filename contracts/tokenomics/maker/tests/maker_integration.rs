@@ -1359,20 +1359,6 @@ fn update_bridges() {
     );
 
     let msg = ExecuteMsg::UpdateBridges {
-        remove: Some(vec![native_asset_info(String::from("UKRT"))]),
-        add: None,
-    };
-
-    // Try to remove bridges
-    let err = router
-        .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
-        .unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Invalid input: address not normalized"
-    );
-
-    let msg = ExecuteMsg::UpdateBridges {
         remove: Some(vec![native_asset_info(String::from("ukrt"))]),
         add: None,
     };
