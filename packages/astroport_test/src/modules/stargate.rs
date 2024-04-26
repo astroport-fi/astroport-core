@@ -64,10 +64,7 @@ impl Module for MockStargate {
                     events: vec![],
                     data: Some(
                         MsgCreateDenomResponse {
-                            new_token_denom: format!(
-                                "factory/{}/{}",
-                                tf_msg.sender, tf_msg.subdenom
-                            ),
+                            new_token_denom: format!("factory/{}/{}", sender, tf_msg.subdenom),
                         }
                         .into(),
                     ),
@@ -80,7 +77,7 @@ impl Module for MockStargate {
                     .amount
                     .expect("Empty amount in tokenfactory MsgMint!");
                 let bank_sudo = BankSudo::Mint {
-                    to_address: tf_msg.mint_to_address,
+                    to_address: sender.to_string(),
                     amount: coins(mint_coins.amount.parse()?, mint_coins.denom),
                 };
                 router.sudo(api, storage, block, bank_sudo.into())
@@ -97,7 +94,7 @@ impl Module for MockStargate {
                     api,
                     storage,
                     block,
-                    Addr::unchecked(tf_msg.sender),
+                    Addr::unchecked(sender),
                     burn_msg.into(),
                 )
             }

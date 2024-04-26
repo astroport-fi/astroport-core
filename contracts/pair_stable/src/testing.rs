@@ -95,9 +95,10 @@ fn proper_initialization() {
         res.messages,
         vec![SubMsg {
             msg: CosmosMsg::Stargate {
-                type_url: "/osmosis.tokenfactory.v1beta1.MsgCreateDenom".to_string(),
+                type_url: MsgCreateDenom::TYPE_URL.to_string(),
                 value: Binary(
                     MsgCreateDenom {
+                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
                         subdenom: LP_SUBDENOM.to_string()
                     }
@@ -238,16 +239,17 @@ fn provide_liquidity() {
         mint_min_liquidity_msg,
         &SubMsg {
             msg: CosmosMsg::Stargate {
-                type_url: "/osmosis.tokenfactory.v1beta1.MsgMint".to_string(),
+                type_url: MsgMint::TYPE_URL.to_string(),
                 value: Binary::from(
                     MsgMint {
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
                             amount: Uint128::from(1000_u128).to_string(),
                         }),
-
-                        mint_to_address: String::from(MOCK_CONTRACT_ADDR),
+                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from(MOCK_CONTRACT_ADDR),
                     }
                     .encode_to_vec()
                 )
@@ -262,16 +264,17 @@ fn provide_liquidity() {
         mint_receiver_msg,
         &SubMsg {
             msg: CosmosMsg::Stargate {
-                type_url: "/osmosis.tokenfactory.v1beta1.MsgMint".to_string(),
+                type_url: MsgMint::TYPE_URL.to_string(),
                 value: Binary::from(
                     MsgMint {
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
                             amount: Uint128::from(299_814_698_523_989_456_628u128).to_string(),
                         }),
-
-                        mint_to_address: String::from("addr0000"),
+                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from("addr0000"),
                     }
                     .encode_to_vec()
                 )
@@ -360,16 +363,17 @@ fn provide_liquidity() {
         mint_msg,
         &SubMsg {
             msg: CosmosMsg::Stargate {
-                type_url: "/osmosis.tokenfactory.v1beta1.MsgMint".to_string(),
+                type_url: MsgMint::TYPE_URL.to_string(),
                 value: Binary::from(
                     MsgMint {
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
                             amount: Uint128::from(74_981_956_874_579_206461u128).to_string(),
                         }),
-
-                        mint_to_address: String::from("addr0000"),
+                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from("addr0000"),
                     }
                     .encode_to_vec()
                 )
@@ -633,14 +637,16 @@ fn withdraw_liquidity() {
         msg_burn_liquidity,
         &SubMsg {
             msg: CosmosMsg::Stargate {
-                type_url: "/osmosis.tokenfactory.v1beta1.MsgBurn".to_string(),
+                type_url: MsgBurn::TYPE_URL.to_string(),
                 value: Binary::from(
                     MsgBurn {
+                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
                             amount: Uint128::from(100u128).to_string(),
                         }),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
                         burn_from_address: "".to_string()
                     }
                     .encode_to_vec()

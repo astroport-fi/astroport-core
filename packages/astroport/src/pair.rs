@@ -50,6 +50,7 @@ pub enum ExecuteMsg {
         receiver: Option<String>,
         min_lp_to_receive: Option<Uint128>,
     },
+    /// WithdrawLiquidity allows someone to withdraw liquidity from the pool
     WithdrawLiquidity {
         #[serde(default)]
         assets: Vec<Asset>,

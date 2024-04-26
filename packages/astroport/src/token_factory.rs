@@ -240,21 +240,24 @@ pub fn tf_mint_msg<T>(
 where
     T: CustomMsg,
 {
+    let sender_addr: String = sender.into();
+    let receiver_addr: String = receiver.into();
+
     #[cfg(not(any(feature = "injective", feature = "sei")))]
     let mint_msg = MsgMint {
-        sender: sender.into(),
+        sender: sender_addr.clone(),
         amount: Some(ProtoCoin {
-            denom: coin.denom,
+            denom: coin.denom.to_string(),
             amount: coin.amount.to_string(),
         }),
-        mint_to_address: receiver.into(),
+        mint_to_address: receiver_addr.clone(),
     };
 
     #[cfg(feature = "injective")]
     let mint_msg = MsgMint {
-        sender: sender.into(),
+        sender: sender_addr.clone(),
         amount: Some(ProtoCoin {
-            denom: coin.denom,
+            denom: coin.denom.to_string(),
             amount: coin.amount.to_string(),
         }),
     };
@@ -262,7 +265,7 @@ where
     #[cfg(feature = "sei")]
     let mint_msg = MsgMint {
         amount: Some(ProtoCoin {
-            denom: coin.denom,
+            denom: coin.denom.to_string(),
             amount: coin.amount.to_string(),
         }),
     };
@@ -274,17 +277,24 @@ where
     }];
 
     #[cfg(any(feature = "injective", feature = "sei"))]
-    return vec![
-        CosmosMsg::Stargate {
+    if sender_addr == receiver_addr {
+        vec![CosmosMsg::Stargate {
             type_url: MsgMint::TYPE_URL.to_string(),
             value: Binary::from(mint_msg.encode_to_vec()),
-        },
-        BankMsg::Send {
-            to_address: receiver.into(),
-            amount: vec![coin],
-        }
-        .into(),
-    ];
+        }]
+    } else {
+        vec![
+            CosmosMsg::Stargate {
+                type_url: MsgMint::TYPE_URL.to_string(),
+                value: Binary::from(mint_msg.encode_to_vec()),
+            },
+            BankMsg::Send {
+                to_address: receiver_addr,
+                amount: vec![coin],
+            }
+            .into(),
+        ]
+    }
 }
 
 pub fn tf_burn_msg<T>(sender: impl Into<String>, coin: Coin) -> CosmosMsg<T>
@@ -293,7 +303,7 @@ where
 {
     #[cfg(not(any(feature = "injective", feature = "sei")))]
     let burn_msg = MsgBurn {
-        sender: sender.into(),
+        sender: sender_addr.clone(),
         amount: Some(ProtoCoin {
             denom: coin.denom,
             amount: coin.amount.to_string(),
