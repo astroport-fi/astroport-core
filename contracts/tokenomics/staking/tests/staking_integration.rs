@@ -102,7 +102,7 @@ fn test_invalid_denom() {
         .execute_contract(
             owner.clone(),
             helper.staking.clone(),
-            &ExecuteMsg::Enter {},
+            &ExecuteMsg::Enter { receiver: None },
             &coins(1000u128, bad_denom),
         )
         .unwrap_err();
@@ -117,7 +117,7 @@ fn test_invalid_denom() {
         .execute_contract(
             owner.clone(),
             helper.staking.clone(),
-            &ExecuteMsg::Enter {},
+            &ExecuteMsg::Enter { receiver: None },
             &[coin(1000u128, bad_denom), coin(1000u128, ASTRO_DENOM)],
         )
         .unwrap_err();
@@ -221,6 +221,28 @@ fn test_enter_and_leave() {
     // Check if the staking contract's xASTRO balance is 1000 (locked forever)
     let amount = helper.query_balance(&staking, &xastro_denom).unwrap();
     assert_eq!(amount.u128(), 1000);
+
+    // Check staking for specific recipient
+    let user = Addr::unchecked("user");
+    let recipient = Addr::unchecked("recipient");
+    helper.give_astro(10000, &user);
+    helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.staking.clone(),
+            &ExecuteMsg::Enter {
+                receiver: Some(recipient.to_string()),
+            },
+            &coins(10000, ASTRO_DENOM),
+        )
+        .unwrap();
+
+    let amount = helper.query_balance(&user, &xastro_denom).unwrap();
+    assert_eq!(amount.u128(), 0);
+
+    let amount = helper.query_balance(&recipient, &xastro_denom).unwrap();
+    assert_eq!(amount.u128(), 10000);
 }
 
 #[test]

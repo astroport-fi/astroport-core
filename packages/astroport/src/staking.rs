@@ -18,7 +18,8 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Deposits ASTRO in exchange for xASTRO
-    Enter {},
+    /// The receiver is optional. If not set, the sender will receive the xASTRO.
+    Enter { receiver: Option<String> },
     /// Burns xASTRO in exchange for ASTRO
     Leave {},
 }
