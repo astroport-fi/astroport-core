@@ -4,7 +4,7 @@
   "description": "This structure describes the execute messages available in the contract.",
   "oneOf": [
     {
-      "description": "Deposits ASTRO in exchange for xASTRO",
+      "description": "Deposits ASTRO in exchange for xASTRO The receiver is optional. If not set, the sender will receive the xASTRO.",
       "type": "object",
       "required": [
         "enter"
@@ -12,6 +12,14 @@
       "properties": {
         "enter": {
           "type": "object",
+          "properties": {
+            "receiver": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "additionalProperties": false
         }
       },
