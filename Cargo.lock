@@ -57,7 +57,7 @@ dependencies = [
 name = "astro-token-converter"
 version = "1.0.0"
 dependencies = [
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -72,7 +72,7 @@ name = "astro-token-converter-neutron"
 version = "1.0.0"
 dependencies = [
  "astro-token-converter",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "cosmwasm-std",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
@@ -114,7 +114,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "4.0.1"
+version = "4.0.2"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
  "cosmwasm-schema",
@@ -173,7 +173,7 @@ name = "astroport-factory"
 version = "1.7.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-pair 1.5.1",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -208,7 +208,7 @@ name = "astroport-governance"
 version = "1.2.0"
 source = "git+https://github.com/astroport-fi/astroport-governance#182dd5bc201dd634995b5e4dc9e2774495693703"
 dependencies = [
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 0.15.1",
@@ -233,7 +233,7 @@ version = "1.1.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
@@ -258,7 +258,7 @@ name = "astroport-liquidity-manager"
 version = "1.1.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-incentives",
  "astroport-native-coin-registry",
@@ -281,7 +281,7 @@ name = "astroport-maker"
 version = "1.5.0"
 dependencies = [
  "astro-satellite-package",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-governance 3.0.0",
  "astroport-native-coin-registry",
@@ -302,7 +302,7 @@ name = "astroport-mocks"
 version = "0.2.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
@@ -379,7 +379,7 @@ dependencies = [
 name = "astroport-pair"
 version = "1.5.1"
 dependencies = [
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-mocks",
  "cosmwasm-schema",
@@ -418,7 +418,7 @@ name = "astroport-pair-concentrated"
 version = "3.0.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.7.0",
  "astroport-mocks",
@@ -444,7 +444,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-pair 1.3.3",
  "cosmwasm-schema",
@@ -466,7 +466,7 @@ name = "astroport-pair-stable"
 version = "3.5.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.7.0",
  "astroport-mocks",
@@ -511,7 +511,7 @@ dependencies = [
 name = "astroport-pair-xyk-sale-tax"
 version = "1.6.0"
 dependencies = [
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "astroport-mocks",
  "astroport-pair 1.3.3",
@@ -535,7 +535,7 @@ name = "astroport-pcl-common"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-factory 1.7.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -566,10 +566,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-staking"
-version = "2.0.0"
+version = "2.1.0"
 dependencies = [
  "anyhow",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-tokenfactory-tracker",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -586,7 +586,7 @@ dependencies = [
 name = "astroport-tokenfactory-tracker"
 version = "1.0.0"
 dependencies = [
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.20.0 (git+https://github.com/astroport-fi/cw-multi-test?branch=feat/bank_with_send_hooks)",
@@ -619,7 +619,7 @@ name = "astroport-vesting"
 version = "1.4.0"
 dependencies = [
  "astro-token-converter",
- "astroport 4.0.1",
+ "astroport 4.0.2",
  "astroport-vesting 1.3.1",
  "cosmwasm-schema",
  "cosmwasm-std",
