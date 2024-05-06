@@ -1,6 +1,8 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure, entry_point, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut,
-    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
+    attr, coin, ensure, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_utils::{must_pay, parse_reply_instantiate_data, MsgInstantiateContractResponse};
@@ -18,9 +20,9 @@ use crate::error::ContractError;
 use crate::state::{CONFIG, TRACKER_DATA};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// xASTRO information
 const TOKEN_NAME: &str = "Staked Astroport Token";
@@ -113,7 +115,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Enter {} => execute_enter(deps, env, info),
+        ExecuteMsg::Enter { receiver } => execute_enter(deps, env, info, receiver),
         ExecuteMsg::Leave {} => execute_leave(deps, env, info),
     }
 }
@@ -201,8 +203,14 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
     }
 }
 
-/// Enter stakes TokenFactory ASTRO for xASTRO. xASTRO is minted to the sender
-fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+/// Enter stakes TokenFactory ASTRO for xASTRO.
+/// xASTRO is minted to the receiver if provided or to the sender.
+fn execute_enter(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    receiver: Option<String>,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // Ensure that the correct denom is sent. Sending zero tokens is prohibited on chain level
@@ -257,11 +265,13 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .into(),
     );
 
+    let recipient = receiver.unwrap_or_else(|| info.sender.to_string());
+
     // TokenFactory minting only allows minting to the sender for now, thus we
     // need to send the minted tokens to the recipient
     messages.push(
         BankMsg::Send {
-            to_address: info.sender.to_string(),
+            to_address: recipient.clone(),
             amount: vec![minted_coins],
         }
         .into(),
@@ -279,7 +289,7 @@ fn execute_enter(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .set_data(staking_response)
         .add_attributes([
             attr("action", "enter"),
-            attr("recipient", info.sender),
+            attr("recipient", recipient),
             attr("astro_amount", amount),
             attr("xastro_amount", mint_amount),
         ]))
