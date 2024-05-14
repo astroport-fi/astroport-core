@@ -125,7 +125,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.staking.clone(),
-            &ExecuteMsg::Enter {},
+            &ExecuteMsg::Enter { receiver: None },
             &coins(amount, ASTRO_DENOM),
         )
     }
