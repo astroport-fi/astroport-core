@@ -48,7 +48,7 @@ name = "astro-satellite-package"
 version = "1.0.0"
 source = "git+https://github.com/astroport-fi/astroport_ibc#1d14593df21408a31a571639a6ca3edb844c7857"
 dependencies = [
- "astroport-governance 1.2.0",
+ "astroport-governance",
  "cosmwasm-schema",
  "cosmwasm-std",
 ]
@@ -216,19 +216,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-governance"
-version = "3.0.0"
-source = "git+https://github.com/astroport-fi/hidden_astroport_governance#e1c4475708c5d92acece729ae939d8caac4295d6"
-dependencies = [
- "astroport 4.0.2",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "cw20 1.1.2",
- "thiserror",
-]
-
-[[package]]
 name = "astroport-incentives"
 version = "1.1.0"
 dependencies = [
@@ -284,7 +271,6 @@ dependencies = [
  "astro-satellite-package",
  "astroport 4.0.2",
  "astroport-factory 1.7.0",
- "astroport-governance 3.0.0",
  "astroport-native-coin-registry",
  "astroport-pair 1.5.1",
  "astroport-pair-stable",

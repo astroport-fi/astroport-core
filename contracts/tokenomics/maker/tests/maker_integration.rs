@@ -2,7 +2,6 @@
 
 use std::str::FromStr;
 
-use astroport_governance::utils::EPOCH_START;
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
     MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
@@ -30,7 +29,6 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
     });
 
     app.update_block(|bi| {
-        bi.time = bi.time.plus_seconds(EPOCH_START);
         bi.height += 1;
         bi.chain_id = "cosm-wasm-test".to_string();
     });
@@ -93,11 +91,9 @@ fn mock_fee_distributor_contract() -> Box<dyn Contract<Empty>> {
     let instantiate = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
         Ok(Default::default())
     };
-    let execute = |_: DepsMut,
-                   _: Env,
-                   _: MessageInfo,
-                   _: astroport_governance::escrow_fee_distributor::ExecuteMsg|
-     -> StdResult<Response> { Ok(Default::default()) };
+    let execute = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+        Ok(Default::default())
+    };
     let empty_query = |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() };
 
     Box::new(ContractWrapper::new_with_empty(

@@ -40,5 +40,4 @@ astroport-factory = { path = "../../factory" }
 astroport-pair = { path = "../../pair" }
 cw-multi-test = "1.0.0"
 astroport-pair-stable = { path = "../../pair_stable" }
-astroport-governance = { git = "https://github.com/astroport-fi/hidden_astroport_governance", version = "3" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
