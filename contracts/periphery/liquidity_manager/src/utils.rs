@@ -1,21 +1,34 @@
 use std::collections::HashMap;
 
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     from_json, Addr, Decimal, Decimal256, Env, QuerierWrapper, StdError, StdResult, Uint128,
 };
+use itertools::Itertools;
 
-use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{
+    Asset, AssetInfo, Decimal256Ext, DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
+};
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::incentives::QueryMsg as GeneratorQueryMsg;
 use astroport::liquidity_manager::CompatPairStableConfig;
+use astroport::pair::FeeShareConfig;
 use astroport::querier::{query_supply, query_token_balance};
 use astroport::U256;
 use astroport_pair::{
     contract::assert_slippage_tolerance, error::ContractError as PairContractError,
 };
+use astroport_pair_concentrated::error::ContractError as PclContractError;
 use astroport_pair_stable::error::ContractError as StableContractError;
 use astroport_pair_stable::math::compute_d;
 use astroport_pair_stable::state::Config as PairStableConfig;
 use astroport_pair_stable::utils::compute_current_amp;
+use astroport_pcl_common::state::{Config as PclConfig, PoolParams, PoolState};
+use astroport_pcl_common::utils::calc_provide_fee;
+use astroport_pcl_common::{calc_d, get_xcp};
+
+/// LP token's precision.
+pub const LP_TOKEN_PRECISION: u8 = 6;
 
 pub fn query_lp_amount(
     querier: QuerierWrapper,
@@ -243,7 +256,66 @@ pub fn stableswap_provide_simulation(
     Ok(share)
 }
 
-pub fn convert_config(
+pub fn pcl_provide_simulation(
+    env: Env,
+    balances: Vec<DecimalAsset>,
+    deposit: Vec<Asset>,
+    total_share: Uint128,
+    config: PclConfig,
+    precisions: HashMap<String, u8>,
+) -> Result<Uint128, PclContractError> {
+    let to_dec = |index: usize| -> StdResult<Decimal256> {
+        Decimal256::with_precision(
+            deposit[index].amount,
+            *precisions
+                .get(&deposit[index].info.to_string())
+                .ok_or_else(|| {
+                    StdError::generic_err(format!("Invalid asset {}", deposit[index].info))
+                })?,
+        )
+    };
+
+    let deposits = [to_dec(0)?, to_dec(1)?];
+
+    let mut new_xp = balances
+        .iter()
+        .zip(deposits.iter())
+        .map(|(balance, deposit)| balance.amount + deposit)
+        .collect_vec();
+    new_xp[1] *= config.pool_state.price_state.price_scale;
+
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let new_d = calc_d(&new_xp, &amp_gamma)?;
+
+    let total_share = total_share.to_decimal256(LP_TOKEN_PRECISION)?;
+
+    if total_share.is_zero() {
+        let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale)
+            .to_uint128_with_precision(LP_TOKEN_PRECISION)?;
+        let mint_amount = xcp.saturating_sub(MINIMUM_LIQUIDITY_AMOUNT);
+
+        // share cannot become zero after minimum liquidity subtraction
+        if mint_amount.is_zero() {
+            return Err(PclContractError::MinimumLiquidityAmountError {});
+        }
+
+        Ok(mint_amount)
+    } else {
+        let mut old_xp = balances.iter().map(|a| a.amount).collect_vec();
+        old_xp[1] *= config.pool_state.price_state.price_scale;
+        let old_d = calc_d(&old_xp, &amp_gamma)?;
+        let share = (total_share * new_d / old_d).saturating_sub(total_share);
+
+        let mut ideposits = deposits;
+        ideposits[1] *= config.pool_state.price_state.price_scale;
+
+        let lp_amount = share
+            * (Decimal256::one() - calc_provide_fee(&ideposits, &new_xp, &config.pool_params));
+        Ok(lp_amount.to_uint128_with_precision(LP_TOKEN_PRECISION)?)
+    }
+}
+
+pub fn convert_stable_config(
     querier: QuerierWrapper,
     config_data: Vec<u8>,
 ) -> StdResult<PairStableConfig> {
@@ -272,5 +344,38 @@ pub fn convert_config(
         greatest_precision,
         cumulative_prices: compat_config.cumulative_prices,
         fee_share: None,
+    })
+}
+
+#[cw_serde]
+pub struct CompatPclConfig {
+    pub pair_info: PairInfo,
+    pub factory_addr: Addr,
+    // Not important for provide simulation
+    #[serde(default)]
+    pub block_time_last: u64,
+    #[serde(default)]
+    pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
+    pub pool_params: PoolParams,
+    pub pool_state: PoolState,
+    pub owner: Option<Addr>,
+    #[serde(default)]
+    pub track_asset_balances: bool,
+    pub fee_share: Option<FeeShareConfig>,
+}
+
+pub fn convert_pcl_config(config_data: Vec<u8>) -> StdResult<PclConfig> {
+    let compat_config: CompatPclConfig = from_json(config_data)?;
+
+    Ok(PclConfig {
+        pair_info: compat_config.pair_info,
+        factory_addr: compat_config.factory_addr,
+        block_time_last: compat_config.block_time_last,
+        cumulative_prices: compat_config.cumulative_prices,
+        pool_params: compat_config.pool_params,
+        pool_state: compat_config.pool_state,
+        owner: compat_config.owner,
+        track_asset_balances: compat_config.track_asset_balances,
+        fee_share: compat_config.fee_share,
     })
 }

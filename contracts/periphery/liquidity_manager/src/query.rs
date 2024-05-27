@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Deps, Env, StdError, StdResult, Uint128};
@@ -8,9 +10,13 @@ use astroport::liquidity_manager::QueryMsg;
 use astroport::pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::query_supply;
 use astroport_pair::contract::get_share_in_assets;
+use astroport_pcl_common::state::Precisions;
 
 use crate::error::ContractError;
-use crate::utils::{convert_config, stableswap_provide_simulation, xyk_provide_simulation};
+use crate::utils::{
+    convert_pcl_config, convert_stable_config, pcl_provide_simulation,
+    stableswap_provide_simulation, xyk_provide_simulation,
+};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -102,7 +108,7 @@ fn simulate_provide(
                         .querier
                         .query_wasm_raw(pair_addr, b"config")?
                         .ok_or_else(|| StdError::generic_err("pair stable config not found"))?;
-                    let pair_config = convert_config(deps.querier, pair_config_data)?;
+                    let pair_config = convert_stable_config(deps.querier, pair_config_data)?;
                     to_json_binary(
                         &stableswap_provide_simulation(
                             deps.querier,
@@ -114,7 +120,54 @@ fn simulate_provide(
                         .map_err(|err| StdError::generic_err(format!("{err}")))?,
                     )
                 }
-                PairType::Custom(..) => unimplemented!("not implemented yet"),
+                PairType::Custom(typ) if typ == "concentrated" => {
+                    let balances = pair_info.query_pools(&deps.querier, &pair_addr)?;
+                    let pcl_config_raw = deps
+                        .querier
+                        .query_wasm_raw(&pair_addr, b"config")?
+                        .ok_or_else(|| StdError::generic_err("PCL config not found"))?;
+                    let pcl_config = convert_pcl_config(pcl_config_raw)?;
+                    let precisions = balances
+                        .iter()
+                        .map(|asset| {
+                            let prec = Precisions::PRECISIONS
+                                .query(&deps.querier, pair_addr.clone(), asset.info.to_string())?
+                                .or_else(|| {
+                                    asset
+                                        .info
+                                        .decimals(&deps.querier, &pcl_config.factory_addr)
+                                        .ok()
+                                })
+                                .ok_or_else(|| {
+                                    StdError::generic_err(format!(
+                                        "Asset {} precision not found",
+                                        &asset.info
+                                    ))
+                                })?;
+                            Ok((asset.info.to_string(), prec))
+                        })
+                        .collect::<StdResult<HashMap<_, _>>>()?;
+                    let dec_balances = balances
+                        .into_iter()
+                        .map(|asset| {
+                            asset
+                                .to_decimal_asset(*precisions.get(&asset.info.to_string()).unwrap())
+                                .map_err(Into::into)
+                        })
+                        .collect::<StdResult<Vec<_>>>()?;
+                    let total_share = query_supply(&deps.querier, &pair_info.liquidity_token)?;
+                    pcl_provide_simulation(
+                        env,
+                        dec_balances,
+                        assets,
+                        total_share,
+                        pcl_config,
+                        precisions,
+                    )
+                    .map_err(|err| StdError::generic_err(err.to_string()))
+                    .and_then(|res| to_json_binary(&res))
+                }
+                PairType::Custom(_) => unimplemented!("not implemented yet"),
             }
         }
         _ => Err(StdError::generic_err("Invalid simulate message")),
