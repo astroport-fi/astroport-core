@@ -121,6 +121,17 @@ fn stable_pair_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
+fn pcl_pair_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair_concentrated::contract::execute,
+            astroport_pair_concentrated::contract::instantiate,
+            astroport_pair_concentrated::queries::query,
+        )
+        .with_reply_empty(astroport_pair_concentrated::contract::reply),
+    )
+}
+
 fn coin_registry_contract() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
         astroport_native_coin_registry::contract::execute,
@@ -208,11 +219,10 @@ impl Helper {
                 pair_type = PairType::Stable {};
                 inner_params = to_json_binary(inner).unwrap();
             }
-            PoolParams::Concentrated(_) => {
-                unimplemented!("Concentrated pool is not supported yet");
-                // pair_code_id = app.store_code(pcl_pair_contract());
-                // pair_type = PairType::Custom("concentrated".to_owned());
-                // inner_params = to_json_binary(inner).unwrap();
+            PoolParams::Concentrated(inner) => {
+                pair_code_id = app.store_code(pcl_pair_contract());
+                pair_type = PairType::Custom("concentrated".to_owned());
+                inner_params = to_json_binary(inner).unwrap();
             }
         }
 
