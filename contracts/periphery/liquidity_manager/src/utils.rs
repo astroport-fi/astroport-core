@@ -351,6 +351,8 @@ pub fn convert_stable_config(
 pub struct CompatPclConfig {
     pub pair_info: PairInfo,
     pub factory_addr: Addr,
+    // Not important for provide simulation
+    #[serde(default)]
     pub block_time_last: u64,
     #[serde(default)]
     pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
