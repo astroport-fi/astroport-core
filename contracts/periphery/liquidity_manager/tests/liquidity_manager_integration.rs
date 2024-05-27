@@ -1,9 +1,10 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 
 use astroport::asset::{native_asset, AssetInfoExt};
 use astroport::pair::{StablePoolParams, XYKPoolParams};
+use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport_liquidity_manager::error::ContractError;
 
 use crate::helper::{f64_to_dec, Helper, PoolParams, TestCoin};
@@ -302,6 +303,62 @@ fn test_stableswap_with_manager() {
         ContractError::ProvideSlippageViolation(199_998620u128.into(), 200_000000u128.into()),
         err.downcast().unwrap()
     );
+}
+
+#[test]
+fn test_pcl_with_manager() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("UST")];
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        PoolParams::Concentrated(ConcentratedPoolParams {
+            amp: f64_to_dec(10f64),
+            gamma: f64_to_dec(0.000145),
+            mid_fee: f64_to_dec(0.0026),
+            out_fee: f64_to_dec(0.0045),
+            fee_gamma: f64_to_dec(0.00023),
+            repeg_profit_threshold: f64_to_dec(0.000002),
+            min_price_scale_delta: f64_to_dec(0.000146),
+            price_scale: Decimal::one(),
+            ma_half_time: 600,
+            track_asset_balances: None,
+            fee_share: None,
+        }),
+    )
+    .unwrap();
+
+    helper
+        .provide_liquidity(
+            &owner,
+            &[
+                helper.assets[&test_coins[0]].with_balance(100_000_000000_u128),
+                helper.assets[&test_coins[1]].with_balance(100_000_000000_u128),
+            ],
+            None,
+        )
+        .unwrap();
+
+    // Simulating LP tokens amount before provide
+    let provide_assets = [
+        helper.assets[&test_coins[0]].with_balance(100_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000000u128),
+    ];
+    let sim_lp_amount = helper.simulate_provide(None, &provide_assets).unwrap();
+
+    // Provide with zero slippage allowance to ensure simulation gives exact same amount as PCL contract
+    let user2 = Addr::unchecked("user2");
+    helper.give_me_money(&provide_assets, &user2);
+    helper
+        .provide_liquidity_with_slip_tolerance(
+            &user2,
+            &provide_assets,
+            Some(Decimal::zero()),
+            Some(sim_lp_amount),
+            false,
+            None,
+        )
+        .unwrap();
 }
 
 #[test]
