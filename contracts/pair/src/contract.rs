@@ -127,8 +127,13 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 let MsgCreateDenomResponse { new_token_denom } = b.try_into()?;
                 let config = CONFIG.load(deps.storage)?;
 
+                let tracking = config.track_asset_balances;
                 let mut sub_msgs = vec![];
-                if config.track_asset_balances {
+
+                #[cfg(any(feature = "injective", feature = "sei"))]
+                let tracking = false;
+
+                if tracking {
                     let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
                     let tracker_config = query_tracker_config(&deps.querier, config.factory_addr)?;
                     // Instantiate tracking contract
