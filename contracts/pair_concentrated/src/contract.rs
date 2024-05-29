@@ -211,7 +211,9 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
                 CONFIG.update(deps.storage, |mut config| {
                     if !config.pair_info.liquidity_token.is_empty() {
-                        return Err(ContractError::Unauthorized {});
+                        return Err(StdError::generic_err(
+                            "Liquidity token is already set in the config",
+                        ));
                     }
 
                     config.pair_info.liquidity_token = new_token_denom.clone();
