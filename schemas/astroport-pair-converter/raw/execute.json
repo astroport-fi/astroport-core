@@ -37,7 +37,7 @@
               }
             },
             "auto_stake": {
-              "description": "Determines whether the LP tokens minted for the user is auto_staked in the Generator contract",
+              "description": "Determines whether the LP tokens minted for the user is auto_staked in the Incentives contract",
               "type": [
                 "boolean",
                 "null"

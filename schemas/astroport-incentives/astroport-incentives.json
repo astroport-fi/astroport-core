@@ -1711,7 +1711,7 @@
               "additionalProperties": false
             },
             {
-              "description": "External rewards always have corresponding schedules. Reward is paid out from Generator contract balance.",
+              "description": "External rewards always have corresponding schedules. Reward is paid out from Incentives contract balance.",
               "type": "object",
               "required": [
                 "ext"
@@ -1897,7 +1897,7 @@
               "additionalProperties": false
             },
             {
-              "description": "External rewards always have corresponding schedules. Reward is paid out from Generator contract balance.",
+              "description": "External rewards always have corresponding schedules. Reward is paid out from Incentives contract balance.",
               "type": "object",
               "required": [
                 "ext"
