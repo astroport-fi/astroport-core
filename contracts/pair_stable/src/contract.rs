@@ -7,7 +7,7 @@ use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomR
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, Decimal,
-    Decimal256, Deps, DepsMut, Env, Event, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
     StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -365,7 +365,6 @@ pub fn provide_liquidity(
         .assert_coins_properly_sent(&assets, &config.pair_info.asset_infos)?;
 
     let mut messages = vec![];
-    let mut events = vec![];
 
     for (deposit, pool) in assets_collection.iter_mut() {
         // We cannot put a zero amount into an empty pool.
@@ -409,15 +408,6 @@ pub fn provide_liquidity(
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
-
-        events.insert(
-            0,
-            Event::new("astroport-pool.v1.Mint").add_attributes([
-                attr("action", "mint"),
-                attr("to", env.contract.address.as_str()),
-                attr("amount", MINIMUM_LIQUIDITY_AMOUNT.to_string()),
-            ]),
-        );
     }
 
     let min_amount_lp = min_lp_to_receive.unwrap_or(Uint128::zero());
@@ -455,27 +445,13 @@ pub fn provide_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    events.insert(
-        events.len(),
-        Event::new("astroport-pool.v1.Mint").add_attributes([
-            attr("action", "mint"),
-            attr("to", receiver.clone()),
-            attr("amount", share),
-        ]),
-    );
-
-    events.insert(
-        0,
-        Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
-            attr("action", "provide_liquidity"),
-            attr("sender", info.sender),
-            attr("receiver", receiver),
-            attr("assets", assets.iter().join(", ")),
-            attr("share", share),
-        ]),
-    );
-
-    Ok(Response::new().add_messages(messages).add_events(events))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "provide_liquidity"),
+        attr("sender", info.sender),
+        attr("receiver", receiver),
+        attr("assets", assets.iter().join(", ")),
+        attr("share", share),
+    ]))
 }
 
 /// Withdraw liquidity from the pool.

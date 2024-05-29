@@ -341,20 +341,6 @@ fn test_provide_and_withdraw_liquidity() {
         attr("share", 199000u128.to_string())
     );
 
-    assert_eq!(res.events[2].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[2].attributes[2], attr("to", "contract2"));
-    assert_eq!(
-        res.events[2].attributes[3],
-        attr("amount", 1000.to_string())
-    );
-
-    assert_eq!(res.events[3].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[3].attributes[2], attr("to", "alice"));
-    assert_eq!(
-        res.events[3].attributes[3],
-        attr("amount", 199000u128.to_string())
-    );
-
     // Provide with min_lp_to_receive with a bigger amount than expected.
     let min_lp_amount_to_receive: Uint128 = router
         .wrap()
@@ -457,12 +443,6 @@ fn test_provide_and_withdraw_liquidity() {
     assert_eq!(
         res.events[1].attributes[5],
         attr("share", 200000u128.to_string())
-    );
-    assert_eq!(res.events[2].attributes[1], attr("action", "mint"));
-    assert_eq!(res.events[2].attributes[2], attr("to", "bob"));
-    assert_eq!(
-        res.events[2].attributes[3],
-        attr("amount", 200000.to_string())
     );
 
     // Withdraw liquidity doubling the minimum to recieve

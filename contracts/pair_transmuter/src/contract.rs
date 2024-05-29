@@ -4,7 +4,7 @@ use astroport::token_factory::{
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, BankMsg, Coin, DepsMut, Empty, Env, Event, MessageInfo, Reply,
+    attr, coin, ensure, ensure_eq, BankMsg, Coin, DepsMut, Empty, Env, MessageInfo, Reply,
     Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
@@ -256,19 +256,12 @@ pub fn provide_liquidity(
             coin.clone(),
             receiver.clone(),
         ))
-        .add_event(
-            Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
-                attr("action", "provide_liquidity"),
-                attr("receiver", &receiver),
-                attr("assets", assets.iter().join(", ")),
-                attr("share", share),
-            ]),
-        )
-        .add_event(Event::new("astroport-pool.v1.Mint").add_attributes([
-            attr("action", "mint"),
-            attr("to", receiver),
-            attr("amount", share),
-        ])))
+        .add_attributes([
+            attr("action", "provide_liquidity"),
+            attr("receiver", receiver),
+            attr("assets", assets.iter().join(", ")),
+            attr("share", share),
+        ]))
 }
 
 /// Performs an swap operation with the specified parameters.

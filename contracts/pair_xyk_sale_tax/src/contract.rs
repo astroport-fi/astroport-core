@@ -7,9 +7,9 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, coins, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, BankMsg, Binary,
-    Coin, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps, DepsMut, Env, Event,
-    Fraction, MessageInfo, QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
+    Coin, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps, DepsMut, Env, Fraction,
+    MessageInfo, QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse,
+    SubMsgResult, Uint128, Uint256, Uint64, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
@@ -354,7 +354,7 @@ pub fn provide_liquidity(
     let auto_stake = auto_stake.unwrap_or(false);
 
     let mut messages = vec![];
-    let mut events = vec![];
+
     for (i, pool) in pools.iter_mut().enumerate() {
         // If the asset is a token contract, then we need to execute a TransferFrom msg to receive assets
         if let AssetInfo::Token { contract_addr, .. } = &pool.info {
@@ -387,15 +387,6 @@ pub fn provide_liquidity(
             MINIMUM_LIQUIDITY_AMOUNT,
             false,
         )?);
-
-        events.insert(
-            0,
-            Event::new("astroport-pool.v1.Mint").add_attributes([
-                attr("action", "mint"),
-                attr("to", env.contract.address.as_str()),
-                attr("amount", MINIMUM_LIQUIDITY_AMOUNT.to_string()),
-            ]),
-        );
     }
 
     // Mint LP tokens for the sender or for the receiver (if set)
@@ -430,27 +421,13 @@ pub fn provide_liquidity(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    events.insert(
-        events.len(),
-        Event::new("astroport-pool.v1.Mint").add_attributes([
-            attr("action", "mint"),
-            attr("to", receiver.clone()),
-            attr("amount", share),
-        ]),
-    );
-
-    events.insert(
-        0,
-        Event::new("astroport-pool.v1.ProvideLiqudity").add_attributes([
-            attr("action", "provide_liquidity"),
-            attr("sender", info.sender),
-            attr("receiver", receiver),
-            attr("assets", format!("{}, {}", assets[0], assets[1])),
-            attr("share", share),
-        ]),
-    );
-
-    Ok(Response::new().add_messages(messages).add_events(events))
+    Ok(Response::new().add_messages(messages).add_attributes(vec![
+        attr("action", "provide_liquidity"),
+        attr("sender", info.sender),
+        attr("receiver", receiver),
+        attr("assets", format!("{}, {}", assets[0], assets[1])),
+        attr("share", share),
+    ]))
 }
 
 /// Mint LP tokens for a beneficiary and auto stake the tokens in the Incentive contract (if auto staking is specified).
