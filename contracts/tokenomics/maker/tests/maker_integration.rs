@@ -2,7 +2,6 @@
 
 use std::str::FromStr;
 
-use astroport_governance::utils::EPOCH_START;
 use astroport_test::cw_multi_test::{next_block, AppBuilder, Contract, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{
@@ -33,7 +32,6 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
         });
 
     app.update_block(|bi| {
-        bi.time = bi.time.plus_seconds(EPOCH_START);
         bi.height += 1;
         bi.chain_id = "cosm-wasm-test".to_string();
     });
@@ -101,11 +99,9 @@ fn mock_fee_distributor_contract() -> Box<dyn Contract<Empty>> {
     let instantiate = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
         Ok(Default::default())
     };
-    let execute = |_: DepsMut,
-                   _: Env,
-                   _: MessageInfo,
-                   _: astroport_governance::escrow_fee_distributor::ExecuteMsg|
-     -> StdResult<Response> { Ok(Default::default()) };
+    let execute = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+        Ok(Default::default())
+    };
     let empty_query = |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() };
 
     Box::new(ContractWrapper::new_with_empty(
