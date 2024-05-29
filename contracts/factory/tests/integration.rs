@@ -411,7 +411,7 @@ fn tracker_config() {
 
     assert_eq!(
         err,
-        StdError::generic_err("Querier contract error: type: astroport::factory::TrackerConfig; key: [74, 72, 61, 63, 6B, 65, 72, 5F, 63, 6F, 6E, 66, 69, 67] not found")
+        StdError::generic_err("Querier contract error: Generic error: Tracker config is not set in the factory. It can't be provided")
     );
 
     // should return an error since the sender is not the owner

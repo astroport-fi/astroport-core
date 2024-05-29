@@ -554,7 +554,10 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
 }
 
 pub fn query_tracker_config(deps: Deps) -> StdResult<TrackerConfig> {
-    let tracker_config = TRACKER_CONFIG.load(deps.storage)?;
+    let tracker_config = TRACKER_CONFIG.load(deps.storage).map_err(|_| {
+        StdError::generic_err("Tracker config is not set in the factory. It can't be provided")
+    })?;
+
     Ok(TrackerConfig {
         code_id: tracker_config.code_id,
         token_factory_addr: tracker_config.token_factory_addr,
