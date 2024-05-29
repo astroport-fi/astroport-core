@@ -333,7 +333,7 @@ pub fn receive_cw20(
 /// * **assets** vector with assets available in the pool.
 ///
 /// * **auto_stake** determines whether the resulting LP tokens are automatically staked in
-/// the Generator contract to receive token incentives.
+/// the Incentives contract to receive token incentives.
 ///
 /// * **receiver** address that receives LP tokens. If this address isn't specified, the function will default to the caller.
 ///

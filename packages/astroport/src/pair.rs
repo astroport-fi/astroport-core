@@ -44,7 +44,7 @@ pub enum ExecuteMsg {
         assets: Vec<Asset>,
         /// The slippage tolerance that allows liquidity provision only if the price in the pool doesn't move too much
         slippage_tolerance: Option<Decimal>,
-        /// Determines whether the LP tokens minted for the user is auto_staked in the Generator contract
+        /// Determines whether the LP tokens minted for the user is auto_staked in the Incentives contract
         auto_stake: Option<bool>,
         /// The receiver of LP tokens
         receiver: Option<String>,

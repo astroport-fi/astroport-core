@@ -69,7 +69,7 @@ pub enum ContractError {
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
-    #[error("Generator address is not set in factory. Cannot autostake")]
+    #[error("Incentives address is not set in factory. Cannot autostake")]
     AutoStakeError {},
 
     #[error("It is not possible to provide liquidity with one token for an empty pool")]

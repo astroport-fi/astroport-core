@@ -325,7 +325,7 @@ pub fn receive_cw20(
 /// the pool price can move until the provide liquidity transaction goes through.
 ///
 /// * **auto_stake** is an optional parameter which determines whether the LP tokens minted after
-/// liquidity provision are automatically staked in the Generator contract on behalf of the LP token receiver.
+/// liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
 ///
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
@@ -460,7 +460,7 @@ pub fn provide_liquidity(
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Generator on behalf of the recipient.
+/// be automatically staked in the Incentives contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,
@@ -480,14 +480,14 @@ where
         return Ok(tf_mint_msg(contract_address, coin, recipient));
     }
 
-    // Mint for the pair contract and stake into the Generator contract
-    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
+    // Mint for the pair contract and stake into the Incentives contract
+    let incentives_addr = query_factory_config(&querier, &config.factory_addr)?.generator_address;
 
-    if let Some(generator) = generator {
+    if let Some(address) = incentives_addr {
         let mut msgs = tf_mint_msg(contract_address, coin.clone(), contract_address);
         msgs.push(
             wasm_execute(
-                generator,
+                address,
                 &IncentiveExecuteMsg::Deposit {
                     recipient: Some(recipient.to_string()),
                 },

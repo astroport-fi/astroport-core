@@ -14,11 +14,11 @@ pub struct Config {
     pub owner: Addr,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// Generator contract address
+    /// Incentives contract address
     pub generator_address: Option<Addr>,
     /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
+    /// CW1 whitelist contract code id used to store 3rd party incentives staking rewards
     pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins with their precision
     pub coin_registry_address: Addr,

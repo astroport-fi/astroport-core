@@ -146,14 +146,14 @@ fn test_claim_rewards() {
                 &owner,
                 &provide_assets,
                 &pair_info.contract_addr,
-                false, // Owner doesn't stake in generator
+                false, // Owner doesn't stake in incentives
             )
             .unwrap();
 
         for staker in stakers {
             let staker_addr = TestAddr::new(staker);
 
-            // Pool doesn't exist in Generator yet
+            // Pool doesn't exist in incentives contract yet
             let astro_before = astro.query_pool(&helper.app.wrap(), &staker_addr).unwrap();
             helper
                 .claim_rewards(&staker_addr, vec![pair_info.liquidity_token.to_string()])
@@ -314,7 +314,7 @@ fn test_incentives() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -449,7 +449,7 @@ fn test_cw20_incentives() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -541,7 +541,7 @@ fn test_large_incentives() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -602,7 +602,7 @@ fn test_multiple_schedules_same_reward() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -713,7 +713,7 @@ fn test_multiple_schedules_different_reward() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -855,7 +855,7 @@ fn test_claim_between_different_periods() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -941,7 +941,7 @@ fn test_astro_external_reward() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -1037,7 +1037,7 @@ fn test_astro_protocol_reward_if_denom_changed() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -1212,8 +1212,8 @@ fn test_blocked_tokens() {
         )
     );
 
-    // Create pair with blocked token 'blk' and stake in Generator.
-    // Generator should allow it.
+    // Create pair with blocked token 'blk' and stake in incentives contract.
+    // Incentives should allow it.
     let blk_pair_info = helper
         .create_pair(&[tokens[0].clone(), tokens[2].clone()])
         .unwrap();
@@ -1478,7 +1478,7 @@ fn test_remove_rewards() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -1594,7 +1594,7 @@ fn test_long_unclaimed_rewards() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -2004,7 +2004,7 @@ fn test_incentive_without_funds() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
     let bank = TestAddr::new("bank");
@@ -2058,13 +2058,13 @@ fn test_claim_excess_rewards() {
                 &owner,
                 &provide_assets,
                 &pair_info.contract_addr,
-                false, // Owner doesn't stake in generator
+                false, // Owner doesn't stake in incentives
             )
             .unwrap();
 
         for staker in stakers {
             let staker_addr = TestAddr::new(staker);
-            // Pool doesn't exist in Generator yet
+            // Pool doesn't exist in incentives yet
             let astro_before = astro.query_pool(&helper.app.wrap(), &staker_addr).unwrap();
             helper
                 .claim_rewards(
@@ -2141,7 +2141,7 @@ fn test_user_claim_less() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 
@@ -2241,7 +2241,7 @@ fn test_broken_cw20_incentives() {
             &owner,
             &provide_assets,
             &pair_info.contract_addr,
-            false, // Owner doesn't stake in generator
+            false, // Owner doesn't stake in incentives
         )
         .unwrap();
 

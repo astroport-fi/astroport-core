@@ -58,7 +58,7 @@ pub enum ContractError {
     #[error("Pair type mismatch. Check factory pair configs")]
     PairTypeMismatch {},
 
-    #[error("Generator address is not set in factory. Cannot auto-stake")]
+    #[error("Incentives address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]

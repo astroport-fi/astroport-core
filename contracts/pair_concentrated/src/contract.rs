@@ -408,7 +408,7 @@ fn receive_cw20(
 /// the pool price can move until the provide liquidity transaction goes through.
 ///
 /// * **auto_stake** is an optional parameter which determines whether the LP tokens minted after
-/// liquidity provision are automatically staked in the Generator contract on behalf of the LP token receiver.
+/// liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
 ///
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.

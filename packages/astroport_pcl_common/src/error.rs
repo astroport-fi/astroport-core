@@ -29,7 +29,7 @@ pub enum PclError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Generator address is not set in factory. Cannot auto-stake")]
+    #[error("Incentives address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
     #[error("Operation exceeds max spread limit")]

@@ -142,7 +142,7 @@ fn simulate_case(events: Vec<(Event, u64)>) {
                     &owner,
                     &provide_assets,
                     &pair_info.contract_addr,
-                    false, // Owner doesn't stake in generator
+                    false, // Owner doesn't stake in incentives
                 )
                 .unwrap();
 
