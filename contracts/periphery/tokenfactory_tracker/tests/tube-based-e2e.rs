@@ -1,3 +1,5 @@
+#![cfg(not(tarpaulin_include))]
+
 use std::collections::HashMap;
 
 use cosmwasm_std::{coin, Uint128};
