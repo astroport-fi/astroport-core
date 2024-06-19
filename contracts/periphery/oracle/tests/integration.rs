@@ -1,12 +1,13 @@
 #![cfg(not(tarpaulin_include))]
 
 use anyhow::Result;
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 use cosmwasm_std::{
     attr, to_json_binary, Addr, BlockInfo, Coin, Decimal, QueryRequest, StdResult, Uint128,
     WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
@@ -20,15 +21,19 @@ const OWNER: &str = "owner";
 
 fn mock_app(owner: Option<Addr>, coins: Option<Vec<Coin>>) -> App {
     if owner.is_some() && coins.is_some() {
-        App::new(|router, _, storage| {
-            // initialization moved to App construction
-            router
-                .bank
-                .init_balance(storage, &owner.unwrap(), coins.unwrap())
-                .unwrap()
-        })
+        AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                // initialization moved to App construction
+                router
+                    .bank
+                    .init_balance(storage, &owner.unwrap(), coins.unwrap())
+                    .unwrap()
+            })
     } else {
-        App::default()
+        AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|_, _, _| {})
     }
 }
 

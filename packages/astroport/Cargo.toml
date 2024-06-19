@@ -1,6 +1,6 @@
 [package]
 name = "astroport"
-version = "4.0.3"
+version = "5.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Common Astroport types, queriers and other utils"
@@ -15,10 +15,11 @@ homepage = "https://astroport.fi"
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 injective = ["injective-math", "thiserror"]
+sei = []
 
 [dependencies]
 cw20 = "1.1"
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 uint = "0.9"
 cw-storage-plus.workspace = true
 itertools.workspace = true
@@ -26,6 +27,8 @@ cosmwasm-schema.workspace = true
 astroport-circular-buffer = { version = "0.2", path = "../circular_buffer" }
 cw-utils.workspace = true
 cw-asset = "3.0.0"
+prost = "0.11.5"
+cosmos-sdk-proto = { version = "0.19.0", default-features = false }
 
 # optional
 injective-math = { version = "0.1", optional = true }

@@ -8,9 +8,11 @@ use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::observation::OracleObservation;
 use astroport_pair_stable::error::ContractError;
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::f64_to_dec;
 use helper::AppExtension;
 
-use crate::helper::{f64_to_dec, Helper, TestCoin};
+use crate::helper::Helper;
 
 mod helper;
 
@@ -35,9 +37,9 @@ fn provide_and_withdraw_no_fee() {
     ];
     helper.give_me_money(&assets, &user1);
 
-    helper.provide_liquidity(&user1, &assets).unwrap();
+    helper.provide_liquidity(&user1, &assets, None).unwrap();
 
-    assert_eq!(299999000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(299999000, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user1));
@@ -50,8 +52,8 @@ fn provide_and_withdraw_no_fee() {
         helper.assets[&test_coins[2]].with_balance(100_000000u128),
     ];
     helper.give_me_money(&assets, &user2);
-    helper.provide_liquidity(&user2, &assets).unwrap();
-    assert_eq!(300_000000, helper.token_balance(&helper.lp_token, &user2));
+    helper.provide_liquidity(&user2, &assets, None).unwrap();
+    assert_eq!(300_000000, helper.native_balance(&helper.lp_token, &user2));
 
     // The user3 makes imbalanced provide thus he is charged with fees
     let user3 = Addr::unchecked("user3");
@@ -60,8 +62,8 @@ fn provide_and_withdraw_no_fee() {
         helper.assets[&test_coins[1]].with_balance(100_000000u128),
     ];
     helper.give_me_money(&assets, &user3);
-    helper.provide_liquidity(&user3, &assets).unwrap();
-    assert_eq!(299_629321, helper.token_balance(&helper.lp_token, &user3));
+    helper.provide_liquidity(&user3, &assets, None).unwrap();
+    assert_eq!(299_629321, helper.native_balance(&helper.lp_token, &user3));
 
     // Providing last asset with explicit zero amount should give nearly the same result
     let user4 = Addr::unchecked("user4");
@@ -71,14 +73,14 @@ fn provide_and_withdraw_no_fee() {
         helper.assets[&test_coins[2]].with_balance(0u128),
     ];
     helper.give_me_money(&assets, &user4);
-    helper.provide_liquidity(&user4, &assets).unwrap();
-    assert_eq!(299_056292, helper.token_balance(&helper.lp_token, &user4));
+    helper.provide_liquidity(&user4, &assets, None).unwrap();
+    assert_eq!(299_056292, helper.native_balance(&helper.lp_token, &user4));
 
     helper
-        .withdraw_liquidity(&user1, 299999000, vec![])
+        .withdraw_liquidity(&user1, 299999000, vec![], None)
         .unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user1));
     // Previous imbalanced provides resulted in different share in assets
     assert_eq!(150163977, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(100109318, helper.coin_balance(&test_coins[1], &user1));
@@ -90,11 +92,12 @@ fn provide_and_withdraw_no_fee() {
             &user2,
             300_000000,
             vec![helper.assets[&test_coins[0]].with_balance(300_000000u128)],
+            None,
         )
         .unwrap();
 
     // Previous imbalanced provides resulted in small LP balance residual
-    assert_eq!(619390, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(619390, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(300_000000, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[2], &user2));
@@ -105,6 +108,7 @@ fn provide_and_withdraw_no_fee() {
             &user3,
             100_000000,
             vec![helper.assets[&test_coins[1]].with_balance(101_000000u128)],
+            None,
         )
         .unwrap_err();
     assert_eq!(
@@ -118,13 +122,14 @@ fn provide_and_withdraw_no_fee() {
             &user3,
             200_892384,
             vec![helper.assets[&test_coins[1]].with_balance(101_000000u128)],
+            None,
         )
         .unwrap();
 
     // initial balance - spent amount; 100 goes back to the user3
     assert_eq!(
         299_629321 - 100679731,
-        helper.token_balance(&helper.lp_token, &user3)
+        helper.native_balance(&helper.lp_token, &user3)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user3));
     assert_eq!(101_000000, helper.coin_balance(&test_coins[1], &user3));
@@ -151,29 +156,33 @@ fn provide_with_different_precision() {
         ];
         helper.give_me_money(&assets, &user);
 
-        helper.provide_liquidity(&user, &assets).unwrap();
+        helper.provide_liquidity(&user, &assets, None).unwrap();
     }
 
     let user1 = Addr::unchecked("user1");
 
-    assert_eq!(19999000, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(19999000, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
-    helper.withdraw_liquidity(&user1, 19999000, vec![]).unwrap();
+    helper
+        .withdraw_liquidity(&user1, 19999000, vec![], None)
+        .unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user1));
     assert_eq!(999950, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(9999500, helper.coin_balance(&test_coins[1], &user1));
 
     let user2 = Addr::unchecked("user2");
-    assert_eq!(20000000, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(20000000, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
 
-    helper.withdraw_liquidity(&user2, 20000000, vec![]).unwrap();
+    helper
+        .withdraw_liquidity(&user2, 20000000, vec![], None)
+        .unwrap();
 
-    assert_eq!(0, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(0, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(999999, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(9999999, helper.coin_balance(&test_coins[1], &user2));
 }
@@ -193,7 +202,7 @@ fn swap_different_precisions() {
         helper.assets[&test_coins[0]].with_balance(100_000_0000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_00000u128),
     ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.provide_liquidity(&owner, &assets, None).unwrap();
 
     let user = Addr::unchecked("user");
     // 100 x FOO tokens
@@ -243,7 +252,7 @@ fn check_swaps() {
         helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
         helper.assets[&test_coins[2]].with_balance(100_000_000000u128),
     ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.provide_liquidity(&owner, &assets, None).unwrap();
 
     let user = Addr::unchecked("user");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
@@ -347,7 +356,7 @@ fn check_withdraw_charges_fees() {
         helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
         helper.assets[&test_coins[2]].with_balance(100_000_000_000000u128),
     ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.provide_liquidity(&owner, &assets, None).unwrap();
 
     let user1 = Addr::unchecked("user1");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
@@ -369,15 +378,18 @@ fn check_withdraw_charges_fees() {
     helper.give_me_money(&[offer_asset.clone()], &user2);
 
     // Provide 100 x LUNA
-    helper.provide_liquidity(&user2, &[offer_asset]).unwrap();
+    helper
+        .provide_liquidity(&user2, &[offer_asset], None)
+        .unwrap();
 
     // Withdraw 100 x USDC
-    let lp_tokens_amount = helper.token_balance(&helper.lp_token, &user2);
+    let lp_tokens_amount = helper.native_balance(&helper.lp_token, &user2);
     let err = helper
         .withdraw_liquidity(
             &user2,
             lp_tokens_amount,
             vec![helper.assets[&test_coins[1]].with_balance(100_000000u128)],
+            None,
         )
         .unwrap_err();
     assert_eq!(
@@ -390,11 +402,12 @@ fn check_withdraw_charges_fees() {
             &user2,
             lp_tokens_amount,
             vec![helper.assets[&test_coins[1]].with_balance(usual_swap_amount)],
+            None,
         )
         .unwrap();
 
     // A small residual of LP tokens is left
-    assert_eq!(8, helper.token_balance(&helper.lp_token, &user2));
+    assert_eq!(8, helper.native_balance(&helper.lp_token, &user2));
     assert_eq!(
         usual_swap_amount,
         helper.coin_balance(&test_coins[1], &user2)
@@ -433,7 +446,7 @@ fn check_twap_based_prices() {
         helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
     ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.provide_liquidity(&owner, &assets, None).unwrap();
     helper.app.next_block(1000);
     check_prices(&helper);
 
@@ -459,7 +472,7 @@ fn check_twap_based_prices() {
     helper.give_me_money(&assets, &user1);
 
     // Imbalanced provide
-    helper.provide_liquidity(&user1, &assets).unwrap();
+    helper.provide_liquidity(&user1, &assets, None).unwrap();
     helper.app.next_block(14 * 86400);
     check_prices(&helper);
 
@@ -488,7 +501,7 @@ fn check_pool_prices() {
         helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
         helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
     ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
+    helper.provide_liquidity(&owner, &assets, None).unwrap();
     helper.app.next_block(1000);
 
     let err = helper.query_observe(0).unwrap_err();
@@ -525,7 +538,7 @@ fn check_pool_prices() {
     helper.give_me_money(&assets, &user1);
 
     // Imbalanced provide
-    helper.provide_liquidity(&user1, &assets).unwrap();
+    helper.provide_liquidity(&user1, &assets, None).unwrap();
     helper.app.next_block(14 * 86400);
 
     let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);

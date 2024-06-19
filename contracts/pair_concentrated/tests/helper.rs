@@ -2,15 +2,13 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::Display;
-use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, Empty, StdError, StdResult,
-    Uint128,
+    coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, DepsMut, Empty, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
@@ -26,10 +24,16 @@ use astroport::pair::{
 use astroport::pair_concentrated::{
     ConcentratedPoolConfig, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
-use astroport_mocks::cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use astroport_pair_concentrated::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated::queries::query;
 use astroport_pcl_common::state::Config;
+
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::f64_to_dec;
+use astroport_test::cw_multi_test::{
+    AppBuilder, AppResponse, Contract, ContractWrapper, Executor, TOKEN_FACTORY_MODULE,
+};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 
@@ -54,42 +58,6 @@ pub struct AmpGammaResponse {
     pub amp: Decimal,
     pub gamma: Decimal,
     pub future_time: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TestCoin {
-    Cw20(String),
-    Cw20Precise(String, u8),
-    Native(String),
-}
-
-impl TestCoin {
-    pub fn denom(&self) -> Option<String> {
-        match self {
-            TestCoin::Native(denom) => Some(denom.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn cw20_init_data(&self) -> Option<(String, u8)> {
-        match self {
-            TestCoin::Cw20(name) => Some((name.clone(), 6u8)),
-            TestCoin::Cw20Precise(name, precision) => Some((name.clone(), *precision)),
-            _ => None,
-        }
-    }
-
-    pub fn native(denom: &str) -> Self {
-        Self::Native(denom.to_string())
-    }
-
-    pub fn cw20(name: &str) -> Self {
-        Self::Cw20(name.to_string())
-    }
-
-    pub fn cw20precise(name: &str, precision: u8) -> Self {
-        Self::Cw20Precise(name.to_string(), precision)
-    }
 }
 
 pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
@@ -137,18 +105,39 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
         .with_reply_empty(astroport_factory::contract::reply),
     )
 }
+fn generator() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        astroport_incentives::execute::execute,
+        astroport_incentives::instantiate::instantiate,
+        astroport_incentives::query::query,
+    ))
+}
+
+fn tracker_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+                unimplemented!()
+            },
+            astroport_tokenfactory_tracker::contract::instantiate,
+            astroport_tokenfactory_tracker::query::query,
+        )
+        .with_sudo_empty(astroport_tokenfactory_tracker::contract::sudo),
+    )
+}
 
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
     #[derivative(Debug = "ignore")]
-    pub app: App,
+    pub app: TestApp,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
     pub pair_addr: Addr,
-    pub lp_token: Addr,
+    pub lp_token: String,
     pub fake_maker: Addr,
+    pub generator: Addr,
 }
 
 impl Helper {
@@ -157,14 +146,17 @@ impl Helper {
         test_coins: Vec<TestCoin>,
         params: ConcentratedPoolParams,
     ) -> AnyResult<Self> {
-        let mut app = App::new(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, owner, init_native_coins(&test_coins))
-                .unwrap()
-        });
+        let mut app = AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, owner, init_native_coins(&test_coins))
+                    .unwrap()
+            });
 
         let token_code_id = app.store_code(token_contract());
+        let tracker_code_id = app.store_code(tracker_contract());
 
         let asset_infos_vec = test_coins
             .iter()
@@ -190,7 +182,6 @@ impl Helper {
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
         let pair_type = PairType::Custom("concentrated".to_string());
-
         let fake_maker = Addr::unchecked("fake_maker");
 
         let coin_registry_id = app.store_code(coin_registry_contract());
@@ -217,6 +208,7 @@ impl Helper {
                     ("uusd".to_owned(), 6),
                     ("wsteth".to_owned(), 18),
                     ("eth".to_owned(), 18),
+                    ("uusdc".to_owned(), 6),
                 ],
             },
             &[],
@@ -238,6 +230,10 @@ impl Helper {
             owner: owner.to_string(),
             whitelist_code_id: 234u64,
             coin_registry_address: coin_registry_address.to_string(),
+            tracker_config: Some(astroport::factory::TrackerConfig {
+                code_id: tracker_code_id,
+                token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
+            }),
         };
 
         let factory = app.instantiate_contract(
@@ -248,6 +244,40 @@ impl Helper {
             "FACTORY",
             None,
         )?;
+
+        let generator = app.store_code(generator());
+
+        let generator_address = app
+            .instantiate_contract(
+                generator,
+                owner.clone(),
+                &astroport::incentives::InstantiateMsg {
+                    astro_token: native_asset_info("astro".to_string()),
+                    factory: factory.to_string(),
+                    owner: owner.to_string(),
+                    guardian: None,
+                    incentivization_fee_info: None,
+                    vesting_contract: "vesting".to_string(),
+                },
+                &[],
+                "generator",
+                None,
+            )
+            .unwrap();
+
+        app.execute_contract(
+            owner.clone(),
+            factory.clone(),
+            &astroport::factory::ExecuteMsg::UpdateConfig {
+                token_code_id: None,
+                fee_address: None,
+                generator_address: Some(generator_address.to_string()),
+                whitelist_code_id: None,
+                coin_registry_address: None,
+            },
+            &[],
+        )
+        .unwrap();
 
         let asset_infos = asset_infos_vec
             .clone()
@@ -272,6 +302,7 @@ impl Helper {
             owner: owner.clone(),
             assets: asset_infos_vec.into_iter().collect(),
             factory,
+            generator: generator_address,
             pair_addr: resp.contract_addr,
             lp_token: resp.liquidity_token,
             fake_maker,
@@ -284,6 +315,27 @@ impl Helper {
             assets,
             Some(f64_to_dec(0.5)), // 50% slip tolerance for testing purposes
         )
+    }
+
+    pub fn provide_liquidity_with_auto_staking(
+        &mut self,
+        sender: &Addr,
+        assets: &[Asset],
+        slippage_tolerance: Option<Decimal>,
+    ) -> AnyResult<AppResponse> {
+        let funds =
+            assets.mock_coins_sent(&mut self.app, sender, &self.pair_addr, SendType::Allowance);
+
+        let msg = ExecuteMsg::ProvideLiquidity {
+            assets: assets.to_vec(),
+            slippage_tolerance: Some(slippage_tolerance.unwrap_or(f64_to_dec(0.5))),
+            auto_stake: Some(true),
+            receiver: None,
+            min_lp_to_receive: None,
+        };
+
+        self.app
+            .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
     }
 
     pub fn provide_liquidity_with_slip_tolerance(
@@ -300,6 +352,7 @@ impl Helper {
             slippage_tolerance,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app
@@ -312,14 +365,15 @@ impl Helper {
         amount: u128,
         assets: Vec<Asset>,
     ) -> AnyResult<AppResponse> {
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.pair_addr.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
-        };
-
-        self.app
-            .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
+        self.app.execute_contract(
+            sender.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets,
+                min_assets_to_receive: None,
+            },
+            &[coin(amount, self.lp_token.to_string())],
+        )
     }
 
     pub fn swap(
@@ -377,6 +431,19 @@ impl Helper {
         }
     }
 
+    pub fn query_incentives_deposit(&self, denom: impl Into<String>, user: &Addr) -> Uint128 {
+        self.app
+            .wrap()
+            .query_wasm_smart(
+                &self.generator,
+                &astroport::incentives::QueryMsg::Deposit {
+                    lp_token: denom.into(),
+                    user: user.to_string(),
+                },
+            )
+            .unwrap()
+    }
+
     pub fn simulate_swap(
         &self,
         offer_asset: &Asset,
@@ -412,7 +479,7 @@ impl Helper {
     }
 
     fn init_token(
-        app: &mut App,
+        app: &mut TestApp,
         token_code: u64,
         name: String,
         decimals: u8,
@@ -455,16 +522,19 @@ impl Helper {
         resp.balance.u128()
     }
 
+    pub fn native_balance(&self, denom: impl Into<String>, user: &Addr) -> u128 {
+        self.app
+            .wrap()
+            .query_balance(user, denom)
+            .unwrap()
+            .amount
+            .u128()
+    }
+
     pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> u128 {
         match &self.assets[coin] {
             AssetInfo::Token { contract_addr } => self.token_balance(contract_addr, user),
-            AssetInfo::NativeToken { denom } => self
-                .app
-                .wrap()
-                .query_balance(user, denom)
-                .unwrap()
-                .amount
-                .u128(),
+            AssetInfo::NativeToken { denom } => self.native_balance(denom, user),
         }
     }
 
@@ -582,7 +652,7 @@ pub enum SendType {
 pub trait AssetExt {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -592,7 +662,7 @@ pub trait AssetExt {
 impl AssetExt for Asset {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -628,7 +698,7 @@ impl AssetExt for Asset {
 pub trait AssetsExt {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -638,7 +708,7 @@ pub trait AssetsExt {
 impl AssetsExt for &[Asset] {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -655,23 +725,11 @@ pub trait AppExtension {
     fn next_block(&mut self, time: u64);
 }
 
-impl AppExtension for App {
+impl AppExtension for TestApp {
     fn next_block(&mut self, time: u64) {
         self.update_block(|block| {
             block.time = block.time.plus_seconds(time);
             block.height += 1
         });
     }
-}
-
-pub fn f64_to_dec<T>(val: f64) -> T
-where
-    T: FromStr,
-    T::Err: Error,
-{
-    T::from_str(&val.to_string()).unwrap()
-}
-
-pub fn dec_to_f64(val: impl Display) -> f64 {
-    f64::from_str(&val.to_string()).unwrap()
 }

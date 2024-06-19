@@ -2,12 +2,13 @@
 
 use std::str::FromStr;
 
+use astroport_test::cw_multi_test::{next_block, AppBuilder, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
     MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
-use cw_multi_test::{next_block, App, Contract, ContractWrapper, Executor};
 
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
@@ -22,11 +23,13 @@ use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
 const OWNER: &str = "owner";
 
-fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
-    let mut app = App::new(|router, _, storage| {
-        // initialization moved to App construction
-        router.bank.init_balance(storage, &owner, coins).unwrap();
-    });
+fn mock_app(owner: Addr, coins: Vec<Coin>) -> TestApp {
+    let mut app = AppBuilder::new_custom()
+        .with_stargate(MockStargate::default())
+        .build(|router, _, storage| {
+            // initialization moved to App construction
+            router.bank.init_balance(storage, &owner, coins).unwrap();
+        });
 
     app.update_block(|bi| {
         bi.height += 1;
@@ -36,7 +39,12 @@ fn mock_app(owner: Addr, coins: Vec<Coin>) -> App {
     app
 }
 
-fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, funds: Vec<Coin>) {
+fn validate_and_send_funds(
+    router: &mut TestApp,
+    sender: &Addr,
+    recipient: &Addr,
+    funds: Vec<Coin>,
+) {
     for fund in funds.clone() {
         // we cannot transfer zero coins
         if !fund.amount.is_zero() {
@@ -47,7 +55,7 @@ fn validate_and_send_funds(router: &mut App, sender: &Addr, recipient: &Addr, fu
     }
 }
 
-fn store_coin_registry_code(app: &mut App) -> u64 {
+fn store_coin_registry_code(app: &mut TestApp) -> u64 {
     let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
         astroport_native_coin_registry::contract::execute,
         astroport_native_coin_registry::contract::instantiate,
@@ -57,7 +65,7 @@ fn store_coin_registry_code(app: &mut App) -> u64 {
     app.store_code(coin_registry_contract)
 }
 
-fn instantiate_coin_registry(mut app: &mut App, coins: Option<Vec<(String, u8)>>) -> Addr {
+fn instantiate_coin_registry(mut app: &mut TestApp, coins: Option<Vec<(String, u8)>>) -> Addr {
     let coin_registry_id = store_coin_registry_code(&mut app);
     let coin_registry_address = app
         .instantiate_contract(
@@ -104,7 +112,7 @@ fn mock_fee_distributor_contract() -> Box<dyn Contract<Empty>> {
 }
 
 fn instantiate_contracts(
-    mut router: &mut App,
+    mut router: &mut TestApp,
     owner: Addr,
     staking: Addr,
     governance_percent: Uint64,
@@ -265,7 +273,7 @@ fn instantiate_contracts(
     )
 }
 
-fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String) -> Addr {
+fn instantiate_token(router: &mut TestApp, owner: Addr, name: String, symbol: String) -> Addr {
     let token_contract = Box::new(ContractWrapper::new_with_empty(
         cw20_base::contract::execute,
         cw20_base::contract::instantiate,
@@ -299,7 +307,13 @@ fn instantiate_token(router: &mut App, owner: Addr, name: String, symbol: String
     token_instance
 }
 
-fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr, amount: Uint128) {
+fn mint_some_token(
+    router: &mut TestApp,
+    owner: Addr,
+    token_instance: Addr,
+    to: Addr,
+    amount: Uint128,
+) {
     let msg = cw20::Cw20ExecuteMsg::Mint {
         recipient: to.to_string(),
         amount,
@@ -312,7 +326,7 @@ fn mint_some_token(router: &mut App, owner: Addr, token_instance: Addr, to: Addr
     assert_eq!(res.events[1].attributes[3], attr("amount", amount));
 }
 
-fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, amount: Uint128) {
+fn allowance_token(router: &mut TestApp, owner: Addr, spender: Addr, token: Addr, amount: Uint128) {
     let msg = cw20::Cw20ExecuteMsg::IncreaseAllowance {
         spender: spender.to_string(),
         amount,
@@ -336,7 +350,7 @@ fn allowance_token(router: &mut App, owner: Addr, spender: Addr, token: Addr, am
     assert_eq!(res.events[1].attributes[4], attr("amount", amount));
 }
 
-fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uint128) {
+fn check_balance(router: &mut TestApp, user: Addr, token: Addr, expected_amount: Uint128) {
     let msg = Cw20QueryMsg::Balance {
         address: user.to_string(),
     };
@@ -353,7 +367,7 @@ fn check_balance(router: &mut App, user: Addr, token: Addr, expected_amount: Uin
 }
 
 fn create_pair(
-    mut router: &mut App,
+    mut router: &mut TestApp,
     owner: Addr,
     user: Addr,
     factory_instance: &Addr,
@@ -663,7 +677,7 @@ fn update_config() {
 }
 
 fn test_maker_collect(
-    mut router: App,
+    mut router: TestApp,
     owner: Addr,
     factory_instance: Addr,
     maker_instance: Addr,
@@ -2075,7 +2089,7 @@ struct CheckDistributedAstro {
 }
 
 impl CheckDistributedAstro {
-    fn check(&mut self, router: &mut App, distributed_amount: u32) {
+    fn check(&mut self, router: &mut TestApp, distributed_amount: u32) {
         let distributed_amount = Uint128::from(distributed_amount as u128);
         let cur_governance_amount = distributed_amount
             .multiply_ratio(Uint128::from(self.governance_percent), Uint128::new(100));

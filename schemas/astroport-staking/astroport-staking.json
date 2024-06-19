@@ -138,7 +138,7 @@
         "additionalProperties": false
       },
       {
-        "description": "BalanceAt returns xASTRO balance of the given address at at the given timestamp. Returns current balance if unset if timestamp unset.",
+        "description": "BalanceAt returns xASTRO balance of the given address at at the given timestamp. Returns current balance if timestamp unset.",
         "type": "object",
         "required": [
           "balance_at"

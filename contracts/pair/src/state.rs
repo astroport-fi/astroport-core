@@ -23,6 +23,8 @@ pub struct Config {
     pub track_asset_balances: bool,
     // The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
+    /// Stores the tracker contract address
+    pub tracker_addr: Option<Addr>,
 }
 
 /// Stores the config struct at the given key

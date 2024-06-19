@@ -4,7 +4,10 @@ extern crate core;
 
 mod helper;
 
-use crate::helper::{common_pcl_params, dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::{dec_to_f64, f64_to_dec};
+
+use crate::helper::{common_pcl_params, AppExtension, Helper};
 use astroport::asset::AssetInfoExt;
 use astroport::cosmwasm_ext::AbsDiff;
 use astroport::pair_concentrated::{ConcentratedPoolParams, ConcentratedPoolUpdateParams};
@@ -178,7 +181,7 @@ fn simulate_provide_case(case: Vec<(impl Into<String>, u128, u128, u64)>) {
     let price_scale = dec_to_f64(config.pool_state.price_state.price_scale);
 
     for (user, &(coin0_amnt, coin1_amnt, cnt)) in &accounts {
-        let lp_amount = helper.token_balance(&helper.lp_token, user);
+        let lp_amount = helper.native_balance(&helper.lp_token, user);
         if cnt != 0 {
             helper.withdraw_liquidity(user, lp_amount, vec![]).unwrap();
         }

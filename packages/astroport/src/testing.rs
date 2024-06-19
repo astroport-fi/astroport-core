@@ -233,7 +233,7 @@ fn query_astroport_pair_contract() {
                 },
             ],
             contract_addr: Addr::unchecked("pair0000"),
-            liquidity_token: Addr::unchecked("liquidity0000"),
+            liquidity_token: "liquidity0000".to_owned(),
             pair_type: PairType::Xyk {},
         },
     )]);
@@ -271,7 +271,7 @@ fn test_format_lp_token_name() {
                 },
             ],
             contract_addr: Addr::unchecked("pair0000"),
-            liquidity_token: Addr::unchecked("liquidity0000"),
+            liquidity_token: "liquidity0000".to_owned(),
             pair_type: PairType::Xyk {},
         },
     )]);

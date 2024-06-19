@@ -1,3 +1,7 @@
+#![cfg(not(tarpaulin_include))]
+#![cfg(feature = "tests-tube")]
+#![allow(dead_code)]
+
 use std::collections::HashMap;
 
 use cosmwasm_std::{coin, Uint128};

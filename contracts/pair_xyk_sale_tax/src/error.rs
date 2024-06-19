@@ -1,5 +1,6 @@
 use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
 use cosmwasm_std::{OverflowError, StdError};
+use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
 /// This enum describes pair contract errors
@@ -7,6 +8,12 @@ use thiserror::Error;
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -38,7 +45,7 @@ pub enum ContractError {
     #[error("Pair type mismatch. Check factory pair configs")]
     PairTypeMismatch {},
 
-    #[error("Generator address is not set in factory. Cannot auto-stake")]
+    #[error("Incentives address is not set in factory. Cannot auto-stake")]
     AutoStakeError {},
 
     #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
@@ -46,9 +53,6 @@ pub enum ContractError {
 
     #[error("Failed to migrate the contract")]
     MigrationError {},
-
-    #[error("Asset balances tracking is already enabled")]
-    AssetBalancesTrackingIsAlreadyEnabled {},
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},

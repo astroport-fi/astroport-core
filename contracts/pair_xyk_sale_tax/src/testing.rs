@@ -1,10 +1,12 @@
 use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked, TaxConfigsChecked};
+use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, BankMsg, BlockInfo, Coin, CosmosMsg, Decimal, DepsMut, Env, Reply,
-    ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult, Timestamp, Uint128, WasmMsg,
+    attr, coin, to_json_binary, Addr, BankMsg, Binary, BlockInfo, Coin, CosmosMsg, Decimal,
+    DepsMut, Env, Reply, ReplyOn, Response, StdError, SubMsg, SubMsgResponse, SubMsgResult,
+    Timestamp, Uint128, WasmMsg,
 };
-use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use proptest::prelude::*;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
@@ -13,12 +15,10 @@ use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
     SimulationResponse, TWAP_PRECISION,
 };
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
-use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
-    query_reverse_simulation, query_share, query_simulation,
+    query_reverse_simulation, query_share, query_simulation, reply, LP_SUBDENOM,
 };
 use crate::contract::{compute_offer_amount, SwapResult};
 use crate::error::ContractError;
@@ -35,26 +35,21 @@ struct MsgInstantiateContractResponse {
     pub data: Vec<u8>,
 }
 
-fn store_liquidity_token(deps: DepsMut, msg_id: u64, contract_addr: String) {
-    let instantiate_reply = MsgInstantiateContractResponse {
-        contract_address: contract_addr,
-        data: vec![],
-    };
-
-    let mut encoded_instantiate_reply = Vec::<u8>::with_capacity(instantiate_reply.encoded_len());
-    instantiate_reply
-        .encode(&mut encoded_instantiate_reply)
-        .unwrap();
-
+fn store_liquidity_token(deps: DepsMut, msg_id: u64, subdenom: String) {
     let reply_msg = Reply {
         id: msg_id,
         result: SubMsgResult::Ok(SubMsgResponse {
             events: vec![],
-            data: Some(encoded_instantiate_reply.into()),
+            data: Some(
+                MsgCreateDenomResponse {
+                    new_token_denom: subdenom,
+                }
+                .into(),
+            ),
         }),
     };
 
-    let _res = reply(deps, mock_env(), reply_msg.clone()).unwrap();
+    reply(deps, mock_env(), reply_msg).unwrap();
 }
 
 #[test]
@@ -84,29 +79,21 @@ fn proper_initialization() {
     // We can just call .unwrap() to assert this was a success
     let env = mock_env();
     let info = mock_info(sender, &[]);
-    let res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(
         res.messages,
         vec![SubMsg {
-            msg: WasmMsg::Instantiate {
-                code_id: 10u64,
-                msg: to_json_binary(&TokenInstantiateMsg {
-                    name: "UUSD-MAPP-LP".to_string(),
-                    symbol: "uLP".to_string(),
-                    decimals: 6,
-                    initial_balances: vec![],
-                    mint: Some(MinterResponse {
-                        minter: String::from(MOCK_CONTRACT_ADDR),
-                        cap: None,
-                    }),
-                    marketing: None
-                })
-                .unwrap(),
-                funds: vec![],
-                admin: None,
-                label: String::from("Astroport LP token"),
-            }
-            .into(),
+            msg: CosmosMsg::Stargate {
+                type_url: MsgCreateDenom::TYPE_URL.to_string(),
+                value: Binary(
+                    MsgCreateDenom {
+                        #[cfg(not(feature = "sei"))]
+                        sender: env.contract.address.to_string(),
+                        subdenom: LP_SUBDENOM.to_string()
+                    }
+                    .encode_to_vec()
+                )
+            },
             id: 1,
             gas_limit: None,
             reply_on: ReplyOn::Success
@@ -167,10 +154,11 @@ fn provide_liquidity() {
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let denom = format!("factory/{}/{}", env.contract.address, "share/astroport");
 
-    // Store liquidity token
-    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
+    // Store the liquidity token
+    store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     // Successfully provide liquidity for the existing pool
     let msg = ExecuteMsg::ProvideLiquidity {
@@ -191,6 +179,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env();
@@ -227,16 +216,22 @@ fn provide_liquidity() {
     assert_eq!(
         mint_min_liquidity_msg,
         &SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: String::from("liquidity0000"),
-                msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: String::from(MOCK_CONTRACT_ADDR),
-                    amount: Uint128::from(1000_u128),
-                })
-                .unwrap(),
-                funds: vec![],
-            }
-            .into(),
+            msg: CosmosMsg::Stargate {
+                type_url: MsgMint::TYPE_URL.to_string(),
+                value: Binary::from(
+                    MsgMint {
+                        amount: Some(astroport::token_factory::ProtoCoin {
+                            denom: denom.to_string(),
+                            amount: Uint128::from(1000_u128).to_string(),
+                        }),
+                        #[cfg(not(feature = "sei"))]
+                        sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from(MOCK_CONTRACT_ADDR),
+                    }
+                    .encode_to_vec()
+                )
+            },
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
@@ -245,16 +240,22 @@ fn provide_liquidity() {
     assert_eq!(
         mint_receiver_msg,
         &SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: String::from("liquidity0000"),
-                msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: String::from("addr0000"),
-                    amount: Uint128::from(99_999999999999999000u128),
-                })
-                .unwrap(),
-                funds: vec![],
-            }
-            .into(),
+            msg: CosmosMsg::Stargate {
+                type_url: MsgMint::TYPE_URL.to_string(),
+                value: Binary::from(
+                    MsgMint {
+                        amount: Some(astroport::token_factory::ProtoCoin {
+                            denom: denom.to_string(),
+                            amount: Uint128::from(99_999999999999999000u128).to_string(),
+                        }),
+                        #[cfg(not(feature = "sei"))]
+                        sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from("addr0000"),
+                    }
+                    .encode_to_vec()
+                )
+            },
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
@@ -269,24 +270,19 @@ fn provide_liquidity() {
             denom: "uusd".to_string(),
             amount: Uint128::new(200_000000000000000000 + 200_000000000000000000 /* user deposit must be pre-applied */),
         }],
-    )]);
+    ),
+    (
+        &String::from("liquidity0000"),
+        &[coin(100_000000000000000000u128, denom.to_string())],
+    ),]);
 
-    deps.querier.with_token_balances(&[
-        (
-            &String::from("liquidity0000"),
-            &[(
-                &String::from(MOCK_CONTRACT_ADDR),
-                &Uint128::new(100_000000000000000000),
-            )],
-        ),
-        (
-            &String::from("asset0000"),
-            &[(
-                &String::from(MOCK_CONTRACT_ADDR),
-                &Uint128::new(200_000000000000000000),
-            )],
-        ),
-    ]);
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(
+            &String::from(MOCK_CONTRACT_ADDR),
+            &Uint128::new(200_000000000000000000),
+        )],
+    )]);
 
     let msg = ExecuteMsg::ProvideLiquidity {
         assets: vec![
@@ -306,6 +302,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(50)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -343,16 +340,22 @@ fn provide_liquidity() {
     assert_eq!(
         mint_msg,
         &SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: String::from("liquidity0000"),
-                msg: to_json_binary(&Cw20ExecuteMsg::Mint {
-                    recipient: String::from("addr0000"),
-                    amount: Uint128::from(50_000000000000000000u128),
-                })
-                .unwrap(),
-                funds: vec![],
-            }
-            .into(),
+            msg: CosmosMsg::Stargate {
+                type_url: MsgMint::TYPE_URL.to_string(),
+                value: Binary::from(
+                    MsgMint {
+                        amount: Some(astroport::token_factory::ProtoCoin {
+                            denom: denom.to_string(),
+                            amount: Uint128::from(50_000000000000000000u128).to_string(),
+                        }),
+                        #[cfg(not(feature = "sei"))]
+                        sender: env.contract.address.to_string(),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        mint_to_address: String::from("addr0000"),
+                    }
+                    .encode_to_vec()
+                )
+            },
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
@@ -378,6 +381,7 @@ fn provide_liquidity() {
         slippage_tolerance: None,
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env();
@@ -441,6 +445,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -482,6 +487,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -523,6 +529,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -563,6 +570,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let env = mock_env_with_block_time(env.block.time.seconds() + 1000);
@@ -593,6 +601,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(1)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
     let info = mock_info(
         "addr0001",
@@ -622,6 +631,7 @@ fn provide_liquidity() {
         slippage_tolerance: Some(Decimal::percent(51)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
     let info = mock_info(
         "addr0001",
@@ -641,16 +651,8 @@ fn withdraw_liquidity() {
         amount: Uint128::new(100u128),
     }]);
 
-    deps.querier.with_token_balances(&[
-        (
-            &String::from("liquidity0000"),
-            &[(&String::from("addr0000"), &Uint128::new(100u128))],
-        ),
-        (
-            &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100u128))],
-        ),
-    ]);
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
 
     let msg = InstantiateMsg {
         asset_infos: vec![
@@ -667,24 +669,36 @@ fn withdraw_liquidity() {
         init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    let denom = format!("factory/{}/{}", env.contract.address, "share/astroport");
 
-    // Store liquidity token
-    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &Uint128::new(100u128))],
+    )]);
+
+    deps.querier.with_balance(&[(
+        &String::from("asset0000"),
+        &[Coin {
+            denom: denom.to_string(),
+            amount: Uint128::new(100u128),
+        }],
+    )]);
+
+    // We can just call .unwrap() to assert this was a success
+    instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // Store the liquidity token
+    store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     // Withdraw liquidity
-    let msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-        sender: String::from("addr0000"),
-        msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets: vec![] }).unwrap(),
-        amount: Uint128::new(100u128),
-    });
+    let msg = ExecuteMsg::WithdrawLiquidity {
+        assets: vec![],
+        min_assets_to_receive: None,
+    };
 
     let env = mock_env();
-    let info = mock_info("liquidity0000", &[]);
-    let res = execute(deps.as_mut(), env, info, msg).unwrap();
+    let info = mock_info("addr0000", &[coin(100u128, denom.clone())]);
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let log_withdrawn_share = res.attributes.get(2).expect("no log");
     let log_refund_assets = res.attributes.get(3).expect("no log");
     let msg_refund_0 = res.messages.get(0).expect("no message");
@@ -726,15 +740,22 @@ fn withdraw_liquidity() {
     assert_eq!(
         msg_burn_liquidity,
         &SubMsg {
-            msg: WasmMsg::Execute {
-                contract_addr: String::from("liquidity0000"),
-                msg: to_json_binary(&Cw20ExecuteMsg::Burn {
-                    amount: Uint128::from(100u128),
-                })
-                .unwrap(),
-                funds: vec![],
-            }
-            .into(),
+            msg: CosmosMsg::Stargate {
+                type_url: MsgBurn::TYPE_URL.to_string(),
+                value: Binary::from(
+                    MsgBurn {
+                        #[cfg(not(feature = "sei"))]
+                        sender: env.contract.address.to_string(),
+                        amount: Some(astroport::token_factory::ProtoCoin {
+                            denom: denom.to_string(),
+                            amount: Uint128::from(100u128).to_string(),
+                        }),
+                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        burn_from_address: "".to_string()
+                    }
+                    .encode_to_vec()
+                ),
+            },
             id: 0,
             gas_limit: None,
             reply_on: ReplyOn::Never,
@@ -1237,21 +1258,26 @@ fn test_query_pool() {
     let total_share_amount = Uint128::from(111u128);
     let asset_0_amount = Uint128::from(222u128);
     let asset_1_amount = Uint128::from(333u128);
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
         amount: asset_0_amount,
     }]);
 
-    deps.querier.with_token_balances(&[
-        (
-            &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
-        ),
-        (
-            &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &total_share_amount)],
-        ),
-    ]);
+    let denom = format!("factory/{}/{}", env.contract.address, "share/astroport");
+
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
+    )]);
+
+    deps.querier.with_balance(&[(
+        &"addr0000".to_string(),
+        &[coin(total_share_amount.u128(), denom.clone())],
+    )]);
 
     let msg = InstantiateMsg {
         asset_infos: vec![
@@ -1267,13 +1293,11 @@ fn test_query_pool() {
         init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
-    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
+    // Store the liquidity token
+    store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     let res: PoolResponse = query_pool(deps.as_ref()).unwrap();
 
@@ -1302,21 +1326,26 @@ fn test_query_share() {
     let total_share_amount = Uint128::from(500u128);
     let asset_0_amount = Uint128::from(250u128);
     let asset_1_amount = Uint128::from(1000u128);
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+
     let mut deps = mock_dependencies(&[Coin {
         denom: "uusd".to_string(),
         amount: asset_0_amount,
     }]);
 
-    deps.querier.with_token_balances(&[
-        (
-            &String::from("asset0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
-        ),
-        (
-            &String::from("liquidity0000"),
-            &[(&String::from(MOCK_CONTRACT_ADDR), &total_share_amount)],
-        ),
-    ]);
+    let denom = format!("factory/{}/{}", env.contract.address, "share/astroport");
+
+    deps.querier.with_token_balances(&[(
+        &String::from("asset0000"),
+        &[(&String::from(MOCK_CONTRACT_ADDR), &asset_1_amount)],
+    )]);
+
+    deps.querier.with_balance(&[(
+        &"addr0000".to_string(),
+        &[coin(total_share_amount.u128(), denom.clone())],
+    )]);
 
     let msg = InstantiateMsg {
         asset_infos: vec![
@@ -1332,13 +1361,11 @@ fn test_query_share() {
         init_params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
     };
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
     // We can just call .unwrap() to assert this was a success
-    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
+    instantiate(deps.as_mut(), env, info, msg).unwrap();
 
-    // Store liquidity token
-    store_liquidity_token(deps.as_mut(), 1, "liquidity0000".to_string());
+    // Store the liquidity token
+    store_liquidity_token(deps.as_mut(), 1, denom.to_string());
 
     let res = query_share(deps.as_ref(), Uint128::new(250)).unwrap();
 
@@ -1435,7 +1462,7 @@ fn test_accumulate_prices() {
                         },
                     ],
                     contract_addr: Addr::unchecked("pair"),
-                    liquidity_token: Addr::unchecked("lp_token"),
+                    liquidity_token: "lp_token".to_owned(),
                     pair_type: PairType::Xyk {}, // Implemented in mock querier
                 },
                 factory_addr: Addr::unchecked("factory"),
@@ -1445,6 +1472,7 @@ fn test_accumulate_prices() {
                 track_asset_balances: false,
                 tax_configs: TaxConfigsChecked::default(),
                 tax_config_admin: Addr::unchecked("tax_config_admin"),
+                tracker_addr: None,
             },
             Uint128::new(case.x_amount),
             Uint128::new(case.y_amount),

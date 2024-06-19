@@ -68,8 +68,6 @@ pub enum ConcentratedPoolUpdateParams {
     Promote(PromoteParams),
     /// Stops Amp and Gamma update and stores current values.
     StopChangingAmpGamma {},
-    /// Enable asset balances tracking
-    EnableAssetBalancesTracking {},
     /// Enables the sharing of swap fees with an external party.
     EnableFeeShare {
         /// The fee shared with the fee_share_address
@@ -156,6 +154,15 @@ pub enum QueryMsg {
     /// Query price from observations
     #[returns(OracleObservation)]
     Observe { seconds_ago: u64 },
+    /// Returns an estimation of shares received for the given amount of assets
+    #[returns(Uint128)]
+    SimulateProvide {
+        assets: Vec<Asset>,
+        slippage_tolerance: Option<Decimal>,
+    },
+    /// Returns an estimation of assets received for the given amount of LP tokens
+    #[returns(Vec<Asset>)]
+    SimulateWithdraw { lp_amount: Uint128 },
 }
 
 #[cw_serde]

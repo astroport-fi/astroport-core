@@ -46,6 +46,17 @@
       "format": "uint64",
       "minimum": 0.0
     },
+    "tracker_config": {
+      "description": "Config for the tracking contract",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TrackerConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "whitelist_code_id": {
       "description": "CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens",
       "type": "integer",
@@ -154,6 +165,26 @@
           "additionalProperties": false
         }
       ]
+    },
+    "TrackerConfig": {
+      "type": "object",
+      "required": [
+        "code_id",
+        "token_factory_addr"
+      ],
+      "properties": {
+        "code_id": {
+          "description": "Tracking contract code id",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "token_factory_addr": {
+          "description": "Token factory module address",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

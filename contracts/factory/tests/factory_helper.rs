@@ -2,10 +2,12 @@
 
 use anyhow::Result as AnyResult;
 use astroport::asset::AssetInfo;
-use astroport::factory::{PairConfig, PairType};
-use cosmwasm_std::{Addr, Binary};
+use astroport::factory::{PairConfig, PairType, TrackerConfig};
+use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as TestApp;
+
+use cosmwasm_std::{Addr, Binary, StdResult};
 use cw20::MinterResponse;
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 pub struct FactoryHelper {
     pub owner: Addr,
@@ -15,7 +17,7 @@ pub struct FactoryHelper {
 }
 
 impl FactoryHelper {
-    pub fn init(router: &mut App, owner: &Addr) -> Self {
+    pub fn init(router: &mut TestApp, owner: &Addr) -> Self {
         let astro_token_contract = Box::new(ContractWrapper::new_with_empty(
             cw20_base::contract::execute,
             cw20_base::contract::instantiate,
@@ -96,6 +98,7 @@ impl FactoryHelper {
             owner: owner.to_string(),
             whitelist_code_id: 0,
             coin_registry_address: "coin_registry".to_string(),
+            tracker_config: None,
         };
 
         let factory = router
@@ -119,7 +122,7 @@ impl FactoryHelper {
 
     pub fn update_config(
         &mut self,
-        router: &mut App,
+        router: &mut TestApp,
         sender: &Addr,
         token_code_id: Option<u64>,
         fee_address: Option<String>,
@@ -140,7 +143,7 @@ impl FactoryHelper {
 
     pub fn create_pair(
         &mut self,
-        router: &mut App,
+        router: &mut TestApp,
         sender: &Addr,
         pair_type: PairType,
         tokens: [&Addr; 2],
@@ -163,10 +166,32 @@ impl FactoryHelper {
 
         router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
     }
+
+    pub fn update_tracker_config(
+        &mut self,
+        router: &mut TestApp,
+        sender: &Addr,
+        tracker_code_id: u64,
+        token_factory_addr: Option<String>,
+    ) -> AnyResult<AppResponse> {
+        let msg = astroport::factory::ExecuteMsg::UpdateTrackerConfig {
+            tracker_code_id,
+            token_factory_addr,
+        };
+
+        router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
+    }
+
+    pub fn query_tracker_config(&mut self, router: &mut TestApp) -> StdResult<TrackerConfig> {
+        let msg = astroport::factory::QueryMsg::TrackerConfig {};
+        router
+            .wrap()
+            .query_wasm_smart::<TrackerConfig>(self.factory.clone(), &msg)
+    }
 }
 
 pub fn instantiate_token(
-    app: &mut App,
+    app: &mut TestApp,
     token_code_id: u64,
     owner: &Addr,
     token_name: &str,

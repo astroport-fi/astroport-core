@@ -15,7 +15,7 @@ use crate::error::ContractError;
 use crate::traits::RewardInfoExt;
 use crate::utils::asset_info_key;
 
-/// General generator contract settings
+/// General Incentives contract settings
 pub const CONFIG: Item<Config> = Item::new("config");
 
 /// Contains a proposal to change contract ownership.

@@ -3,7 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
-use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, StdError, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -44,10 +44,17 @@ pub enum ExecuteMsg {
         assets: Vec<Asset>,
         /// The slippage tolerance that allows liquidity provision only if the price in the pool doesn't move too much
         slippage_tolerance: Option<Decimal>,
-        /// Determines whether the LP tokens minted for the user is auto_staked in the Generator contract
+        /// Determines whether the LP tokens minted for the user is auto_staked in the Incentives contract
         auto_stake: Option<bool>,
         /// The receiver of LP tokens
         receiver: Option<String>,
+        min_lp_to_receive: Option<Uint128>,
+    },
+    /// WithdrawLiquidity allows someone to withdraw liquidity from the pool
+    WithdrawLiquidity {
+        #[serde(default)]
+        assets: Vec<Asset>,
+        min_assets_to_receive: Option<Vec<Asset>>,
     },
     /// Swap performs a swap in the pool
     Swap {
@@ -82,11 +89,6 @@ pub enum Cw20HookMsg {
         belief_price: Option<Decimal>,
         max_spread: Option<Decimal>,
         to: Option<String>,
-    },
-    /// Withdraw liquidity from the pool
-    WithdrawLiquidity {
-        #[serde(default)]
-        assets: Vec<Asset>,
     },
 }
 
@@ -133,6 +135,15 @@ pub enum QueryMsg {
     /// Query price from observations
     #[returns(OracleObservation)]
     Observe { seconds_ago: u64 },
+    /// Returns an estimation of assets received for the given amount of LP tokens
+    #[returns(Vec<Asset>)]
+    SimulateWithdraw { lp_amount: Uint128 },
+    /// Returns an estimation of shares received for the given amount of assets
+    #[returns(Uint128)]
+    SimulateProvide {
+        assets: Vec<Asset>,
+        slippage_tolerance: Option<Decimal>,
+    },
 }
 
 /// This struct is used to return a query result with the total amount of LP tokens and assets in a specific pool.
@@ -155,6 +166,8 @@ pub struct ConfigResponse {
     pub owner: Addr,
     /// The factory contract address
     pub factory_addr: Addr,
+    /// Tracker contract address
+    pub tracker_addr: Option<Addr>,
 }
 
 /// Holds the configuration for fee sharing
@@ -225,8 +238,6 @@ pub struct XYKPoolConfig {
 /// This enum stores the option available to enable asset balances tracking over blocks.
 #[cw_serde]
 pub enum XYKPoolUpdateParams {
-    /// Enables asset balances tracking over blocks.
-    EnableAssetBalancesTracking,
     /// Enables the sharing of swap fees with an external party.
     EnableFeeShare {
         /// The fee shared with the fee_share_address
@@ -271,6 +282,28 @@ pub enum StablePoolUpdateParams {
         fee_share_address: String,
     },
     DisableFeeShare,
+}
+
+/// A `reply` call code ID used for sub-messages.
+#[cw_serde]
+pub enum ReplyIds {
+    CreateDenom = 1,
+    InstantiateTrackingContract = 2,
+}
+
+impl TryFrom<u64> for ReplyIds {
+    type Error = StdError;
+
+    fn try_from(value: u64) -> Result<Self, Self::Error> {
+        match value {
+            1 => Ok(ReplyIds::CreateDenom),
+            2 => Ok(ReplyIds::InstantiateTrackingContract),
+            _ => Err(StdError::ParseErr {
+                target_type: "ReplyIds".to_string(),
+                msg: "Failed to parse reply".to_string(),
+            }),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -329,11 +362,5 @@ mod tests {
         .unwrap();
 
         let _: ConfigResponse = from_json(&ser_msg).unwrap();
-    }
-
-    #[test]
-    fn check_empty_vec_deserialization() {
-        let variant: Cw20HookMsg = from_json(br#"{"withdraw_liquidity": {} }"#).unwrap();
-        assert_eq!(variant, Cw20HookMsg::WithdrawLiquidity { assets: vec![] });
     }
 }

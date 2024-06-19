@@ -309,7 +309,7 @@ pub struct Config {
 pub enum RewardType {
     /// Internal rewards aka ASTRO emissions don't have next_update_ts field and they are paid out from Vesting contract.
     Int(AssetInfo),
-    /// External rewards always have corresponding schedules. Reward is paid out from Generator contract balance.
+    /// External rewards always have corresponding schedules. Reward is paid out from Incentives contract balance.
     Ext {
         info: AssetInfo,
         /// Time when next schedule should start

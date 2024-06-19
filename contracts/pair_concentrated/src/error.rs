@@ -1,6 +1,8 @@
 use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
 use thiserror::Error;
 
+use cw_utils::{ParseReplyError, PaymentError};
+
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
 use astroport_circular_buffer::error::BufferError;
 use astroport_pcl_common::error::PclError;
@@ -15,10 +17,16 @@ pub enum ContractError {
     ConversionOverflowError(#[from] ConversionOverflowError),
 
     #[error("{0}")]
+    ParseReplyError(#[from] ParseReplyError),
+
+    #[error("{0}")]
     OverflowError(#[from] OverflowError),
 
     #[error("{0}")]
     CircularBuffer(#[from] BufferError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("{0}")]
     PclError(#[from] PclError),
@@ -52,9 +60,6 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
-
-    #[error("Asset balances tracking is already enabled")]
-    AssetBalancesTrackingIsAlreadyEnabled {},
 
     #[error(
         "Fee share is 0 or exceeds maximum allowed value of {} bps",

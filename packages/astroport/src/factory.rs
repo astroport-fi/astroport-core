@@ -14,11 +14,11 @@ pub struct Config {
     pub owner: Addr,
     /// CW20 token contract code identifier
     pub token_code_id: u64,
-    /// Generator contract address
+    /// Incentives contract address
     pub generator_address: Option<Addr>,
     /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party generator staking rewards
+    /// CW1 whitelist contract code id used to store 3rd party incentives staking rewards
     pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins with their precision
     pub coin_registry_address: Addr,
@@ -105,6 +105,8 @@ pub struct InstantiateMsg {
     pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins and their accuracy
     pub coin_registry_address: String,
+    /// Config for the tracking contract
+    pub tracker_config: Option<TrackerConfig>,
 }
 
 /// This structure describes the execute messages of the contract.
@@ -122,6 +124,12 @@ pub enum ExecuteMsg {
         whitelist_code_id: Option<u64>,
         /// The address of the contract that contains the coins and their accuracy
         coin_registry_address: Option<String>,
+    },
+    UpdateTrackerConfig {
+        /// Tracking contract code id
+        tracker_code_id: u64,
+        /// Token factory module address
+        token_factory_addr: Option<String>,
     },
     /// UpdatePairConfig updates the config for a pair type.
     UpdatePairConfig {
@@ -186,6 +194,13 @@ pub enum QueryMsg {
     /// Returns a vector that contains blacklisted pair types
     #[returns(Vec<PairType>)]
     BlacklistedPairTypes {},
+    #[returns(TrackerConfig)]
+    TrackerConfig {},
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub tracker_config: Option<TrackerConfig>,
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.
@@ -232,4 +247,12 @@ pub enum UpdateAddr {
     Set(String),
     /// Removes a contract address.
     Remove {},
+}
+
+#[cw_serde]
+pub struct TrackerConfig {
+    /// Tracking contract code id
+    pub code_id: u64,
+    /// Token factory module address
+    pub token_factory_addr: String,
 }

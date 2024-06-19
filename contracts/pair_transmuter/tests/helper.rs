@@ -2,16 +2,13 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::Display;
-use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -23,6 +20,11 @@ use astroport::pair::{
 };
 use astroport_pair_transmuter::contract::{execute, instantiate, reply};
 use astroport_pair_transmuter::queries::query;
+use astroport_test::coins::TestCoin;
+use astroport_test::cw_multi_test::{
+    App, AppBuilder, AppResponse, Contract, ContractWrapper, Executor,
+};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 
@@ -31,42 +33,6 @@ pub struct AmpGammaResponse {
     pub amp: Decimal,
     pub gamma: Decimal,
     pub future_time: u64,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum TestCoin {
-    Cw20(String),
-    Cw20Precise(String, u8),
-    Native(String),
-}
-
-impl TestCoin {
-    pub fn denom(&self) -> Option<String> {
-        match self {
-            TestCoin::Native(denom) => Some(denom.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn cw20_init_data(&self) -> Option<(String, u8)> {
-        match self {
-            TestCoin::Cw20(name) => Some((name.clone(), 6u8)),
-            TestCoin::Cw20Precise(name, precision) => Some((name.clone(), *precision)),
-            _ => None,
-        }
-    }
-
-    pub fn native(denom: &str) -> Self {
-        Self::Native(denom.to_string())
-    }
-
-    pub fn cw20(name: &str) -> Self {
-        Self::Cw20(name.to_string())
-    }
-
-    pub fn cw20precise(name: &str, precision: u8) -> Self {
-        Self::Cw20Precise(name.to_string(), precision)
-    }
 }
 
 pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
@@ -120,12 +86,12 @@ fn coin_registry_contract() -> Box<dyn Contract<Empty>> {
 #[derivative(Debug)]
 pub struct Helper {
     #[derivative(Debug = "ignore")]
-    pub app: App,
+    pub app: TestApp,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
     pub pair_addr: Addr,
-    pub lp_token: Addr,
+    pub lp_token: String,
     pub fake_maker: Addr,
 }
 
@@ -135,12 +101,14 @@ impl Helper {
         test_coins: Vec<TestCoin>,
         native_coins: Vec<(String, u8)>, // decimals for native coins
     ) -> AnyResult<Self> {
-        let mut app = App::new(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, owner, init_native_coins(&test_coins))
-                .unwrap()
-        });
+        let mut app = AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, owner, init_native_coins(&test_coins))
+                    .unwrap()
+            });
 
         let token_code_id = app.store_code(token_contract());
 
@@ -210,6 +178,7 @@ impl Helper {
             owner: owner.to_string(),
             whitelist_code_id: 0,
             coin_registry_address: coin_registry_address.to_string(),
+            tracker_config: None,
         };
 
         let factory = app.instantiate_contract(
@@ -259,6 +228,7 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app
@@ -271,14 +241,15 @@ impl Helper {
         amount: u128,
         assets: Vec<Asset>,
     ) -> AnyResult<AppResponse> {
-        let msg = Cw20ExecuteMsg::Send {
-            contract: self.pair_addr.to_string(),
-            amount: Uint128::from(amount),
-            msg: to_json_binary(&Cw20HookMsg::WithdrawLiquidity { assets }).unwrap(),
-        };
-
-        self.app
-            .execute_contract(sender.clone(), self.lp_token.clone(), &msg, &[])
+        self.app.execute_contract(
+            sender.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets,
+                min_assets_to_receive: None,
+            },
+            &[coin(amount, self.lp_token.clone())],
+        )
     }
 
     pub fn swap(
@@ -362,7 +333,7 @@ impl Helper {
     }
 
     fn init_token(
-        app: &mut App,
+        app: &mut TestApp,
         token_code: u64,
         name: String,
         decimals: u8,
@@ -405,16 +376,19 @@ impl Helper {
         resp.balance.u128()
     }
 
+    pub fn native_balance(&self, denom: impl Into<String>, user: &Addr) -> u128 {
+        self.app
+            .wrap()
+            .query_balance(user, denom)
+            .unwrap()
+            .amount
+            .u128()
+    }
+
     pub fn coin_balance(&self, coin: &TestCoin, user: &Addr) -> u128 {
         match &self.assets[coin] {
             AssetInfo::Token { contract_addr } => self.token_balance(contract_addr, user),
-            AssetInfo::NativeToken { denom } => self
-                .app
-                .wrap()
-                .query_balance(user, denom)
-                .unwrap()
-                .amount
-                .u128(),
+            AssetInfo::NativeToken { denom } => self.native_balance(denom, user),
         }
     }
 
@@ -461,7 +435,7 @@ pub enum SendType {
 pub trait AssetExt {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -471,7 +445,7 @@ pub trait AssetExt {
 impl AssetExt for Asset {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -507,7 +481,7 @@ impl AssetExt for Asset {
 pub trait AssetsExt {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -517,7 +491,7 @@ pub trait AssetsExt {
 impl AssetsExt for &[Asset] {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut TestApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -541,16 +515,4 @@ impl AppExtension for App {
             block.height += 1
         });
     }
-}
-
-pub fn f64_to_dec<T>(val: f64) -> T
-where
-    T: FromStr,
-    T::Err: Error,
-{
-    T::from_str(&val.to_string()).unwrap()
-}
-
-pub fn dec_to_f64(val: impl Display) -> f64 {
-    f64::from_str(&val.to_string()).unwrap()
 }
