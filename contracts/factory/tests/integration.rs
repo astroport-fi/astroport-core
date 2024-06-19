@@ -2,22 +2,26 @@
 
 mod factory_helper;
 
-use cosmwasm_std::{attr, Addr};
+use cosmwasm_std::{attr, Addr, StdError};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
     ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType, QueryMsg,
+    TrackerConfig,
 };
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
 use astroport_factory::error::ContractError;
-use cw_multi_test::{App, ContractWrapper, Executor};
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
-fn mock_app() -> App {
-    App::default()
+fn mock_app() -> TestApp {
+    AppBuilder::new_custom()
+        .with_stargate(MockStargate::default())
+        .build(|_, _, _| {})
 }
 
-fn store_factory_code(app: &mut App) -> u64 {
+fn store_factory_code(app: &mut TestApp) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -56,6 +60,7 @@ fn proper_initialization() {
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = app
@@ -190,7 +195,10 @@ fn test_create_pair() {
     // In multitest, contract names are counted in the order in which contracts are created
     assert_eq!("contract1", helper.factory.to_string());
     assert_eq!("contract4", res.contract_addr.to_string());
-    assert_eq!("contract5", res.liquidity_token.to_string());
+    assert_eq!(
+        "factory/contract4/astroport/share",
+        res.liquidity_token.to_string()
+    );
 
     // Create disabled pair type
     app.execute_contract(
@@ -390,4 +398,89 @@ fn test_create_permissioned_pair() {
             None,
         )
         .unwrap();
+}
+
+#[test]
+fn tracker_config() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    // Should return an error since tracker config is not set
+    let err = helper.query_tracker_config(&mut app).unwrap_err();
+
+    assert_eq!(
+        err,
+        StdError::generic_err("Querier contract error: Generic error: Tracker config is not set in the factory. It can't be provided")
+    );
+
+    // should return an error since the sender is not the owner
+    let err = helper
+        .update_tracker_config(&mut app, &Addr::unchecked("not_owner"), 64, None)
+        .unwrap_err()
+        .downcast::<ContractError>()
+        .unwrap();
+
+    assert_eq!(err, ContractError::Unauthorized {});
+
+    // should return an error if trying to update code_id and token_factory_add is not provided
+
+    let err = helper
+        .update_tracker_config(&mut app, &owner, 64, None)
+        .unwrap_err()
+        .downcast::<ContractError>()
+        .unwrap();
+
+    assert_eq!(
+        err,
+        ContractError::Std(StdError::generic_err("token_factory_addr is required"))
+    );
+
+    // should success if the sender is the owner and the token_factory_addr is provided
+    helper
+        .update_tracker_config(&mut app, &owner, 64, Some("token_factory_addr".to_string()))
+        .unwrap();
+
+    // should return the tracker config
+    let tracker_config = helper.query_tracker_config(&mut app).unwrap();
+    assert_eq!(tracker_config.token_factory_addr, "token_factory_addr");
+    assert_eq!(tracker_config.code_id, 64);
+
+    // Query tracker config should work since the beggining if the tracker config is set when the contract is instantiated
+    let init_msg = astroport::factory::InstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![PairConfig {
+            code_id: 0,
+            maker_fee_bps: 3333,
+            total_fee_bps: 30u16,
+            pair_type: PairType::Xyk {},
+            is_disabled: false,
+            is_generator_disabled: false,
+            permissioned: false,
+        }],
+        token_code_id: 0,
+        generator_address: None,
+        owner: owner.to_string(),
+        whitelist_code_id: 0,
+        coin_registry_address: "registry".to_string(),
+        tracker_config: Some(TrackerConfig {
+            code_id: 64,
+            token_factory_addr: "token_factory_addr".to_string(),
+        }),
+    };
+
+    let factory = app
+        .instantiate_contract(3, owner.clone(), &init_msg, &[], "factory", None)
+        .unwrap();
+
+    let tracker_config = app
+        .wrap()
+        .query_wasm_smart::<astroport::factory::TrackerConfig>(
+            factory.clone(),
+            &astroport::factory::QueryMsg::TrackerConfig {},
+        )
+        .unwrap();
+
+    assert_eq!(tracker_config.token_factory_addr, "token_factory_addr");
+    assert_eq!(tracker_config.code_id, 64);
 }

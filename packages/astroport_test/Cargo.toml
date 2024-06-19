@@ -1,0 +1,32 @@
+[package]
+name = "astroport-test"
+version = "0.1.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport Test used for integration testing"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport-core"
+homepage = "https://astroport.fi"
+
+[features]
+default = []
+injective = []
+sei = []
+cosmwasm_1_1 = ["cosmwasm-std/cosmwasm_1_1", "cw-multi-test/cosmwasm_1_1"]
+cosmwasm_1_2 = ["cosmwasm_1_1", "cosmwasm-std/cosmwasm_1_2", "cw-multi-test/cosmwasm_1_2"]
+cosmwasm_1_3 = ["cosmwasm_1_2", "cosmwasm-std/cosmwasm_1_3", "cw-multi-test/cosmwasm_1_3"]
+cosmwasm_1_4 = ["cosmwasm_1_3", "cosmwasm-std/cosmwasm_1_4", "cw-multi-test/cosmwasm_1_4"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+astroport = { path = "../astroport" }
+cosmwasm-schema = "1.2.5"
+cosmwasm-std = "1.2.5"
+cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
+serde = "1.0"
+schemars = "0.8.1"
+anyhow = "1.0"
+itertools = { workspace = true }
+cw-utils = { workspace = true }
+cw-storage-plus = { workspace = true }

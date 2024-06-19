@@ -1,6 +1,6 @@
 [package]
 name = "astroport-factory"
-version = "1.7.0"
+version = "1.8.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport factory contract - pair contract generator and directory"
@@ -27,7 +27,7 @@ library = []
 
 [dependencies]
 cosmwasm-std.workspace = true
-astroport = { path = "../../packages/astroport", version = "4" }
+astroport = { path = "../../packages/astroport", version = "5" }
 cw-storage-plus.workspace = true
 cw2.workspace = true
 thiserror.workspace = true
@@ -36,7 +36,7 @@ cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 
 [dev-dependencies]
-cw-multi-test = "1.0.0"
+astroport-test = { path = "../../packages/astroport_test" }
 cw20-base = { version = "1.1", features = ["library"] }
 astroport-pair = { path = "../pair" }
 cw20 = "1.1"

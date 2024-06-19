@@ -2,12 +2,13 @@
 
 use cosmwasm_std::{coins, from_json, to_json_binary, Addr, Empty, StdError};
 use cw20::Cw20ExecuteMsg;
-use cw_multi_test::{App, Contract, ContractWrapper, Executor};
 
 use astroport::asset::{native_asset_info, token_asset_info};
 use astroport::factory::PairType;
 use astroport::router::{ExecuteMsg, InstantiateMsg, SwapOperation, SwapResponseData};
 use astroport_router::error::ContractError;
+use astroport_test::cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 
 use crate::factory_helper::{instantiate_token, mint, mint_native, FactoryHelper};
 
@@ -24,9 +25,15 @@ fn router_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
+fn mock_app() -> App {
+    AppBuilder::new_custom()
+        .with_stargate(MockStargate::default())
+        .build(|_, _, _| {})
+}
+
 #[test]
 fn router_does_not_enforce_spread_assertion() {
-    let mut app = App::default();
+    let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
@@ -133,7 +140,7 @@ fn router_does_not_enforce_spread_assertion() {
 
 #[test]
 fn route_through_pairs_with_natives() {
-    let mut app = App::default();
+    let mut app = mock_app();
 
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
@@ -316,7 +323,7 @@ fn test_swap_route() {
     };
     use cosmwasm_std::{to_json_binary, Addr, Uint128};
     use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
-    let mut app = App::default();
+    let mut app = mock_app();
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
     let astro = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "astro", None);

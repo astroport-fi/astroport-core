@@ -3,7 +3,7 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order, Reply,
+    attr, ensure, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Reply,
     ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -13,8 +13,8 @@ use itertools::Itertools;
 use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
-    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg, TrackerConfig,
 };
 use astroport::incentives::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -24,7 +24,7 @@ use crate::migration::migrate_pair_configs;
 use crate::querier::query_pair_info;
 use crate::state::{
     check_asset_infos, pair_key, read_pairs, TmpPairInfo, CONFIG, OWNERSHIP_PROPOSAL, PAIRS,
-    PAIR_CONFIGS, TMP_PAIR_INFO,
+    PAIR_CONFIGS, TMP_PAIR_INFO, TRACKER_CONFIG,
 };
 
 /// Contract name that is used for migration.
@@ -77,6 +77,19 @@ pub fn instantiate(
         PAIR_CONFIGS.save(deps.storage, pc.pair_type.to_string(), pc)?;
     }
     CONFIG.save(deps.storage, &config)?;
+
+    if let Some(tracker_config) = msg.tracker_config {
+        TRACKER_CONFIG.save(
+            deps.storage,
+            &TrackerConfig {
+                code_id: tracker_config.code_id,
+                token_factory_addr: deps
+                    .api
+                    .addr_validate(&tracker_config.token_factory_addr)?
+                    .to_string(),
+            },
+        )?;
+    }
 
     Ok(Response::new())
 }
@@ -184,6 +197,10 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
+        ExecuteMsg::UpdateTrackerConfig {
+            tracker_code_id,
+            token_factory_addr,
+        } => update_tracker_config(deps, info, tracker_code_id, token_factory_addr),
     }
 }
 
@@ -315,7 +332,8 @@ pub fn execute_create_pair(
                 factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
-            funds: vec![],
+            // Pass executer funds to pair contract in order to pay for LP token creation
+            funds: info.funds,
             label: "Astroport pair".to_string(),
         }
         .into(),
@@ -405,6 +423,35 @@ pub fn deregister(
     ]))
 }
 
+pub fn update_tracker_config(
+    deps: DepsMut,
+    info: MessageInfo,
+    tracker_code_id: u64,
+    token_factory_addr: Option<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+    if let Some(mut tracker_config) = TRACKER_CONFIG.may_load(deps.storage)? {
+        tracker_config.code_id = tracker_code_id;
+        TRACKER_CONFIG.save(deps.storage, &tracker_config)?;
+    } else {
+        let tokenfactory_tracker =
+            token_factory_addr.ok_or(StdError::generic_err("token_factory_addr is required"))?;
+        TRACKER_CONFIG.save(
+            deps.storage,
+            &TrackerConfig {
+                code_id: tracker_code_id,
+                token_factory_addr: tokenfactory_tracker,
+            },
+        )?;
+    }
+
+    Ok(Response::new()
+        .add_attribute("action", "update_tracker_config")
+        .add_attribute("code_id", tracker_code_id.to_string()))
+}
+
 /// Exposes all the queries available in the contract.
 ///
 /// ## Queries
@@ -428,6 +475,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::FeeInfo { pair_type } => to_json_binary(&query_fee_info(deps, pair_type)?),
         QueryMsg::BlacklistedPairTypes {} => to_json_binary(&query_blacklisted_pair_types(deps)?),
+        QueryMsg::TrackerConfig {} => to_json_binary(&query_tracker_config(deps)?),
     }
 }
 
@@ -505,9 +553,20 @@ pub fn query_fee_info(deps: Deps, pair_type: PairType) -> StdResult<FeeInfoRespo
     })
 }
 
+pub fn query_tracker_config(deps: Deps) -> StdResult<TrackerConfig> {
+    let tracker_config = TRACKER_CONFIG.load(deps.storage).map_err(|_| {
+        StdError::generic_err("Tracker config is not set in the factory. It can't be provided")
+    })?;
+
+    Ok(TrackerConfig {
+        code_id: tracker_config.code_id,
+        token_factory_addr: tracker_config.token_factory_addr,
+    })
+}
+
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
@@ -517,6 +576,20 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
             // atlantic-2: 1.3.1
             "1.3.1" | "1.5.1" | "1.6.0" => {
                 migrate_pair_configs(deps.storage)?;
+            }
+            "1.7.0" => {
+                if let Some(tracker_config) = msg.tracker_config {
+                    TRACKER_CONFIG.save(
+                        deps.storage,
+                        &TrackerConfig {
+                            code_id: tracker_config.code_id,
+                            token_factory_addr: deps
+                                .api
+                                .addr_validate(&tracker_config.token_factory_addr)?
+                                .to_string(),
+                        },
+                    )?;
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },

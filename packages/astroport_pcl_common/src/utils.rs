@@ -1,13 +1,14 @@
 use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal,
-    Decimal256, Env, Fraction, QuerierWrapper, StdError, StdResult, Uint128,
+    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Env,
+    Fraction, QuerierWrapper, StdError, StdResult, Uint128,
 };
-use cw20::Cw20ExecuteMsg;
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::AbsDiff;
+use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::querier::query_factory_config;
+use astroport::token_factory::tf_mint_msg;
 use astroport_factory::state::pair_key;
 
 use crate::consts::{
@@ -16,6 +17,9 @@ use crate::consts::{
 use crate::error::PclError;
 use crate::state::{Config, PoolParams, PriceState};
 use crate::{calc_d, calc_y};
+
+#[cfg(any(feature = "injective", feature = "sei"))]
+use cosmwasm_std::BankMsg;
 
 /// Helper function to check the given asset infos are valid.
 pub fn check_asset_infos(api: &dyn Api, asset_infos: &[AssetInfo]) -> Result<(), PclError> {
@@ -49,14 +53,14 @@ pub fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), Pcl
     Err(PclError::Unauthorized {})
 }
 
-/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Incentive contract (if auto staking is specified).
 ///
 /// * **recipient** LP token recipient.
 ///
-/// * **amount** amount of LP tokens that will be minted for the recipient.
+/// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Generator on behalf of the recipient.
+/// be automatically staked in the Incentives Contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,
@@ -69,48 +73,29 @@ where
     C: CustomQuery,
     T: CustomMsg,
 {
-    let lp_token = &config.pair_info.liquidity_token;
+    let coin = coin(amount.into(), config.pair_info.liquidity_token.to_string());
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
-        return Ok(vec![wasm_execute(
-            lp_token,
-            &Cw20ExecuteMsg::Mint {
-                recipient: recipient.to_string(),
-                amount,
-            },
-            vec![],
-        )?
-        .into()]);
+        return Ok(tf_mint_msg(contract_address, coin, recipient));
     }
 
-    // Mint for the pair contract and stake into the Generator contract
-    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
+    // Mint for the pair contract and stake into the Incentives contract
+    let incentives_addr = query_factory_config(&querier, &config.factory_addr)?.generator_address;
 
-    if let Some(generator) = generator {
-        Ok(vec![
+    if let Some(address) = incentives_addr {
+        let mut msgs = tf_mint_msg(contract_address, coin.clone(), contract_address);
+        msgs.push(
             wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Mint {
-                    recipient: contract_address.to_string(),
-                    amount,
+                address,
+                &IncentiveExecuteMsg::Deposit {
+                    recipient: Some(recipient.to_string()),
                 },
-                vec![],
+                vec![coin],
             )?
             .into(),
-            wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Send {
-                    contract: generator.to_string(),
-                    amount,
-                    msg: to_json_binary(&astroport::incentives::Cw20Msg::Deposit {
-                        recipient: Some(recipient.to_string()),
-                    })?,
-                },
-                vec![],
-            )?
-            .into(),
-        ])
+        );
+        Ok(msgs)
     } else {
         Err(PclError::AutoStakeError {})
     }
@@ -422,25 +407,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::error::Error;
-    use std::fmt::Display;
-    use std::str::FromStr;
-
     use crate::state::PoolParams;
+    use astroport_test::convert::{dec_to_f64, f64_to_dec};
 
     use super::*;
-
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
-
-    pub fn dec_to_f64(val: impl Display) -> f64 {
-        f64::from_str(&val.to_string()).unwrap()
-    }
 
     #[test]
     fn test_provide_fees() {

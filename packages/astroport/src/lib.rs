@@ -23,6 +23,7 @@ pub mod restricted_vector;
 pub mod router;
 pub mod staking;
 pub mod token;
+pub mod token_factory;
 pub mod tokenfactory_tracker;
 pub mod vesting;
 pub mod xastro_token;
@@ -32,7 +33,6 @@ mod mock_querier;
 
 pub mod astro_converter;
 pub mod incentives;
-pub mod liquidity_manager;
 #[cfg(test)]
 mod testing;
 

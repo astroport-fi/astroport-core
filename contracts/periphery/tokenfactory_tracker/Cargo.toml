@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 library = []
+tests-tube = ["test-tube", "neutron-test-tube"]
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -15,10 +16,12 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
-astroport = { path = "../../../packages/astroport", version = "4" }
+astroport = "4"
+
+#Optional dependencies
+neutron-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
+test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
 neutron-sdk = "0.8.0"
-neutron-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube" }
-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube" }

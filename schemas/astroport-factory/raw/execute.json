@@ -59,6 +59,37 @@
       "additionalProperties": false
     },
     {
+      "type": "object",
+      "required": [
+        "update_tracker_config"
+      ],
+      "properties": {
+        "update_tracker_config": {
+          "type": "object",
+          "required": [
+            "tracker_code_id"
+          ],
+          "properties": {
+            "token_factory_addr": {
+              "description": "Token factory module address",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "tracker_code_id": {
+              "description": "Tracking contract code id",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "UpdatePairConfig updates the config for a pair type.",
       "type": "object",
       "required": [

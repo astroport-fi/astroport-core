@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-stable"
-version = "3.5.0"
+version = "4.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport stableswap pair contract implementation"
@@ -23,13 +23,15 @@ crate-type = ["cdylib", "rlib"]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
+injective = ["astroport/injective"]
+sei = ["astroport/sei"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", version = "4" }
+astroport = { path = "../../packages/astroport", version = "5" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
@@ -46,4 +48,5 @@ astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-astroport-mocks = { path = "../../packages/astroport_mocks" }
+astroport-incentives = { path = "../tokenomics/incentives" }
+astroport-test = { path = "../../packages/astroport_test" }
