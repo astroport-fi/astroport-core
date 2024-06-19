@@ -28,7 +28,7 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cw2.workspace = true
-astroport = { path = "../../../packages/astroport", version = "4" }
+astroport = "4"
 cw-utils.workspace = true
 osmosis-std = "0.21.0"
 

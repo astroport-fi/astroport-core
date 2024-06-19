@@ -37,20 +37,10 @@
               }
             },
             "auto_stake": {
-              "description": "Determines whether the LP tokens minted for the user is auto_staked in the Incentives contract",
+              "description": "Determines whether the LP tokens minted for the user is auto_staked in the Generator contract",
               "type": [
                 "boolean",
                 "null"
-              ]
-            },
-            "min_lp_to_receive": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
               ]
             },
             "receiver": {
@@ -70,38 +60,6 @@
                   "type": "null"
                 }
               ]
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "WithdrawLiquidity allows someone to withdraw liquidity from the pool",
-      "type": "object",
-      "required": [
-        "withdraw_liquidity"
-      ],
-      "properties": {
-        "withdraw_liquidity": {
-          "type": "object",
-          "properties": {
-            "assets": {
-              "default": [],
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/Asset"
-              }
-            },
-            "min_assets_to_receive": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "$ref": "#/definitions/Asset"
-              }
             }
           },
           "additionalProperties": false

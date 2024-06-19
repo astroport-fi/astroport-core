@@ -29,20 +29,20 @@ library = []
 
 [dependencies]
 integer-sqrt = "0.1"
-astroport = { path = "../../packages/astroport", version = "4" }
+astroport = { path = "../../packages/astroport", version = "5" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
 
 [dev-dependencies]
-astroport-incentives = { path = "../tokenomics/incentives"}
+astroport-incentives = { path = "../tokenomics/incentives" }
 cw20-base = { version = "1.1", features = ["library"] }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 prost = "0.11.5"
 astroport-test = { path = "../../packages/astroport_test", features = ["cosmwasm_1_1"] }
-astroport-tokenfactory-tracker = { path = "../periphery/tokenfactory_tracker"}
+astroport-tokenfactory-tracker = { path = "../periphery/tokenfactory_tracker" }

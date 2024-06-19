@@ -26,8 +26,12 @@
       ]
     },
     "liquidity_token": {
-      "description": "Pair LP token denom",
-      "type": "string"
+      "description": "Pair LP token address",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Addr"
+        }
+      ]
     },
     "pair_type": {
       "description": "The pool type (xyk, stableswap etc) available in [`PairType`]",

@@ -17,8 +17,8 @@ injective = ["astroport/injective"]
 sei = ["astroport/sei"]
 
 [dependencies]
-astroport = { version = "4", path = "../../packages/astroport" }
-cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}
+astroport = { version = "5", path = "../../packages/astroport" }
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus = "1.2.0"
 cosmwasm-schema = "1.5.0"
 thiserror.workspace = true
@@ -33,4 +33,4 @@ derivative = "2"
 cw20-base = "1.1"
 astroport-factory = { path = "../factory" }
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1" }
-astroport-test = { path = "../../packages/astroport_test/" }
+astroport-test = { path = "../../packages/astroport_test" }

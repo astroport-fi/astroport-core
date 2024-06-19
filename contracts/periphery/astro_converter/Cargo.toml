@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-astroport = { path = "../../../packages/astroport", version = "4" }
+astroport = "4"
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true

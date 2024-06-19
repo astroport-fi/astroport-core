@@ -197,7 +197,6 @@ impl Helper {
             owner: owner.to_string(),
             whitelist_code_id: 0,
             coin_registry_address: "registry".to_string(),
-            tracker_config: None,
         };
 
         let factory = app.instantiate_contract(
@@ -302,7 +301,6 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
-            min_lp_to_receive: None,
         };
 
         self.app

@@ -19,7 +19,7 @@ cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true
 cw20 = "1"
 thiserror.workspace = true
-astroport = { path = "../astroport", version = "4" }
+astroport = { path = "../astroport", version = "5" }
 astroport-factory = { path = "../../contracts/factory", version = "1.5", features = ["library"] }
 itertools.workspace = true
 

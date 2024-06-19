@@ -340,7 +340,6 @@ impl Helper {
                     owner: owner.to_string(),
                     whitelist_code_id: 0,
                     coin_registry_address: coin_registry_address.to_string(),
-                    tracker_config: None,
                 },
                 &[],
                 "Astroport Factory",
@@ -1022,7 +1021,6 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: Some(auto_stake),
             receiver: None,
-            min_lp_to_receive: None,
         };
 
         self.app

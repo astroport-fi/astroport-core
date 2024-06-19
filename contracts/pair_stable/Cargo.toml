@@ -28,10 +28,10 @@ sei = ["astroport/sei"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", version = "4" }
+astroport = { path = "../../packages/astroport", version = "5" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"]}
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
@@ -48,5 +48,5 @@ astroport-factory = { path = "../factory" }
 derivative = "2.2"
 prost = "0.11.5"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-astroport-incentives = { path = "../tokenomics/incentives"}
-astroport-test = { path = "../../packages/astroport_test/" }
+astroport-incentives = { path = "../tokenomics/incentives" }
+astroport-test = { path = "../../packages/astroport_test" }
