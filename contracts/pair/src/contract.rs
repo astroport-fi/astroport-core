@@ -6,12 +6,15 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin, CosmosMsg,
-    CustomMsg, CustomQuery, Decimal, Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo,
+    CustomMsg, CustomQuery, Decimal, Decimal256, Deps, DepsMut, Empty, Env, Fraction, MessageInfo,
     QuerierWrapper, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult,
     Uint128, Uint256, Uint64, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_utils::{
+    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
+};
 
 use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
@@ -24,10 +27,9 @@ use astroport::pair::{
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
 };
 use astroport::pair::{
-    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, PoolResponse,
-    QueryMsg, ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
+    CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
+    ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
 };
-
 use astroport::querier::{
     query_factory_config, query_fee_info, query_native_supply, query_tracker_config,
 };
@@ -35,9 +37,6 @@ use astroport::token_factory::{
     tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
 };
 use astroport::{tokenfactory_tracker, U256};
-use cw_utils::{
-    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
-};
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
@@ -1423,32 +1422,8 @@ pub fn assert_slippage_tolerance(
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    use crate::migration;
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {
-                migration::add_asset_balances_tracking_flag(deps.storage)?;
-            }
-            "1.3.0" | "1.3.1" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::default().add_attributes([
-        ("previous_contract_name", contract_version.contract.as_str()),
-        (
-            "previous_contract_version",
-            contract_version.version.as_str(),
-        ),
-        ("new_contract_name", CONTRACT_NAME),
-        ("new_contract_version", CONTRACT_VERSION),
-    ]))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
 }
 
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.

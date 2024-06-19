@@ -1,16 +1,13 @@
 use std::vec;
 
-use astroport::token_factory::{
-    tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse,
-};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin, CosmosMsg,
-    Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
-    SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    Decimal, Decimal256, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult,
+    SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::{
     one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
@@ -30,10 +27,13 @@ use astroport::pair::{
     MIN_TRADE_SIZE,
 };
 use astroport::pair_concentrated::{
-    ConcentratedPoolParams, ConcentratedPoolUpdateParams, MigrateMsg, UpdatePoolParams,
+    ConcentratedPoolParams, ConcentratedPoolUpdateParams, UpdatePoolParams,
 };
 use astroport::querier::{
     query_factory_config, query_fee_info, query_native_supply, query_tracker_config,
+};
+use astroport::token_factory::{
+    tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse,
 };
 use astroport::tokenfactory_tracker;
 use astroport_circular_buffer::BufferManager;
@@ -47,7 +47,6 @@ use astroport_pcl_common::utils::{
 use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::migration::{migrate_config, migrate_config_v2};
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_swap_sizes, calculate_shares, get_assets_with_precision, query_pools,
@@ -894,28 +893,6 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "1.2.13" | "1.2.14" => {
-                migrate_config(deps.storage)?;
-                BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
-            }
-            "2.3.0" => {
-                migrate_config_v2(deps.storage, &env)?;
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
 }

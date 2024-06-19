@@ -3,8 +3,6 @@ pub mod state;
 
 pub mod error;
 
-mod migration;
-
 #[cfg(test)]
 mod testing;
 

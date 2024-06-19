@@ -1,6 +1,3 @@
-use astroport::token_factory::{
-    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
-};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -14,6 +11,9 @@ use itertools::Itertools;
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, CoinsExt, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::{ExecuteMsg, InstantiateMsg};
+use astroport::token_factory::{
+    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
+};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -302,30 +302,6 @@ pub fn swap(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
-    let contract_version = cw2::get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair-transmuter" => match contract_version.version.as_ref() {
-            "1.1.0" => {}
-            _ => {
-                return Err(StdError::generic_err(
-                    "Cannot migrate. Unsupported contract version",
-                ))
-            }
-        },
-        _ => {
-            return Err(StdError::generic_err(
-                "Cannot migrate. Unsupported contract name",
-            ))
-        }
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
 }
