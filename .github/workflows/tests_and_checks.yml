@@ -53,7 +53,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-fail-fast --locked
+          args: --features tests-tube --no-fail-fast --locked
         env:
           RUST_BACKTRACE: 1
 

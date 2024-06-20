@@ -34,7 +34,7 @@ It is used to represent response data coming from a [Pair-Info-Querier](#Pair-In
 pub struct PairInfo {
     pub asset_infos: [AssetInfo; 2],
     pub contract_addr: Addr,
-    pub liquidity_token: Addr,
+    pub liquidity_token: String,
     pub pair_type: PairType,
 }
 ```

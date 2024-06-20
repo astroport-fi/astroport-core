@@ -1,13 +1,16 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
+use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
+use astroport::token_factory::tf_mint_msg;
 use cosmwasm_std::{
-    to_json_binary, wasm_execute, Addr, Api, CosmosMsg, Decimal, Decimal256, Env, QuerierWrapper,
-    StdResult, Storage, Uint128, Uint64,
+    coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps,
+    Env, QuerierWrapper, StdResult, Storage, Uint128, Uint64,
 };
-use cw20::Cw20ExecuteMsg;
+
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::observation::{
     safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
 };
@@ -17,7 +20,7 @@ use astroport_circular_buffer::error::BufferResult;
 use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
-use crate::math::calc_y;
+use crate::math::{calc_y, compute_d};
 use crate::state::{get_precision, Config, OBSERVATIONS};
 
 /// Helper function to check if the given asset infos are valid.
@@ -158,63 +161,49 @@ pub(crate) fn adjust_precision(
     })
 }
 
-/// Mint LP tokens for a beneficiary and auto stake the tokens in the Generator contract (if auto staking is specified).
+/// Mint LP tokens for a beneficiary and auto stake the tokens in the Incentive contract (if auto staking is specified).
 ///
 /// * **recipient** LP token recipient.
 ///
-/// * **amount** amount of LP tokens that will be minted for the recipient.
+/// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
-/// * **auto_stake** whether the newly minted LP tokens will be automatically staked in the Generator on behalf of the recipient.
-pub(crate) fn mint_liquidity_token_message(
-    querier: QuerierWrapper,
+/// * **auto_stake** determines whether the newly minted LP tokens will
+/// be automatically staked in the Incentives contract on behalf of the recipient.
+pub fn mint_liquidity_token_message<T, C>(
+    querier: QuerierWrapper<C>,
     config: &Config,
     contract_address: &Addr,
     recipient: &Addr,
     amount: Uint128,
     auto_stake: bool,
-) -> Result<Vec<CosmosMsg>, ContractError> {
-    let lp_token = &config.pair_info.liquidity_token;
+) -> Result<Vec<CosmosMsg<T>>, ContractError>
+where
+    C: CustomQuery,
+    T: CustomMsg,
+{
+    let coin = coin(amount.into(), config.pair_info.liquidity_token.to_string());
 
     // If no auto-stake - just mint to recipient
     if !auto_stake {
-        return Ok(vec![wasm_execute(
-            lp_token,
-            &Cw20ExecuteMsg::Mint {
-                recipient: recipient.to_string(),
-                amount,
-            },
-            vec![],
-        )?
-        .into()]);
+        return Ok(tf_mint_msg(contract_address, coin, recipient));
     }
 
-    // Mint for the pair contract and stake into the Generator contract
-    let generator = query_factory_config(&querier, &config.factory_addr)?.generator_address;
+    // Mint for the pair contract and stake into the Incentives contract
+    let incentives_addr = query_factory_config(&querier, &config.factory_addr)?.generator_address;
 
-    if let Some(generator) = generator {
-        Ok(vec![
+    if let Some(address) = incentives_addr {
+        let mut msgs = tf_mint_msg(contract_address, coin.clone(), contract_address);
+        msgs.push(
             wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Mint {
-                    recipient: contract_address.to_string(),
-                    amount,
+                address,
+                &IncentiveExecuteMsg::Deposit {
+                    recipient: Some(recipient.to_string()),
                 },
-                vec![],
+                vec![coin],
             )?
             .into(),
-            wasm_execute(
-                lp_token,
-                &Cw20ExecuteMsg::Send {
-                    contract: generator.to_string(),
-                    amount,
-                    msg: to_json_binary(&astroport::incentives::Cw20Msg::DepositFor(
-                        recipient.to_string(),
-                    ))?,
-                },
-                vec![],
-            )?
-            .into(),
-        ])
+        );
+        Ok(msgs)
     } else {
         Err(ContractError::AutoStakeError {})
     }
@@ -421,4 +410,120 @@ pub(crate) fn determine_base_quote_amount(
     };
 
     Ok((base_amount, quote_amount))
+}
+
+pub(crate) fn calculate_shares(
+    deps: Deps,
+    env: &Env,
+    config: &Config,
+    total_share: Uint128,
+    assets_collection: Vec<(Asset, Uint128)>,
+) -> Result<Uint128, ContractError> {
+    let amp = compute_current_amp(config, env)?;
+
+    let assets_collection = assets_collection
+        .iter()
+        .cloned()
+        .map(|(asset, pool)| {
+            let coin_precision = get_precision(deps.storage, &asset.info)?;
+            Ok((
+                asset.to_decimal_asset(coin_precision)?,
+                Decimal256::with_precision(pool, coin_precision)?,
+            ))
+        })
+        .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
+
+    // Invariant (D) after deposit added
+    let new_balances = assets_collection
+        .iter()
+        .map(|(deposit, pool)| Ok(pool + deposit.amount))
+        .collect::<StdResult<Vec<_>>>()?;
+    let deposit_d = compute_d(amp, &new_balances)?;
+
+    let share = if total_share.is_zero() {
+        let share = deposit_d
+            .to_uint128_with_precision(config.greatest_precision)?
+            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
+            .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
+
+        // share cannot become zero after minimum liquidity subtraction
+        if share.is_zero() {
+            return Err(ContractError::MinimumLiquidityAmountError {});
+        }
+
+        share
+    } else {
+        // Initial invariant (D)
+        let old_balances = assets_collection
+            .iter()
+            .map(|(_, pool)| *pool)
+            .collect_vec();
+        let init_d = compute_d(amp, &old_balances)?;
+
+        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
+            .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
+            .to_uint128_with_precision(config.greatest_precision)?;
+
+        if share.is_zero() {
+            return Err(ContractError::LiquidityAmountTooSmall {});
+        }
+
+        share
+    };
+    Ok(share)
+}
+
+pub(crate) fn get_assets_collection(
+    deps: Deps,
+    config: &Config,
+    pools: &HashMap<AssetInfo, Uint128>,
+    assets: Vec<Asset>,
+) -> Result<Vec<(Asset, Uint128)>, ContractError> {
+    check_assets(deps.api, &assets)?;
+
+    if assets.len() != config.pair_info.asset_infos.len() {
+        return Err(ContractError::InvalidNumberOfAssets(
+            config.pair_info.asset_infos.len(),
+        ));
+    }
+
+    let mut non_zero_flag = false;
+
+    let mut assets_collection = assets
+        .clone()
+        .into_iter()
+        .map(|asset| {
+            // Check that at least one asset is non-zero
+            if !asset.amount.is_zero() {
+                non_zero_flag = true;
+            }
+
+            // Get appropriate pool
+            let pool = pools
+                .get(&asset.info)
+                .copied()
+                .ok_or_else(|| ContractError::InvalidAsset(asset.info.to_string()))?;
+
+            Ok((asset, pool))
+        })
+        .collect::<Result<Vec<_>, ContractError>>()?;
+
+    // If some assets are omitted then add them explicitly with 0 deposit
+    pools.iter().for_each(|(pool_info, pool_amount)| {
+        if !assets.iter().any(|asset| asset.info.eq(pool_info)) {
+            assets_collection.push((
+                Asset {
+                    amount: Uint128::zero(),
+                    info: pool_info.clone(),
+                },
+                *pool_amount,
+            ));
+        }
+    });
+
+    if !non_zero_flag {
+        return Err(ContractError::InvalidZeroAmount {});
+    }
+
+    Ok(assets_collection)
 }

@@ -13,7 +13,7 @@ use astroport::pair::{
     SimulationResponse,
 };
 use astroport::pair_concentrated::{ConcentratedPoolConfig, QueryMsg};
-use astroport::querier::{query_factory_config, query_fee_info, query_supply};
+use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::utils::{
     accumulate_prices, before_swap_check, calc_last_prices, compute_offer_amount, compute_swap,
@@ -24,7 +24,7 @@ use astroport_pcl_common::{calc_d, get_xcp};
 use crate::contract::LP_TOKEN_PRECISION;
 use crate::error::ContractError;
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS};
-use crate::utils::{pool_info, query_pools};
+use crate::utils::{calculate_shares, get_assets_with_precision, pool_info, query_pools};
 
 /// Exposes all the queries available in the contract.
 ///
@@ -79,6 +79,18 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             asset_info,
             block_height,
         } => to_json_binary(&query_asset_balances_at(deps, asset_info, block_height)?),
+        QueryMsg::SimulateProvide {
+            assets,
+            slippage_tolerance,
+        } => to_json_binary(&query_simulate_provide(
+            deps,
+            env,
+            assets,
+            slippage_tolerance,
+        )?),
+        QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(
+            &query_share(deps, lp_amount).map_err(|err| StdError::generic_err(err.to_string()))?,
+        ),
     }
 }
 
@@ -109,7 +121,8 @@ fn query_share(deps: Deps, amount: Uint128) -> Result<Vec<Asset>, ContractError>
         &config,
         &precisions,
     )?;
-    let total_share = query_supply(&deps.querier, &config.pair_info.liquidity_token)?;
+    let total_share =
+        query_native_supply(&deps.querier, config.pair_info.liquidity_token.to_string())?;
     let refund_assets =
         get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
 
@@ -242,7 +255,7 @@ fn query_cumulative_prices(
 /// Compute the current LP token virtual price.
 pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
     let config = CONFIG.load(deps.storage)?;
-    let total_lp = query_supply(&deps.querier, &config.pair_info.liquidity_token)?
+    let total_lp = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
     if !total_lp.is_zero() {
         let precisions = Precisions::new(deps.storage)?;
@@ -292,6 +305,7 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
         })?),
         owner: config.owner.unwrap_or(factory_config.owner),
         factory_addr: config.factory_addr,
+        tracker_addr: config.tracker_addr,
     })
 }
 
@@ -327,26 +341,49 @@ pub fn query_asset_balances_at(
     BALANCES.may_load_at_height(deps.storage, &asset_info, block_height.u64())
 }
 
+pub fn query_simulate_provide(
+    deps: Deps,
+    env: Env,
+    mut assets: Vec<Asset>,
+    slippage_tolerance: Option<Decimal>,
+) -> StdResult<Uint128> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
+        .to_decimal256(LP_TOKEN_PRECISION)?;
+
+    let precisions = Precisions::new(deps.storage)?;
+
+    let mut pools = query_pools(deps.querier, &env.contract.address, &config, &precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    let deposits =
+        get_assets_with_precision(deps, &config, &mut assets, pools.clone(), &precisions)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    let (share_uint128, _) = calculate_shares(
+        &env,
+        &mut config,
+        &mut pools,
+        total_share,
+        deposits.clone(),
+        slippage_tolerance,
+    )
+    .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    Ok(share_uint128)
+}
+
 #[cfg(test)]
 mod testing {
-    use std::error::Error;
-    use std::str::FromStr;
-
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::Timestamp;
 
     use astroport::observation::{query_observation, Observation, OracleObservation};
     use astroport_circular_buffer::BufferManager;
+    use astroport_test::convert::f64_to_dec;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+    use cosmwasm_std::Timestamp;
 
     use super::*;
-
-    pub fn f64_to_dec<T>(val: f64) -> T
-    where
-        T: FromStr,
-        T::Err: Error,
-    {
-        T::from_str(&val.to_string()).unwrap()
-    }
 
     #[test]
     fn observations_full_buffer() {

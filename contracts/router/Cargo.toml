@@ -38,5 +38,5 @@ cosmwasm-schema.workspace = true
 astroport-factory = { path = "../factory" }
 cw20-base = "1.1"
 astroport-pair = { path = "../pair" }
+astroport-test= { path = "../../packages/astroport_test" }
 anyhow = "1.0"
-cw-multi-test = "1.0.0"

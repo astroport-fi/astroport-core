@@ -142,10 +142,6 @@ pub struct SaleTaxConfigUpdates {
     pub tax_configs: Option<TaxConfigsUnchecked>,
     /// The new address that is allowed to updated the tax configs.
     pub tax_config_admin: Option<String>,
-    /// Whether asset balances are tracked over blocks or not.
-    /// They will not be tracked if the parameter is ignored.
-    /// It can not be disabled later once enabled.
-    pub track_asset_balances: Option<bool>,
 }
 
 /// Extra data embedded in the default pair InstantiateMsg

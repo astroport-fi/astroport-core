@@ -1,4 +1,7 @@
-use cosmwasm_std::{CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError};
+use cosmwasm_std::{
+    CheckedMultiplyRatioError, ConversionOverflowError, OverflowError, StdError, Uint128,
+};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
@@ -17,6 +20,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     CircularBuffer(#[from] BufferError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
 
     #[error("Unauthorized")]
     Unauthorized {},
@@ -63,7 +69,7 @@ pub enum ContractError {
     #[error("You need to provide init params")]
     InitParamsNotFound {},
 
-    #[error("Generator address is not set in factory. Cannot autostake")]
+    #[error("Incentives address is not set in factory. Cannot autostake")]
     AutoStakeError {},
 
     #[error("It is not possible to provide liquidity with one token for an empty pool")]
@@ -95,6 +101,19 @@ pub enum ContractError {
         MAX_FEE_SHARE_BPS
     )]
     FeeShareOutOfBounds {},
+
+    #[error("Slippage is more than expected: received {0}, expected {1} LP tokens")]
+    ProvideSlippageViolation(Uint128, Uint128),
+
+    #[error("Received {received} {asset_name} but expected {expected}")]
+    WithdrawSlippageViolation {
+        asset_name: String,
+        received: Uint128,
+        expected: Uint128,
+    },
+
+    #[error("Wrong asset length: expected {expected}, actual {actual}")]
+    WrongAssetLength { expected: usize, actual: usize },
 }
 
 impl From<OverflowError> for ContractError {

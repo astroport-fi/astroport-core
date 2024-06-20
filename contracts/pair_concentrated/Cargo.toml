@@ -1,12 +1,13 @@
 [package]
 name = "astroport-pair-concentrated"
-version = "3.0.0"
+version = "4.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
 license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
+metadata = { build_variants = ["injective", "sei"] }
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -24,27 +25,30 @@ crate-type = ["cdylib", "rlib"]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
 library = []
+injective = ["astroport/injective", "astroport-pcl-common/injective"]
+sei = ["astroport/sei", "astroport-pcl-common/sei"]
 
 [dependencies]
-astroport = { path = "../../packages/astroport", version = "4" }
+astroport = { path = "../../packages/astroport", version = "5" }
 astroport-factory = { path = "../factory", features = ["library"], version = "1" }
 astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 cw2.workspace = true
 cw20 = "1.1"
-cosmwasm-std.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
 itertools.workspace = true
 cw-utils.workspace = true
-astroport-pair-concentrated_v1 = { package = "astroport-pair-concentrated", version = "1.2.13", features = ["library"] }
 
 [dev-dependencies]
 cw20-base = "1.1"
-astroport-mocks = { path = "../../packages/astroport_mocks" }
+astroport-incentives = { path = "../tokenomics/incentives" }
+astroport-test = { path = "../../packages/astroport_test" }
 astroport-factory = { path = "../factory" }
 proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
+astroport-tokenfactory-tracker = { path = "../periphery/tokenfactory_tracker" }

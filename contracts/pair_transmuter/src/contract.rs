@@ -1,21 +1,19 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, from_json, wasm_execute, wasm_instantiate, Addr, DepsMut, Empty, Env,
-    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult,
-    Uint128,
+    attr, coin, ensure, ensure_eq, BankMsg, Coin, DepsMut, Empty, Env, MessageInfo, Reply,
+    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
 use cw2::set_contract_version;
-use cw20::Cw20ReceiveMsg;
-use cw_utils::parse_instantiate_response_data;
+use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
-use astroport::asset::{
-    addr_opt_validate, format_lp_token_name, Asset, AssetInfo, CoinsExt, PairInfo,
-};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, CoinsExt, PairInfo};
 use astroport::factory::PairType;
-use astroport::pair::{Cw20HookMsg, ExecuteMsg, InstantiateMsg};
-use astroport::token::MinterResponse;
+use astroport::pair::{ExecuteMsg, InstantiateMsg};
+use astroport::token_factory::{
+    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
+};
 
 use crate::error::ContractError;
 use crate::state::{Config, CONFIG};
@@ -27,8 +25,10 @@ use crate::utils::{
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// A `reply` call code ID of sub-message.
-const INSTANTIATE_TOKEN_REPLY_ID: u64 = 1;
+/// Reply ID for create denom reply
+const CREATE_DENOM_REPLY_ID: u64 = 1;
+/// Tokenfactory LP token subdenom
+pub const LP_SUBDENOM: &str = "astroport/share";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -49,7 +49,7 @@ pub fn instantiate(
 
     let pair_info = PairInfo {
         contract_addr: env.contract.address.clone(),
-        liquidity_token: Addr::unchecked(""),
+        liquidity_token: "".to_owned(),
         asset_infos: msg.asset_infos.clone(),
         pair_type: PairType::Custom("transmuter".to_string()),
     };
@@ -58,55 +58,40 @@ pub fn instantiate(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let token_name = format_lp_token_name(&msg.asset_infos, &deps.querier)?;
-
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
-        wasm_instantiate(
-            msg.token_code_id,
-            &astroport::token::InstantiateMsg {
-                name: token_name,
-                symbol: "uLP".to_string(),
-                decimals: 6,
-                initial_balances: vec![],
-                mint: Some(MinterResponse {
-                    minter: env.contract.address.to_string(),
-                    cap: None,
-                }),
-                marketing: None,
-            },
-            vec![],
-            String::from("Astroport LP token"),
-        )?,
-        INSTANTIATE_TOKEN_REPLY_ID,
+        tf_create_denom_msg(env.contract.address.to_string(), LP_SUBDENOM),
+        CREATE_DENOM_REPLY_ID,
     );
 
     Ok(Response::new().add_submessage(sub_msg))
 }
 
+/// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg {
         Reply {
-            id: INSTANTIATE_TOKEN_REPLY_ID,
+            id: CREATE_DENOM_REPLY_ID,
             result:
                 SubMsgResult::Ok(SubMsgResponse {
                     data: Some(data), ..
                 }),
         } => {
-            let mut config = CONFIG.load(deps.storage)?;
+            let MsgCreateDenomResponse { new_token_denom } = data.try_into()?;
 
-            if !config.pair_info.liquidity_token.as_str().is_empty() {
-                return Err(
-                    StdError::generic_err("Liquidity token is already set in the config").into(),
-                );
-            }
+            CONFIG.update(deps.storage, |mut config| {
+                if !config.pair_info.liquidity_token.is_empty() {
+                    return Err(StdError::generic_err(
+                        "Liquidity token is already set in the config",
+                    ));
+                }
 
-            let init_response = parse_instantiate_response_data(data.as_slice())?;
-            config.pair_info.liquidity_token = Addr::unchecked(init_response.contract_address);
-            CONFIG.save(deps.storage, &config)?;
-            Ok(Response::new()
-                .add_attribute("liquidity_token_addr", config.pair_info.liquidity_token))
+                config.pair_info.liquidity_token = new_token_denom.clone();
+                Ok(config)
+            })?;
+
+            Ok(Response::new().add_attribute("lp_denom", new_token_denom))
         }
         _ => Err(ContractError::FailedToParseReply {}),
     }
@@ -115,12 +100,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Receive(cw20msg) => receive_cw20(deps, info, cw20msg),
         ExecuteMsg::ProvideLiquidity {
             assets,
             auto_stake,
@@ -132,7 +116,7 @@ pub fn execute(
                 StdError::generic_err("Auto stake is not supported")
             );
 
-            provide_liquidity(deps, info, assets, receiver)
+            provide_liquidity(deps, env, info, assets, receiver)
         }
         ExecuteMsg::Swap {
             offer_asset,
@@ -140,26 +124,7 @@ pub fn execute(
             ask_asset_info,
             ..
         } => swap(deps, info, offer_asset, ask_asset_info, to),
-        _ => Err(ContractError::NotSupported {}),
-    }
-}
-
-/// Receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template.
-///
-/// * **cw20_msg** is the CW20 receive message to process.
-pub fn receive_cw20(
-    deps: DepsMut,
-    info: MessageInfo,
-    cw20_msg: Cw20ReceiveMsg,
-) -> Result<Response, ContractError> {
-    match from_json(&cw20_msg.msg)? {
-        Cw20HookMsg::WithdrawLiquidity { assets } => withdraw_liquidity(
-            deps,
-            info,
-            Addr::unchecked(cw20_msg.sender),
-            cw20_msg.amount,
-            assets,
-        ),
+        ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
         _ => Err(ContractError::NotSupported {}),
     }
 }
@@ -168,31 +133,29 @@ pub fn receive_cw20(
 /// This function will burn the LP tokens and send back the assets in proportion to the withdrawn.
 /// All unused LP tokens will be sent back to the sender.
 ///
-/// * **sender** is the address that will receive assets back from the pair contract.
-///
-/// * **burn_amount** is the amount of LP tokens to burn.
-///
 /// * **assets** is the vector of assets to withdraw. If this vector is empty, the function will withdraw balanced respective to share.
 pub fn withdraw_liquidity(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    sender: Addr,
-    mut burn_amount: Uint128,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.pair_info.liquidity_token {
-        return Err(ContractError::Unauthorized {});
-    }
+    let Coin { mut amount, denom } = one_coin(&info)?;
 
+    ensure_eq!(
+        denom,
+        config.pair_info.liquidity_token,
+        PaymentError::MissingDenom(config.pair_info.liquidity_token.to_string())
+    );
     let (pools, total_share) = pool_info(deps.querier, &config)?;
 
     let mut messages = vec![];
 
     let refund_assets = if assets.is_empty() {
         // Usual withdraw (balanced)
-        get_share_in_assets(&pools, burn_amount, total_share)?
+        get_share_in_assets(&pools, amount, total_share)?
     } else {
         let required =
             assets
@@ -217,28 +180,24 @@ pub fn withdraw_liquidity(
                 })?;
 
         let unused =
-            burn_amount
+            amount
                 .checked_sub(required)
                 .map_err(|_| ContractError::InsufficientLpTokens {
                     required,
-                    available: burn_amount,
+                    available: amount,
                 })?;
 
         if !unused.is_zero() {
             messages.push(
-                wasm_execute(
-                    &config.pair_info.liquidity_token,
-                    &cw20::Cw20ExecuteMsg::Transfer {
-                        recipient: sender.to_string(),
-                        amount: unused,
-                    },
-                    vec![],
-                )?
+                BankMsg::Send {
+                    to_address: info.sender.to_string(),
+                    amount: vec![coin(unused.u128(), &config.pair_info.liquidity_token)],
+                }
                 .into(),
             );
         }
 
-        burn_amount = required;
+        amount = required;
 
         assets
     };
@@ -247,23 +206,17 @@ pub fn withdraw_liquidity(
         .clone()
         .into_iter()
         .filter(|asset| !asset.amount.is_zero())
-        .map(|asset| asset.into_msg(&sender))
+        .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
     messages.extend(send_msgs);
-    messages.push(
-        wasm_execute(
-            &config.pair_info.liquidity_token,
-            &cw20::Cw20ExecuteMsg::Burn {
-                amount: burn_amount,
-            },
-            vec![],
-        )?
-        .into(),
-    );
+    messages.push(tf_burn_msg(
+        env.contract.address,
+        coin(amount.u128(), config.pair_info.liquidity_token.to_string()),
+    ));
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
-        attr("withdrawn_share", burn_amount),
+        attr("withdrawn_share", amount),
         attr("refund_assets", refund_assets.iter().join(", ")),
     ]))
 }
@@ -275,6 +228,7 @@ pub fn withdraw_liquidity(
 /// * **receiver** address that receives LP tokens. If this address isn't specified, the function will default to the caller.
 pub fn provide_liquidity(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     assets: Vec<Asset>,
     receiver: Option<String>,
@@ -293,21 +247,21 @@ pub fn provide_liquidity(
 
     // Mint LP token for the caller (or for the receiver if it was set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
-    let mint_msg = wasm_execute(
-        &config.pair_info.liquidity_token,
-        &cw20::Cw20ExecuteMsg::Mint {
-            recipient: receiver.to_string(),
-            amount: share,
-        },
-        vec![],
-    )?;
 
-    Ok(Response::new().add_message(mint_msg).add_attributes([
-        attr("action", "provide_liquidity"),
-        attr("receiver", receiver),
-        attr("assets", assets.iter().join(", ")),
-        attr("share", share),
-    ]))
+    let coin = coin(share.into(), config.pair_info.liquidity_token.to_string());
+
+    Ok(Response::new()
+        .add_messages(tf_mint_msg(
+            env.contract.address,
+            coin.clone(),
+            receiver.clone(),
+        ))
+        .add_attributes([
+            attr("action", "provide_liquidity"),
+            attr("receiver", receiver),
+            attr("assets", assets.iter().join(", ")),
+            attr("share", share),
+        ]))
 }
 
 /// Performs an swap operation with the specified parameters.
@@ -348,30 +302,6 @@ pub fn swap(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> StdResult<Response> {
-    let contract_version = cw2::get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair-transmuter" => match contract_version.version.as_ref() {
-            "1.1.0" => {}
-            _ => {
-                return Err(StdError::generic_err(
-                    "Cannot migrate. Unsupported contract version",
-                ))
-            }
-        },
-        _ => {
-            return Err(StdError::generic_err(
-                "Cannot migrate. Unsupported contract name",
-            ))
-        }
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
 }

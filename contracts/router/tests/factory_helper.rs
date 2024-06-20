@@ -3,10 +3,11 @@
 use anyhow::Result as AnyResult;
 use cosmwasm_std::{coins, Addr, Binary};
 use cw20::MinterResponse;
-use cw_multi_test::{App, AppResponse, ContractWrapper, Executor};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType, QueryMsg};
+use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
+use astroport_test::modules::stargate::StargateApp as App;
 
 pub struct FactoryHelper {
     pub owner: Addr,

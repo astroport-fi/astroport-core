@@ -2,7 +2,7 @@
 
 use std::str::FromStr;
 
-use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, StdError, Uint128};
 use itertools::{max, Itertools};
 
 use astroport::asset::{
@@ -14,12 +14,18 @@ use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
 };
-use astroport_mocks::cw_multi_test::{next_block, Executor};
+use astroport::tokenfactory_tracker::{
+    ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
+};
 use astroport_pair_concentrated::error::ContractError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
 
-use crate::helper::{common_pcl_params, dec_to_f64, f64_to_dec, AppExtension, Helper, TestCoin};
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::{dec_to_f64, f64_to_dec};
+use astroport_test::cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
+
+use crate::helper::{common_pcl_params, AppExtension, Helper};
 
 mod helper;
 
@@ -27,7 +33,7 @@ mod helper;
 fn check_observe_queries() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
 
@@ -161,8 +167,8 @@ fn check_wrong_initialization() {
 fn check_create_pair_with_unsupported_denom() {
     let owner = Addr::unchecked("owner");
 
-    let wrong_coins = vec![TestCoin::native("rc"), TestCoin::cw20("USDC")];
-    let valid_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let wrong_coins = vec![TestCoin::native("rc"), TestCoin::native("uusdc")];
+    let valid_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParams {
         price_scale: Decimal::from_ratio(2u8, 1u8),
@@ -182,7 +188,7 @@ fn check_create_pair_with_unsupported_denom() {
 fn provide_and_withdraw() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("uusdc")];
 
     let params = ConcentratedPoolParams {
         price_scale: Decimal::from_ratio(2u8, 1u8),
@@ -205,39 +211,22 @@ fn provide_and_withdraw() {
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
         random_coin.clone(),
     ];
+
     helper.give_me_money(&wrong_assets, &user1);
-    let err = helper.provide_liquidity(&user1, &wrong_assets).unwrap_err();
+
+    // Provide with empty assets
+    let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
     assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
+        "Generic error: Nothing to provide",
         err.root_cause().to_string()
     );
 
-    // Provide with asset which does not belong to the pair
-    let err = helper
-        .provide_liquidity(
-            &user1,
-            &[
-                random_coin.clone(),
-                helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-            ],
-        )
-        .unwrap_err();
-    assert_eq!(
-        "Generic error: Asset random-coin is not in the pool",
-        err.root_cause().to_string()
-    );
-
+    // Provide just one asset which does not belong to the pair
     let err = helper
         .provide_liquidity(&user1, &[random_coin.clone()])
         .unwrap_err();
     assert_eq!(
         "The asset random-coin does not belong to the pair",
-        err.root_cause().to_string()
-    );
-
-    let err = helper.provide_liquidity(&user1, &[]).unwrap_err();
-    assert_eq!(
-        "Generic error: Nothing to provide",
         err.root_cause().to_string()
     );
 
@@ -296,13 +285,16 @@ fn provide_and_withdraw() {
     // This is normal provision
     helper.provide_liquidity(&user1, &assets).unwrap();
 
-    assert_eq!(70710_677118, helper.token_balance(&helper.lp_token, &user1));
+    assert_eq!(
+        70710_677118,
+        helper.native_balance(&helper.lp_token, &user1)
+    );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
     assert_eq!(
         helper
-            .query_share(helper.token_balance(&helper.lp_token, &user1))
+            .query_share(helper.native_balance(&helper.lp_token, &user1))
             .unwrap(),
         vec![
             helper.assets[&test_coins[0]].with_balance(99999998584u128),
@@ -319,7 +311,7 @@ fn provide_and_withdraw() {
     helper.provide_liquidity(&user2, &assets).unwrap();
     assert_eq!(
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
-        helper.token_balance(&helper.lp_token, &user2)
+        helper.native_balance(&helper.lp_token, &user2)
     );
 
     // Changing order of assets does not matter
@@ -332,7 +324,7 @@ fn provide_and_withdraw() {
     helper.provide_liquidity(&user3, &assets).unwrap();
     assert_eq!(
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
-        helper.token_balance(&helper.lp_token, &user3)
+        helper.native_balance(&helper.lp_token, &user3)
     );
 
     // After initial provide one-sided provide is allowed
@@ -344,14 +336,20 @@ fn provide_and_withdraw() {
     helper.give_me_money(&assets, &user4);
     helper.provide_liquidity(&user4, &assets).unwrap();
     // LP amount is less than for prev users as provide is imbalanced
-    assert_eq!(62217_722016, helper.token_balance(&helper.lp_token, &user4));
+    assert_eq!(
+        62217_722016,
+        helper.native_balance(&helper.lp_token, &user4)
+    );
 
     // One of assets may be omitted
     let user5 = Addr::unchecked("user5");
     let assets = vec![helper.assets[&test_coins[0]].with_balance(140_000_000000u128)];
     helper.give_me_money(&assets, &user5);
     helper.provide_liquidity(&user5, &assets).unwrap();
-    assert_eq!(57271_023590, helper.token_balance(&helper.lp_token, &user5));
+    assert_eq!(
+        57271_023590,
+        helper.native_balance(&helper.lp_token, &user5)
+    );
 
     // check that imbalanced withdraw is currently disabled
     let withdraw_assets = vec![
@@ -373,7 +371,7 @@ fn provide_and_withdraw() {
 
     assert_eq!(
         70710_677118 - 7071_067711,
-        helper.token_balance(&helper.lp_token, &user1)
+        helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(5330_688045, helper.coin_balance(&test_coins[1], &user1));
@@ -385,7 +383,7 @@ fn provide_and_withdraw() {
 
     assert_eq!(
         70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
-        helper.token_balance(&helper.lp_token, &user2)
+        helper.native_balance(&helper.lp_token, &user2)
     );
     assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(26653_440612, helper.coin_balance(&test_coins[1], &user2));
@@ -418,7 +416,7 @@ fn check_imbalanced_provide() {
 
     assert_eq!(
         200495_366531,
-        helper.token_balance(&helper.lp_token, &user1)
+        helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
@@ -440,7 +438,7 @@ fn check_imbalanced_provide() {
 
     assert_eq!(
         200495_366531,
-        helper.token_balance(&helper.lp_token, &user1)
+        helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
@@ -473,7 +471,7 @@ fn provide_with_different_precision() {
 
         helper.provide_liquidity(&user, &assets).unwrap();
 
-        let lp_amount = helper.token_balance(&helper.lp_token, &user);
+        let lp_amount = helper.native_balance(&helper.lp_token, &user);
         assert!(
             100_000000 - lp_amount < tolerance,
             "LP token balance assert failed for {user}"
@@ -483,7 +481,7 @@ fn provide_with_different_precision() {
 
         helper.withdraw_liquidity(&user, lp_amount, vec![]).unwrap();
 
-        assert_eq!(0, helper.token_balance(&helper.lp_token, &user));
+        assert_eq!(0, helper.native_balance(&helper.lp_token, &user));
         assert!(
             100_00000 - helper.coin_balance(&test_coins[0], &user) < tolerance,
             "Withdrawn amount of coin0 assert failed for {user}"
@@ -538,6 +536,71 @@ fn swap_different_precisions() {
     assert_eq!(
         sim_resp.return_amount.u128(),
         helper.coin_balance(&test_coins[1], &user)
+    );
+}
+
+#[test]
+fn simulate_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("uusdc")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let user1 = Addr::unchecked("user1");
+
+    let shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: None,
+            },
+        )
+        .unwrap();
+
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    assert_eq!(
+        shares.u128(),
+        helper.native_balance(&helper.lp_token, &user1)
+    );
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_0000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let err = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Uint128>(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: Option::from(Decimal::percent(1)),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err,
+        StdError::generic_err(
+            "Querier contract error: Generic error: Operation exceeds max spread limit"
+        )
     );
 }
 
@@ -685,7 +748,7 @@ fn check_swaps_with_price_update() {
     let owner = Addr::unchecked("owner");
     let half = Decimal::from_ratio(1u8, 2u8);
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
 
@@ -727,7 +790,7 @@ fn check_swaps_with_price_update() {
 fn provides_and_swaps() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
 
@@ -771,7 +834,7 @@ fn provides_and_swaps() {
 fn check_amp_gamma_change() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParams {
         amp: f64_to_dec(40f64),
@@ -864,7 +927,7 @@ fn check_prices() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
-    helper.app.update_block(next_block);
+    helper.app.next_block(50_000);
 
     let check_prices = |helper: &Helper| {
         let prices = helper.query_prices().unwrap();
@@ -1052,81 +1115,6 @@ fn query_d_test() {
 }
 
 #[test]
-fn asset_balances_tracking_without_in_params() {
-    let owner = Addr::unchecked("owner");
-    let user1 = Addr::unchecked("user1");
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
-
-    // Instantiate pair without asset balances tracking
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(5_000000u128),
-        helper.assets[&test_coins[1]].with_balance(5_000000u128),
-    ];
-
-    // Check that asset balances are not tracked
-    // The query AssetBalanceAt returns None for this case
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    // Enable asset balances tracking
-    helper
-        .update_config(
-            &owner,
-            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
-        )
-        .unwrap();
-
-    // Check that asset balances were not tracked before this was enabled
-    // The query AssetBalanceAt returns None for this case
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.is_none());
-
-    // Check that asset balances had zero balances before next block upon tracking enabling
-    helper.app.update_block(|b| b.height += 1);
-
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.unwrap().is_zero());
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert!(res.unwrap().is_zero());
-
-    helper.give_me_money(&assets, &user1);
-    helper.provide_liquidity(&user1, &assets).unwrap();
-
-    // Check that asset balances changed after providing liqudity
-    helper.app.update_block(|b| b.height += 1);
-    let res = helper
-        .query_asset_balance_at(&assets[0].info, helper.app.block_info().height)
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(5_000000));
-
-    let res = helper
-        .query_asset_balance_at(&assets[1].info, helper.app.block_info().height)
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(5_000000));
-}
-
-#[test]
 fn asset_balances_tracking_with_in_params() {
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
@@ -1144,17 +1132,6 @@ fn asset_balances_tracking_with_in_params() {
         helper.assets[&test_coins[1]].with_balance(5_000000u128),
     ];
 
-    // Check that enabling asset balances tracking can not be done if it is already enabled
-    let err = helper
-        .update_config(
-            &owner,
-            &ConcentratedPoolUpdateParams::EnableAssetBalancesTracking {},
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::AssetBalancesTrackingIsAlreadyEnabled {}
-    );
     // Check that asset balances were not tracked before instantiation
     // The query AssetBalanceAt returns None for this case
     let res = helper
@@ -1204,7 +1181,7 @@ fn asset_balances_tracking_with_in_params() {
         .unwrap();
 
     assert_eq!(
-        helper.token_balance(&helper.lp_token, &owner),
+        helper.native_balance(&helper.lp_token, &owner),
         999_498998u128
     );
 
@@ -1268,7 +1245,7 @@ fn asset_balances_tracking_with_in_params() {
 fn provides_and_swaps_and_withdraw() {
     let owner = Addr::unchecked("owner");
     let half = Decimal::from_ratio(1u8, 2u8);
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParams {
         price_scale: Decimal::from_ratio(1u8, 2u8),
@@ -1312,7 +1289,7 @@ fn provides_and_swaps_and_withdraw() {
         .unwrap();
 
     assert_eq!(res.total_share.u128(), 141_421_356_237u128);
-    let owner_balance = helper.token_balance(&helper.lp_token, &owner);
+    let owner_balance = helper.native_balance(&helper.lp_token, &owner);
 
     helper
         .withdraw_liquidity(&owner, owner_balance, vec![])
@@ -1324,6 +1301,31 @@ fn provides_and_swaps_and_withdraw() {
         .unwrap();
 
     assert_eq!(res.total_share.u128(), 1000u128);
+}
+
+#[test]
+fn provide_liquidity_with_autostaking_to_generator() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(1u8, 2u8),
+        ..common_pcl_params()
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000u128),
+    ];
+
+    helper
+        .provide_liquidity_with_auto_staking(&owner, &assets, None)
+        .unwrap();
+
+    let amount = helper.query_incentives_deposit(helper.lp_token.to_string(), &owner);
+    assert_eq!(amount, Uint128::new(99003));
 }
 
 #[test]
@@ -1354,7 +1356,7 @@ fn provide_withdraw_provide() {
 
     helper.app.next_block(600);
     // Withdraw all
-    let lp_amount = helper.token_balance(&helper.lp_token, &owner);
+    let lp_amount = helper.native_balance(&helper.lp_token, &owner);
     helper
         .withdraw_liquidity(&owner, lp_amount, vec![])
         .unwrap();
@@ -1505,7 +1507,7 @@ fn test_frontrun_before_initial_provide() {
 fn check_correct_fee_share() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
 
@@ -1824,7 +1826,7 @@ fn check_lsd_swaps_with_price_update() {
 fn test_provide_liquidity_without_funds() {
     let owner = Addr::unchecked("owner");
 
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParams {
         price_scale: Decimal::from_ratio(2u8, 1u8),
@@ -1851,6 +1853,7 @@ fn test_provide_liquidity_without_funds() {
         slippage_tolerance: Some(f64_to_dec(0.5)),
         auto_stake: None,
         receiver: None,
+        min_lp_to_receive: None,
     };
 
     let err = helper
@@ -1862,4 +1865,87 @@ fn test_provide_liquidity_without_funds() {
         err.root_cause().to_string(),
         "Generic error: Native token balance mismatch between the argument (100000000000uluna) and the transferred (0uluna)"
     )
+}
+
+#[test]
+fn test_tracker_contract() {
+    let owner = Addr::unchecked("owner");
+    let alice = Addr::unchecked("alice");
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
+
+    let params = ConcentratedPoolParams {
+        track_asset_balances: Some(true),
+        ..common_pcl_params()
+    };
+
+    // Instantiate pair with asset balances tracking
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(5_000000u128),
+        helper.assets[&test_coins[1]].with_balance(5_000000u128),
+    ];
+
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    let config = helper.query_config().unwrap();
+
+    let tracker_addr = config.tracker_addr.unwrap();
+
+    let tracker_config: TrackerConfigResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(tracker_addr.clone(), &TrackerQueryMsg::Config {})
+        .unwrap();
+    assert_eq!(
+        tracker_config.token_factory_module,
+        TOKEN_FACTORY_MODULE.to_string()
+    );
+    assert_eq!(tracker_config.tracked_denom, helper.lp_token.to_string());
+
+    let owner_lp_funds = helper
+        .app
+        .wrap()
+        .query_balance(owner.clone(), helper.lp_token.clone())
+        .unwrap();
+
+    let total_supply = owner_lp_funds.amount + MINIMUM_LIQUIDITY_AMOUNT;
+
+    // Set Alice's balances
+    helper
+        .app
+        .send_tokens(
+            owner.clone(),
+            alice.clone(),
+            &[Coin {
+                denom: helper.lp_token.to_string(),
+                amount: Uint128::new(100),
+            }],
+        )
+        .unwrap();
+
+    let tracker_total_supply: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            tracker_addr.clone(),
+            &TrackerQueryMsg::TotalSupplyAt { timestamp: None },
+        )
+        .unwrap();
+
+    assert_eq!(total_supply, tracker_total_supply);
+
+    let alice_balance: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            tracker_addr,
+            &TrackerQueryMsg::BalanceAt {
+                address: alice.to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(alice_balance, Uint128::new(100));
 }
