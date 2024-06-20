@@ -1,7 +1,12 @@
 [package]
 name = "astro-token-converter"
 version = "1.0.0"
+authors = ["Astroport"]
 edition = "2021"
+description = "Chain agnostic ASTRO.cw20 to tokenfactory ASTRO converter"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
