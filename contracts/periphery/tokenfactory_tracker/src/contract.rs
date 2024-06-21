@@ -1,7 +1,8 @@
+use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, Uint128};
-use cw2::set_contract_version;
+use cosmwasm_std::{DepsMut, Env, MessageInfo, Response, StdError, Uint128};
+use cw2::{get_contract_version, set_contract_version};
 
 use astroport::asset::validate_native_denom;
 use astroport::tokenfactory_tracker::{InstantiateMsg, SudoMsg};
@@ -28,6 +29,7 @@ pub fn instantiate(
     let config = Config {
         d: msg.tracked_denom.clone(),
         m: msg.tokenfactory_module_address,
+        t: msg.track_over_seconds,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -56,16 +58,14 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
                     expected_denom: config.d,
                 })
             } else {
+                let tracking_unit = if config.t {
+                    env.block.time.seconds()
+                } else {
+                    env.block.height
+                };
                 // If this function throws error all send, mint and burn actions will be blocked.
                 // However, balances query will still work, hence governance will be able to recover the contract.
-                track_balances(
-                    deps,
-                    env.block.time.seconds(),
-                    &config,
-                    from,
-                    to,
-                    amount.amount,
-                )
+                track_balances(deps, tracking_unit, &config, from, to, amount.amount)
             }
         }
         // tokenfactory enforces hard gas limit 100k on TrackBeforeSend of which 60k is a flat contract initialization.
@@ -78,7 +78,7 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
     }
 }
 
-/// Track balance and total supply changes over timestamp.
+/// Track balance and total supply changes over specified tracking unit.
 /// Only tokenfactory module itself can change supply by minting and burning tokens.
 /// Only denom admin can dispatch mint/burn messages to the module.
 /// Sending tokens to the tokenfactory module address isn't allowed by the chain.
@@ -87,10 +87,11 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 /// - if to == module_address -> burn
 /// - other scenarios are simple transfers between addresses
 /// Possible errors:
-/// - serialization/deserialization errors. Should never happen if both BALANCES and TOTAL_SUPPLY_HISTORY storage keys and data layout are not changed.
+/// - serialization/deserialization errors.
+/// It should never happen if both BALANCES and TOTAL_SUPPLY_HISTORY storage keys and data layout are not changed.
 pub fn track_balances(
     deps: DepsMut,
-    block_seconds: u64,
+    tracking_unit: u64,
     config: &Config,
     from: String,
     to: String,
@@ -103,7 +104,7 @@ pub fn track_balances(
                 deps.storage,
                 &from,
                 &from_balance.checked_sub(amount)?,
-                block_seconds,
+                tracking_unit,
             )?;
         }
 
@@ -113,15 +114,60 @@ pub fn track_balances(
                 deps.storage,
                 &to,
                 &to_balance.checked_add(amount)?,
-                block_seconds,
+                tracking_unit,
             )?;
         }
     }
 
     let total_supply = deps.querier.query_supply(&config.d)?.amount;
-    TOTAL_SUPPLY_HISTORY.save(deps.storage, &total_supply, block_seconds)?;
+    TOTAL_SUPPLY_HISTORY.save(deps.storage, &total_supply, tracking_unit)?;
 
     Ok(Response::default())
+}
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub track_over_seconds: bool,
+}
+
+/// Manages the contract migration.
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match (
+        contract_version.contract.as_ref(),
+        contract_version.version.as_ref(),
+    ) {
+        ("astroport-tokenfactory-tracker", "1.0.0") => {
+            let config = CONFIG.load(deps.storage)?;
+            let new_config = Config {
+                d: config.d,
+                m: config.m,
+                t: msg.track_over_seconds,
+            };
+            CONFIG.save(deps.storage, &new_config)?;
+        }
+        _ => {
+            return Err(StdError::generic_err(format!(
+                "Unsupported contract version: {} {}",
+                contract_version.contract, contract_version.version
+            ))
+            .into())
+        }
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::default().add_attributes([
+        ("previous_contract_name", contract_version.contract.as_str()),
+        (
+            "previous_contract_version",
+            contract_version.version.as_str(),
+        ),
+        ("new_contract_name", CONTRACT_NAME),
+        ("new_contract_version", CONTRACT_VERSION),
+    ]))
 }
 
 #[cfg(test)]
@@ -213,6 +259,7 @@ mod tests {
                 &InstantiateMsg {
                     tokenfactory_module_address: MODULE_ADDRESS.to_string(),
                     tracked_denom: DENOM.to_string(),
+                    track_over_seconds: true,
                 },
                 &[],
                 "label",
@@ -258,7 +305,7 @@ mod tests {
                 &tracker_contract,
                 &QueryMsg::BalanceAt {
                     address: "user1".to_string(),
-                    timestamp: Some(query_at_ts),
+                    unit: Some(query_at_ts),
                 },
             )
             .unwrap();
@@ -270,7 +317,7 @@ mod tests {
                 &tracker_contract,
                 &QueryMsg::BalanceAt {
                     address: "user2".to_string(),
-                    timestamp: Some(query_at_ts),
+                    unit: Some(query_at_ts),
                 },
             )
             .unwrap();
@@ -282,7 +329,7 @@ mod tests {
                 &tracker_contract,
                 &QueryMsg::BalanceAt {
                     address: "user3".to_string(),
-                    timestamp: Some(query_at_ts),
+                    unit: Some(query_at_ts),
                 },
             )
             .unwrap();
@@ -294,7 +341,7 @@ mod tests {
                 &tracker_contract,
                 &QueryMsg::BalanceAt {
                     address: "user3".to_string(),
-                    timestamp: None,
+                    unit: None,
                 },
             )
             .unwrap();
@@ -306,7 +353,7 @@ mod tests {
                 &tracker_contract,
                 &QueryMsg::BalanceAt {
                     address: "user4".to_string(),
-                    timestamp: None,
+                    unit: None,
                 },
             )
             .unwrap();
@@ -317,7 +364,7 @@ mod tests {
             .query_wasm_smart(
                 &tracker_contract,
                 &QueryMsg::TotalSupplyAt {
-                    timestamp: Some(query_at_ts),
+                    unit: Some(query_at_ts),
                 },
             )
             .unwrap();
@@ -325,10 +372,7 @@ mod tests {
 
         let balance: Uint128 = app
             .wrap()
-            .query_wasm_smart(
-                &tracker_contract,
-                &QueryMsg::TotalSupplyAt { timestamp: None },
-            )
+            .query_wasm_smart(&tracker_contract, &QueryMsg::TotalSupplyAt { unit: None })
             .unwrap();
         assert_eq!(balance, expected_total_supply);
     }
@@ -346,6 +390,7 @@ mod tests {
             InstantiateMsg {
                 tokenfactory_module_address: MODULE_ADDRESS.to_string(),
                 tracked_denom: DENOM.to_string(),
+                track_over_seconds: true,
             },
         )
         .unwrap();
@@ -379,7 +424,7 @@ mod tests {
             env.clone(),
             QueryMsg::BalanceAt {
                 address: "user1".to_string(),
-                timestamp: Some(env.block.time.seconds()),
+                unit: Some(env.block.time.seconds()),
             },
         )
         .unwrap();

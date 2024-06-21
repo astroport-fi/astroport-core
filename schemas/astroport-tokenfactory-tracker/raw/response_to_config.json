@@ -4,12 +4,17 @@
   "type": "object",
   "required": [
     "token_factory_module",
+    "track_over_seconds",
     "tracked_denom"
   ],
   "properties": {
     "token_factory_module": {
       "description": "Token factory module address",
       "type": "string"
+    },
+    "track_over_seconds": {
+      "description": "Whether to track over blocks or seconds. If true, tracking over seconds is enabled. If false, tracking over blocks is enabled.",
+      "type": "boolean"
     },
     "tracked_denom": {
       "description": "Tracked denom",

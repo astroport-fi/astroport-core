@@ -2411,7 +2411,7 @@ fn test_tracker_contract() {
         .wrap()
         .query_wasm_smart(
             tracker_addr.clone(),
-            &TrackerQueryMsg::TotalSupplyAt { timestamp: None },
+            &TrackerQueryMsg::TotalSupplyAt { unit: None },
         )
         .unwrap();
 
@@ -2423,7 +2423,7 @@ fn test_tracker_contract() {
             tracker_addr,
             &TrackerQueryMsg::BalanceAt {
                 address: alice.to_string(),
-                timestamp: None,
+                unit: None,
             },
         )
         .unwrap();
