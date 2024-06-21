@@ -1919,7 +1919,7 @@ fn test_tracker_contract() {
             alice.clone(),
             &[Coin {
                 denom: helper.lp_token.to_string(),
-                amount: Uint128::new(100),
+                amount: 10000u128.into(),
             }],
         )
         .unwrap();
@@ -1929,7 +1929,7 @@ fn test_tracker_contract() {
         .wrap()
         .query_wasm_smart(
             tracker_addr.clone(),
-            &TrackerQueryMsg::TotalSupplyAt { timestamp: None },
+            &TrackerQueryMsg::TotalSupplyAt { unit: None },
         )
         .unwrap();
 
@@ -1939,13 +1939,62 @@ fn test_tracker_contract() {
         .app
         .wrap()
         .query_wasm_smart(
-            tracker_addr,
+            &tracker_addr,
             &TrackerQueryMsg::BalanceAt {
                 address: alice.to_string(),
-                timestamp: None,
+                unit: None,
             },
         )
         .unwrap();
 
-    assert_eq!(alice_balance, Uint128::new(100));
+    assert_eq!(alice_balance.u128(), 10000);
+
+    let alice_share: Vec<Asset> = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.pair_addr,
+            &QueryMsg::Share {
+                amount: 10000u128.into(),
+            },
+        )
+        .unwrap();
+
+    let block_height = helper.app.block_info().height;
+
+    helper.app.update_block(|b| b.height += 10);
+
+    let historical_total_supply: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &tracker_addr,
+            &TrackerQueryMsg::TotalSupplyAt {
+                unit: Some(block_height + 1),
+            },
+        )
+        .unwrap();
+    let alice_lp_balance: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &tracker_addr,
+            &TrackerQueryMsg::BalanceAt {
+                address: alice.to_string(),
+                unit: Some(block_height + 1),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(historical_total_supply, total_supply);
+    assert_eq!(alice_lp_balance.u128(), 10000);
+
+    let historical_balance: Uint128 = helper
+        .query_asset_balance_at(&helper.assets[&test_coins[0]], block_height + 1)
+        .unwrap()
+        .unwrap();
+    let alice_hist_bal =
+        historical_balance.multiply_ratio(alice_lp_balance - Uint128::one(), total_supply);
+
+    assert_eq!(alice_share[0].amount, alice_hist_bal);
 }

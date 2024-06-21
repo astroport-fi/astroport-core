@@ -3,7 +3,7 @@
   "title": "QueryMsg",
   "oneOf": [
     {
-      "description": "Return the balance of the given address at the given timestamp.",
+      "description": "Return the balance of the given address at the given time unit.",
       "type": "object",
       "required": [
         "balance_at"
@@ -18,7 +18,8 @@
             "address": {
               "type": "string"
             },
-            "timestamp": {
+            "unit": {
+              "description": "Time unit can be either block height or timestamp. Query config.t to know which one is enabled.",
               "type": [
                 "integer",
                 "null"
@@ -33,7 +34,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Return the total supply at the given timestamp.",
+      "description": "Return the total supply at the given time unit.",
       "type": "object",
       "required": [
         "total_supply_at"
@@ -42,7 +43,8 @@
         "total_supply_at": {
           "type": "object",
           "properties": {
-            "timestamp": {
+            "unit": {
+              "description": "Time unit can be either block height or timestamp. Query config.t to know which one is enabled.",
               "type": [
                 "integer",
                 "null"

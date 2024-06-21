@@ -8,6 +8,12 @@ pub struct Config {
     pub d: String,
     /// Token factory module address
     pub m: String,
+    /// Whether to track over blocks or seconds.
+    /// If true, tracking over seconds is enabled.
+    /// If false, tracking over blocks is enabled.
+    /// Default is false.
+    #[serde(default)]
+    pub t: bool,
 }
 
 pub const CONFIG: Item<Config> = Item::new("c");

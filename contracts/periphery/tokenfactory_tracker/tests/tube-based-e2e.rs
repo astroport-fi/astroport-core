@@ -161,6 +161,7 @@ impl<'a> TestSuite<'a> {
         let init_msg = InstantiateMsg {
             tokenfactory_module_address: self.tokenfactory_module_address.clone(),
             tracked_denom: denom.to_string(),
+            track_over_seconds: true,
         };
         let tracker_addr = self
             .wasm
@@ -196,14 +197,14 @@ impl<'a> TestSuite<'a> {
             &tracker_addr,
             &QueryMsg::BalanceAt {
                 address: user.to_string(),
-                timestamp,
+                unit: timestamp,
             },
         )
     }
 
     fn supply_at(&self, tracker_addr: &str, timestamp: Option<u64>) -> RunnerResult<Uint128> {
         self.wasm
-            .query(&tracker_addr, &QueryMsg::TotalSupplyAt { timestamp })
+            .query(&tracker_addr, &QueryMsg::TotalSupplyAt { unit: timestamp })
     }
 }
 

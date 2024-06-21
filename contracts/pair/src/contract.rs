@@ -145,6 +145,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                                     .token_factory_addr
                                     .to_string(),
                                 tracked_denom: new_token_denom.clone(),
+                                track_over_seconds: false,
                             })?,
                             funds: vec![],
                             label: format!("{new_token_denom} tracking contract"),
