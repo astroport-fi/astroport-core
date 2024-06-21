@@ -32,7 +32,7 @@ cw-storage-plus.workspace = true
 astroport = "4"
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
-astro-satellite-package = { git = "https://github.com/astroport-fi/astroport_ibc", version = "1" }
+astro-satellite-package = "1"
 
 [dev-dependencies]
 cw20-base = "1"

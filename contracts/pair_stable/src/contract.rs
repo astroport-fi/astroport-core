@@ -2,15 +2,14 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::vec;
 
-use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure_eq, from_json, to_json_binary, Addr, Binary, Coin, CosmosMsg, Decimal,
-    Decimal256, Deps, DepsMut, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
+    Decimal256, Deps, DepsMut, Empty, Env, Fraction, MessageInfo, QuerierWrapper, Reply, Response,
     StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
@@ -19,23 +18,21 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, Decimal256Ext,
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
-
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
+use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
     StablePoolUpdateParams, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
     MIN_TRADE_SIZE,
 };
-
-use crate::migration::{migrate_config_from_v21, migrate_config_to_v210};
-use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
-    Cw20HookMsg, ExecuteMsg, MigrateMsg, PoolResponse, QueryMsg, ReverseSimulationResponse,
-    SimulationResponse, StablePoolConfig,
+    Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
+    StablePoolConfig,
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
+use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
 use astroport::DecimalCheckedOps;
 use astroport_circular_buffer::BufferManager;
 
@@ -1049,31 +1046,10 @@ pub fn assert_max_spread(
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-pair-stable" => match contract_version.version.as_ref() {
-            "1.0.0-fix1" | "1.1.0" | "1.1.1" => {
-                migrate_config_to_v210(deps.branch())?;
-            }
-            "2.1.1" | "2.1.2" => {
-                migrate_config_from_v21(deps.branch())?;
-            }
-            "3.0.0" | "3.1.0" => {}
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    }
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
 }
+
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
 pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Asset>, Uint128)> {
     let pools = config

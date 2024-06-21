@@ -41,7 +41,6 @@ thiserror.workspace = true
 cosmwasm-schema.workspace = true
 itertools.workspace = true
 cw-utils.workspace = true
-astroport-pair-concentrated_v1 = { package = "astroport-pair-concentrated", version = "1.2.13", features = ["library"] }
 
 [dev-dependencies]
 cw20-base = "1.1"
