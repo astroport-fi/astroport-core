@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-xyk-sale-tax"
-version = "2.0.0"
+version = "2.0.1"
 authors = ["Astroport", "Sturdy"]
 edition = "2021"
 description = "The Astroport constant product pool contract implementation"

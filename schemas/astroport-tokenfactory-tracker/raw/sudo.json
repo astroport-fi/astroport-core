@@ -3,6 +3,7 @@
   "title": "SudoMsg",
   "oneOf": [
     {
+      "description": "Sudo endpoint called by chain before sending tokens Errors returned by this endpoint will prevent the transaction from being sent",
       "type": "object",
       "required": [
         "block_before_send"
@@ -17,12 +18,19 @@
           ],
           "properties": {
             "amount": {
-              "$ref": "#/definitions/Coin"
+              "description": "The amount and denom being sent",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                }
+              ]
             },
             "from": {
+              "description": "The address being sent from",
               "type": "string"
             },
             "to": {
+              "description": "The address being sent to",
               "type": "string"
             }
           },
@@ -32,6 +40,7 @@
       "additionalProperties": false
     },
     {
+      "description": "Sudo endpoint called by chain before sending tokens Errors returned by this endpoint will NOT prevent the transaction from being sent",
       "type": "object",
       "required": [
         "track_before_send"
@@ -46,12 +55,19 @@
           ],
           "properties": {
             "amount": {
-              "$ref": "#/definitions/Coin"
+              "description": "The amount and denom being sent",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Coin"
+                }
+              ]
             },
             "from": {
+              "description": "The address being sent from",
               "type": "string"
             },
             "to": {
+              "description": "The address being sent to",
               "type": "string"
             }
           },

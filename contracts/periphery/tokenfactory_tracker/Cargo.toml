@@ -1,6 +1,6 @@
 [package]
 name = "astroport-tokenfactory-tracker"
-version = "1.0.0"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Cosmos Bank hook for tokenfactory tokens"
@@ -21,9 +21,9 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
-astroport = "4"
+astroport = { path = "../../../packages/astroport", version = "5.1" }
 
-#Optional dependencies
+# Optional dependencies
 neutron-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
 test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
 

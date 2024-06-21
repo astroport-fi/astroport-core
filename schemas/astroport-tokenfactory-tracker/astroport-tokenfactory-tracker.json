@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-tokenfactory-tracker",
-  "contract_version": "1.0.0",
+  "contract_version": "2.0.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -12,9 +12,16 @@
     ],
     "properties": {
       "tokenfactory_module_address": {
+        "description": "The address of the token factory module",
         "type": "string"
       },
+      "track_over_seconds": {
+        "description": "Whether to track over blocks or seconds. If true, tracking over seconds is enabled. If false, tracking over blocks is enabled. Default is false.",
+        "default": false,
+        "type": "boolean"
+      },
       "tracked_denom": {
+        "description": "The denom of the token being tracked",
         "type": "string"
       }
     },
@@ -26,7 +33,7 @@
     "title": "QueryMsg",
     "oneOf": [
       {
-        "description": "Return the balance of the given address at the given timestamp.",
+        "description": "Return the balance of the given address at the given time unit.",
         "type": "object",
         "required": [
           "balance_at"
@@ -41,7 +48,8 @@
               "address": {
                 "type": "string"
               },
-              "timestamp": {
+              "unit": {
+                "description": "Time unit can be either block height or timestamp. Query config.t to know which one is enabled.",
                 "type": [
                   "integer",
                   "null"
@@ -56,7 +64,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Return the total supply at the given timestamp.",
+        "description": "Return the total supply at the given time unit.",
         "type": "object",
         "required": [
           "total_supply_at"
@@ -65,7 +73,8 @@
           "total_supply_at": {
             "type": "object",
             "properties": {
-              "timestamp": {
+              "unit": {
+                "description": "Time unit can be either block height or timestamp. Query config.t to know which one is enabled.",
                 "type": [
                   "integer",
                   "null"
@@ -100,6 +109,7 @@
     "title": "SudoMsg",
     "oneOf": [
       {
+        "description": "Sudo endpoint called by chain before sending tokens Errors returned by this endpoint will prevent the transaction from being sent",
         "type": "object",
         "required": [
           "block_before_send"
@@ -114,12 +124,19 @@
             ],
             "properties": {
               "amount": {
-                "$ref": "#/definitions/Coin"
+                "description": "The amount and denom being sent",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/Coin"
+                  }
+                ]
               },
               "from": {
+                "description": "The address being sent from",
                 "type": "string"
               },
               "to": {
+                "description": "The address being sent to",
                 "type": "string"
               }
             },
@@ -129,6 +146,7 @@
         "additionalProperties": false
       },
       {
+        "description": "Sudo endpoint called by chain before sending tokens Errors returned by this endpoint will NOT prevent the transaction from being sent",
         "type": "object",
         "required": [
           "track_before_send"
@@ -143,12 +161,19 @@
             ],
             "properties": {
               "amount": {
-                "$ref": "#/definitions/Coin"
+                "description": "The amount and denom being sent",
+                "allOf": [
+                  {
+                    "$ref": "#/definitions/Coin"
+                  }
+                ]
               },
               "from": {
+                "description": "The address being sent from",
                 "type": "string"
               },
               "to": {
+                "description": "The address being sent to",
                 "type": "string"
               }
             },
@@ -193,12 +218,17 @@
       "type": "object",
       "required": [
         "token_factory_module",
+        "track_over_seconds",
         "tracked_denom"
       ],
       "properties": {
         "token_factory_module": {
           "description": "Token factory module address",
           "type": "string"
+        },
+        "track_over_seconds": {
+          "description": "Whether to track over blocks or seconds. If true, tracking over seconds is enabled. If false, tracking over blocks is enabled.",
+          "type": "boolean"
         },
         "tracked_denom": {
           "description": "Tracked denom",

@@ -37,4 +37,4 @@ anyhow = "1"
 itertools.workspace = true
 cosmwasm-schema.workspace = true
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-astroport-tokenfactory-tracker = { path = "../../periphery/tokenfactory_tracker" }
+astroport-tokenfactory-tracker = "1.0.0"
