@@ -1,27 +1,32 @@
+use std::collections::{BTreeSet, HashSet};
+use std::ops::RangeInclusive;
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError,
-    StdResult,
+    attr, ensure, to_json_binary, BankMsg, Binary, Deps, DepsMut, Empty, Env, Event, MessageInfo,
+    Order, Response, StdError, StdResult, Storage,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Bound;
-use std::collections::HashSet;
+use itertools::Itertools;
+
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::native_coin_registry::{
+    CoinResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg, COINS_INFO,
+};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL};
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::native_coin_registry::{
-    CoinResponse, Config, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, COINS_INFO,
-};
 
-/// version info for migration info
-const CONTRACT_NAME: &str = "astroport-native-coin-registry";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// version info for migration
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Settings for pagination.
-const MAX_LIMIT: u32 = 30;
-const DEFAULT_LIMIT: u32 = 10;
+pub const DEFAULT_LIMIT: u32 = 50;
+/// Allowed decimals
+pub const ALLOWED_DECIMALS: RangeInclusive<u8> = 0..=18u8;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
@@ -35,7 +40,7 @@ pub fn instantiate(
     CONFIG.save(
         deps.storage,
         &Config {
-            owner: deps.api.addr_validate(msg.owner.as_str())?,
+            owner: deps.api.addr_validate(&msg.owner)?,
         },
     )?;
 
@@ -50,7 +55,8 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Add { native_coins } => update(deps, info, native_coins),
+        ExecuteMsg::Add { native_coins } => update_decimals(deps, info, native_coins),
+        ExecuteMsg::Register { native_coins } => register_decimals(deps, info, native_coins),
         ExecuteMsg::Remove { native_coins } => remove(deps, info, native_coins),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config = CONFIG.load(deps.storage)?;
@@ -86,38 +92,104 @@ pub fn execute(
     }
 }
 
+/// Register a native asset in the registry.
+/// Sender must send any number of coins per each asset added.
+/// All funds will be returned to the sender.
+/// Permissionless.
+///
+/// * **native_coins** is a vector with the assets we are adding to the registry.
+pub fn register_decimals(
+    deps: DepsMut,
+    info: MessageInfo,
+    native_coins: Vec<(String, u8)>,
+) -> Result<Response, ContractError> {
+    let coins_map = info
+        .funds
+        .iter()
+        .map(|coin| &coin.denom)
+        .collect::<BTreeSet<_>>();
+
+    for (denom, _) in &native_coins {
+        coins_map
+            .get(denom)
+            .ok_or(ContractError::MustSendCoin(denom.clone()))?;
+    }
+
+    // Return the funds back to the sender
+    let send_msg = BankMsg::Send {
+        to_address: info.sender.to_string(),
+        amount: info.funds,
+    };
+
+    inner_add(deps.storage, native_coins, Some(send_msg))
+}
+
 /// Adds or updates a native asset in the registry.
 ///
 /// * **native_coins** is a vector with the assets we are adding to the registry.
 ///
 /// ## Executor
 /// Only the owner can execute this.
-pub fn update(
+pub fn update_decimals(
     deps: DepsMut,
     info: MessageInfo,
     native_coins: Vec<(String, u8)>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
 
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
+    inner_add(deps.storage, native_coins, None)
+}
 
+/// Function with shared logic for both permissioned and permissionless endpoints.
+///
+/// * **native_coins** is a vector with the assets with respective decimals we are adding to the registry.
+/// * **maybe_send_msg** is an optional BankMsg to send funds back to the sender.
+/// It also serves as a flag to differentiate between permissioned and permissionless endpoints.
+pub fn inner_add(
+    storage: &mut dyn Storage,
+    native_coins: Vec<(String, u8)>,
+    maybe_send_msg: Option<BankMsg>,
+) -> Result<Response, ContractError> {
     // Check for duplicate native coins
     let mut uniq = HashSet::new();
     if !native_coins.iter().all(|a| uniq.insert(&a.0)) {
         return Err(ContractError::DuplicateCoins {});
     }
 
-    for (coin, decimals) in native_coins {
-        if decimals == 0 {
-            return Err(ContractError::CoinWithZeroPrecision(coin));
-        }
+    native_coins.iter().try_for_each(|(denom, decimals)| {
+        ensure!(
+            ALLOWED_DECIMALS.contains(decimals),
+            ContractError::InvalidDecimals {
+                denom: denom.clone(),
+                decimals: *decimals,
+            }
+        );
 
-        COINS_INFO.save(deps.storage, coin, &decimals)?;
+        COINS_INFO
+            .update(storage, denom.clone(), |v| match v {
+                Some(_) if maybe_send_msg.is_some() => {
+                    Err(ContractError::CoinAlreadyExists(denom.clone()))
+                }
+                _ => Ok(*decimals),
+            })
+            .map(|_| ())
+    })?;
+
+    let coin_attrs = native_coins
+        .iter()
+        .map(|(coin, decimals)| attr(coin, decimals.to_string()));
+    let event = Event::new("added_coins").add_attributes(coin_attrs);
+
+    let response = Response::new()
+        .add_attributes([("action", "add")])
+        .add_event(event);
+
+    if let Some(send_msg) = maybe_send_msg {
+        Ok(response.add_message(send_msg))
+    } else {
+        Ok(response)
     }
-
-    Ok(Response::new().add_attributes(vec![attr("action", "add")]))
 }
 
 /// Removes an existing native asset from the registry.
@@ -133,9 +205,7 @@ pub fn remove(
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
-    }
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
 
     // Check for duplicate native coins
     let mut uniq = HashSet::new();
@@ -143,24 +213,23 @@ pub fn remove(
         return Err(ContractError::DuplicateCoins {});
     }
 
-    for coin in native_coins {
-        if COINS_INFO.has(deps.storage, coin.clone()) {
-            COINS_INFO.remove(deps.storage, coin);
+    for denom in &native_coins {
+        if COINS_INFO.has(deps.storage, denom.clone()) {
+            COINS_INFO.remove(deps.storage, denom.clone());
         } else {
-            return Err(ContractError::CoinDoesNotExist(coin));
+            return Err(ContractError::CoinDoesNotExist(denom.clone()));
         }
     }
 
-    Ok(Response::new().add_attributes(vec![attr("action", "remove")]))
+    let removed_coins = native_coins.into_iter().join(", ");
+    Ok(Response::new().add_attributes([("action", "remove"), ("coins", &removed_coins)]))
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?)?),
-        QueryMsg::NativeToken { denom } => {
-            Ok(to_json_binary(&COINS_INFO.load(deps.storage, denom)?)?)
-        }
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::NativeToken { denom } => to_json_binary(&COINS_INFO.load(deps.storage, denom)?),
         QueryMsg::NativeTokens { start_after, limit } => {
             to_json_binary(&query_native_tokens(deps, start_after, limit)?)
         }
@@ -173,27 +242,25 @@ pub fn query_native_tokens(
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<Vec<CoinResponse>> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let limit = limit.unwrap_or(DEFAULT_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive);
 
     COINS_INFO
         .range(deps.storage, start, None, Order::Ascending)
-        .map(|pair| {
-            let (denom, decimals) = pair?;
-            Ok(CoinResponse { denom, decimals })
-        })
+        .map(|pair| pair.map(|(denom, decimals)| CoinResponse { denom, decimals }))
         .take(limit)
-        .collect::<StdResult<Vec<CoinResponse>>>()
+        .collect()
 }
 
 /// Manages contract migration.
+#[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-native-coin-registry" => match contract_version.version.as_ref() {
-            "1.0.0" => {}
+            "1.0.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
