@@ -1,0 +1,340 @@
+{
+  "contract_name": "astroport-native-coin-registry",
+  "contract_version": "1.1.0",
+  "idl_version": "1.0.0",
+  "instantiate": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "InstantiateMsg",
+    "description": "This structure describes the parameters used for creating a contract.",
+    "type": "object",
+    "required": [
+      "owner"
+    ],
+    "properties": {
+      "owner": {
+        "description": "Address allowed to change contract parameters",
+        "type": "string"
+      }
+    },
+    "additionalProperties": false
+  },
+  "execute": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ExecuteMsg",
+    "description": "This structure describes the execute messages available in the contract.",
+    "oneOf": [
+      {
+        "description": "Adds or updates native assets with specified precisions. Only the current owner can execute this. Sender doesn't need to send any tokens.",
+        "type": "object",
+        "required": [
+          "add"
+        ],
+        "properties": {
+          "add": {
+            "type": "object",
+            "required": [
+              "native_coins"
+            ],
+            "properties": {
+              "native_coins": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "format": "uint8",
+                      "minimum": 0.0
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Register a native asset in the registry. Sender must send any number of coins per each asset added. All funds will be returned to the sender. Permissionless",
+        "type": "object",
+        "required": [
+          "register"
+        ],
+        "properties": {
+          "register": {
+            "type": "object",
+            "required": [
+              "native_coins"
+            ],
+            "properties": {
+              "native_coins": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer",
+                      "format": "uint8",
+                      "minimum": 0.0
+                    }
+                  ],
+                  "maxItems": 2,
+                  "minItems": 2
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Removes the native assets by specified parameters Only the current owner can execute this",
+        "type": "object",
+        "required": [
+          "remove"
+        ],
+        "properties": {
+          "remove": {
+            "type": "object",
+            "required": [
+              "native_coins"
+            ],
+            "properties": {
+              "native_coins": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Creates a request to change contract ownership Only the current owner can execute this",
+        "type": "object",
+        "required": [
+          "propose_new_owner"
+        ],
+        "properties": {
+          "propose_new_owner": {
+            "type": "object",
+            "required": [
+              "expires_in",
+              "owner"
+            ],
+            "properties": {
+              "expires_in": {
+                "description": "The validity period of the offer to change the owner",
+                "type": "integer",
+                "format": "uint64",
+                "minimum": 0.0
+              },
+              "owner": {
+                "description": "The newly proposed owner",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Removes a request to change contract ownership Only the current owner can execute this",
+        "type": "object",
+        "required": [
+          "drop_ownership_proposal"
+        ],
+        "properties": {
+          "drop_ownership_proposal": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Claims contract ownership Only the newly proposed owner can execute this",
+        "type": "object",
+        "required": [
+          "claim_ownership"
+        ],
+        "properties": {
+          "claim_ownership": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    ]
+  },
+  "query": {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "QueryMsg",
+    "description": "This structure describes the query messages available in the contract.",
+    "oneOf": [
+      {
+        "description": "Returns the configuration for the contract.",
+        "type": "object",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Returns the information about Asset by specified denominator.",
+        "type": "object",
+        "required": [
+          "native_token"
+        ],
+        "properties": {
+          "native_token": {
+            "type": "object",
+            "required": [
+              "denom"
+            ],
+            "properties": {
+              "denom": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Returns a vector which contains the native assets.",
+        "type": "object",
+        "required": [
+          "native_tokens"
+        ],
+        "properties": {
+          "native_tokens": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "start_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    ]
+  },
+  "migrate": null,
+  "sudo": null,
+  "responses": {
+    "config": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Config",
+      "description": "This structure stores the main parameters for the native coin registry contract.",
+      "type": "object",
+      "required": [
+        "owner"
+      ],
+      "properties": {
+        "owner": {
+          "description": "Address that's allowed to change contract parameters",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        }
+      }
+    },
+    "native_token": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CoinResponse",
+      "type": "object",
+      "required": [
+        "decimals",
+        "denom"
+      ],
+      "properties": {
+        "decimals": {
+          "description": "The asset precision",
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "denom": {
+          "description": "The asset name",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "native_tokens": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_CoinResponse",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/CoinResponse"
+      },
+      "definitions": {
+        "CoinResponse": {
+          "type": "object",
+          "required": [
+            "decimals",
+            "denom"
+          ],
+          "properties": {
+            "decimals": {
+              "description": "The asset precision",
+              "type": "integer",
+              "format": "uint8",
+              "minimum": 0.0
+            },
+            "denom": {
+              "description": "The asset name",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  }
+}

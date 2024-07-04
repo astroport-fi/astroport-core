@@ -1,9 +1,10 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::Addr;
+use cosmwasm_std::{coin, Addr};
+use cw_multi_test::{App, BankSudo, ContractWrapper, Executor};
 
 use astroport::native_coin_registry::{CoinResponse, Config, ExecuteMsg, InstantiateMsg, QueryMsg};
-use cw_multi_test::{App, ContractWrapper, Executor};
+use astroport_native_coin_registry::error::ContractError;
 
 fn mock_app() -> App {
     App::default()
@@ -236,28 +237,6 @@ fn try_add_and_remove_native_tokens() {
         native_coins: vec![
             ("ULUNA".to_string(), 18),
             ("USDT".to_string(), 10),
-            ("usdc".to_string(), 0),
-        ],
-    };
-
-    let err = app
-        .execute_contract(
-            Addr::unchecked("owner"),
-            native_registry_instance.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap_err();
-
-    assert_eq!(
-        err.root_cause().to_string(),
-        "The coin cannot have zero precision: usdc"
-    );
-
-    let msg = ExecuteMsg::Add {
-        native_coins: vec![
-            ("ULUNA".to_string(), 18),
-            ("USDT".to_string(), 10),
             ("usdc".to_string(), 3),
         ],
     };
@@ -334,8 +313,21 @@ fn try_add_and_remove_native_tokens() {
     );
 
     let msg = ExecuteMsg::Remove {
-        native_coins: vec!["usdc".to_string()],
+        native_coins: vec!["usdc".to_string(), "usdc".to_string()],
     };
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("owner"),
+            native_registry_instance.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::DuplicateCoins {}
+    );
 
     let err = app
         .execute_contract(
@@ -347,10 +339,27 @@ fn try_add_and_remove_native_tokens() {
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Unauthorized");
 
+    let err = app
+        .execute_contract(
+            Addr::unchecked("owner"),
+            native_registry_instance.clone(),
+            &ExecuteMsg::Remove {
+                native_coins: vec!["foo_coin".to_string()],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::CoinDoesNotExist("foo_coin".to_string())
+    );
+
     app.execute_contract(
         Addr::unchecked("owner"),
         native_registry_instance.clone(),
-        &msg,
+        &ExecuteMsg::Remove {
+            native_coins: vec!["usdc".to_string()],
+        },
         &[],
     )
     .unwrap();
@@ -380,4 +389,161 @@ fn try_add_and_remove_native_tokens() {
         ],
         config_res
     );
+}
+
+#[test]
+fn test_permissionless_add() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+
+    let native_registry_code_id = store_native_registry_code(&mut app);
+    let msg = InstantiateMsg {
+        owner: owner.to_string(),
+    };
+
+    let native_registry_instance = app
+        .instantiate_contract(
+            native_registry_code_id,
+            owner.clone(),
+            &msg,
+            &[],
+            "label",
+            None,
+        )
+        .unwrap();
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            native_registry_instance.clone(),
+            &ExecuteMsg::Register {
+                native_coins: vec![("utoken".to_string(), 6)],
+            },
+            &[],
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::MustSendCoin("utoken".to_string())
+    );
+
+    app.sudo(
+        BankSudo::Mint {
+            to_address: "random".to_string(),
+            amount: vec![coin(1, "ufoo"), coin(1, "adydx"), coin(100000, "utoken")],
+        }
+        .into(),
+    )
+    .unwrap();
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            native_registry_instance.clone(),
+            &ExecuteMsg::Register {
+                native_coins: vec![
+                    ("ufoo".to_string(), 6),
+                    ("adydx".to_string(), 18),
+                    ("utoken".to_string(), 228),
+                ],
+            },
+            &[coin(1, "ufoo"), coin(1, "adydx"), coin(1, "utoken")],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InvalidDecimals {
+            denom: "utoken".to_string(),
+            decimals: 228,
+        }
+    );
+
+    let err = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            native_registry_instance.clone(),
+            &ExecuteMsg::Register {
+                native_coins: vec![
+                    ("ufoo".to_string(), 6),
+                    ("adydx".to_string(), 18),
+                    ("utoken".to_string(), 8),
+                    ("utoken".to_string(), 6),
+                ],
+            },
+            &[coin(1, "ufoo"), coin(1, "adydx"), coin(2, "utoken")],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::DuplicateCoins {}
+    );
+
+    app.execute_contract(
+        Addr::unchecked("random"),
+        native_registry_instance.clone(),
+        &ExecuteMsg::Register {
+            native_coins: vec![
+                ("ufoo".to_string(), 6),
+                ("adydx".to_string(), 18),
+                ("utoken".to_string(), 8),
+            ],
+        },
+        &[coin(1, "ufoo"), coin(1, "adydx"), coin(1, "utoken")],
+    )
+    .unwrap();
+
+    // Ensure coin registry doesn't hold these coins
+    let foo_bal = app
+        .wrap()
+        .query_balance(&native_registry_instance, "ufoo")
+        .unwrap()
+        .amount
+        .u128();
+    assert_eq!(foo_bal, 0);
+    let user_foo_bal = app
+        .wrap()
+        .query_balance(&Addr::unchecked("random"), "ufoo")
+        .unwrap()
+        .amount
+        .u128();
+    assert_eq!(user_foo_bal, 1);
+
+    // Try to update existing coin
+    let err = app
+        .execute_contract(
+            Addr::unchecked("random"),
+            native_registry_instance.clone(),
+            &ExecuteMsg::Register {
+                native_coins: vec![("utoken".to_string(), 6)],
+            },
+            &[coin(1, "utoken")],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::CoinAlreadyExists("utoken".to_string())
+    );
+
+    // However, owner can update the coin
+    app.execute_contract(
+        owner.clone(),
+        native_registry_instance.clone(),
+        &ExecuteMsg::Add {
+            native_coins: vec![("utoken".to_string(), 6)],
+        },
+        &[],
+    )
+    .unwrap();
+
+    let coin_decimals: u8 = app
+        .wrap()
+        .query_wasm_smart(
+            &native_registry_instance,
+            &QueryMsg::NativeToken {
+                denom: "utoken".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(coin_decimals, 6);
 }
