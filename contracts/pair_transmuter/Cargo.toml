@@ -32,5 +32,5 @@ anyhow = "1"
 derivative = "2"
 cw20-base = "1.1"
 astroport-factory = { path = "../factory" }
-astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1" }
+astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
 astroport-test = { path = "../../packages/astroport_test" }

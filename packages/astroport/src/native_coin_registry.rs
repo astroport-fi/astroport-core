@@ -19,16 +19,19 @@ pub struct InstantiateMsg {
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
 pub enum ExecuteMsg {
-    /// Adds or updates native assets with specified precisions
-    /// ## Executor
-    /// Only the current owner can execute this
+    /// Adds or updates native assets with specified precisions.
+    /// Only the current owner can execute this.
+    /// Sender doesn't need to send any tokens.
     Add { native_coins: Vec<(String, u8)> },
+    /// Register a native asset in the registry.
+    /// Sender must send any number of coins per each asset added.
+    /// All funds will be returned to the sender.
+    /// Permissionless
+    Register { native_coins: Vec<(String, u8)> },
     /// Removes the native assets by specified parameters
-    /// ## Executor
     /// Only the current owner can execute this
     Remove { native_coins: Vec<String> },
     /// Creates a request to change contract ownership
-    /// ## Executor
     /// Only the current owner can execute this
     ProposeNewOwner {
         /// The newly proposed owner
@@ -37,11 +40,9 @@ pub enum ExecuteMsg {
         expires_in: u64,
     },
     /// Removes a request to change contract ownership
-    /// ## Executor
     /// Only the current owner can execute this
     DropOwnershipProposal {},
     /// Claims contract ownership
-    /// ## Executor
     /// Only the newly proposed owner can execute this
     ClaimOwnership {},
 }
@@ -71,11 +72,6 @@ pub struct CoinResponse {
     /// The asset precision
     pub decimals: u8,
 }
-
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
-#[cw_serde]
-pub struct MigrateMsg {}
 
 /// The first key is denom, the second key is a precision.
 pub const COINS_INFO: Map<String, u8> = Map::new("coins_info");

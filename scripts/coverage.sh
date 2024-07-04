@@ -1,4 +1,4 @@
-#!/usr/src/env bash
+#!/usr/bin/env bash
 
 # Usage: ./scripts/coverage.sh <package_name>
 # Example: ./scripts/coverage.sh astroport-pair
