@@ -25,7 +25,7 @@ cw20-base = { version = "1.1", features = ["library"] }
 astroport-pair = { path = "../../pair", features = ["library"], version = "1.5" }
 astroport-pair-stable = { path = "../../pair_stable", features = ["library"], version = "3" }
 astroport-pair-concentrated = { path = "../../pair_concentrated", features = ["library"], version = "3" }
-astroport-pcl-common = { path = "../../../packages/astroport_pcl_common", version = "2" }
+astroport-pcl-common = { path = "../../../packages/astroport_pcl_common", version = "2.0.1-feeshare-fix" }
 astroport-factory = { path = "../../factory", features = ["library"], version = "1" }
 
 [dev-dependencies]
