@@ -987,6 +987,7 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
             "2.3.0" => {
                 migrate_config_v2(deps.storage, &env)?;
             }
+            "3.0.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
