@@ -23,7 +23,8 @@ use crate::state::{
 };
 use crate::utils::{
     asset_info_key, claim_orphaned_rewards, claim_rewards, deactivate_blocked_pools,
-    deactivate_pool, incentivize, is_pool_registered, query_pair_info, remove_reward_from_pool,
+    deactivate_pool, incentivize_many, is_pool_registered, query_pair_info,
+    remove_reward_from_pool,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -94,8 +95,9 @@ pub fn execute(
         ExecuteMsg::Withdraw { lp_token, amount } => withdraw(deps, env, info, lp_token, amount),
         ExecuteMsg::SetTokensPerSecond { amount } => set_tokens_per_second(deps, env, info, amount),
         ExecuteMsg::Incentivize { lp_token, schedule } => {
-            incentivize(deps, info, env, lp_token, schedule)
+            incentivize_many(deps, info, env, vec![(lp_token, schedule)])
         }
+        ExecuteMsg::IncentivizeMany(incentives) => incentivize_many(deps, info, env, incentives),
         ExecuteMsg::RemoveRewardFromPool {
             lp_token,
             reward,

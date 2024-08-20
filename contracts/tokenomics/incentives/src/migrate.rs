@@ -13,11 +13,13 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-incentives" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" => {}
+            "1.0.0" | "1.0.1" | "1.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
     };
+
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new()
         .add_attribute("previous_contract_name", &contract_version.contract)

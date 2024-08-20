@@ -266,6 +266,7 @@ impl PoolInfo {
         storage: &mut dyn Storage,
         lp_asset: &AssetInfo,
         schedule: &IncentivesSchedule,
+        astro_token: &AssetInfo,
     ) -> Result<(), ContractError> {
         let ext_rewards_len = self
             .rewards
@@ -277,8 +278,12 @@ impl PoolInfo {
             |r| matches!(&r.reward, RewardType::Ext { info, .. } if info == &schedule.reward_info),
         );
 
-        // Check that we don't exceed the maximum number of reward tokens per pool
-        if ext_rewards_len == MAX_REWARD_TOKENS as usize && maybe_active_schedule.is_none() {
+        // Check that we don't exceed the maximum number of reward tokens per pool.
+        // Allowing ASTRO reward to exceed this limit
+        if ext_rewards_len == MAX_REWARD_TOKENS as usize
+            && maybe_active_schedule.is_none()
+            && schedule.reward_info.ne(astro_token)
+        {
             return Err(ContractError::TooManyRewardTokens {
                 lp_token: lp_asset.to_string(),
             });
@@ -288,7 +293,7 @@ impl PoolInfo {
             let next_update_ts = match &active_schedule.reward {
                 RewardType::Ext { next_update_ts, .. } => *next_update_ts,
                 RewardType::Int(_) => {
-                    unreachable!("Only external rewards can be deregistered")
+                    unreachable!("Only external rewards can be extended")
                 }
             };
 

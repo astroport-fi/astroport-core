@@ -194,14 +194,12 @@ pub struct SwapResult {
 }
 
 impl SwapResult {
-    /// Calculates **last price** and **last real price**.
-    /// Returns (last_price, last_real_price) where:
-    /// - last_price is a price for repeg algo,
+    /// Calculates **last price** for PCL repeg algo
     pub fn calc_last_price(&self, offer_amount: Decimal256, offer_ind: usize) -> Decimal256 {
         if offer_ind == 0 {
-            offer_amount / (self.dy + self.maker_fee)
+            offer_amount / (self.dy + self.maker_fee + self.share_fee)
         } else {
-            (self.dy + self.maker_fee) / offer_amount
+            (self.dy + self.maker_fee + self.share_fee) / offer_amount
         }
     }
 }

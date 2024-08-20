@@ -191,6 +191,32 @@
       "additionalProperties": false
     },
     {
+      "description": "Same as Incentivize endpoint but for multiple pools in one go.",
+      "type": "object",
+      "required": [
+        "incentivize_many"
+      ],
+      "properties": {
+        "incentivize_many": {
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/definitions/InputSchedule"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Remove specific reward token from the pool. Only the owner can execute this.",
       "type": "object",
       "required": [

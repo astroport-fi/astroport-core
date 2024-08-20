@@ -4,21 +4,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use astroport_test::cw_multi_test::{
-    AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper,
-    DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
-};
-use astroport_test::modules::stargate::MockStargate;
-use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{
-    coin, to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env,
-    GovMsg, IbcMsg, IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
-    VerificationError,
-};
-use cw20::MinterResponse;
-use itertools::Itertools;
-
-use crate::helper::broken_cw20;
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, PairInfo};
 use astroport::astro_converter::OutpostBurnParams;
 use astroport::factory::{PairConfig, PairType};
@@ -29,6 +14,22 @@ use astroport::incentives::{
 use astroport::pair::StablePoolParams;
 use astroport::vesting::{MigrateMsg, VestingAccount, VestingSchedule, VestingSchedulePoint};
 use astroport::{astro_converter, factory, native_coin_registry, pair, vesting};
+use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
+use cosmwasm_std::{
+    coin, to_json_binary, Addr, Api, BlockInfo, CanonicalAddr, Coin, Decimal256, Empty, Env,
+    GovMsg, IbcMsg, IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
+    VerificationError,
+};
+use cw20::MinterResponse;
+use itertools::Itertools;
+
+use astroport_test::cw_multi_test::{
+    AddressGenerator, App, AppBuilder, AppResponse, BankKeeper, Contract, ContractWrapper,
+    DistributionKeeper, Executor, FailingModule, StakeKeeper, WasmKeeper,
+};
+use astroport_test::modules::stargate::MockStargate;
+
+use crate::helper::broken_cw20;
 
 fn factory_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
@@ -340,6 +341,7 @@ impl Helper {
                     owner: owner.to_string(),
                     whitelist_code_id: 0,
                     coin_registry_address: coin_registry_address.to_string(),
+                    tracker_config: None,
                 },
                 &[],
                 "Astroport Factory",
@@ -655,6 +657,60 @@ impl Helper {
                 None,
             )
             .unwrap()
+    }
+
+    pub fn incentivize_many(
+        &mut self,
+        from: &Addr,
+        incentives: Vec<(&str, InputSchedule)>,
+        attach_funds: &[Coin],
+    ) -> AnyResult<AppResponse> {
+        let mut funds = HashMap::new();
+        for (_, schedule) in &incentives {
+            match &schedule.reward.info {
+                AssetInfo::Token { contract_addr } => {
+                    self.app
+                        .execute_contract(
+                            from.clone(),
+                            contract_addr.clone(),
+                            &cw20::Cw20ExecuteMsg::IncreaseAllowance {
+                                spender: self.generator.to_string(),
+                                amount: schedule.reward.amount,
+                                expires: None,
+                            },
+                            &[],
+                        )
+                        .unwrap();
+                }
+                AssetInfo::NativeToken { .. } => {
+                    let coin = schedule.reward.as_coin().unwrap();
+                    funds.insert(coin.denom.clone(), coin);
+                }
+            }
+        }
+        for coin in attach_funds {
+            match funds.entry(coin.denom.clone()) {
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().amount += coin.amount;
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(coin.clone());
+                }
+            }
+        }
+        let funds = funds.values().cloned().collect_vec();
+
+        self.app.execute_contract(
+            from.clone(),
+            self.generator.clone(),
+            &ExecuteMsg::IncentivizeMany(
+                incentives
+                    .into_iter()
+                    .map(|(lp_token, schedule)| (lp_token.to_string(), schedule))
+                    .collect(),
+            ),
+            &funds,
+        )
     }
 
     pub fn incentivize(
@@ -1021,6 +1077,7 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: Some(auto_stake),
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app

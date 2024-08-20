@@ -20,6 +20,7 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
     MINIMUM_LIQUIDITY_AMOUNT,
 };
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::{
@@ -45,8 +46,6 @@ use crate::state::{Config, BALANCES, CONFIG};
 const CONTRACT_NAME: &str = "astroport-pair";
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Tokenfactory LP token subdenom
-pub const LP_SUBDENOM: &str = "astroport/share";
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]

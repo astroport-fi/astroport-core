@@ -18,7 +18,7 @@ use astroport::asset::AssetInfoExt;
 use astroport::asset::{
     addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::factory::PairType;
 use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
@@ -56,8 +56,6 @@ use crate::utils::{
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Tokenfactory LP token subdenom
-pub const LP_SUBDENOM: &str = "astroport/share";
 /// An LP token's precision.
 pub(crate) const LP_TOKEN_PRECISION: u8 = 6;
 
