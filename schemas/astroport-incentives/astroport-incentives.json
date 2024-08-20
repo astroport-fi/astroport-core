@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-incentives",
-  "contract_version": "1.1.0",
+  "contract_version": "1.2.0-vxastro-rc.1",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -332,6 +332,32 @@
               }
             },
             "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Same as Incentivize endpoint but for multiple pools in one go.",
+        "type": "object",
+        "required": [
+          "incentivize_many"
+        ],
+        "properties": {
+          "incentivize_many": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": [
+                {
+                  "type": "string"
+                },
+                {
+                  "$ref": "#/definitions/InputSchedule"
+                }
+              ],
+              "maxItems": 2,
+              "minItems": 2
+            }
           }
         },
         "additionalProperties": false
@@ -1711,7 +1737,7 @@
               "additionalProperties": false
             },
             {
-              "description": "External rewards always have corresponding schedules. Reward is paid out from Generator contract balance.",
+              "description": "External rewards always have corresponding schedules. Reward is paid out from Incentives contract balance.",
               "type": "object",
               "required": [
                 "ext"
@@ -1897,7 +1923,7 @@
               "additionalProperties": false
             },
             {
-              "description": "External rewards always have corresponding schedules. Reward is paid out from Generator contract balance.",
+              "description": "External rewards always have corresponding schedules. Reward is paid out from Incentives contract balance.",
               "type": "object",
               "required": [
                 "ext"

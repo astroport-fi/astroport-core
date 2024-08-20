@@ -61,14 +61,11 @@ impl IncentivesSchedule {
         let block_ts = env.block.time.seconds();
 
         let rem = block_ts % EPOCHS_START;
-        let next_epoch_start_ts = if rem % EPOCH_LENGTH == 0 {
-            // Hit at the beginning of the current epoch
-            block_ts
-        } else {
-            // Hit somewhere in the middle.
-            // Partially distribute rewards for the current epoch and add input.duration_periods periods more
-            EPOCHS_START + (rem / EPOCH_LENGTH + 1) * EPOCH_LENGTH
-        };
+        // If rem == 0 then we are at the beginning of the current epoch.
+        // To keep logic consistent, we always add 1 week more.
+        // Hence, minimal possible duration varies from 7 days 1 second to 14 days,
+        // which depends on how far from Monday block time is.
+        let next_epoch_start_ts = EPOCHS_START + (rem / EPOCH_LENGTH + 1) * EPOCH_LENGTH;
         let end_ts = next_epoch_start_ts + input.duration_periods * EPOCH_LENGTH;
 
         let rps = Decimal256::from_ratio(input.reward.amount, end_ts - block_ts);
@@ -131,6 +128,8 @@ pub enum ExecuteMsg {
         /// Incentives schedule
         schedule: InputSchedule,
     },
+    /// Same as Incentivize endpoint but for multiple pools in one go.
+    IncentivizeMany(Vec<(String, InputSchedule)>),
     /// Remove specific reward token from the pool.
     /// Only the owner can execute this.
     RemoveRewardFromPool {
@@ -412,13 +411,13 @@ mod tests {
         let schedule = IncentivesSchedule::from_input(
             &env,
             &InputSchedule {
-                reward: AssetInfo::native("test").with_balance(EPOCH_LENGTH),
+                reward: AssetInfo::native("test").with_balance(2 * EPOCH_LENGTH),
                 duration_periods: 1,
             },
         )
         .unwrap();
 
-        assert_eq!(schedule.next_epoch_start_ts, EPOCHS_START);
+        assert_eq!(schedule.next_epoch_start_ts, EPOCHS_START + EPOCH_LENGTH);
         assert_eq!(schedule.end_ts, schedule.next_epoch_start_ts + EPOCH_LENGTH);
         assert_eq!(schedule.rps, Decimal256::one());
 

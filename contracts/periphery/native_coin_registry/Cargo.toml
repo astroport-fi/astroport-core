@@ -32,7 +32,7 @@ cw-storage-plus.workspace = true
 cw2.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
-astroport = { path = "../../../packages/astroport", version = "5.2" }
+astroport = "5.2"
 
 [dev-dependencies]
 cw-multi-test = "1.0.0"

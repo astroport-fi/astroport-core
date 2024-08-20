@@ -5,6 +5,8 @@ use cosmwasm_std::{
 use cw_storage_plus::Item;
 
 const MAX_PROPOSAL_TTL: u64 = 1209600;
+/// Tokenfactory LP token subdenom
+pub const LP_SUBDENOM: &str = "astroport/share";
 
 /// This structure describes the parameters used for creating a request for a change of contract ownership.
 #[cw_serde]

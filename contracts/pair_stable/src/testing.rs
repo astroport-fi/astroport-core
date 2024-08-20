@@ -1,4 +1,3 @@
-use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coin, from_json, to_json_binary, Addr, BankMsg, Binary, BlockInfo, Coin, CosmosMsg,
@@ -12,6 +11,7 @@ use prost::Message;
 use sim::StableSwapModel;
 
 use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::observation::query_observation;
 use astroport::observation::Observation;
 use astroport::observation::OracleObservation;
@@ -19,17 +19,18 @@ use astroport::pair::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
     SimulationResponse, StablePoolParams,
 };
+use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use astroport_circular_buffer::BufferManager;
+use astroport_test::convert::f64_to_dec;
 
 use crate::contract::{
     assert_max_spread, execute, instantiate, query, query_pool, query_reverse_simulation,
-    query_share, query_simulation, reply, LP_SUBDENOM,
+    query_share, query_simulation, reply,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{CONFIG, OBSERVATIONS};
 use crate::utils::{compute_swap, select_pools};
-use astroport_test::convert::f64_to_dec;
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {

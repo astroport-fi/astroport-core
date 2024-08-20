@@ -1,6 +1,6 @@
 [package]
 name = "astroport-incentives"
-version = "1.1.0"
+version = "1.2.0-vxastro-rc.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Incentives Contract distributing rewards to LP stakers"
@@ -21,7 +21,7 @@ cosmwasm-schema.workspace = true
 cw2.workspace = true
 cw20 = "1"
 cw-utils.workspace = true
-astroport = "4"
+astroport.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
 

@@ -9,6 +9,7 @@ use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, CoinsExt, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::pair::{ExecuteMsg, InstantiateMsg};
 use astroport::token_factory::{
@@ -27,8 +28,6 @@ const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
 const CREATE_DENOM_REPLY_ID: u64 = 1;
-/// Tokenfactory LP token subdenom
-pub const LP_SUBDENOM: &str = "astroport/share";
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(

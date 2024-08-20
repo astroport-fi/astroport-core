@@ -1,12 +1,13 @@
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
-
 use astroport::asset::{native_asset_info, AssetInfo, AssetInfoExt};
 use astroport::incentives::{
-    ExecuteMsg, IncentivizationFeeInfo, ScheduleResponse, EPOCHS_START, EPOCH_LENGTH,
-    MAX_REWARD_TOKENS,
+    ExecuteMsg, IncentivizationFeeInfo, InputSchedule, ScheduleResponse, EPOCHS_START,
+    EPOCH_LENGTH, MAX_REWARD_TOKENS,
 };
+use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
+use itertools::Itertools;
+
 use astroport_incentives::error::ContractError;
 use astroport_test::cw_multi_test::Executor;
 
@@ -692,6 +693,58 @@ fn test_multiple_schedules_same_reward() {
 }
 
 #[test]
+fn test_astro_can_bypass_rewards_limit() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let lp_token = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("bar")])
+        .unwrap()
+        .liquidity_token
+        .to_string();
+
+    let bank = TestAddr::new("bank");
+
+    let schedules: Vec<_> = (1..=MAX_REWARD_TOKENS)
+        .into_iter()
+        .map(|i| {
+            let reward_asset_info = AssetInfo::native(format!("reward{i}"));
+            let reward = reward_asset_info.with_balance(1000_000000u128);
+            helper.create_schedule(&reward, 1).unwrap()
+        })
+        .collect();
+    // Create multiple schedules with different rewards (starts on the next week)
+    for (schedule, _) in &schedules {
+        helper.mint_assets(&bank, &[schedule.reward.clone()]);
+        helper.mint_coin(&bank, &incentivization_fee);
+        helper
+            .incentivize(
+                &bank,
+                &lp_token,
+                schedule.clone(),
+                &[incentivization_fee.clone()],
+            )
+            .unwrap();
+    }
+
+    // ASTRO can always be added no matter what MAX_REWARD_TOKENS limit is
+    let astro_reward = astro.with_balance(1000_000000u128);
+    helper.mint_assets(&bank, &[astro_reward.clone()]);
+    helper
+        .incentivize(
+            &bank,
+            &lp_token,
+            InputSchedule {
+                reward: astro_reward.clone(),
+                duration_periods: 1,
+            },
+            &[],
+        )
+        .unwrap();
+}
+
+#[test]
 fn test_multiple_schedules_different_reward() {
     let astro = native_asset_info("astro".to_string());
     let mut helper = Helper::new("owner", &astro, false).unwrap();
@@ -834,6 +887,174 @@ fn test_multiple_schedules_different_reward() {
 }
 
 #[test]
+fn test_incentivize_many() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair_info = helper.create_pair(&asset_infos).unwrap();
+    let lp_token = pair_info.liquidity_token.to_string();
+
+    let provide_assets = [
+        asset_infos[0].with_balance(100000u64),
+        asset_infos[1].with_balance(100000u64),
+    ];
+    // Owner provides liquidity first just to make following calculations easier
+    // since first depositor gets small cut of LP tokens
+    helper
+        .provide_liquidity(
+            &owner,
+            &provide_assets,
+            &pair_info.contract_addr,
+            false, // Owner doesn't stake in generator
+        )
+        .unwrap();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(&user, &provide_assets, &pair_info.contract_addr, true)
+        .unwrap();
+
+    let bank = TestAddr::new("bank");
+
+    let schedules: Vec<_> = (1..=MAX_REWARD_TOKENS)
+        .into_iter()
+        .map(|i| {
+            let reward_asset_info = AssetInfo::native(format!("reward{i}"));
+            let reward = reward_asset_info.with_balance(1000_000000u128);
+            helper.create_schedule(&reward, 2).unwrap()
+        })
+        .collect();
+
+    // Create multiple schedules with different rewards (starts on the next week)
+    let incentives = schedules
+        .iter()
+        .map(|(schedule, _)| {
+            helper.mint_assets(&bank, &[schedule.reward.clone()]);
+            helper.mint_coin(&bank, &incentivization_fee);
+            (lp_token.as_str(), schedule.clone())
+        })
+        .collect_vec();
+
+    // Missing incentivize fee
+    let err = helper
+        .incentivize_many(&bank, incentives.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncentivizationFeeExpected {
+            fee: incentivization_fee.to_string(),
+            lp_token: lp_token.clone(),
+            new_reward_token: schedules[0].0.reward.info.to_string(),
+        }
+    );
+
+    // Add random coins
+    let random_coin = coin(1000, "random");
+    helper.mint_coin(&bank, &random_coin);
+    let err = helper
+        .incentivize_many(
+            &bank,
+            incentives.clone(),
+            &[
+                coin(
+                    incentivization_fee.amount.u128() * schedules.len() as u128,
+                    &incentivization_fee.denom,
+                ),
+                random_coin,
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Supplied coins contain random that is not in the input asset vector"
+    );
+
+    helper
+        .incentivize_many(
+            &bank,
+            incentives,
+            &coins(
+                incentivization_fee.amount.u128() * schedules.len() as u128,
+                &incentivization_fee.denom,
+            ),
+        )
+        .unwrap();
+
+    // Can't incentivize with one more reward token
+    let reward_asset_info = AssetInfo::native(format!("reward{}", MAX_REWARD_TOKENS + 1));
+    let reward = reward_asset_info.with_balance(1000_000000u128);
+    let (schedule, _) = helper.create_schedule(&reward, 2).unwrap();
+    helper.mint_assets(&bank, &[schedule.reward.clone()]);
+    helper.mint_coin(&bank, &incentivization_fee);
+    let err = helper
+        .incentivize(
+            &bank,
+            &lp_token,
+            schedule.clone(),
+            &[incentivization_fee.clone()],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::TooManyRewardTokens {
+            lp_token: lp_token.clone()
+        }
+    );
+
+    // Rewards started right away
+    helper
+        .app
+        .update_block(|block| block.time = block.time.plus_seconds(86400));
+    for (schedule, _) in &schedules {
+        helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
+        let reward_balance = schedule
+            .reward
+            .info
+            .query_pool(&helper.app.wrap(), &user)
+            .unwrap();
+        assert_eq!(reward_balance.u128(), 47_629547);
+    }
+
+    // Iterate till the end of the longest schedule by 1 day and claim rewards
+    loop {
+        let pending = helper.query_pending_rewards(&user, &lp_token);
+        let bal_before = helper.snapshot_balances(&user, &pending);
+
+        helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
+
+        let bal_after = helper.snapshot_balances(&user, &pending);
+        assert_rewards(&bal_before, &bal_after, &pending);
+
+        if helper.app.block_info().time.seconds() > schedules.last().cloned().unwrap().1.end_ts {
+            break;
+        } else {
+            helper
+                .app
+                .update_block(|block| block.time = block.time.plus_seconds(86400));
+        }
+    }
+
+    for (schedule, _) in &schedules {
+        helper.claim_rewards(&user, vec![lp_token.clone()]).unwrap();
+        let reward_balance = schedule
+            .reward
+            .info
+            .query_pool(&helper.app.wrap(), &user)
+            .unwrap();
+        // Total amount is a bit off because of rounding due to Decimal256 type
+        assert_eq!(
+            reward_balance.u128(),
+            999_999980,
+            "Balance for {} is wrong",
+            schedule.reward.info
+        );
+    }
+}
+
+#[test]
 fn test_claim_between_different_periods() {
     let astro = native_asset_info("astro".to_string());
     let mut helper = Helper::new("owner", &astro, false).unwrap();
@@ -924,7 +1145,6 @@ fn test_astro_external_reward() {
         .update_block(|block| block.time = Timestamp::from_seconds(EPOCHS_START + EPOCH_LENGTH));
 
     let owner = helper.owner.clone();
-    let incentivization_fee = helper.incentivization_fee.clone();
 
     let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
     let pair_info = helper.create_pair(&asset_infos).unwrap();
@@ -955,18 +1175,11 @@ fn test_astro_external_reward() {
     // Setup external rewards: 2 equal external ASTRO rewards that must be summed up
     let bank = TestAddr::new("bank");
     let reward = astro.with_balance(2u128 * 7 * 86400 * 25); // 25 uastro per second
-    let (schedule, internal_sch) = helper.create_schedule(&reward, 2).unwrap();
+    let (schedule, internal_sch) = helper.create_schedule(&reward, 1).unwrap();
     helper.mint_assets(&bank, &[reward.clone()]);
-    helper.mint_coin(&bank, &incentivization_fee);
     helper
-        .incentivize(
-            &bank,
-            &lp_token,
-            schedule.clone(),
-            &[incentivization_fee.clone()],
-        )
+        .incentivize(&bank, &lp_token, schedule.clone(), &[])
         .unwrap();
-    // 2nd schedule doesn't require incentivization fee
     helper.mint_assets(&bank, &[reward.clone()]);
     helper
         .incentivize(&bank, &lp_token, schedule.clone(), &[])
@@ -1008,7 +1221,7 @@ fn test_astro_external_reward() {
     assert_eq!(
         astro_reward_balance.u128(),
         u128::from(time_now - time_before_claims) * 100 // protocol rewards
-            + u128::from(internal_sch.end_ts - internal_sch.next_epoch_start_ts) * 50 // external rewards
+            + u128::from(internal_sch.end_ts - time_before_claims) * 50 // external rewards
     );
 }
 
@@ -1490,7 +1703,7 @@ fn test_remove_rewards() {
     let bank = TestAddr::new("bank");
     let reward_asset_info = AssetInfo::native("reward");
     let reward = reward_asset_info.with_balance(1000_000000u128);
-    let (schedule, internal_sch) = helper.create_schedule(&reward, 2).unwrap();
+    let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
 
     helper.mint_assets(&bank, &[reward.clone()]);
     helper.mint_coin(&bank, &incentivization_fee);
@@ -1503,10 +1716,6 @@ fn test_remove_rewards() {
             &[incentivization_fee.clone()],
         )
         .unwrap();
-
-    helper.app.update_block(|block| {
-        block.time = Timestamp::from_seconds(internal_sch.next_epoch_start_ts)
-    });
 
     // 5 days
     for _ in 0..5 {
@@ -1655,7 +1864,7 @@ fn test_long_unclaimed_rewards() {
         .query_pool(&helper.app.wrap(), &receiver)
         .unwrap()
         .u128();
-    assert_eq!(deregister_amount, 62499_999999);
+    assert_eq!(deregister_amount, 58441_558441);
 
     // Iterate till the end of the longest schedule by 1 day and claim rewards
     loop {
@@ -1681,7 +1890,7 @@ fn test_long_unclaimed_rewards() {
         .query_pool(&helper.app.wrap(), &user)
         .unwrap()
         .u128();
-    assert_eq!(deregister_amount + claimed_reward1, 99999_999998);
+    assert_eq!(deregister_amount + claimed_reward1, 99999_999999);
 
     for (schedule, _) in schedules.iter().skip(2) {
         let bal = schedule
@@ -1690,7 +1899,7 @@ fn test_long_unclaimed_rewards() {
             .query_pool(&helper.app.wrap(), &user)
             .unwrap()
             .u128();
-        assert_eq!(bal, 99_999_999974); // All rewards are claimed
+        assert_eq!(bal, 99_999_999943); // All rewards are claimed
     }
 }
 
@@ -2028,7 +2237,13 @@ fn test_incentive_without_funds() {
         )
         .unwrap_err();
 
-    assert_eq!(err.root_cause().to_string(), "Generic error: Native token balance mismatch between the argument (1000000000usdc) and the transferred (0usdc)")
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InsuffiicientRewardToken {
+            reward: reward_asset_info.to_string(),
+            lp_token
+        }
+    )
 }
 
 #[test]

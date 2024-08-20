@@ -12,11 +12,11 @@ use astroport::pair::{
     MAX_FEE_SHARE_BPS, TWAP_PRECISION,
 };
 
-use astroport_pair_stable::contract::LP_SUBDENOM;
 use astroport_pair_stable::error::ContractError;
 
 use std::str::FromStr;
 
+use astroport::common::LP_SUBDENOM;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
@@ -231,7 +231,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
     assert_eq!("contract2", res.contract_addr);
     assert_eq!(
-        format!("factory/contract2/{}", LP_SUBDENOM),
+        format!("factory/contract2/{LP_SUBDENOM}"),
         res.liquidity_token
     );
 

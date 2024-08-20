@@ -13,17 +13,24 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
+use cw_utils::{
+    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
+};
 
 use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
     MINIMUM_LIQUIDITY_AMOUNT,
 };
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::{ConfigResponse, ReplyIds, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE};
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, QueryMsg,
     ReverseSimulationResponse, SimulationResponse, TWAP_PRECISION,
+};
+use astroport::pair_xyk_sale_tax::{
+    MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked,
 };
 use astroport::querier::{
     query_factory_config, query_fee_info, query_native_supply, query_tracker_config,
@@ -32,16 +39,10 @@ use astroport::token_factory::{
     tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
 };
 use astroport::{tokenfactory_tracker, U256};
-use cw_utils::{
-    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
-};
+use astroport_pair::state::{Config as XykConfig, CONFIG as XYK_CONFIG};
 
 use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
-use astroport::pair_xyk_sale_tax::{
-    MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked,
-};
-use astroport_pair::state::{Config as XykConfig, CONFIG as XYK_CONFIG};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -49,8 +50,6 @@ const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
 const CREATE_DENOM_REPLY_ID: u64 = 1;
-/// Tokenfactory LP token subdenom
-pub const LP_SUBDENOM: &str = "astroport/share";
 
 /// Creates a new contract with the specified parameters in the [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -1480,11 +1479,12 @@ pub fn pool_info(querier: QuerierWrapper, config: &Config) -> StdResult<(Vec<Ass
 
 #[cfg(test)]
 mod tests {
+    use cosmwasm_std::{Addr, Decimal, Uint128};
+
     use astroport::{
         asset::{Asset, AssetInfo},
         pair_xyk_sale_tax::TaxConfig,
     };
-    use cosmwasm_std::{Addr, Decimal, Uint128};
 
     use crate::contract::{compute_swap, SwapResult};
 
