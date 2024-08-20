@@ -69,4 +69,7 @@ pub enum ContractError {
 
     #[error("Failed to migrate contract")]
     MigrationError {},
+
+    #[error("Sent insufficient reward {reward} for pool {lp_token}")]
+    InsuffiicientRewardToken { reward: String, lp_token: String },
 }

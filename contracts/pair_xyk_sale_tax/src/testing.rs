@@ -1,5 +1,3 @@
-use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked, TaxConfigsChecked};
-use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, BankMsg, Binary, BlockInfo, Coin, CosmosMsg, Decimal,
@@ -8,24 +6,26 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use proptest::prelude::*;
+use prost::Message;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
     SimulationResponse, TWAP_PRECISION,
 };
+use astroport::pair_xyk_sale_tax::{SaleTaxInitParams, TaxConfigChecked, TaxConfigsChecked};
+use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
-    query_reverse_simulation, query_share, query_simulation, reply, LP_SUBDENOM,
+    query_reverse_simulation, query_share, query_simulation, reply,
 };
 use crate::contract::{compute_offer_amount, SwapResult};
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{Config, CONFIG};
-
-use prost::Message;
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {

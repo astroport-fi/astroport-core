@@ -18,9 +18,9 @@ use astroport::tokenfactory_tracker::{
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
-use astroport_pair::contract::LP_SUBDENOM;
 use astroport_pair::error::ContractError;
 
+use astroport::common::LP_SUBDENOM;
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Coin, Decimal, DepsMut, Empty, Env, MessageInfo, Response,
     StdResult, Uint128, Uint64,
@@ -162,7 +162,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
     assert_eq!("contract1", res.contract_addr);
     assert_eq!(
-        format!("factory/contract1/{}", LP_SUBDENOM),
+        format!("factory/contract1/{LP_SUBDENOM}"),
         res.liquidity_token
     );
 
@@ -383,10 +383,7 @@ fn test_provide_and_withdraw_liquidity() {
 
     assert_eq!(
         err.root_cause().to_string(),
-        format!(
-            "Must send reserve token 'factory/contract1/{}'",
-            LP_SUBDENOM
-        )
+        format!("Must send reserve token 'factory/contract1/{LP_SUBDENOM}'",)
     );
 
     // Withdraw liquidity doubling the minimum to recieve

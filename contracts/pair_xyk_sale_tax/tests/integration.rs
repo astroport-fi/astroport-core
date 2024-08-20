@@ -17,7 +17,7 @@ use astroport::tokenfactory_tracker::{
     ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
 };
 
-use astroport_pair::contract::LP_SUBDENOM;
+use astroport::common::LP_SUBDENOM;
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
@@ -195,7 +195,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
     assert_eq!("contract1", res.contract_addr);
     assert_eq!(
-        format!("factory/contract1/{}", LP_SUBDENOM),
+        format!("factory/contract1/{LP_SUBDENOM}"),
         res.liquidity_token
     );
 

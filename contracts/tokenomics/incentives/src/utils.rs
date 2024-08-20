@@ -5,7 +5,7 @@ use cosmwasm_std::{
 use itertools::Itertools;
 
 use astroport::asset::{
-    determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, CoinsExt, PairInfo,
+    determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo,
 };
 use astroport::factory::PairType;
 use astroport::incentives::{Config, IncentivesSchedule, InputSchedule, MAX_ORPHANED_REWARD_LIMIT};
@@ -202,14 +202,15 @@ pub fn deactivate_blocked_pools(deps: DepsMut, env: Env) -> Result<Response, Con
 
 pub fn incentivize(
     deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
+    info: &mut MessageInfo,
+    env: &Env,
+    response: Response,
     lp_token: String,
     input: InputSchedule,
 ) -> Result<Response, ContractError> {
-    let schedule = IncentivesSchedule::from_input(&env, &input)?;
+    let schedule = IncentivesSchedule::from_input(env, &input)?;
 
-    let mut response = Response::new().add_attributes([
+    let mut response = response.add_attributes([
         attr("action", "incentivize"),
         attr("lp_token", lp_token.clone()),
         attr("start_ts", env.block.time.seconds().to_string()),
@@ -231,49 +232,46 @@ pub fn incentivize(
     is_pool_registered(deps.querier, &config, &pair_info, &lp_token)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
-    pool_info.update_rewards(deps.storage, &env, &lp_token_asset)?;
+    pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
 
     let rewards_number_before = pool_info.rewards.len();
-    pool_info.incentivize(deps.storage, &lp_token_asset, &schedule)?;
-
-    let mut funds = info.funds.clone();
+    pool_info.incentivize(
+        deps.storage,
+        &lp_token_asset,
+        &schedule,
+        &config.astro_token,
+    )?;
 
     // Check whether this is a new external reward token.
     // 3rd parties are encouraged to keep endless schedules without breaks even with the small rewards.
     // Otherwise, reward token will be removed from the pool info and go to outstanding rewards.
     // Next schedules with the same token will be considered as "new".
-    if rewards_number_before < pool_info.rewards.len() {
+    // ASTRO rewards don't require incentivize fee.
+    if rewards_number_before < pool_info.rewards.len() && schedule.reward_info != config.astro_token
+    {
         // If fee set we expect to receive it
         if let Some(incentivization_fee_info) = &config.incentivization_fee_info {
-            let fee_coin_pos = funds
-                .iter()
-                .find_position(|coin| coin.denom == incentivization_fee_info.fee.denom);
-            if let Some((ind, fee_coin)) = fee_coin_pos {
-                // Mutate funds array so we can assert below that reward coins properly sent
-                funds[ind].amount = fee_coin
-                    .amount
-                    .checked_sub(incentivization_fee_info.fee.amount)
-                    .map_err(|_| ContractError::IncentivizationFeeExpected {
-                        fee: incentivization_fee_info.fee.to_string(),
-                        lp_token,
-                        new_reward_token: schedule.reward_info.to_string(),
-                    })?;
-                if funds[ind].amount.is_zero() {
-                    funds.remove(ind);
-                }
-
-                // Send fee to fee receiver
-                response = response.add_message(BankMsg::Send {
-                    to_address: incentivization_fee_info.fee_receiver.to_string(),
-                    amount: vec![incentivization_fee_info.fee.clone()],
-                });
-            } else {
-                return Err(ContractError::IncentivizationFeeExpected {
+            info.funds
+                .iter_mut()
+                .find(|coin| coin.denom == incentivization_fee_info.fee.denom)
+                .and_then(|found| {
+                    found.amount = found
+                        .amount
+                        .checked_sub(incentivization_fee_info.fee.amount)
+                        .ok()?;
+                    Some(())
+                })
+                .ok_or_else(|| ContractError::IncentivizationFeeExpected {
                     fee: incentivization_fee_info.fee.to_string(),
-                    lp_token,
+                    lp_token: lp_token.clone(),
                     new_reward_token: schedule.reward_info.to_string(),
-                });
-            }
+                })?;
+
+            // Send fee to fee receiver
+            response = response.add_message(BankMsg::Send {
+                to_address: incentivization_fee_info.fee_receiver.to_string(),
+                amount: vec![incentivization_fee_info.fee.clone()],
+            });
         }
     }
 
@@ -290,12 +288,47 @@ pub fn incentivize(
                 vec![],
             )?);
         }
-        AssetInfo::NativeToken { .. } => {
-            funds.assert_coins_properly_sent(&[input.reward], &[schedule.reward_info.clone()])?
+        AssetInfo::NativeToken { denom } => {
+            // Mutate funds array
+            info.funds
+                .iter_mut()
+                .find(|coin| coin.denom.eq(denom))
+                .and_then(|found| {
+                    found.amount = found.amount.checked_sub(input.reward.amount).ok()?;
+                    Some(())
+                })
+                .ok_or_else(|| ContractError::InsuffiicientRewardToken {
+                    reward: input.reward.info.to_string(),
+                    lp_token,
+                })?;
         }
     }
 
     pool_info.save(deps.storage, &lp_token_asset)?;
+
+    Ok(response)
+}
+
+pub fn incentivize_many(
+    mut deps: DepsMut,
+    mut info: MessageInfo,
+    env: Env,
+    incentives: Vec<(String, InputSchedule)>,
+) -> Result<Response, ContractError> {
+    let mut response = Response::default();
+    for (lp_token, schedule) in incentives {
+        response = incentivize(deps.branch(), &mut info, &env, response, lp_token, schedule)?;
+    }
+
+    for coin in info.funds {
+        ensure!(
+            coin.amount.is_zero(),
+            StdError::generic_err(format!(
+                "Supplied coins contain {} that is not in the input asset vector",
+                &coin.denom
+            ))
+        );
+    }
 
     Ok(response)
 }

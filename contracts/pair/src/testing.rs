@@ -6,8 +6,10 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use proptest::prelude::*;
+use prost::Message;
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, InstantiateMsg, PoolResponse, ReverseSimulationResponse,
@@ -15,17 +17,15 @@ use astroport::pair::{
 };
 use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint};
 
+use crate::contract::compute_offer_amount;
 use crate::contract::reply;
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
     query_reverse_simulation, query_share, query_simulation,
 };
-use crate::contract::{compute_offer_amount, LP_SUBDENOM};
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{Config, CONFIG};
-
-use prost::Message;
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {

@@ -18,7 +18,7 @@ use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, Decimal256Ext,
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
@@ -56,8 +56,6 @@ const CONTRACT_NAME: &str = "astroport-pair-stable";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
 const CREATE_DENOM_REPLY_ID: u64 = 1;
-/// Tokenfactory LP token subdenom
-pub const LP_SUBDENOM: &str = "astroport/share";
 /// Number of assets in the pool.
 const N_COINS: usize = 2;
 

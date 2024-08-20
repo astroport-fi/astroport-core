@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated"
-version = "4.0.1"
+version = "4.0.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"
@@ -29,7 +29,7 @@ injective = ["astroport/injective", "astroport-pcl-common/injective"]
 sei = ["astroport/sei", "astroport-pcl-common/sei"]
 
 [dependencies]
-astroport = { path = "../../packages/astroport", version = "5" }
+astroport.workspace = true
 astroport-factory = { path = "../factory", features = ["library"], version = "1" }
 astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }

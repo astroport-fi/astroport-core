@@ -28,7 +28,7 @@ sei = ["astroport/sei"]
 library = []
 
 [dependencies]
-astroport = { path = "../../packages/astroport", version = "5" }
+astroport.workspace = true
 cw2.workspace = true
 cw20 = "1.1"
 cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
