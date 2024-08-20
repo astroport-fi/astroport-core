@@ -1563,6 +1563,17 @@ fn check_correct_fee_share() {
     helper.give_me_money(&[offer_asset.clone()], &user);
     helper.swap(&user, &offer_asset, None).unwrap();
 
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("1.001187607454013938").unwrap()
+    );
+
     // Check that the shared fees are sent
     let expected_fee_share = 26081u128;
     let recipient_balance = helper.coin_balance(&test_coins[1], &share_recipient);
@@ -1580,6 +1591,17 @@ fn check_correct_fee_share() {
     helper.give_me_money(&[offer_asset.clone()], &user);
     helper.swap(&user, &offer_asset, None).unwrap();
 
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("0.998842355796925899").unwrap()
+    );
+
     helper
         .withdraw_liquidity(&provider, 999_999354, vec![])
         .unwrap();
@@ -1587,6 +1609,17 @@ fn check_correct_fee_share() {
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
     helper.give_me_money(&[offer_asset.clone()], &user);
     helper.swap(&user, &offer_asset, None).unwrap();
+
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("1.00118760696709103").unwrap()
+    );
 
     // Disable fee share
     let action = ConcentratedPoolUpdateParams::DisableFeeShare {};
