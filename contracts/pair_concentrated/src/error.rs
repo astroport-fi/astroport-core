@@ -1,4 +1,4 @@
-use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
+use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError, Uint128};
 use thiserror::Error;
 
 use cw_utils::{ParseReplyError, PaymentError};
@@ -66,4 +66,7 @@ pub enum ContractError {
         MAX_FEE_SHARE_BPS
     )]
     FeeShareOutOfBounds {},
+
+    #[error("Slippage is more than expected: received {0}, expected {1} LP tokens")]
+    ProvideSlippageViolation(Uint128, Uint128),
 }

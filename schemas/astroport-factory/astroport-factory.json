@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-factory",
-  "contract_version": "1.8.0",
+  "contract_version": "1.8.1",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
