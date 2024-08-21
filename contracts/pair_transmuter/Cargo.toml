@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-transmuter"
-version = "1.1.1"
+version = "1.1.2"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport constant sum pair contract implementation. Handles no fee pools with constant 1:1 ratio."
