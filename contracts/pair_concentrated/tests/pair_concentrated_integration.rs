@@ -1422,6 +1422,32 @@ fn provide_withdraw_slippage() {
     helper
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
         .unwrap();
+
+    let err = helper
+        .provide_liquidity_full(
+            &owner,
+            &assets,
+            Some(f64_to_dec(0.5)),
+            None,
+            None,
+            Some(10000000000u128.into()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::ProvideSlippageViolation(1000229863u128.into(), 10000000000u128.into()),
+        err.downcast().unwrap(),
+    );
+
+    helper
+        .provide_liquidity_full(
+            &owner,
+            &assets,
+            Some(f64_to_dec(0.5)),
+            None,
+            None,
+            Some(1000229863u128.into()),
+        )
+        .unwrap();
 }
 
 #[test]

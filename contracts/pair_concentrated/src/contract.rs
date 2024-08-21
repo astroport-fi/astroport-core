@@ -3,11 +3,11 @@ use std::vec;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin, CosmosMsg,
-    Decimal, Decimal256, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult,
-    SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
+    attr, coin, ensure, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin,
+    CosmosMsg, Decimal, Decimal256, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError,
+    StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use cw_utils::{
     one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
@@ -290,7 +290,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
-            ..
+            min_lp_to_receive,
         } => provide_liquidity(
             deps,
             env,
@@ -299,6 +299,7 @@ pub fn execute(
             slippage_tolerance,
             auto_stake,
             receiver,
+            min_lp_to_receive,
         ),
         ExecuteMsg::Swap {
             offer_asset,
@@ -419,6 +420,7 @@ fn receive_cw20(
 /// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
 ///
 /// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
+#[allow(clippy::too_many_arguments)]
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -427,6 +429,7 @@ pub fn provide_liquidity(
     slippage_tolerance: Option<Decimal>,
     auto_stake: Option<bool>,
     receiver: Option<String>,
+    min_lp_to_receive: Option<Uint128>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -495,6 +498,12 @@ pub fn provide_liquidity(
             false,
         )?);
     }
+
+    let min_amount_lp = min_lp_to_receive.unwrap_or_default();
+    ensure!(
+        share_uint128 >= min_amount_lp,
+        ContractError::ProvideSlippageViolation(share_uint128, min_amount_lp,)
+    );
 
     // Mint LP tokens for the sender or for the receiver (if set)
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
@@ -892,6 +901,22 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        "astroport-pair-concentrated" => match contract_version.version.as_ref() {
+            "4.0.0" | "4.0.1" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
