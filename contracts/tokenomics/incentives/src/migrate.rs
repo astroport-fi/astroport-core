@@ -13,7 +13,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-incentives" => match contract_version.version.as_ref() {
-            "1.0.0" | "1.0.1" | "1.1.0" => {}
+            "1.0.0" | "1.0.1" | "1.1.0" | "1.2.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

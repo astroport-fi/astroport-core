@@ -41,6 +41,7 @@ pub fn instantiate(
             vesting_contract: deps.api.addr_validate(&msg.vesting_contract)?,
             guardian: addr_opt_validate(deps.api, &msg.guardian)?,
             incentivization_fee_info: msg.incentivization_fee_info,
+            token_transfer_gas_limit: None,
         },
     )?;
     ACTIVE_POOLS.save(deps.storage, &vec![])?;

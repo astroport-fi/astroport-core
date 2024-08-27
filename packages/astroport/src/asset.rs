@@ -201,13 +201,15 @@ impl Asset {
         }
     }
 
-    /// Same as [`Asset::into_msg`] but allows to handle errors/msg response data in contract's reply endpoint.
+    /// Same as [`Asset::into_msg`] but allows handling errors/msg response data and
+    /// enforcing gas limit in contract's reply endpoint.
     /// If `reply_params` is None then the reply is disabled.
     /// Returns a [`SubMsg`] object.
     pub fn into_submsg<T>(
         self,
         recipient: impl Into<String>,
         reply_params: Option<(ReplyOn, u64)>,
+        gas_limit: Option<u64>,
     ) -> StdResult<SubMsg<T>>
     where
         T: CustomMsg,
@@ -229,7 +231,7 @@ impl Asset {
                 Ok(SubMsg {
                     id: reply_id,
                     msg: inner_msg.into(),
-                    gas_limit: None,
+                    gas_limit,
                     reply_on,
                 })
             }
@@ -243,7 +245,7 @@ impl Asset {
                 Ok(SubMsg {
                     id: reply_id,
                     msg: bank_msg,
-                    gas_limit: None,
+                    gas_limit,
                     reply_on,
                 })
             }
