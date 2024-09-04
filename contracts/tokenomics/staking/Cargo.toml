@@ -1,6 +1,6 @@
 [package]
 name = "astroport-staking"
-version = "2.1.0"
+version = "2.2.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Staking Contract"
@@ -28,7 +28,8 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cw2.workspace = true
-astroport = "4"
+astroport.workspace = true
+astroport_v4 = { package = "astroport", version = "4" }
 cw-utils.workspace = true
 osmosis-std = "0.21.0"
 
@@ -37,4 +38,4 @@ anyhow = "1"
 itertools.workspace = true
 cosmwasm-schema.workspace = true
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-astroport-tokenfactory-tracker = "1.0.0"
+astroport-tokenfactory-tracker = "1"
