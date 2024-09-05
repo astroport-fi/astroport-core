@@ -1,7 +1,7 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, coin, ensure, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    attr, coin, ensure, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Reply, Response, StdError, StdResult, SubMsg, Uint128, WasmMsg,
 };
 use cw2::set_contract_version;
@@ -115,7 +115,31 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Enter { receiver } => execute_enter(deps, env, info, receiver),
+        ExecuteMsg::Enter { receiver } => {
+            // xASTRO is minted to the receiver if provided or to the sender.
+            let recipient = receiver.unwrap_or_else(|| info.sender.to_string());
+            execute_enter(deps, env, info).map(|(resp, minted_coins)| {
+                resp.add_message(BankMsg::Send {
+                    to_address: recipient.clone(),
+                    amount: vec![minted_coins],
+                })
+                .add_attributes([("action", "enter"), ("recipient", recipient.as_str())])
+            })
+        }
+        ExecuteMsg::EnterWithHook {
+            contract_address,
+            msg,
+        } => execute_enter(deps, env, info).map(|(resp, minted_coins)| {
+            resp.add_message(WasmMsg::Execute {
+                contract_addr: contract_address.clone(),
+                msg,
+                funds: vec![minted_coins],
+            })
+            .add_attributes([
+                ("action", "enter_with_hook"),
+                ("next_contract", &contract_address),
+            ])
+        }),
         ExecuteMsg::Leave {} => execute_leave(deps, env, info),
     }
 }
@@ -163,7 +187,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 WasmMsg::Instantiate {
                     admin: Some(tracker_data.admin),
                     code_id: tracker_data.code_id,
-                    msg: to_json_binary(&astroport::tokenfactory_tracker::InstantiateMsg {
+                    msg: to_json_binary(&astroport_v4::tokenfactory_tracker::InstantiateMsg {
                         tokenfactory_module_address: tracker_data.token_factory_addr,
                         tracked_denom: new_token_denom.clone(),
                     })?,
@@ -204,13 +228,14 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 }
 
 /// Enter stakes TokenFactory ASTRO for xASTRO.
-/// xASTRO is minted to the receiver if provided or to the sender.
+/// Returns composed Response object and minted xASTRO in the form of [`Coin`].
+/// Subsequent messages are added after,
+/// depending on whether it is a plain enter or enter with hook endpoint.
 fn execute_enter(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    receiver: Option<String>,
-) -> Result<Response, ContractError> {
+) -> Result<(Response, Coin), ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // Ensure that the correct denom is sent. Sending zero tokens is prohibited on chain level
@@ -255,24 +280,12 @@ fn execute_enter(
 
     let minted_coins = coin(mint_amount.u128(), config.xastro_denom);
 
-    // Mint new xASTRO tokens to the sender
+    // Mint new xASTRO tokens to the staking contract
     messages.push(
         MsgMint {
             sender: env.contract.address.to_string(),
             amount: Some(minted_coins.clone().into()),
             mint_to_address: env.contract.address.to_string(),
-        }
-        .into(),
-    );
-
-    let recipient = receiver.unwrap_or_else(|| info.sender.to_string());
-
-    // TokenFactory minting only allows minting to the sender for now, thus we
-    // need to send the minted tokens to the recipient
-    messages.push(
-        BankMsg::Send {
-            to_address: recipient.clone(),
-            amount: vec![minted_coins],
         }
         .into(),
     );
@@ -284,15 +297,16 @@ fn execute_enter(
         xastro_amount: mint_amount,
     })?;
 
-    Ok(Response::new()
-        .add_messages(messages)
-        .set_data(staking_response)
-        .add_attributes([
-            attr("action", "enter"),
-            attr("recipient", recipient),
-            attr("astro_amount", amount),
-            attr("xastro_amount", mint_amount),
-        ]))
+    Ok((
+        Response::new()
+            .add_messages(messages)
+            .set_data(staking_response)
+            .add_attributes([
+                attr("astro_amount", amount),
+                attr("xastro_amount", mint_amount),
+            ]),
+        minted_coins,
+    ))
 }
 
 /// Leave unstakes TokenFactory xASTRO for ASTRO. xASTRO is burned and ASTRO
@@ -397,7 +411,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
                     tracker_config.tracker_addr,
-                    &astroport::tokenfactory_tracker::QueryMsg::BalanceAt { address, timestamp },
+                    &astroport_v4::tokenfactory_tracker::QueryMsg::BalanceAt { address, timestamp },
                 )?
             };
 
@@ -411,7 +425,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 let tracker_config = TRACKER_DATA.load(deps.storage)?;
                 deps.querier.query_wasm_smart(
                     tracker_config.tracker_addr,
-                    &astroport::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp },
+                    &astroport_v4::tokenfactory_tracker::QueryMsg::TotalSupplyAt { timestamp },
                 )?
             };
 

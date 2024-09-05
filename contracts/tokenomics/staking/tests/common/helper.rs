@@ -1,10 +1,11 @@
 #![allow(dead_code)]
 
 use anyhow::Result as AnyResult;
+use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coins, Addr, Coin, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery, MemoryStorage, MessageInfo,
-    Response, StdResult, Uint128,
+    coins, to_json_binary, Addr, Coin, DepsMut, Empty, Env, GovMsg, IbcMsg, IbcQuery,
+    MemoryStorage, MessageInfo, Response, StdResult, Uint128,
 };
 use cw_multi_test::{
     App, AppResponse, BankKeeper, BasicAppBuilder, Contract, ContractWrapper, DistributionKeeper,
@@ -126,6 +127,24 @@ impl Helper {
             sender.clone(),
             self.staking.clone(),
             &ExecuteMsg::Enter { receiver: None },
+            &coins(amount, ASTRO_DENOM),
+        )
+    }
+
+    pub fn stake_with_hook<T: Serialize + ?Sized>(
+        &mut self,
+        sender: &Addr,
+        amount: u128,
+        contract_address: String,
+        msg: &T,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.staking.clone(),
+            &ExecuteMsg::EnterWithHook {
+                contract_address,
+                msg: to_json_binary(msg)?,
+            },
             &coins(amount, ASTRO_DENOM),
         )
     }

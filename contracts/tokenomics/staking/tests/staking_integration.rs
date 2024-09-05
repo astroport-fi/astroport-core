@@ -2,8 +2,12 @@
 
 use std::collections::HashMap;
 
-use cosmwasm_std::{coin, coins, from_json, Addr, BlockInfo, Timestamp, Uint128};
-use cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
+use cosmwasm_schema::cw_serde;
+use cosmwasm_std::{
+    coin, coins, from_json, Addr, BankMsg, Binary, BlockInfo, Deps, DepsMut, Empty, Env,
+    MessageInfo, Response, StdResult, Timestamp, Uint128,
+};
+use cw_multi_test::{Contract, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
 use cw_utils::PaymentError;
 use itertools::Itertools;
 
@@ -512,4 +516,99 @@ fn test_different_query_results() {
         )
         .unwrap();
     assert_eq!(balance_none, balance_some);
+}
+
+#[test]
+fn test_hooks() {
+    #[cw_serde]
+    enum AbsorberMsg {
+        Absorb {},
+        SendTo { recipient: String },
+    }
+    fn xastro_absorber_contract() -> Box<dyn Contract<Empty>> {
+        Box::new(ContractWrapper::new_with_empty(
+            |_: DepsMut, _: Env, info: MessageInfo, msg: AbsorberMsg| -> StdResult<Response> {
+                match msg {
+                    AbsorberMsg::Absorb {} => Ok(Response::new()),
+                    AbsorberMsg::SendTo { recipient } => {
+                        Ok(Response::new().add_message(BankMsg::Send {
+                            to_address: recipient,
+                            amount: info.funds,
+                        }))
+                    }
+                }
+            },
+            |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
+                Ok(Response::new())
+            },
+            |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() },
+        ))
+    }
+
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    helper.give_astro(10000, &owner);
+    helper.stake(&owner, 10000).unwrap();
+
+    let absorber_code_id = helper.app.store_code(xastro_absorber_contract());
+    let absorber = helper
+        .app
+        .instantiate_contract(
+            absorber_code_id,
+            owner.clone(),
+            &Empty {},
+            &[],
+            "absorber",
+            None,
+        )
+        .unwrap();
+
+    let alice = Addr::unchecked("alice");
+    helper.give_astro(30000, &alice);
+
+    helper
+        .stake_with_hook(&alice, 10000, absorber.to_string(), &AbsorberMsg::Absorb {})
+        .unwrap();
+    let absorber_balance = helper
+        .app
+        .wrap()
+        .query_balance(&absorber, &helper.xastro_denom)
+        .unwrap()
+        .amount;
+    assert_eq!(absorber_balance.u128(), 10000);
+
+    let bob = Addr::unchecked("bob");
+    helper
+        .stake_with_hook(
+            &alice,
+            10000,
+            absorber.to_string(),
+            &AbsorberMsg::SendTo {
+                recipient: bob.to_string(),
+            },
+        )
+        .unwrap();
+
+    // Absorber balance hasn't changed
+    let absorber_balance = helper
+        .app
+        .wrap()
+        .query_balance(&absorber, &helper.xastro_denom)
+        .unwrap()
+        .amount;
+    assert_eq!(absorber_balance.u128(), 10000);
+
+    // Bob has received 10000 xASTRO
+    let bob_balance = helper
+        .app
+        .wrap()
+        .query_balance(&bob, &helper.xastro_denom)
+        .unwrap()
+        .amount;
+    assert_eq!(bob_balance.u128(), 10000);
+
+    // Try failing hook msg
+    helper
+        .stake_with_hook(&alice, 10000, absorber.to_string(), &())
+        .unwrap_err();
 }

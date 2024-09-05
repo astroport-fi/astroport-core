@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Binary, Uint128};
 
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
@@ -8,7 +8,7 @@ pub struct InstantiateMsg {
     pub deposit_token_denom: String,
     /// Tracking contract admin
     pub tracking_admin: String,
-    // The Code ID of contract used to track the TokenFactory token balances
+    /// The Code ID of contract used to track the TokenFactory token balances
     pub tracking_code_id: u64,
     /// Token factory module address. Contract creator must ensure that the address is exact token factory module address.
     pub token_factory_addr: String,
@@ -20,6 +20,12 @@ pub enum ExecuteMsg {
     /// Deposits ASTRO in exchange for xASTRO
     /// The receiver is optional. If not set, the sender will receive the xASTRO.
     Enter { receiver: Option<String> },
+    /// Deposits ASTRO in exchange for xASTRO
+    /// and passes **all resulting xASTRO** to defined contract along with an executable message.
+    EnterWithHook {
+        contract_address: String,
+        msg: Binary,
+    },
     /// Burns xASTRO in exchange for ASTRO
     Leave {},
 }
@@ -74,7 +80,7 @@ pub struct TrackerData {
     pub tracker_addr: String,
 }
 
-// The structure returned as part of set_data when staking or unstaking
+/// The structure returned as part of set_data when staking or unstaking
 #[cw_serde]
 pub struct StakingResponse {
     /// The ASTRO denom
