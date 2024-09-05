@@ -1,9 +1,6 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Binary, Uint128};
 
-/// Enforces gas limit for contracts used in ExecuteMsg::EnterWithHook.
-pub const HOOK_GAS_LIMIT: u64 = 1_000_000;
-
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -25,7 +22,6 @@ pub enum ExecuteMsg {
     Enter { receiver: Option<String> },
     /// Deposits ASTRO in exchange for xASTRO
     /// and passes **all resulting xASTRO** to defined contract along with an executable message.
-    /// Note that the next message will be executed with limited gas (see HOOK_GAS_LIMIT).
     EnterWithHook {
         contract_address: String,
         msg: Binary,

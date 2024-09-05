@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-staking",
-  "contract_version": "2.1.0",
+  "contract_version": "2.2.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -27,6 +27,7 @@
         "type": "string"
       },
       "tracking_code_id": {
+        "description": "The Code ID of contract used to track the TokenFactory token balances",
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
@@ -62,6 +63,32 @@
         "additionalProperties": false
       },
       {
+        "description": "Deposits ASTRO in exchange for xASTRO and passes **all resulting xASTRO** to defined contract along with an executable message.",
+        "type": "object",
+        "required": [
+          "enter_with_hook"
+        ],
+        "properties": {
+          "enter_with_hook": {
+            "type": "object",
+            "required": [
+              "contract_address",
+              "msg"
+            ],
+            "properties": {
+              "contract_address": {
+                "type": "string"
+              },
+              "msg": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Burns xASTRO in exchange for ASTRO",
         "type": "object",
         "required": [
@@ -75,7 +102,13 @@
         },
         "additionalProperties": false
       }
-    ]
+    ],
+    "definitions": {
+      "Binary": {
+        "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+        "type": "string"
+      }
+    }
   },
   "query": {
     "$schema": "http://json-schema.org/draft-07/schema#",

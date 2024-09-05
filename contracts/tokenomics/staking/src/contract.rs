@@ -13,7 +13,7 @@ use osmosis_std::types::osmosis::tokenfactory::v1beta1::{
 };
 
 use astroport::staking::{
-    Config, ExecuteMsg, InstantiateMsg, QueryMsg, StakingResponse, TrackerData, HOOK_GAS_LIMIT,
+    Config, ExecuteMsg, InstantiateMsg, QueryMsg, StakingResponse, TrackerData,
 };
 
 use crate::error::ContractError;
@@ -130,14 +130,11 @@ pub fn execute(
             contract_address,
             msg,
         } => execute_enter(deps, env, info).map(|(resp, minted_coins)| {
-            resp.add_submessage(
-                SubMsg::new(WasmMsg::Execute {
-                    contract_addr: contract_address.clone(),
-                    msg,
-                    funds: vec![minted_coins],
-                })
-                .with_gas_limit(HOOK_GAS_LIMIT),
-            )
+            resp.add_message(WasmMsg::Execute {
+                contract_addr: contract_address.clone(),
+                msg,
+                funds: vec![minted_coins],
+            })
             .add_attributes([
                 ("action", "enter_with_hook"),
                 ("next_contract", &contract_address),

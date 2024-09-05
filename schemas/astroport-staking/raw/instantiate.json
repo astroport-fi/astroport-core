@@ -23,6 +23,7 @@
       "type": "string"
     },
     "tracking_code_id": {
+      "description": "The Code ID of contract used to track the TokenFactory token balances",
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
