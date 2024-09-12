@@ -166,6 +166,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -195,6 +196,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
     );
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1254,6 +1256,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1334,6 +1337,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1582,6 +1586,7 @@ fn enable_disable_fee_sharing() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

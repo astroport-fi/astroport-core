@@ -1,6 +1,13 @@
 #![cfg(not(tarpaulin_include))]
 
+use cosmwasm_std::{
+    attr, coin, to_json_binary, Addr, Coin, Decimal, DepsMut, Empty, Env, MessageInfo, Response,
+    StdResult, Uint128, Uint64,
+};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+
 use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::common::LP_SUBDENOM;
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg, TrackerConfig,
@@ -14,18 +21,9 @@ use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 use astroport::tokenfactory_tracker::{
     ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
 };
-
+use astroport_pair::error::ContractError;
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
-
-use astroport_pair::error::ContractError;
-
-use astroport::common::LP_SUBDENOM;
-use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, DepsMut, Empty, Env, MessageInfo, Response,
-    StdResult, Uint128, Uint64,
-};
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
 
@@ -132,6 +130,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -162,7 +161,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
     assert_eq!("contract1", res.contract_addr);
     assert_eq!(
-        format!("factory/contract1/{LP_SUBDENOM}"),
+        format!("factory/contract1/{}", LP_SUBDENOM),
         res.liquidity_token
     );
 
@@ -892,6 +891,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -930,6 +930,7 @@ fn wrong_number_of_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![AssetInfo::NativeToken {
             denom: "uusd".to_string(),
         }],
@@ -955,6 +956,7 @@ fn wrong_number_of_assets() {
     );
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             native_asset_info("uusd".to_string()),
             native_asset_info("dust".to_string()),
@@ -1264,6 +1266,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1356,6 +1359,7 @@ fn enable_disable_fee_sharing() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -2426,4 +2430,124 @@ fn test_tracker_contract() {
         .unwrap();
 
     assert_eq!(alice_balance, Uint128::new(100));
+}
+
+#[test]
+fn test_create_xyk_custom_type() {
+    let owner = Addr::unchecked("owner");
+    let mut app = mock_app(owner.clone(), vec![]);
+    let token_code_id = store_token_code(&mut app);
+    let pair_code_id = store_pair_code(&mut app);
+    let factory_code_id = store_factory_code(&mut app);
+
+    let init_msg = FactoryInstantiateMsg {
+        fee_address: None,
+        pair_configs: vec![
+            PairConfig {
+                code_id: pair_code_id,
+                maker_fee_bps: 0,
+                pair_type: PairType::Custom("custom_xyk".to_string()),
+                total_fee_bps: 0,
+                is_disabled: false,
+                is_generator_disabled: false,
+                permissioned: false,
+            },
+            PairConfig {
+                code_id: pair_code_id,
+                maker_fee_bps: 3333,
+                pair_type: PairType::Xyk {},
+                total_fee_bps: 5000,
+                is_disabled: false,
+                is_generator_disabled: false,
+                permissioned: false,
+            },
+        ],
+        token_code_id,
+        generator_address: None,
+        owner: owner.to_string(),
+        whitelist_code_id: 0,
+        coin_registry_address: "coin_registry".to_string(),
+        tracker_config: None,
+    };
+
+    let factory_instance = app
+        .instantiate_contract(
+            factory_code_id,
+            owner.clone(),
+            &init_msg,
+            &[],
+            "FACTORY",
+            None,
+        )
+        .unwrap();
+
+    // Instantiate pair without asset balances tracking
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+        pair_type: PairType::Custom("custom_xyk".to_string()),
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uluna".to_string(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.pair_type, PairType::Custom("custom_xyk".to_string()));
+
+    // Instantiate usual xyk from the same code id but different pair type
+    let msg = FactoryExecuteMsg::CreatePair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uatom".to_string(),
+            },
+        ],
+        pair_type: PairType::Xyk {},
+        init_params: None,
+    };
+
+    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
+        .unwrap();
+
+    let msg = FactoryQueryMsg::Pair {
+        asset_infos: vec![
+            AssetInfo::NativeToken {
+                denom: "uusd".to_string(),
+            },
+            AssetInfo::NativeToken {
+                denom: "uatom".to_string(),
+            },
+        ],
+    };
+
+    let res: PairInfo = app
+        .wrap()
+        .query_wasm_smart(&factory_instance, &msg)
+        .unwrap();
+
+    assert_eq!(res.pair_type, PairType::Xyk {});
 }

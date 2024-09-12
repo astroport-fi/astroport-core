@@ -62,6 +62,7 @@ fn proper_initialization() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         factory_addr: String::from("factory"),
         asset_infos: vec![
             AssetInfo::NativeToken {
@@ -140,6 +141,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -671,6 +673,7 @@ fn withdraw_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -812,6 +815,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1019,6 +1023,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1274,6 +1279,7 @@ fn test_query_pool() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1342,6 +1348,7 @@ fn test_query_share() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Xyk {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

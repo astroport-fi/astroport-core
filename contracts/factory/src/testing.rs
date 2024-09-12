@@ -498,6 +498,7 @@ fn create_pair() {
         vec![SubMsg {
             msg: WasmMsg::Instantiate {
                 msg: to_json_binary(&PairInstantiateMsg {
+                    pair_type: PairType::Xyk {},
                     factory_addr: String::from(MOCK_CONTRACT_ADDR),
                     asset_infos: asset_infos.clone(),
                     token_code_id: msg.token_code_id,

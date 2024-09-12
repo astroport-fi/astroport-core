@@ -45,7 +45,7 @@ use crate::error::ContractError;
 use crate::state::{Config, BALANCES, CONFIG};
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
+pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 /// Contract version that is used for migration.
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Reply ID for create denom reply
