@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-pair-concentrated",
-  "contract_version": "4.0.2",
+  "contract_version": "4.1.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -10,6 +10,7 @@
     "required": [
       "asset_infos",
       "factory_addr",
+      "pair_type",
       "token_code_id"
     ],
     "properties": {
@@ -32,6 +33,14 @@
           },
           {
             "type": "null"
+          }
+        ]
+      },
+      "pair_type": {
+        "description": "The pair type",
+        "allOf": [
+          {
+            "$ref": "#/definitions/PairType"
           }
         ]
       },
@@ -100,6 +109,52 @@
       "Binary": {
         "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
         "type": "string"
+      },
+      "PairType": {
+        "description": "This enum describes available pair types. ## Available pool types ``` # use astroport::factory::PairType::{Custom, Stable, Xyk}; Xyk {}; Stable {}; Custom(String::from(\"Custom\")); ```",
+        "oneOf": [
+          {
+            "description": "XYK pair type",
+            "type": "object",
+            "required": [
+              "xyk"
+            ],
+            "properties": {
+              "xyk": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Stable pair type",
+            "type": "object",
+            "required": [
+              "stable"
+            ],
+            "properties": {
+              "stable": {
+                "type": "object",
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Custom pair type",
+            "type": "object",
+            "required": [
+              "custom"
+            ],
+            "properties": {
+              "custom": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       }
     }
   },

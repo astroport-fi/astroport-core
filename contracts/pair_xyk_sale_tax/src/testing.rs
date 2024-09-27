@@ -20,7 +20,7 @@ use astroport::token_factory::{MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, 
 
 use crate::contract::{
     accumulate_prices, assert_max_spread, compute_swap, execute, instantiate, query_pool,
-    query_reverse_simulation, query_share, query_simulation, reply,
+    query_reverse_simulation, query_share, query_simulation, reply, CONTRACT_NAME,
 };
 use crate::contract::{compute_offer_amount, SwapResult};
 use crate::error::ContractError;
@@ -62,6 +62,7 @@ fn proper_initialization() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         factory_addr: String::from("factory"),
         asset_infos: vec![
             AssetInfo::NativeToken {
@@ -138,6 +139,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -655,6 +657,7 @@ fn withdraw_liquidity() {
     let info = mock_info("addr0000", &[]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -796,6 +799,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1025,6 +1029,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1280,6 +1285,7 @@ fn test_query_pool() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1348,6 +1354,7 @@ fn test_query_share() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

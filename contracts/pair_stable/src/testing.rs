@@ -12,6 +12,7 @@ use sim::StableSwapModel;
 
 use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
 use astroport::common::LP_SUBDENOM;
+use astroport::factory::PairType;
 use astroport::observation::query_observation;
 use astroport::observation::Observation;
 use astroport::observation::OracleObservation;
@@ -67,6 +68,7 @@ fn proper_initialization() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         factory_addr: String::from("factory"),
         asset_infos: vec![
             AssetInfo::NativeToken {
@@ -152,6 +154,7 @@ fn provide_liquidity() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -547,6 +550,7 @@ fn withdraw_liquidity() {
     let info = mock_info("addr0000", &[]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -693,6 +697,7 @@ fn try_native_to_token() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -850,6 +855,7 @@ fn try_token_to_native() {
     ]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1077,6 +1083,7 @@ fn test_query_pool() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1151,6 +1158,7 @@ fn test_query_share() {
     )]);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1350,6 +1358,7 @@ proptest! {
         let ask_asset = native_asset_info("uluna".to_string());
 
         let msg = InstantiateMsg {
+            pair_type: PairType::Stable {},
             factory_addr: String::from("factory"),
             asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
             token_code_id: 10u64,
@@ -1429,6 +1438,7 @@ fn update_owner() {
     let owner = "owner0000";
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Stable {},
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "ucosmos".to_string(),
