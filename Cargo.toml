@@ -8,6 +8,7 @@ members = [
     "contracts/pair_concentrated",
     "contracts/pair_astro_converter",
     "contracts/pair_transmuter",
+    "contracts/pair_concentrated_duality",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
     "contracts/pair_xyk_sale_tax",
     "contracts/router",
@@ -24,7 +25,7 @@ thiserror = "1.0"
 itertools = "0.12"
 cosmwasm-schema = "1.5"
 cw-utils = "1"
-astroport = { path = "./packages/astroport", version = "5.4.0" }
+astroport = { path = "./packages/astroport", version = "5.5.0" }
 
 [profile.release]
 opt-level = "z"

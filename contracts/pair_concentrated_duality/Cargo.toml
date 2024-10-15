@@ -1,0 +1,50 @@
+[package]
+name = "astroport-pair-concentrated-duality"
+version = "4.1.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport concentrated liquidity pair with Duality orderbook integration"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+test-tube = ["neutron-test-tube"]
+library = []
+
+[dependencies]
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
+cw-storage-plus = { workspace = true }
+thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
+itertools = { workspace = true }
+cw-utils = { workspace = true }
+cw2 = { workspace = true }
+
+#neutron-sdk = { package = "neutron-sdk", git = "https://github.com/neutron-org/neutron-sdk", branch = "feat/remove-stargate" }
+neutron-sdk = { package = "astroport-neutron-sdk", git = "https://github.com/epanchee/neutron-sdk", branch = "backport/cosmwasm_v1" }
+astroport = { path = "../../packages/astroport", version = "5.5", features = ["duality"] }
+astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
+
+neutron-test-tube = { git = "https://github.com/epanchee/neutron-test-tube-new", optional = true, branch = "feat/cosmwasm-v1" }
+
+[dev-dependencies]
+astroport-native-coin-registry = "1.1"
+astroport-test = { path = "../../packages/astroport_test", version = "0.1.0" }
+astroport-factory = { path = "../factory", version = "1.8" }
+anyhow = "1.0"
+derivative = "2.2"

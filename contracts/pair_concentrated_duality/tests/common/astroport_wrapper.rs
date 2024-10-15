@@ -1,0 +1,268 @@
+#![cfg(not(tarpaulin_include))]
+#![cfg(feature = "test-tube")]
+#![allow(dead_code)]
+
+use std::collections::HashMap;
+
+use anyhow::Result as AnyResult;
+use cosmwasm_std::{coin, coins, to_json_binary, Addr, Coin, Decimal};
+use itertools::Itertools;
+use neutron_test_tube::{Account, ExecuteResponse, SigningAccount};
+
+use astroport::pair_concentrated_duality::DualityPairMsg;
+use astroport::{
+    asset::{native_asset_info, Asset, AssetInfo, PairInfo},
+    factory::{PairConfig, PairType},
+    pair_concentrated::ConcentratedPoolParams,
+    pair_concentrated_duality::{ConcentratedDualityParams, OrderbookConfig},
+};
+use astroport_test::coins::TestCoin;
+use astroport_test::convert::f64_to_dec;
+
+use super::neutron_wrapper::TestAppWrapper;
+
+type ExecuteMsg = astroport::pair::ExecuteMsgExt<DualityPairMsg>;
+
+const INIT_BALANCE: u128 = u128::MAX;
+
+pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
+    let mut has_ntrn = false;
+    let mut test_coins: Vec<Coin> = test_coins
+        .iter()
+        .filter_map(|test_coin| match test_coin {
+            TestCoin::Native(name) => {
+                if name == "untrn" {
+                    has_ntrn = true;
+                };
+                Some(coin(INIT_BALANCE, name))
+            }
+            _ => None,
+        })
+        .collect();
+    if !has_ntrn {
+        test_coins.push(coin(INIT_BALANCE, "untrn"));
+    }
+
+    test_coins
+}
+
+pub struct AstroportHelper<'a> {
+    pub helper: TestAppWrapper<'a>,
+    pub owner: SigningAccount,
+    pub assets: HashMap<TestCoin, AssetInfo>,
+    pub factory: Addr,
+    pub maker: Addr,
+    pub pair_addr: Addr,
+    pub lp_token: String,
+    pub token_a: String,
+    pub token_b: String,
+}
+
+impl<'a> AstroportHelper<'a> {
+    pub fn new(
+        helper: TestAppWrapper<'a>,
+        test_coins: Vec<TestCoin>,
+        params: ConcentratedPoolParams,
+        orderbook_config: OrderbookConfig,
+    ) -> AnyResult<Self> {
+        let signer = helper.app.init_account(&init_native_coins(&test_coins))?;
+        let owner = Addr::unchecked(signer.address());
+
+        let asset_infos_vec: Vec<_> = test_coins
+            .clone()
+            .into_iter()
+            .filter_map(|coin| Some((coin.clone(), native_asset_info(coin.denom()?))))
+            .collect();
+
+        // We don't support cw20
+        // test_coins.iter().for_each(|coin| {
+        //     if let Some((name, decimals)) = coin.cw20_init_data() {
+        //         let token_addr = Self::init_token(&helper, name, decimals, &owner);
+        //         asset_infos_vec.push((coin.clone(), token_asset_info(token_addr)))
+        //     }
+        // });
+
+        let maker = helper.app.init_account(&[])?;
+        let maker_addr = Addr::unchecked(maker.address());
+
+        let coin_registry_address = helper
+            .init_contract(
+                helper.code_ids["coin-registry"],
+                &astroport::native_coin_registry::InstantiateMsg {
+                    owner: owner.to_string(),
+                },
+                &[],
+            )
+            .unwrap();
+
+        asset_infos_vec
+            .iter()
+            .try_for_each(|(test_coin, _)| match &test_coin {
+                TestCoin::NativePrecise(denom, decimals) => helper
+                    .execute_contract(
+                        &signer,
+                        coin_registry_address.as_str(),
+                        &astroport::native_coin_registry::ExecuteMsg::Add {
+                            native_coins: vec![(denom.to_owned(), *decimals)],
+                        },
+                        &[],
+                    )
+                    .map(|_| ()),
+                TestCoin::Native(denom) => helper
+                    .execute_contract(
+                        &signer,
+                        coin_registry_address.as_str(),
+                        &astroport::native_coin_registry::ExecuteMsg::Add {
+                            native_coins: vec![(denom.to_owned(), 6)],
+                        },
+                        &[],
+                    )
+                    .map(|_| ()),
+                _ => Ok(()),
+            })
+            .unwrap();
+
+        let pair_type = PairType::Custom("concentrated_duality_orderbook".to_string());
+
+        let init_msg = astroport::factory::InstantiateMsg {
+            fee_address: Some(maker_addr.to_string()),
+            pair_configs: vec![PairConfig {
+                code_id: helper.code_ids["pair-concentrated-duality"],
+                maker_fee_bps: 5000,
+                total_fee_bps: 0u16, // Concentrated pair does not use this field,
+                pair_type: pair_type.clone(),
+                is_disabled: false,
+                is_generator_disabled: false,
+                permissioned: true,
+            }],
+            token_code_id: 0,
+            generator_address: None,
+            owner: owner.to_string(),
+            whitelist_code_id: 0,
+            coin_registry_address: coin_registry_address.to_string(),
+            tracker_config: None,
+        };
+
+        let factory = helper
+            .init_contract(helper.code_ids["factory"], &init_msg, &[])
+            .unwrap();
+
+        let asset_infos = asset_infos_vec
+            .clone()
+            .into_iter()
+            .map(|(_, asset_info)| asset_info)
+            .collect_vec();
+
+        let pcl_duality_params = ConcentratedDualityParams {
+            main_params: params,
+            orderbook_config,
+        };
+
+        let init_pair_msg = astroport::factory::ExecuteMsg::CreatePair {
+            pair_type,
+            asset_infos: asset_infos.clone(),
+            init_params: Some(to_json_binary(&pcl_duality_params).unwrap()),
+        };
+
+        helper
+            .execute_contract(&signer, factory.as_str(), &init_pair_msg, &[])
+            .unwrap();
+
+        let PairInfo {
+            liquidity_token,
+            contract_addr,
+            ..
+        } = helper.smart_query(
+            &factory,
+            &astroport::factory::QueryMsg::Pair {
+                asset_infos: asset_infos.clone(),
+            },
+        )?;
+
+        Ok(Self {
+            helper,
+            owner: signer,
+            assets: HashMap::new(),
+            maker: maker_addr,
+            factory: Addr::unchecked(factory),
+            pair_addr: contract_addr,
+            lp_token: liquidity_token,
+            token_a: asset_infos[0].to_string(),
+            token_b: asset_infos[1].to_string(),
+        })
+    }
+
+    pub fn provide_liquidity(&self, sender: &SigningAccount, assets: &[Asset]) -> AnyResult<()> {
+        self.provide_liquidity_with_slip_tolerance(
+            sender,
+            assets,
+            Some(f64_to_dec(0.5)), // 50% slip tolerance for testing purposes
+        )
+    }
+
+    pub fn provide_liquidity_with_slip_tolerance(
+        &self,
+        sender: &SigningAccount,
+        assets: &[Asset],
+        slippage_tolerance: Option<Decimal>,
+    ) -> AnyResult<()> {
+        let funds = assets.iter().map(|a| a.as_coin().unwrap()).collect_vec();
+
+        let msg = ExecuteMsg::ProvideLiquidity {
+            assets: assets.to_vec(),
+            slippage_tolerance,
+            auto_stake: None,
+            receiver: None,
+            min_lp_to_receive: None,
+        };
+
+        self.helper
+            .execute_contract(sender, self.pair_addr.as_str(), &msg, &funds)
+            .map(|_| ())
+    }
+
+    pub fn withdraw_liquidity(&mut self, sender: &SigningAccount, amount: u128) -> AnyResult<()> {
+        let msg = ExecuteMsg::WithdrawLiquidity {
+            assets: vec![],
+            min_assets_to_receive: None,
+        };
+
+        self.helper
+            .execute_contract(
+                sender,
+                self.pair_addr.as_str(),
+                &msg,
+                &coins(amount, &self.lp_token),
+            )
+            .map(|_| ())
+    }
+
+    pub fn swap(
+        &self,
+        sender: &SigningAccount,
+        offer_asset: &Asset,
+        max_spread: Option<Decimal>,
+    ) -> AnyResult<
+        ExecuteResponse<
+            neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse,
+        >,
+    > {
+        match &offer_asset.info {
+            AssetInfo::Token { .. } => unimplemented!(),
+            AssetInfo::NativeToken { .. } => {
+                let funds = [offer_asset.as_coin().unwrap()];
+
+                let msg = ExecuteMsg::Swap {
+                    offer_asset: offer_asset.clone(),
+                    ask_asset_info: None,
+                    belief_price: None,
+                    max_spread,
+                    to: None,
+                };
+
+                self.helper
+                    .execute_contract(sender, self.pair_addr.as_str(), &msg, &funds)
+            }
+        }
+    }
+}

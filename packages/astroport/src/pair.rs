@@ -4,7 +4,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
 use crate::factory::PairType;
-use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, StdError, Uint128, Uint64};
+use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, Empty, StdError, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
 /// The default swap slippage
@@ -38,7 +38,7 @@ pub struct InstantiateMsg {
 
 /// This structure describes the execute messages available in the contract.
 #[cw_serde]
-pub enum ExecuteMsg {
+pub enum ExecuteMsgExt<C> {
     /// Receives a message of type [`Cw20ReceiveMsg`]
     Receive(Cw20ReceiveMsg),
     /// ProvideLiquidity allows someone to provide liquidity in the pool
@@ -81,7 +81,11 @@ pub enum ExecuteMsg {
     DropOwnershipProposal {},
     /// Used to claim contract ownership.
     ClaimOwnership {},
+    /// Custom execute endpoints for extended pool implementations
+    Custom(C),
 }
+
+pub type ExecuteMsg = ExecuteMsgExt<Empty>;
 
 /// This structure describes a CW20 hook message.
 #[cw_serde]

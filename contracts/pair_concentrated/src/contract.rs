@@ -367,6 +367,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 
