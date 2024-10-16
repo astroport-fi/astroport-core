@@ -26,8 +26,9 @@ pub enum ExecuteMsg {
         contract_address: String,
         msg: Binary,
     },
-    /// Burns xASTRO in exchange for ASTRO
-    Leave {},
+    /// Burns xASTRO in exchange for ASTRO.
+    /// The receiver is optional. If not set, the sender will receive the ASTRO.
+    Leave { receiver: Option<String> },
 }
 
 /// This structure describes the query messages available in the contract.

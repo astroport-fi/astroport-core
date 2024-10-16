@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-staking",
-  "contract_version": "2.2.0",
+  "contract_version": "2.3.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -89,7 +89,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Burns xASTRO in exchange for ASTRO",
+        "description": "Burns xASTRO in exchange for ASTRO. The receiver is optional. If not set, the sender will receive the ASTRO.",
         "type": "object",
         "required": [
           "leave"
@@ -97,6 +97,14 @@
         "properties": {
           "leave": {
             "type": "object",
+            "properties": {
+              "receiver": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
             "additionalProperties": false
           }
         },
