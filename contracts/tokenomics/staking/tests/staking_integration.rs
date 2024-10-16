@@ -139,7 +139,7 @@ fn test_invalid_denom() {
         .execute_contract(
             owner.clone(),
             helper.staking.clone(),
-            &ExecuteMsg::Leave {},
+            &ExecuteMsg::Leave { receiver: None },
             &coins(1000u128, bad_denom),
         )
         .unwrap_err();
@@ -154,7 +154,7 @@ fn test_invalid_denom() {
         .execute_contract(
             owner.clone(),
             helper.staking.clone(),
-            &ExecuteMsg::Leave {},
+            &ExecuteMsg::Leave { receiver: None },
             &[
                 coin(1000u128, bad_denom),
                 coin(1000u128, helper.xastro_denom.clone()),

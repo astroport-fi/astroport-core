@@ -45,7 +45,7 @@ pub struct DecimalAsset {
 }
 
 impl DecimalAsset {
-    pub fn into_asset(self, precision: impl Into<u32> + Sized) -> StdResult<Asset> {
+    pub fn into_asset(self, precision: impl Into<u32>) -> StdResult<Asset> {
         Ok(Asset {
             info: self.info,
             amount: self.amount.to_uint(precision)?,

@@ -1,3 +1,4 @@
+use anyhow::{Ok, Result as AnyResult};
 use cosmwasm_schema::serde::de::DeserializeOwned;
 use cosmwasm_std::{
     coins,
@@ -10,8 +11,7 @@ use cw_multi_test::{
     GovFailingModule, IbcFailingModule, Module, StakeKeeper, Stargate, StargateMsg, StargateQuery,
     SudoMsg, WasmKeeper,
 };
-
-use anyhow::{Ok, Result as AnyResult};
+use osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetDenomMetadata;
 
 use astroport::token_factory::{
     MsgBurn, MsgCreateDenom, MsgCreateDenomResponse, MsgMint, MsgSetBeforeSendHook,
@@ -116,6 +116,10 @@ impl Module for MockStargate {
                     denom: before_hook_msg.denom,
                 };
                 router.sudo(api, storage, block, SudoMsg::Bank(msg))
+            }
+            MsgSetDenomMetadata::TYPE_URL => {
+                // TODO: Implement this if needed
+                Ok(AppResponse::default())
             }
             _ => Err(anyhow::anyhow!(
                 "Unexpected exec msg {type_url} from {sender:?}",

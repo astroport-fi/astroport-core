@@ -52,7 +52,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Burns xASTRO in exchange for ASTRO",
+      "description": "Burns xASTRO in exchange for ASTRO. The receiver is optional. If not set, the sender will receive the ASTRO.",
       "type": "object",
       "required": [
         "leave"
@@ -60,6 +60,14 @@
       "properties": {
         "leave": {
           "type": "object",
+          "properties": {
+            "receiver": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
           "additionalProperties": false
         }
       },
