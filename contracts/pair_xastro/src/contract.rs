@@ -33,7 +33,7 @@ pub fn instantiate(
 
     let params: XastroPairInitParams = msg
         .init_params
-        .map(|params_raw| from_json(&params_raw))
+        .map(from_json)
         .transpose()?
         .ok_or_else(|| StdError::generic_err("Missing init params"))?;
 
