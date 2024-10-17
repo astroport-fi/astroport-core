@@ -182,7 +182,10 @@ impl<'a> AstroportHelper<'a> {
         Ok(Self {
             helper,
             owner: signer,
-            assets: HashMap::new(),
+            assets: asset_infos_vec
+                .into_iter()
+                .map(|(test_coin, asset_info)| (test_coin, asset_info))
+                .collect(),
             maker: maker_addr,
             factory: Addr::unchecked(factory),
             pair_addr: contract_addr,
@@ -206,7 +209,11 @@ impl<'a> AstroportHelper<'a> {
         assets: &[Asset],
         slippage_tolerance: Option<Decimal>,
     ) -> AnyResult<()> {
-        let funds = assets.iter().map(|a| a.as_coin().unwrap()).collect_vec();
+        let funds = assets
+            .iter()
+            .map(|a| a.as_coin().unwrap())
+            .sorted_by(|a, b| a.denom.cmp(&b.denom))
+            .collect_vec();
 
         let msg = ExecuteMsg::ProvideLiquidity {
             assets: assets.to_vec(),

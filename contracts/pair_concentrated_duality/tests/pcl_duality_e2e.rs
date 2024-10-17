@@ -2,7 +2,8 @@
 #![cfg(feature = "test-tube")]
 #![allow(dead_code)]
 
-use cosmwasm_std::{Decimal, Uint128};
+use astroport::asset::AssetInfoExt;
+use cosmwasm_std::{coin, Decimal, Uint128};
 use neutron_test_tube::{Account, NeutronTestApp};
 
 use astroport::pair_concentrated_duality::OrderbookConfig;
@@ -19,9 +20,10 @@ fn init_on_duality() {
     let app = NeutronTestApp::new();
     let neutron = TestAppWrapper::bootstrap(&app).unwrap();
     let owner = neutron.signer.address();
-    let _astroport = AstroportHelper::new(
+
+    let astroport = AstroportHelper::new(
         neutron,
-        test_coins,
+        test_coins.clone(),
         common_pcl_params(),
         OrderbookConfig {
             enable: true,
@@ -31,5 +33,22 @@ fn init_on_duality() {
             min_asset_0_order_size: Uint128::from(1_000u128),
             min_asset_1_order_size: Uint128::from(1_000u128),
         },
-    );
+    )
+    .unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[coin(2_000_000, "untrn"), coin(1_000_000, "astro")])
+        .unwrap();
+
+    astroport
+        .provide_liquidity(
+            &user,
+            &[
+                astroport.assets[&test_coins[0]].with_balance(1_000_000u128),
+                astroport.assets[&test_coins[1]].with_balance(1_000_000u128),
+            ],
+        )
+        .unwrap();
 }

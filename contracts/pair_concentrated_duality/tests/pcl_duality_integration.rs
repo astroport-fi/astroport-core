@@ -920,13 +920,9 @@ fn check_orderbook_integration() {
 
     let ob_config = helper.query_ob_config().unwrap();
 
-    assert_eq!(ob_config.orders.len() as u8, ob_config.orders_number * 2)
-}
+    assert_eq!(ob_config.orders.len() as u8, ob_config.orders_number * 2);
 
-#[ignore]
-#[test]
-fn check_deactivate_orderbook() {
-    unimplemented!();
+    // TODO: test orderbook disabling
 }
 
 #[test]
