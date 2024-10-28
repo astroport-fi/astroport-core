@@ -30,3 +30,4 @@ anyhow = "1.0"
 itertools = { workspace = true }
 cw-utils = { workspace = true }
 cw-storage-plus = { workspace = true }
+osmosis-std = "0.21.0"

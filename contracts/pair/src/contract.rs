@@ -21,7 +21,6 @@ use astroport::asset::{
     MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::LP_SUBDENOM;
-use astroport::factory::PairType;
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::{
     ConfigResponse, FeeShareConfig, ReplyIds, XYKPoolConfig, XYKPoolParams, XYKPoolUpdateParams,
@@ -80,7 +79,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: "".to_owned(),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Xyk {},
+            pair_type: msg.pair_type,
         },
         factory_addr: deps.api.addr_validate(msg.factory_addr.as_str())?,
         block_time_last: 0,

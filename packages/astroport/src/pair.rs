@@ -3,6 +3,7 @@ use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
 
+use crate::factory::PairType;
 use cosmwasm_std::{Addr, Binary, Decimal, Decimal256, StdError, Uint128, Uint64};
 use cw20::Cw20ReceiveMsg;
 
@@ -23,6 +24,8 @@ pub const MIN_TRADE_SIZE: Decimal256 = Decimal256::raw(10000000000000);
 /// This structure describes the parameters used for creating a contract.
 #[cw_serde]
 pub struct InstantiateMsg {
+    /// The pair type
+    pub pair_type: PairType,
     /// Information about assets in the pool
     pub asset_infos: Vec<AssetInfo>,
     /// The token contract code ID used for the tokens in the pool
@@ -309,16 +312,7 @@ impl TryFrom<u64> for ReplyIds {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asset::native_asset_info;
     use cosmwasm_std::{from_json, to_json_binary};
-
-    #[cw_serde]
-    pub struct LegacyInstantiateMsg {
-        pub asset_infos: [AssetInfo; 2],
-        pub token_code_id: u64,
-        pub factory_addr: String,
-        pub init_params: Option<Binary>,
-    }
 
     #[cw_serde]
     pub struct LegacyConfigResponse {
@@ -326,23 +320,6 @@ mod tests {
         pub params: Option<Binary>,
         pub factory_addr: Addr,
         pub owner: Addr,
-    }
-
-    #[test]
-    fn test_init_msg_compatability() {
-        let inst_msg = LegacyInstantiateMsg {
-            asset_infos: [
-                native_asset_info("uusd".to_string()),
-                native_asset_info("uluna".to_string()),
-            ],
-            token_code_id: 0,
-            factory_addr: "factory".to_string(),
-            init_params: None,
-        };
-
-        let ser_msg = to_json_binary(&inst_msg).unwrap();
-        // This .unwrap() is enough to make sure that [AssetInfo; 2] and Vec<AssetInfo> are compatible.
-        let _: InstantiateMsg = from_json(&ser_msg).unwrap();
     }
 
     #[test]

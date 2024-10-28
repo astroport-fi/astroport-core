@@ -18,6 +18,7 @@ use astroport::tokenfactory_tracker::{
 };
 
 use astroport::common::LP_SUBDENOM;
+use astroport_pair_xyk_sale_tax::contract::CONTRACT_NAME;
 use astroport_pair_xyk_sale_tax::error::ContractError;
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
@@ -165,6 +166,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -239,6 +241,7 @@ fn instantiate_standard_xyk_pair(mut router: &mut TestApp, owner: &Addr, version
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -938,6 +941,7 @@ fn create_pair_with_same_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -976,6 +980,7 @@ fn wrong_number_of_assets() {
     let pair_contract_code_id = store_pair_code(&mut router);
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![AssetInfo::NativeToken {
             denom: "uusd".to_string(),
         }],
@@ -1001,6 +1006,7 @@ fn wrong_number_of_assets() {
     );
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             native_asset_info("uusd".to_string()),
             native_asset_info("dust".to_string()),
@@ -1411,6 +1417,7 @@ fn update_pair_config() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),
@@ -1499,6 +1506,7 @@ fn update_tax_configs() {
         .unwrap();
 
     let msg = InstantiateMsg {
+        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
         asset_infos: vec![
             AssetInfo::NativeToken {
                 denom: "uusd".to_string(),

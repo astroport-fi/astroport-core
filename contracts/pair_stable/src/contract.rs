@@ -20,7 +20,6 @@ use astroport::asset::{
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::cosmwasm_ext::IntegerToDecimal;
-use astroport::factory::PairType;
 use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
@@ -104,7 +103,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: "".to_owned(),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Stable {},
+            pair_type: msg.pair_type,
         },
         factory_addr,
         block_time_last: 0,

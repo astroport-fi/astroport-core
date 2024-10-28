@@ -14,7 +14,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, C
 
     match contract_version.contract.as_ref() {
         "astroport-staking" => match contract_version.version.as_ref() {
-            "2.0.0" => {}
+            "2.0.0" | "2.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

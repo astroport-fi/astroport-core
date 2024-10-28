@@ -1,12 +1,13 @@
 [package]
 name = "astroport-pair"
-version = "2.0.2"
+version = "2.1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport constant product pool contract implementation"
 license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
+metadata = { build_variants = ["injective", "sei"] }
 
 exclude = [
     # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.

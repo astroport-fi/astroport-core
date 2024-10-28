@@ -327,12 +327,13 @@ pub fn execute_create_pair(
             admin: Some(config.owner.to_string()),
             code_id: pair_config.code_id,
             msg: to_json_binary(&PairInstantiateMsg {
+                pair_type,
                 asset_infos: asset_infos.clone(),
                 token_code_id: config.token_code_id,
                 factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
-            // Pass executer funds to pair contract in order to pay for LP token creation
+            // Pass executor funds to pair contract to pay for LP token creation
             funds: info.funds,
             label: "Astroport pair".to_string(),
         }
@@ -576,6 +577,18 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             // atlantic-2: 1.3.1
             "1.3.1" | "1.5.1" | "1.6.0" => {
                 migrate_pair_configs(deps.storage)?;
+                if let Some(tracker_config) = msg.tracker_config {
+                    TRACKER_CONFIG.save(
+                        deps.storage,
+                        &TrackerConfig {
+                            code_id: tracker_config.code_id,
+                            token_factory_addr: deps
+                                .api
+                                .addr_validate(&tracker_config.token_factory_addr)?
+                                .to_string(),
+                        },
+                    )?;
+                }
             }
             "1.7.0" => {
                 if let Some(tracker_config) = msg.tracker_config {
@@ -591,6 +604,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
                     )?;
                 }
             }
+            "1.8.0" | "1.8.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
