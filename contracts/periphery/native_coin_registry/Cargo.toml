@@ -32,7 +32,7 @@ cw-storage-plus.workspace = true
 cw2.workspace = true
 thiserror.workspace = true
 itertools.workspace = true
-astroport = "5.2"
+astroport.workspace = true
 
 [dev-dependencies]
 cw-multi-test = "1.0.0"

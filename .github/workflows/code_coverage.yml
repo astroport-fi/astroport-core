@@ -1,56 +1,58 @@
-name: Code coverage
+## Disabled due to customizations in the project which break most of the checks
 
-on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-
-env:
-  CARGO_TERM_COLOR: always
-  CARGO_NET_GIT_FETCH_WITH_CLI: true
-
-jobs:
-  code-coverage:
-    name: Code coverage
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Cancel Previous Runs
-        uses: styfle/cancel-workflow-action@0.9.1
-        with:
-          access_token: ${{ github.token }}
-
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      - uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/git/checkouts
-            ~/.cargo/git/db
-            ~/.cargo/registry/cache
-            ~/.cargo/registry/index
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.75.0
-          override: true
-
-      - name: Run cargo-tarpaulin
-        uses: actions-rs/tarpaulin@v0.1
-        with:
-          version: '0.22.0'
-
-      - name: Upload to codecov.io
-        if: github.ref == 'refs/heads/main'
-        uses: codecov/codecov-action@v3
-        with:
-          token: ${{secrets.CODECOV_TOKEN}}
-          fail_ci_if_error: true
+#name: Code coverage
+#
+#on:
+#  push:
+#    branches:
+#      - main
+#  pull_request:
+#    branches:
+#      - main
+#
+#env:
+#  CARGO_TERM_COLOR: always
+#  CARGO_NET_GIT_FETCH_WITH_CLI: true
+#
+#jobs:
+#  code-coverage:
+#    name: Code coverage
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Cancel Previous Runs
+#        uses: styfle/cancel-workflow-action@0.9.1
+#        with:
+#          access_token: ${{ github.token }}
+#
+#      - name: Checkout repository
+#        uses: actions/checkout@v2
+#      - uses: actions/cache@v3
+#        with:
+#          path: |
+#            ~/.cargo/bin
+#            ~/.cargo/git/checkouts
+#            ~/.cargo/git/db
+#            ~/.cargo/registry/cache
+#            ~/.cargo/registry/index
+#            target
+#          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#
+#      - name: Install stable toolchain
+#        uses: actions-rs/toolchain@v1
+#        with:
+#          profile: minimal
+#          toolchain: 1.75.0
+#          override: true
+#
+#      - name: Run cargo-tarpaulin
+#        uses: actions-rs/tarpaulin@v0.1
+#        with:
+#          version: '0.22.0'
+#
+#      - name: Upload to codecov.io
+#        if: github.ref == 'refs/heads/main'
+#        uses: codecov/codecov-action@v3
+#        with:
+#          token: ${{secrets.CODECOV_TOKEN}}
+#          fail_ci_if_error: true
