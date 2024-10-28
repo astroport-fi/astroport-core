@@ -378,6 +378,7 @@ fn set_tokens_per_second(
     Ok(Response::new().add_attribute("action", "set_tokens_per_second"))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
