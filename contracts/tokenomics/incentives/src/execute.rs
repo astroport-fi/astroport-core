@@ -15,7 +15,9 @@ use astroport::asset::{
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory;
 use astroport::factory::PairType;
-use astroport::incentives::{Cw20Msg, ExecuteMsg, IncentivizationFeeInfo, RewardType};
+use astroport::incentives::{
+    Cw20Msg, ExecuteMsg, IncentivizationFeeInfo, RewardType, TOKEN_TRANSFER_GAS_LIMIT,
+};
 
 use crate::error::ContractError;
 use crate::state::{
@@ -61,7 +63,8 @@ pub fn execute(
                 .collect_vec();
 
             // Compose response. Return early in case of error
-            let response = claim_rewards(deps.storage, None, env, &info.sender, mut_tuples)?;
+            let config = CONFIG.load(deps.storage)?;
+            let response = claim_rewards(deps.storage, &config, env, &info.sender, mut_tuples)?;
 
             // Save updates in state
             for (lp_asset, pool_info, user_pos) in tuples {
@@ -121,6 +124,7 @@ pub fn execute(
             generator_controller,
             guardian,
             incentivization_fee_info,
+            token_transfer_gas_limit,
         } => update_config(
             deps,
             info,
@@ -129,6 +133,7 @@ pub fn execute(
             generator_controller,
             guardian,
             incentivization_fee_info,
+            token_transfer_gas_limit,
         ),
         ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
             update_blocked_pool_tokens(deps, env, info, add, remove)
@@ -193,7 +198,7 @@ fn deposit(
 
     let response = claim_rewards(
         deps.storage,
-        Some(config.vesting_contract),
+        &config,
         env,
         &staker,
         vec![(&maybe_lp.info, &mut pool_info, &mut user_info)],
@@ -230,9 +235,10 @@ fn withdraw(
     } else {
         let mut pool_info = PoolInfo::load(deps.storage, &lp_token_asset)?;
 
+        let config = CONFIG.load(deps.storage)?;
         let response = claim_rewards(
             deps.storage,
-            None,
+            &config,
             env,
             &info.sender,
             vec![(&lp_token_asset, &mut pool_info, &mut user_info)],
@@ -372,6 +378,7 @@ fn set_tokens_per_second(
     Ok(Response::new().add_attribute("action", "set_tokens_per_second"))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn update_config(
     deps: DepsMut,
     info: MessageInfo,
@@ -380,6 +387,7 @@ fn update_config(
     generator_controller: Option<String>,
     guardian: Option<String>,
     incentivization_fee_info: Option<IncentivizationFeeInfo>,
+    token_transfer_gas_limit: Option<u64>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -437,6 +445,19 @@ fn update_config(
         attrs.push(attr("new_incentivization_fee", new_info.fee.to_string()));
 
         config.incentivization_fee_info = Some(new_info);
+    }
+
+    if let Some(token_transfer_gas_limit) = token_transfer_gas_limit {
+        ensure!(
+            TOKEN_TRANSFER_GAS_LIMIT.contains(&token_transfer_gas_limit),
+            StdError::generic_err("Invalid token transfer gas limit")
+        );
+
+        attrs.push(attr(
+            "new_token_transfer_gas_limit",
+            token_transfer_gas_limit.to_string(),
+        ));
+        config.token_transfer_gas_limit = Some(token_transfer_gas_limit);
     }
 
     CONFIG.save(deps.storage, &config)?;

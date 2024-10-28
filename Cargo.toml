@@ -25,7 +25,7 @@ thiserror = "1.0"
 itertools = "0.12"
 cosmwasm-schema = "1.5"
 cw-utils = "1"
-astroport = { path = "./packages/astroport", version = "5.6.0" }
+astroport = { path = "./packages/astroport", version = "5.7.0" }
 
 [profile.release]
 opt-level = "z"

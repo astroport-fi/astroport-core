@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::ops::RangeInclusive;
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Coin, Decimal256, Env, StdError, StdResult, Uint128};
@@ -14,6 +15,14 @@ pub const EPOCHS_START: u64 = 1696809600;
 pub const MAX_PERIODS: u64 = 25;
 /// Maximum allowed external reward tokens per pool
 pub const MAX_REWARD_TOKENS: u8 = 5;
+/// Validation constraints for max allowed gas limit per one external incentive token transfer.
+/// Canonical cw20 transfer gas is typically 130-170k.
+/// Native coin bank transfer is 80-90k.
+/// Token factory token, for example, xASTRO, with bank hook is ~300k.
+/// Setting to 600k seems reasonable for most cases.
+/// If token transfer hits this gas limit, reward will be considered as claimed while in reality
+/// it will be stuck in the contract.
+pub const TOKEN_TRANSFER_GAS_LIMIT: RangeInclusive<u64> = 400_000..=1_500_000u64;
 
 /// Max items per page in queries
 pub const MAX_PAGE_LIMIT: u8 = 50;
@@ -167,6 +176,8 @@ pub enum ExecuteMsg {
         guardian: Option<String>,
         /// New incentivization fee info
         incentivization_fee_info: Option<IncentivizationFeeInfo>,
+        /// New external incentive token transfer gas limit
+        token_transfer_gas_limit: Option<u64>,
     },
     /// Add or remove token to the block list.
     /// Only owner or guardian can execute this.
@@ -299,6 +310,11 @@ pub struct Config {
     /// Defines native fee along with fee receiver.
     /// Fee is paid on adding NEW external reward to a specific pool
     pub incentivization_fee_info: Option<IncentivizationFeeInfo>,
+    /// Max allowed gas limit per one external incentive token transfer.
+    /// If token transfer hits this gas limit, reward will be considered as claimed while in reality
+    /// it will be stuck in the contract.
+    /// If None, there is no gas limit.
+    pub token_transfer_gas_limit: Option<u64>,
 }
 
 #[cw_serde]
