@@ -11,7 +11,7 @@ use cw_multi_test::{
     AppResponse, BankSudo, CosmosRouter, Module, Stargate, StargateMsg, StargateQuery, SudoMsg,
 };
 use itertools::Itertools;
-use neutron_sdk::proto_types::neutron::dex::{
+use neutron_std::types::neutron::dex::{
     LimitOrderTrancheUser, MsgCancelLimitOrderResponse, MsgPlaceLimitOrder,
     QueryAllLimitOrderTrancheUserByAddressRequest, QueryAllLimitOrderTrancheUserByAddressResponse,
     QuerySimulateCancelLimitOrderRequest, QuerySimulateCancelLimitOrderResponse,

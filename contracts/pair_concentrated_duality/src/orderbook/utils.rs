@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{Addr, CosmosMsg, Decimal256, StdResult};
-use neutron_sdk::proto_types::neutron::dex::MsgPlaceLimitOrder;
+use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
 
 use astroport::asset::{AssetInfo, Decimal256Ext};
 use astroport_pcl_common::{
@@ -131,6 +131,7 @@ impl SpotOrdersFactory {
                         token_out: self.denoms[0].clone(),
                         limit_sell_price,
                         tick_index_in_to_out: 0i64,
+                        min_average_sell_price: "".to_string(),
                     }
                     .into()
                 } else {
@@ -150,6 +151,7 @@ impl SpotOrdersFactory {
                         token_out: self.denoms[1].clone(),
                         limit_sell_price,
                         tick_index_in_to_out: 0i64,
+                        min_average_sell_price: "".to_string(),
                     }
                     .into()
                 }

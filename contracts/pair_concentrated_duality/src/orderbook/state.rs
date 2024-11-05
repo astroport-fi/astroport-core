@@ -7,8 +7,8 @@ use cosmwasm_std::{
 };
 use cw_storage_plus::Item;
 use itertools::Itertools;
-use neutron_sdk::proto_types::cosmos::base::query::v1beta1::PageRequest;
-use neutron_sdk::proto_types::neutron::dex::{
+use neutron_std::types::cosmos::base::query::v1beta1::PageRequest;
+use neutron_std::types::neutron::dex::{
     DexQuerier, MsgCancelLimitOrder, MsgCancelLimitOrderResponse, MsgWithdrawFilledLimitOrder,
 };
 

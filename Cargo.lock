@@ -333,14 +333,14 @@ dependencies = [
 [[package]]
 name = "astroport-neutron-sdk"
 version = "0.11.0-cosmwasm-v1"
-source = "git+https://github.com/epanchee/neutron-sdk?branch=backport/cosmwasm_v1#2c94553f36230ecaf5ab8f4c5ce856fa64d8cc59"
+source = "git+https://github.com/epanchee/neutron-sdk?branch=backport/cosmwasm_v1#e97a03aa4392f4aa08666c99090d4abb14339abb"
 dependencies = [
  "bech32 0.9.1",
  "chrono",
  "cosmos-sdk-proto 0.20.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "neutron-std-derive",
+ "neutron-std",
  "prost 0.12.6",
  "prost-types 0.12.6",
  "protobuf 3.3.0",
@@ -458,7 +458,8 @@ dependencies = [
  "cw2 1.1.2",
  "derivative",
  "itertools 0.12.1",
- "neutron-test-tube 4.0.1",
+ "neutron-std",
+ "neutron-test-tube 5.0.0",
  "thiserror",
 ]
 
@@ -626,6 +627,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw20-base 1.1.2",
  "itertools 0.12.1",
+ "neutron-std",
  "prost 0.12.6",
  "schemars",
  "serde",
@@ -838,7 +840,7 @@ dependencies = [
  "bitflags 2.6.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -2366,9 +2368,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "neutron-std"
+version = "5.0.0"
+source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#b07f4f11dff14f4fe8a46819d43ece2aee30c481"
+dependencies = [
+ "bech32 0.9.1",
+ "chrono",
+ "cosmos-sdk-proto 0.20.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "neutron-std-derive",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
+ "protobuf 3.3.0",
+ "schemars",
+ "serde",
+ "serde-cw-value",
+ "serde-json-wasm 1.0.1",
+ "serde_json",
+ "speedate",
+ "tendermint-proto 0.34.1",
+ "thiserror",
+]
+
+[[package]]
 name = "neutron-std-derive"
 version = "0.20.1"
-source = "git+https://github.com/epanchee/neutron-sdk?branch=backport/cosmwasm_v1#2c94553f36230ecaf5ab8f4c5ce856fa64d8cc59"
+source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#b07f4f11dff14f4fe8a46819d43ece2aee30c481"
 dependencies = [
  "itertools 0.10.5",
  "proc-macro2",
@@ -2396,8 +2422,8 @@ dependencies = [
 
 [[package]]
 name = "neutron-test-tube"
-version = "4.0.1"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/cosmwasm-v1#518172e3d0fc52f16b291864bc2bf0a4d9c56eb0"
+version = "5.0.0"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#f982e491f798c8dc8867c414ee86c58c2b918bb1"
 dependencies = [
  "astroport-neutron-sdk",
  "base64",
@@ -2406,6 +2432,7 @@ dependencies = [
  "cosmrs",
  "cosmwasm-std",
  "hex",
+ "neutron-std",
  "prost 0.12.6",
  "serde",
  "serde_json",
@@ -2723,7 +2750,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.68",
@@ -3767,7 +3794,7 @@ dependencies = [
 [[package]]
 name = "test-tube-ntrn"
 version = "0.1.0"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/cosmwasm-v1#518172e3d0fc52f16b291864bc2bf0a4d9c56eb0"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#f982e491f798c8dc8867c414ee86c58c2b918bb1"
 dependencies = [
  "base64",
  "cosmos-sdk-proto 0.20.0",
