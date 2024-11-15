@@ -39,15 +39,18 @@ fn init_on_duality() {
     let user = astroport
         .helper
         .app
-        .init_account(&[coin(2_000_000, "untrn"), coin(1_000_000, "astro")])
+        .init_account(&[
+            coin(10_000_0000_000000, "untrn"),
+            coin(1_000_0000_000000, "astro"),
+        ])
         .unwrap();
 
     astroport
         .provide_liquidity(
             &user,
             &[
-                astroport.assets[&test_coins[0]].with_balance(1_000_000u128),
-                astroport.assets[&test_coins[1]].with_balance(1_000_000u128),
+                astroport.assets[&test_coins[0]].with_balance(1_000_0000_000000u128),
+                astroport.assets[&test_coins[1]].with_balance(1_000_0000_000000u128),
             ],
         )
         .unwrap();

@@ -448,7 +448,6 @@ dependencies = [
  "astroport 5.5.0",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "astroport-neutron-sdk",
  "astroport-pcl-common",
  "astroport-test",
  "cosmwasm-schema",
@@ -459,7 +458,7 @@ dependencies = [
  "derivative",
  "itertools 0.12.1",
  "neutron-std",
- "neutron-test-tube 5.0.0",
+ "neutron-test-tube 4.2.2-rc",
  "thiserror",
 ]
 
@@ -2370,7 +2369,7 @@ dependencies = [
 [[package]]
 name = "neutron-std"
 version = "5.0.0"
-source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#b07f4f11dff14f4fe8a46819d43ece2aee30c481"
+source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#8a97538b5723a9799dd5e6b5a6c4db690bfab07c"
 dependencies = [
  "bech32 0.9.1",
  "chrono",
@@ -2394,7 +2393,7 @@ dependencies = [
 [[package]]
 name = "neutron-std-derive"
 version = "0.20.1"
-source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#b07f4f11dff14f4fe8a46819d43ece2aee30c481"
+source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#8a97538b5723a9799dd5e6b5a6c4db690bfab07c"
 dependencies = [
  "itertools 0.10.5",
  "proc-macro2",
@@ -2422,10 +2421,9 @@ dependencies = [
 
 [[package]]
 name = "neutron-test-tube"
-version = "5.0.0"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#f982e491f798c8dc8867c414ee86c58c2b918bb1"
+version = "4.2.2-rc"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#ad24013d8de121d4ddb2f1686add5ad36ad220ec"
 dependencies = [
- "astroport-neutron-sdk",
  "base64",
  "bindgen 0.60.1",
  "cosmos-sdk-proto 0.20.0",
@@ -3794,7 +3792,7 @@ dependencies = [
 [[package]]
 name = "test-tube-ntrn"
 version = "0.1.0"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#f982e491f798c8dc8867c414ee86c58c2b918bb1"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#ad24013d8de121d4ddb2f1686add5ad36ad220ec"
 dependencies = [
  "base64",
  "cosmos-sdk-proto 0.20.0",

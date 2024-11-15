@@ -35,13 +35,12 @@ itertools = { workspace = true }
 cw-utils = { workspace = true }
 cw2 = { workspace = true }
 
-neutron-sdk = { package = "astroport-neutron-sdk", git = "https://github.com/epanchee/neutron-sdk", branch = "backport/cosmwasm_v1" }
 neutron-std = { git = "https://github.com/epanchee/neutron-std", branch = "backport/cosmwasm_v1" }
 
 astroport = { path = "../../packages/astroport", version = "5.5", features = ["duality"] }
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 
-neutron-test-tube = { git = "https://github.com/epanchee/neutron-test-tube-new", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "5.0.0" }
+neutron-test-tube = { git = "https://github.com/epanchee/neutron-test-tube-new", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
 
 [dev-dependencies]
 astroport-native-coin-registry = "1.1"

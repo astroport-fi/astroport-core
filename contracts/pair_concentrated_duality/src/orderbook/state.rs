@@ -356,6 +356,7 @@ impl OrderbookState {
         config: &Config,
         balances: &[Decimal256],
         precisions: &Precisions,
+        api: &dyn Api,
     ) -> Result<Vec<CosmosMsg>, ContractError> {
         // Orderbook is disabled. No need to deploy orders.
         if !self.enabled {
@@ -438,7 +439,7 @@ impl OrderbookState {
             orders_factory.buy(buy_price, buy_amount);
         }
 
-        Ok(orders_factory.collect_spot_orders(&env.contract.address))
+        Ok(orders_factory.collect_spot_orders(&env.contract.address, api))
     }
 
     /// Flatten all messages into one vector and add a callback to the last message only

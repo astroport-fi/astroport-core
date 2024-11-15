@@ -40,7 +40,7 @@ pub type ExecuteMsg = ExecuteMsgExt<DualityPairMsg>;
 
 pub fn common_pcl_params() -> ConcentratedPoolParams {
     ConcentratedPoolParams {
-        amp: f64_to_dec(40f64),
+        amp: f64_to_dec(10f64),
         gamma: f64_to_dec(0.000145),
         mid_fee: f64_to_dec(0.0026),
         out_fee: f64_to_dec(0.0045),

@@ -268,7 +268,7 @@ pub fn provide_liquidity(
         .map(|(asset, deposit)| asset.amount + deposit)
         .collect_vec();
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -365,7 +365,7 @@ fn withdraw_liquidity(
     let enough_liq_cond = refund_assets[0].amount <= contract_balances[0].amount
         && refund_assets[1].amount <= contract_balances[1].amount;
     let order_msgs = if enough_liq_cond {
-        ob_state.deploy_orders(&env, &config, &xs, &precisions)?
+        ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?
     } else {
         vec![]
     };
@@ -578,7 +578,7 @@ fn swap(
 
     // Reconcile orders
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?;
 
     CONFIG.save(deps.storage, &config)?;
 

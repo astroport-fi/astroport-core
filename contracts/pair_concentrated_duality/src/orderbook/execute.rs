@@ -173,7 +173,8 @@ pub fn sync_pool_with_orderbook(
         let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
 
         let balances = pools.iter().map(|asset| asset.amount).collect_vec();
-        let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
+        // TODO: remove api
+        let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
 
         let submsgs = ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, order_msgs]);
 
