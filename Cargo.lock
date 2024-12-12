@@ -101,7 +101,7 @@ version = "3.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdebdf96895f363e121710cb84bbbfa659cea1bb1470260d4976d1a7206b3b16"
 dependencies = [
- "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-circular-buffer",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-asset",
@@ -119,7 +119,7 @@ version = "4.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5ec8dd4298b362361b0e118107a060e5e58501a68273b3257059c96b723b57c"
 dependencies = [
- "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-circular-buffer",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-asset",
@@ -136,7 +136,7 @@ version = "5.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c4af74ada17a13fe7b75d0d529367eb5dcb15e06fd7e744892191856eedc742"
 dependencies = [
- "astroport-circular-buffer 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "astroport-circular-buffer",
  "cosmos-sdk-proto 0.19.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -153,7 +153,6 @@ dependencies = [
 name = "astroport"
 version = "5.7.0"
 dependencies = [
- "astroport-circular-buffer 0.2.0",
  "cosmos-sdk-proto 0.19.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -167,16 +166,6 @@ dependencies = [
  "test-case",
  "thiserror",
  "uint 0.9.5",
-]
-
-[[package]]
-name = "astroport-circular-buffer"
-version = "0.2.0"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 1.2.0",
- "thiserror",
 ]
 
 [[package]]
@@ -381,7 +370,6 @@ version = "4.1.0"
 dependencies = [
  "anyhow",
  "astroport 5.7.0",
- "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-native-coin-registry",
@@ -430,7 +418,6 @@ version = "4.1.0"
 dependencies = [
  "anyhow",
  "astroport 5.7.0",
- "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-native-coin-registry",

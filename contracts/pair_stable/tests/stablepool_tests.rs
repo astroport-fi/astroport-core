@@ -1,15 +1,11 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{Addr, Decimal, StdError};
+use cosmwasm_std::Addr;
 use itertools::Itertools;
-use std::str::FromStr;
 
 use astroport::asset::AssetInfoExt;
-use astroport::cosmwasm_ext::AbsDiff;
-use astroport::observation::OracleObservation;
 use astroport_pair_stable::error::ContractError;
 use astroport_test::coins::TestCoin;
-use astroport_test::convert::f64_to_dec;
 use helper::AppExtension;
 
 use crate::helper::Helper;
@@ -487,118 +483,4 @@ fn check_twap_based_prices() {
         .unwrap();
     helper.app.next_block(86400);
     check_prices(&helper);
-}
-
-#[test]
-fn check_pool_prices() {
-    let owner = Addr::unchecked("owner");
-
-    let test_coins = vec![TestCoin::native("uusd"), TestCoin::cw20("USDX")];
-
-    let mut helper = Helper::new(&owner, test_coins.clone(), 100u64, None).unwrap();
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000_000_000000u128),
-    ];
-    helper.provide_liquidity(&owner, &assets, None).unwrap();
-    helper.app.next_block(1000);
-
-    let err = helper.query_observe(0).unwrap_err();
-    assert_eq!(
-        err,
-        StdError::generic_err("Querier contract error: Generic error: Buffer is empty")
-    );
-
-    let user1 = Addr::unchecked("user1");
-    let offer_asset = helper.assets[&test_coins[0]].with_balance(1000_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user1);
-
-    helper
-        .swap(
-            &user1,
-            &offer_asset,
-            Some(helper.assets[&test_coins[1]].clone()),
-        )
-        .unwrap();
-
-    helper.app.next_block(86400);
-    assert_eq!(
-        helper.query_observe(0).unwrap(),
-        OracleObservation {
-            timestamp: helper.app.block_info().time.seconds(),
-            price: Decimal::from_str("1.000500348223145698").unwrap()
-        }
-    );
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000000u128),
-    ];
-    helper.give_me_money(&assets, &user1);
-
-    // Imbalanced provide
-    helper.provide_liquidity(&user1, &assets, None).unwrap();
-    helper.app.next_block(14 * 86400);
-
-    let offer_asset = helper.assets[&test_coins[1]].with_balance(10_000_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user1);
-    helper
-        .swap(
-            &user1,
-            &offer_asset,
-            Some(helper.assets[&test_coins[0]].clone()),
-        )
-        .unwrap();
-
-    // One more swap to trigger price update in the next step
-    helper
-        .swap(
-            &owner,
-            &offer_asset,
-            Some(helper.assets[&test_coins[0]].clone()),
-        )
-        .unwrap();
-
-    helper.app.next_block(86400);
-
-    assert_eq!(
-        helper.query_observe(0).unwrap(),
-        OracleObservation {
-            timestamp: helper.app.block_info().time.seconds(),
-            price: Decimal::from_str("0.999999778261572849").unwrap()
-        }
-    );
-
-    let price1 = helper.observe_price(0).unwrap();
-    helper.app.next_block(10);
-    // Swapping the lowest amount possible which results in positive return amount
-    helper
-        .swap(
-            &user1,
-            &helper.assets[&test_coins[1]].with_balance(2u128),
-            None,
-        )
-        .unwrap();
-    let price2 = helper.observe_price(0).unwrap();
-    // With such a small swap size contract doesn't store observation
-    assert_eq!(price1, price2);
-
-    helper.app.next_block(10);
-    // Swap the smallest possible amount which gets observation saved
-    helper
-        .swap(
-            &user1,
-            &helper.assets[&test_coins[1]].with_balance(1005u128),
-            None,
-        )
-        .unwrap();
-    let price3 = helper.observe_price(0).unwrap();
-    // Prove that price didn't jump that much
-    let diff = price3.diff(price2);
-    assert!(
-        diff / price2 < f64_to_dec(0.005),
-        "price jumped from {price2} to {price3} which is more than 0.5%"
-    );
-    helper.app.next_block(10);
 }

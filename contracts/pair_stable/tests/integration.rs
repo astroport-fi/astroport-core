@@ -1,30 +1,26 @@
 #![cfg(not(tarpaulin_include))]
 
+use astroport::common::LP_SUBDENOM;
+use cosmwasm_std::{
+    attr, coin, from_json, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
+};
+use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
+
 use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
     QueryMsg as FactoryQueryMsg,
 };
-use astroport::observation::OracleObservation;
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg,
     PoolResponse, QueryMsg, StablePoolConfig, StablePoolParams, StablePoolUpdateParams,
     MAX_FEE_SHARE_BPS, TWAP_PRECISION,
 };
-
-use astroport_pair_stable::error::ContractError;
-
-use std::str::FromStr;
-
-use astroport::common::LP_SUBDENOM;
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use astroport_pair_stable::error::ContractError;
 use astroport_pair_stable::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
-use cosmwasm_std::{
-    attr, coin, from_json, to_json_binary, Addr, Coin, Decimal, QueryRequest, Uint128, WasmQuery,
-};
-use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
 const OWNER: &str = "owner";
 
@@ -1706,97 +1702,6 @@ fn enable_disable_fee_sharing() {
 
     let params: StablePoolConfig = from_json(&res.params.unwrap()).unwrap();
     assert!(params.fee_share.is_none());
-}
-
-#[test]
-fn check_observe_queries() {
-    let owner = Addr::unchecked("owner");
-    let user1 = Addr::unchecked("user1");
-
-    let mut app = mock_app(
-        owner.clone(),
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(100_000_000_000000u128),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(100_000_000_000000u128),
-            },
-        ],
-    );
-
-    // Set Alice's balances
-    app.send_tokens(
-        owner.clone(),
-        user1.clone(),
-        &[
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(4000000_000000),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(2000000_000000),
-            },
-        ],
-    )
-    .unwrap();
-
-    // Instantiate pair
-    let pair_instance = instantiate_pair(&mut app, &user1);
-
-    // Provide liquidity
-    let (msg, coins) = provide_liquidity_msg(
-        Uint128::new(1000000_000000),
-        Uint128::new(1000000_000000),
-        None,
-        None,
-    );
-    app.execute_contract(user1.clone(), pair_instance.clone(), &msg, &coins)
-        .unwrap();
-
-    // swap
-    let msg = ExecuteMsg::Swap {
-        offer_asset: Asset {
-            info: AssetInfo::NativeToken {
-                denom: "uusd".to_owned(),
-            },
-            amount: Uint128::new(100_000000),
-        },
-        ask_asset_info: None,
-        belief_price: None,
-        max_spread: None,
-        to: None,
-    };
-    let send_funds = vec![Coin {
-        denom: "uusd".to_owned(),
-        amount: Uint128::new(100_000000),
-    }];
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
-        .unwrap();
-
-    app.update_block(|b| {
-        b.height += 1;
-        b.time = b.time.plus_seconds(1000);
-    });
-
-    let res: OracleObservation = app
-        .wrap()
-        .query_wasm_smart(
-            pair_instance.to_string(),
-            &QueryMsg::Observe { seconds_ago: 0 },
-        )
-        .unwrap();
-
-    assert_eq!(
-        res,
-        OracleObservation {
-            timestamp: app.block_info().time.seconds(),
-            price: Decimal::from_str("1.000501231106759864").unwrap()
-        }
-    );
 }
 
 #[test]

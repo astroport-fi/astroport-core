@@ -8,8 +8,7 @@ use itertools::{max, Itertools};
 use astroport::asset::{
     native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
 };
-use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
-use astroport::observation::OracleObservation;
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, QueryMsg, UpdatePoolParams,
@@ -18,9 +17,7 @@ use astroport::tokenfactory_tracker::{
     ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
 };
 use astroport_pair_concentrated::error::ContractError;
-use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
-
 use astroport_test::coins::TestCoin;
 use astroport_test::convert::{dec_to_f64, f64_to_dec};
 use astroport_test::cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
@@ -28,140 +25,6 @@ use astroport_test::cw_multi_test::{Executor, TOKEN_FACTORY_MODULE};
 use crate::helper::{common_pcl_params, AppExtension, Helper};
 
 mod helper;
-
-#[test]
-fn check_observe_queries() {
-    let owner = Addr::unchecked("owner");
-
-    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
-
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
-
-    let user = Addr::unchecked("user");
-    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user);
-
-    let assets = vec![
-        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
-        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
-    ];
-    helper.provide_liquidity(&owner, &assets).unwrap();
-
-    let d = helper.query_d().unwrap();
-    assert_eq!(dec_to_f64(d), 200000f64);
-
-    assert_eq!(0, helper.coin_balance(&test_coins[1], &user));
-    helper.swap(&user, &offer_asset, None).unwrap();
-    assert_eq!(0, helper.coin_balance(&test_coins[0], &user));
-    assert_eq!(99_737929, helper.coin_balance(&test_coins[1], &user));
-
-    helper.app.next_block(1000);
-
-    let user2 = Addr::unchecked("user2");
-    let offer_asset = helper.assets[&test_coins[1]].with_balance(100_000000u128);
-    helper.give_me_money(&[offer_asset.clone()], &user2);
-    helper.swap(&user2, &offer_asset, None).unwrap();
-    assert_eq!(0, helper.coin_balance(&test_coins[1], &user2));
-    assert_eq!(99_741246, helper.coin_balance(&test_coins[0], &user2));
-
-    let d = helper.query_d().unwrap();
-    assert_eq!(dec_to_f64(d), 200000.260415);
-
-    let res: OracleObservation = helper
-        .app
-        .wrap()
-        .query_wasm_smart(
-            helper.pair_addr.to_string(),
-            &QueryMsg::Observe { seconds_ago: 0 },
-        )
-        .unwrap();
-
-    assert_eq!(
-        res,
-        OracleObservation {
-            timestamp: helper.app.block_info().time.seconds(),
-            price: Decimal::from_str("1.002627596167552265").unwrap()
-        }
-    );
-}
-
-#[test]
-fn check_wrong_initialization() {
-    let owner = Addr::unchecked("owner");
-
-    let params = ConcentratedPoolParams {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
-        ..common_pcl_params()
-    };
-
-    let err = Helper::new(&owner, vec![TestCoin::native("uluna")], params.clone()).unwrap_err();
-
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: asset_infos must contain exactly two elements",
-    );
-
-    let mut wrong_params = params.clone();
-    wrong_params.amp = Decimal::zero();
-
-    let err = Helper::new(
-        &owner,
-        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
-        wrong_params,
-    )
-    .unwrap_err();
-
-    assert_eq!(
-        ContractError::PclError(PclError::IncorrectPoolParam(
-            "amp".to_string(),
-            AMP_MIN.to_string(),
-            AMP_MAX.to_string()
-        )),
-        err.downcast().unwrap(),
-    );
-
-    let mut wrong_params = params.clone();
-    wrong_params.ma_half_time = MA_HALF_TIME_LIMITS.end() + 1;
-
-    let err = Helper::new(
-        &owner,
-        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
-        wrong_params,
-    )
-    .unwrap_err();
-
-    assert_eq!(
-        ContractError::PclError(PclError::IncorrectPoolParam(
-            "ma_half_time".to_string(),
-            MA_HALF_TIME_LIMITS.start().to_string(),
-            MA_HALF_TIME_LIMITS.end().to_string()
-        )),
-        err.downcast().unwrap(),
-    );
-
-    let mut wrong_params = params.clone();
-    wrong_params.price_scale = Decimal::zero();
-
-    let err = Helper::new(
-        &owner,
-        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
-        wrong_params,
-    )
-    .unwrap_err();
-
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: Initial price scale can not be zero",
-    );
-
-    // check instantiation with valid params
-    Helper::new(
-        &owner,
-        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
-        params,
-    )
-    .unwrap();
-}
 
 #[test]
 fn check_create_pair_with_unsupported_denom() {
@@ -710,37 +573,6 @@ fn check_swaps_simple() {
 
     let d = helper.query_d().unwrap();
     assert_eq!(dec_to_f64(d), 200000.260415);
-
-    let price1 = helper.observe_price(0).unwrap();
-    helper.app.next_block(10);
-    // Swapping the lowest amount possible which results in positive return amount
-    helper
-        .swap(
-            &user,
-            &helper.assets[&test_coins[1]].with_balance(2u128),
-            None,
-        )
-        .unwrap();
-    let price2 = helper.observe_price(0).unwrap();
-    // With such a small swap size contract doesn't store observation
-    assert_eq!(price1, price2);
-
-    helper.app.next_block(10);
-    // Swap the smallest possible amount which gets observation saved
-    helper
-        .swap(
-            &user,
-            &helper.assets[&test_coins[1]].with_balance(1005u128),
-            None,
-        )
-        .unwrap();
-    let price3 = helper.observe_price(0).unwrap();
-    // Prove that price didn't jump that much
-    let diff = price3.diff(price2);
-    assert!(
-        diff / price2 < f64_to_dec(0.005),
-        "price jumped from {price2} to {price3} which is more than 0.5%"
-    );
 }
 
 #[test]

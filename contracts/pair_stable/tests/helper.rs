@@ -4,25 +4,23 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-
-use astroport_test::coins::TestCoin;
-use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
-use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
-use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal, Empty, StdResult, Uint128};
+use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Empty, StdResult, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
 use derivative::Derivative;
 use itertools::Itertools;
 
 use astroport::asset::{native_asset_info, token_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
-use astroport::observation::OracleObservation;
 use astroport::pair::{
     CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, QueryMsg, ReverseSimulationResponse,
     SimulationResponse, StablePoolParams,
 };
-pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 use astroport_pair_stable::contract::{execute, instantiate, query, reply};
+use astroport_test::coins::TestCoin;
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
+pub const NATIVE_TOKEN_PRECISION: u8 = 6;
 const INIT_BALANCE: u128 = 1_000_000_000000;
 
 pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
@@ -322,12 +320,6 @@ impl Helper {
             .query_wasm_smart(&self.pair_addr, &QueryMsg::CumulativePrices {})
     }
 
-    pub fn query_observe(&self, seconds_ago: u64) -> StdResult<OracleObservation> {
-        self.app
-            .wrap()
-            .query_wasm_smart(&self.pair_addr, &QueryMsg::Observe { seconds_ago })
-    }
-
     fn init_token(
         app: &mut TestApp,
         token_code: u64,
@@ -397,16 +389,6 @@ impl Helper {
                 .send_tokens(self.owner.clone(), recipient.clone(), &funds)
                 .unwrap();
         }
-    }
-
-    pub fn observe_price(&self, seconds_ago: u64) -> StdResult<Decimal> {
-        self.app
-            .wrap()
-            .query_wasm_smart::<OracleObservation>(
-                &self.pair_addr,
-                &QueryMsg::Observe { seconds_ago },
-            )
-            .map(|val| val.price)
     }
 }
 

@@ -19,12 +19,9 @@ use astroport::asset::{
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
-use astroport::cosmwasm_ext::IntegerToDecimal;
-use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
     StablePoolUpdateParams, DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, MAX_FEE_SHARE_BPS,
-    MIN_TRADE_SIZE,
 };
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, PoolResponse, QueryMsg, ReverseSimulationResponse, SimulationResponse,
@@ -33,19 +30,15 @@ use astroport::pair::{
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
 use astroport::DecimalCheckedOps;
-use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
 use crate::math::{
     calc_y, compute_d, AMP_PRECISION, MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME,
 };
-use crate::state::{
-    get_precision, store_precisions, Config, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL,
-};
+use crate::state::{get_precision, store_precisions, Config, CONFIG, OWNERSHIP_PROPOSAL};
 use crate::utils::{
-    accumulate_prices, accumulate_swap_sizes, adjust_precision, calculate_shares,
-    check_asset_infos, check_cw20_in_pool, compute_current_amp, compute_swap,
-    determine_base_quote_amount, get_assets_collection, get_share_in_assets,
+    accumulate_prices, adjust_precision, calculate_shares, check_asset_infos, check_cw20_in_pool,
+    compute_current_amp, compute_swap, get_assets_collection, get_share_in_assets,
     mint_liquidity_token_message, select_pools, SwapResult,
 };
 
@@ -118,7 +111,6 @@ pub fn instantiate(
     };
 
     CONFIG.save(deps.storage, &config)?;
-    BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
@@ -655,22 +647,6 @@ pub fn swap(
         CONFIG.save(deps.storage, &config)?;
     }
 
-    // Store observation from precommit data
-    accumulate_swap_sizes(deps.storage, &env)?;
-
-    // Store time series data in precommit observation.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
-    // This data will be reflected in observations on the next action.
-    let ask_precision = get_precision(deps.storage, &ask_pool.info)?;
-    if offer_asset_dec.amount >= MIN_TRADE_SIZE
-        && return_amount.to_decimal256(ask_precision)? >= MIN_TRADE_SIZE
-    {
-        // Store time series data
-        let (base_amount, quote_amount) =
-            determine_base_quote_amount(&pools, &offer_asset, return_amount)?;
-        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
-    }
-
     Ok(Response::new()
         .add_messages(
             // 1. send collateral tokens from the contract to a user
@@ -758,9 +734,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             offer_asset_info,
         )?),
         QueryMsg::CumulativePrices {} => to_json_binary(&query_cumulative_prices(deps, env)?),
-        QueryMsg::Observe { seconds_ago } => {
-            to_json_binary(&query_observation(deps, env, OBSERVATIONS, seconds_ago)?)
-        }
         QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
         QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(&query_share(deps, lp_amount)?),
         QueryMsg::SimulateProvide { assets, .. } => to_json_binary(

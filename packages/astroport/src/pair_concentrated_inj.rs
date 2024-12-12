@@ -1,4 +1,3 @@
-use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Binary, Decimal, Decimal256, Uint128};
 use cw20::Cw20ReceiveMsg;
@@ -109,9 +108,6 @@ pub enum QueryMsg {
     /// Query LP token virtual price
     #[returns(Decimal256)]
     LpPrice {},
-    /// Query price from observations
-    #[returns(OracleObservation)]
-    Observe { seconds_ago: u64 },
     #[returns(OrderbookStateResponse)]
     OrderbookState {},
 }

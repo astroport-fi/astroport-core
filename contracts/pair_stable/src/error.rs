@@ -5,7 +5,6 @@ use cw_utils::PaymentError;
 use thiserror::Error;
 
 use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
-use astroport_circular_buffer::error::BufferError;
 
 use crate::math::{MAX_AMP, MAX_AMP_CHANGE, MIN_AMP_CHANGING_TIME};
 
@@ -17,9 +16,6 @@ pub enum ContractError {
 
     #[error("{0}")]
     CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
-
-    #[error("{0}")]
-    CircularBuffer(#[from] BufferError),
 
     #[error("{0}")]
     PaymentError(#[from] PaymentError),

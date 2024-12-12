@@ -4,9 +4,7 @@ use cw_storage_plus::{Item, Map};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
-use astroport::observation::Observation;
 use astroport::pair::FeeShareConfig;
-use astroport_circular_buffer::CircularBuffer;
 
 /// This structure stores the main stableswap pair parameters.
 #[cw_serde]
@@ -36,10 +34,6 @@ pub struct Config {
     /// The tracker contract address
     pub tracker_addr: Option<Addr>,
 }
-
-/// Circular buffer to store trade size observations
-pub const OBSERVATIONS: CircularBuffer<Observation> =
-    CircularBuffer::new("observations_state", "observations_buffer");
 
 pub const CONFIG: Item<Config> = Item::new("config");
 

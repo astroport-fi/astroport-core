@@ -24,7 +24,6 @@ uint = "0.9"
 cw-storage-plus.workspace = true
 itertools.workspace = true
 cosmwasm-schema.workspace = true
-astroport-circular-buffer = { version = "0.2", path = "../circular_buffer" }
 cw-utils.workspace = true
 cw-asset = "3.0.0"
 prost = "0.11.5"

@@ -1,4 +1,3 @@
-use crate::observation::OracleObservation;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 
 use crate::asset::{Asset, AssetInfo, PairInfo};
@@ -135,9 +134,6 @@ pub enum QueryMsg {
         asset_info: AssetInfo,
         block_height: Uint64,
     },
-    /// Query price from observations
-    #[returns(OracleObservation)]
-    Observe { seconds_ago: u64 },
     /// Returns an estimation of assets received for the given amount of LP tokens
     #[returns(Vec<Asset>)]
     SimulateWithdraw { lp_amount: Uint128 },

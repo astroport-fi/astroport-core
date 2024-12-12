@@ -1,27 +1,21 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
-use astroport::token_factory::tf_mint_msg;
 use cosmwasm_std::{
     coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps,
     Env, QuerierWrapper, StdResult, Storage, Uint128, Uint64,
 };
-
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
-use astroport::observation::{
-    safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
-};
+use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::pair::TWAP_PRECISION;
 use astroport::querier::query_factory_config;
-use astroport_circular_buffer::error::BufferResult;
-use astroport_circular_buffer::BufferManager;
+use astroport::token_factory::tf_mint_msg;
 
 use crate::error::ContractError;
 use crate::math::{calc_y, compute_d};
-use crate::state::{get_precision, Config, OBSERVATIONS};
+use crate::state::{get_precision, Config};
 
 /// Helper function to check if the given asset infos are valid.
 pub(crate) fn check_asset_infos(
@@ -329,87 +323,6 @@ pub fn accumulate_prices(
     config.block_time_last = block_time;
 
     Ok(true)
-}
-
-/// Calculate and save price moving average
-pub fn accumulate_swap_sizes(storage: &mut dyn Storage, env: &Env) -> BufferResult<()> {
-    if let Some(PrecommitObservation {
-        base_amount,
-        quote_amount,
-        precommit_ts,
-    }) = PrecommitObservation::may_load(storage)?
-    {
-        let mut buffer = BufferManager::new(storage, OBSERVATIONS)?;
-        let observed_price = Decimal::from_ratio(base_amount, quote_amount);
-
-        let new_observation;
-        if let Some(last_obs) = buffer.read_last(storage)? {
-            // Skip saving observation if it has been already saved
-            if last_obs.ts < precommit_ts {
-                // Since this is circular buffer the next index contains the oldest value
-                let count = buffer.capacity();
-                if let Some(oldest_obs) = buffer.read_single(storage, buffer.head() + 1)? {
-                    let price_sma = safe_sma_calculation(
-                        last_obs.price_sma,
-                        oldest_obs.price,
-                        count,
-                        observed_price,
-                    )?;
-                    new_observation = Observation {
-                        ts: precommit_ts,
-                        price: observed_price,
-                        price_sma,
-                    };
-                } else {
-                    // Buffer is not full yet
-                    let count = buffer.head();
-                    let price_sma =
-                        safe_sma_buffer_not_full(last_obs.price_sma, count, observed_price)?;
-                    new_observation = Observation {
-                        ts: precommit_ts,
-                        price: observed_price,
-                        price_sma,
-                    };
-                }
-
-                buffer.instant_push(storage, &new_observation)?
-            }
-        } else {
-            // Buffer is empty
-            if env.block.time.seconds() > precommit_ts {
-                new_observation = Observation {
-                    ts: precommit_ts,
-                    price: observed_price,
-                    price_sma: observed_price,
-                };
-
-                buffer.instant_push(storage, &new_observation)?
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Internal function to determine which asset is base one, which is quote one
-pub(crate) fn determine_base_quote_amount(
-    pools: &[DecimalAsset],
-    offer_asset: &Asset,
-    return_amount: Uint128,
-) -> Result<(Uint128, Uint128), ContractError> {
-    let offer_index = pools
-        .iter()
-        .find_position(|asset| asset.info == offer_asset.info)
-        .ok_or_else(|| ContractError::InvalidAsset(offer_asset.info.to_string()))?
-        .0;
-
-    let (base_amount, quote_amount) = if offer_index == 0 {
-        (offer_asset.amount, return_amount)
-    } else {
-        (return_amount, offer_asset.amount)
-    };
-
-    Ok((base_amount, quote_amount))
 }
 
 pub(crate) fn calculate_shares(

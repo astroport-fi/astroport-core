@@ -20,7 +20,6 @@ use astroport::asset::{
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
-use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     Cw20HookMsg, ExecuteMsg, FeeShareConfig, InstantiateMsg, ReplyIds, MAX_FEE_SHARE_BPS,
     MIN_TRADE_SIZE,
@@ -35,7 +34,6 @@ use astroport::token_factory::{
     tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse,
 };
 use astroport::tokenfactory_tracker;
-use astroport_circular_buffer::BufferManager;
 use astroport_pcl_common::state::{
     AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState,
 };
@@ -46,10 +44,8 @@ use astroport_pcl_common::utils::{
 use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
-use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
-use crate::utils::{
-    accumulate_swap_sizes, calculate_shares, get_assets_with_precision, query_pools,
-};
+use crate::state::{BALANCES, CONFIG, OWNERSHIP_PROPOSAL};
+use crate::utils::{calculate_shares, get_assets_with_precision, query_pools};
 
 /// Contract name that is used for migration.
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -151,8 +147,6 @@ pub fn instantiate(
     }
 
     CONFIG.save(deps.storage, &config)?;
-
-    BufferManager::init(deps.storage, OBSERVATIONS, OBSERVATIONS_SIZE)?;
 
     // Create LP token
     let sub_msg = SubMsg::reply_on_success(
@@ -771,21 +765,6 @@ fn swap(
     }
 
     accumulate_prices(&env, &mut config, old_real_price);
-
-    // Store observation from precommit data
-    accumulate_swap_sizes(deps.storage, &env)?;
-
-    // Store time series data in precommit observation.
-    // Skipping small unsafe values which can seriously mess oracle price due to rounding errors.
-    // This data will be reflected in observations in the next action.
-    if offer_asset_dec.amount >= MIN_TRADE_SIZE && swap_result.dy >= MIN_TRADE_SIZE {
-        let (base_amount, quote_amount) = if offer_ind == 0 {
-            (offer_asset.amount, return_amount)
-        } else {
-            (return_amount, offer_asset.amount)
-        };
-        PrecommitObservation::save(deps.storage, &env, base_amount, quote_amount)?;
-    }
 
     CONFIG.save(deps.storage, &config)?;
 

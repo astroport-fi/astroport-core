@@ -38,7 +38,6 @@ thiserror.workspace = true
 itertools.workspace = true
 cosmwasm-schema.workspace = true
 cw-utils.workspace = true
-astroport-circular-buffer = { path = "../../packages/circular_buffer", version = "0.2" }
 
 [dev-dependencies]
 anyhow = "1.0"

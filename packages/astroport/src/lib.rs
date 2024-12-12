@@ -12,7 +12,6 @@ pub mod fee_granter;
 pub mod injective_ext;
 pub mod maker;
 pub mod native_coin_registry;
-pub mod observation;
 pub mod oracle;
 pub mod pair;
 pub mod pair_concentrated;
