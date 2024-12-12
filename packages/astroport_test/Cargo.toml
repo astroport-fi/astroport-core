@@ -32,7 +32,6 @@ cw20-base = "1.1"
 itertools = { workspace = true }
 cw-utils = { workspace = true }
 cw-storage-plus = { workspace = true }
-neutron-sdk = { package = "astroport-neutron-sdk", git = "https://github.com/epanchee/neutron-sdk", branch = "backport/cosmwasm_v1" }
 neutron-std = { git = "https://github.com/epanchee/neutron-std", branch = "backport/cosmwasm_v1" }
 prost = "0.12"
 sha2 = "0.10.8"

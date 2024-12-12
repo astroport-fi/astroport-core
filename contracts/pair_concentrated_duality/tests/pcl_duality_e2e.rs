@@ -49,8 +49,8 @@ fn init_on_duality() {
         .provide_liquidity(
             &user,
             &[
-                astroport.assets[&test_coins[0]].with_balance(1_000_0000_000000u128),
-                astroport.assets[&test_coins[1]].with_balance(1_000_0000_000000u128),
+                astroport.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
+                astroport.assets[&test_coins[1]].with_balance(1_000_000_000000u128),
             ],
         )
         .unwrap();

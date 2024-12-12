@@ -120,15 +120,18 @@ impl SpotOrdersFactory {
                             .unwrap();
 
                     api.debug(&format!(
-                        "limit_sell_price: {}, amount_in: {}",
-                        limit_sell_price,
-                        (order.amount * self.multiplier[1]).floor()
+                        "limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        (order.amount * self.multiplier[1])
+                            .to_uint_floor()
+                            .to_string()
                     ));
 
                     #[allow(deprecated)]
                     MsgPlaceLimitOrder {
                         creator: sender.to_string(),
-                        amount_in: (order.amount * self.multiplier[1]).floor().to_string(),
+                        amount_in: (order.amount * self.multiplier[1])
+                            .to_uint_floor()
+                            .to_string(),
                         // order_type: LimitOrderType::GoodTilCancelled,
                         order_type: 0, // https://github.com/neutron-org/neutron/blob/main/proto/neutron/dex/tx.proto#L126
                         max_amount_out: None,
@@ -137,7 +140,7 @@ impl SpotOrdersFactory {
                         token_in: self.denoms[1].clone(),
                         token_out: self.denoms[0].clone(),
                         limit_sell_price: Some(limit_sell_price),
-                        tick_index_in_to_out: 0i64,
+                        tick_index_in_to_out: 0,
                         min_average_sell_price: None,
                     }
                     .into()
@@ -147,15 +150,18 @@ impl SpotOrdersFactory {
                             .unwrap();
 
                     api.debug(&format!(
-                        "limit_sell_price: {}, amount_in: {}",
-                        limit_sell_price,
-                        (order.amount * self.multiplier[0]).floor()
+                        "limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        (order.amount * self.multiplier[0])
+                            .to_uint_floor()
+                            .to_string()
                     ));
 
                     #[allow(deprecated)]
                     MsgPlaceLimitOrder {
                         creator: sender.to_string(),
-                        amount_in: (order.amount * self.multiplier[0]).floor().to_string(),
+                        amount_in: (order.amount * self.multiplier[0])
+                            .to_uint_floor()
+                            .to_string(),
                         // order_type: LimitOrderType::GoodTilCancelled,
                         order_type: 0, // https://github.com/neutron-org/neutron/blob/main/proto/neutron/dex/tx.proto#L126
                         max_amount_out: None,
@@ -164,7 +170,7 @@ impl SpotOrdersFactory {
                         token_in: self.denoms[0].clone(),
                         token_out: self.denoms[1].clone(),
                         limit_sell_price: Some(limit_sell_price),
-                        tick_index_in_to_out: 0i64,
+                        tick_index_in_to_out: 0,
                         min_average_sell_price: None,
                     }
                     .into()
