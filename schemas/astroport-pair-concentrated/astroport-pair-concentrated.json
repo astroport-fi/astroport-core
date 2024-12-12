@@ -726,30 +726,6 @@
         "additionalProperties": false
       },
       {
-        "description": "Query price from observations",
-        "type": "object",
-        "required": [
-          "observe"
-        ],
-        "properties": {
-          "observe": {
-            "type": "object",
-            "required": [
-              "seconds_ago"
-            ],
-            "properties": {
-              "seconds_ago": {
-                "type": "integer",
-                "format": "uint64",
-                "minimum": 0.0
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
         "description": "Returns an estimation of shares received for the given amount of assets",
         "type": "object",
         "required": [
@@ -1143,32 +1119,6 @@
       "title": "Decimal256",
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal256(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 115792089237316195423570985008687907853269984665640564039457.584007913129639935 (which is (2^256 - 1) / 10^18)",
       "type": "string"
-    },
-    "observe": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "OracleObservation",
-      "type": "object",
-      "required": [
-        "price",
-        "timestamp"
-      ],
-      "properties": {
-        "price": {
-          "$ref": "#/definitions/Decimal"
-        },
-        "timestamp": {
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        }
-      },
-      "additionalProperties": false,
-      "definitions": {
-        "Decimal": {
-          "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
-          "type": "string"
-        }
-      }
     },
     "pair": {
       "$schema": "http://json-schema.org/draft-07/schema#",

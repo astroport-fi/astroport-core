@@ -200,30 +200,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Query price from observations",
-      "type": "object",
-      "required": [
-        "observe"
-      ],
-      "properties": {
-        "observe": {
-          "type": "object",
-          "required": [
-            "seconds_ago"
-          ],
-          "properties": {
-            "seconds_ago": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "description": "Returns an estimation of shares received for the given amount of assets",
       "type": "object",
       "required": [
