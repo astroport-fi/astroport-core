@@ -7,7 +7,6 @@ pub mod asset;
 pub mod common;
 pub mod cosmwasm_ext;
 pub mod factory;
-pub mod fee_granter;
 #[cfg(feature = "injective")]
 pub mod injective_ext;
 pub mod maker;
