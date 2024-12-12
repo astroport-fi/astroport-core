@@ -221,7 +221,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "itertools 0.12.1",
  "prost 0.11.9",
  "thiserror",
@@ -275,7 +275,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "itertools 0.12.1",
  "proptest",
  "thiserror",
@@ -297,7 +297,7 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "thiserror",
 ]
 
@@ -331,7 +331,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 1.1.2",
  "cw20 0.15.1",
- "cw20-base 1.1.2",
+ "cw20-base",
  "itertools 0.10.5",
  "thiserror",
 ]
@@ -368,7 +368,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "integer-sqrt",
  "proptest",
  "prost 0.11.9",
@@ -394,7 +394,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "derivative",
  "itertools 0.12.1",
  "proptest",
@@ -417,7 +417,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "derivative",
  "itertools 0.12.1",
  "serde",
@@ -441,7 +441,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "derivative",
  "itertools 0.12.1",
  "proptest",
@@ -465,7 +465,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "derivative",
  "itertools 0.12.1",
  "thiserror",
@@ -507,7 +507,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "integer-sqrt",
  "proptest",
  "prost 0.11.9",
@@ -545,7 +545,7 @@ dependencies = [
  "cw-storage-plus 0.15.1",
  "cw2 1.1.2",
  "cw20 0.15.1",
- "cw20-base 1.1.2",
+ "cw20-base",
  "integer-sqrt",
  "thiserror",
 ]
@@ -646,7 +646,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
- "cw20-base 1.1.2",
+ "cw20-base",
  "thiserror",
 ]
 
@@ -660,21 +660,6 @@ dependencies = [
  "cw2 1.1.2",
  "neutron-sdk",
  "thiserror",
-]
-
-[[package]]
-name = "astroport-xastro-token"
-version = "1.1.0"
-dependencies = [
- "astroport 3.12.2",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-multi-test 1.2.0",
- "cw-storage-plus 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "cw20-base 0.15.1",
- "snafu",
 ]
 
 [[package]]
@@ -1360,24 +1345,6 @@ dependencies = [
 
 [[package]]
 name = "cw20-base"
-version = "0.15.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0909c56d0c14601fbdc69382189799482799dcad87587926aec1f3aa321abc41"
-dependencies = [
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw-utils 0.15.1",
- "cw2 0.15.1",
- "cw20 0.15.1",
- "schemars",
- "semver",
- "serde",
- "thiserror",
-]
-
-[[package]]
-name = "cw20-base"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17ad79e86ea3707229bf78df94e08732e8f713207b4a77b2699755596725e7d9"
@@ -1458,12 +1425,6 @@ dependencies = [
  "crypto-common",
  "subtle",
 ]
-
-[[package]]
-name = "doc-comment"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fea41bba32d969b513997752735605054bc0dfa92b4c56bf1189f2e174be7a10"
 
 [[package]]
 name = "dyn-clone"
@@ -3203,27 +3164,6 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
-
-[[package]]
-name = "snafu"
-version = "0.6.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eab12d3c261b2308b0d80c26fffb58d17eba81a4be97890101f416b478c79ca7"
-dependencies = [
- "doc-comment",
- "snafu-derive",
-]
-
-[[package]]
-name = "snafu-derive"
-version = "0.6.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1508efa03c362e23817f96cde18abed596a25219a8b2c66e8db33c03543d315b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
-]
 
 [[package]]
 name = "socket2"
