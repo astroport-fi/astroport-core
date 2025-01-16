@@ -435,6 +435,7 @@ dependencies = [
  "itertools 0.12.1",
  "neutron-std",
  "neutron-test-tube 4.2.2-rc",
+ "serde",
  "thiserror",
 ]
 
@@ -2397,7 +2398,7 @@ dependencies = [
 [[package]]
 name = "neutron-test-tube"
 version = "4.2.2-rc"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#ad24013d8de121d4ddb2f1686add5ad36ad220ec"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
 dependencies = [
  "base64",
  "bindgen 0.60.1",
@@ -3767,7 +3768,7 @@ dependencies = [
 [[package]]
 name = "test-tube-ntrn"
 version = "0.1.0"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#ad24013d8de121d4ddb2f1686add5ad36ad220ec"
+source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
 dependencies = [
  "base64",
  "cosmos-sdk-proto 0.20.0",

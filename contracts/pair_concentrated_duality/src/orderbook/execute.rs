@@ -1,7 +1,6 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, ensure_eq, to_json_string, Decimal256, DepsMut, Env, MessageInfo, QuerierWrapper,
-    Response,
+    attr, ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
 };
 use itertools::Itertools;
 
@@ -30,7 +29,7 @@ pub struct CumulativeTrade {
 }
 
 pub fn process_cumulative_trade(
-    querier: QuerierWrapper,
+    deps: Deps,
     env: &Env,
     trade: &CumulativeTrade,
     config: &mut Config,
@@ -75,7 +74,7 @@ pub fn process_cumulative_trade(
         fee_info
     } else {
         &query_fee_info(
-            &querier,
+            &deps.querier,
             &config.factory_addr,
             config.pair_info.pair_type.clone(),
         )?
@@ -104,7 +103,7 @@ pub fn process_cumulative_trade(
             trade.quote_asset.amount / trade.base_asset.amount
         };
 
-        let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?
+        let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
             .to_decimal256(LP_TOKEN_PRECISION)?;
 
         let ixs = [
@@ -145,9 +144,13 @@ pub fn sync_pool_with_orderbook(
     if let Some(cumulative_trade) =
         ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?
     {
+        deps.api.debug(&format!(
+            "Syncing pool with orderbook: {:?}",
+            &cumulative_trade
+        ));
         let mut config = CONFIG.load(deps.storage)?;
         let mut pools = query_pools(
-            deps.as_ref(),
+            deps.querier,
             &env.contract.address,
             &config,
             &precisions,
@@ -159,7 +162,7 @@ pub fn sync_pool_with_orderbook(
             .collect_vec();
 
         let response = process_cumulative_trade(
-            deps.querier,
+            deps.as_ref(),
             &env,
             &cumulative_trade,
             &mut config,
@@ -173,7 +176,6 @@ pub fn sync_pool_with_orderbook(
         let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
 
         let balances = pools.iter().map(|asset| asset.amount).collect_vec();
-        // TODO: remove api
         let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
 
         let submsgs = ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, order_msgs]);

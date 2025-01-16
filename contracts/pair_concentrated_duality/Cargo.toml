@@ -41,6 +41,7 @@ astroport = { path = "../../packages/astroport", version = "5.5", features = ["d
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 
 neutron-test-tube = { git = "https://github.com/epanchee/neutron-test-tube-new", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
+serde = { version = "1.0.203", features = ["derive"] }
 
 [dev-dependencies]
 astroport-native-coin-registry = "1.1"

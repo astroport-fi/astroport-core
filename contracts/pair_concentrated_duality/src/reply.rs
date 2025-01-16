@@ -1,4 +1,5 @@
 use cosmwasm_std::{DepsMut, Env, Reply, Response, StdError, SubMsgResponse, SubMsgResult};
+use itertools::Itertools;
 
 use astroport::pair_concentrated_duality::ReplyIds;
 use astroport::token_factory::MsgCreateDenomResponse;
@@ -40,7 +41,9 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             let mut ob_state = OrderbookState::load(deps.storage)?;
             ob_state.fetch_all_orders(deps.as_ref(), &env.contract.address)?;
             ob_state.last_balances =
-                ob_state.query_ob_liquidity(deps.as_ref(), &env.contract.address, true)?;
+                ob_state.query_ob_liquidity(deps.querier, &env.contract.address, true)?;
+            // TODO: delete me
+            deps.api.debug(&ob_state.orders.iter().join(","));
             ob_state.save(deps.storage)?;
 
             Ok(Response::default().add_attribute("action", "post_limit_order_callback"))

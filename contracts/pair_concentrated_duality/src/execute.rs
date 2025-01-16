@@ -171,7 +171,7 @@ pub fn provide_liquidity(
         ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
 
     let mut pools = query_pools(
-        deps.as_ref(),
+        deps.querier,
         &env.contract.address,
         &config,
         &precisions,
@@ -208,7 +208,7 @@ pub fn provide_liquidity(
             .collect_vec();
 
         process_cumulative_trade(
-            deps.querier,
+            deps.as_ref(),
             &env,
             &cumulative_trade,
             &mut config,
@@ -273,7 +273,8 @@ pub fn provide_liquidity(
     CONFIG.save(deps.storage, &config)?;
 
     let submsgs =
-        ob_state.flatten_msgs_and_add_callback(&[mint_lp_messages, cancel_msgs, order_msgs]);
+        ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, order_msgs, mint_lp_messages]);
+    ob_state.save(deps.storage)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
         attr("action", "provide_liquidity"),
@@ -312,7 +313,7 @@ fn withdraw_liquidity(
         ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
 
     let mut pools = query_pools(
-        deps.as_ref(),
+        deps.querier,
         &env.contract.address,
         &config,
         &precisions,
@@ -331,7 +332,7 @@ fn withdraw_liquidity(
             .collect_vec();
 
         process_cumulative_trade(
-            deps.querier,
+            deps.as_ref(),
             &env,
             &cumulative_trade,
             &mut config,
@@ -406,6 +407,7 @@ fn withdraw_liquidity(
 
     let submsgs =
         ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, withdraw_messages, order_msgs]);
+    ob_state.save(deps.storage)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
         attr("action", "withdraw_liquidity"),
@@ -447,13 +449,27 @@ fn swap(
     let maybe_cumulative_trade =
         ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
 
+    // TODO: delete me
+    deps.api
+        .debug(&format!("swap: {:?}", maybe_cumulative_trade));
+
     let mut pools = query_pools(
-        deps.as_ref(),
+        deps.querier,
         &env.contract.address,
         &config,
         &precisions,
         &ob_state,
     )?;
+
+    let (offer_ind, _) = pools
+        .iter()
+        .find_position(|asset| asset.info == offer_asset_dec.info)
+        .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
+    let ask_ind = 1 ^ offer_ind;
+    let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
+
+    pools[offer_ind].amount -= offer_asset_dec.amount;
+    before_swap_check(&pools, offer_asset_dec.amount)?;
 
     // Get fee info from the factory
     let fee_info = query_fee_info(
@@ -472,7 +488,7 @@ fn swap(
             .collect_vec();
 
         process_cumulative_trade(
-            deps.querier,
+            deps.as_ref(),
             &env,
             &cumulative_trade,
             &mut config,
@@ -483,17 +499,6 @@ fn swap(
     } else {
         Response::default()
     };
-
-    let (offer_ind, _) = pools
-        .iter()
-        .find_position(|asset| asset.info == offer_asset_dec.info)
-        .ok_or_else(|| ContractError::InvalidAsset(offer_asset_dec.info.to_string()))?;
-    let ask_ind = 1 ^ offer_ind;
-    let ask_asset_prec = precisions.get_precision(&pools[ask_ind].info)?;
-
-    pools[offer_ind].amount -= offer_asset_dec.amount;
-
-    before_swap_check(&pools, offer_asset_dec.amount)?;
 
     let mut xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let old_real_price = calc_last_prices(&xs, &config, &env)?;
@@ -582,7 +587,9 @@ fn swap(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let submsgs = ob_state.flatten_msgs_and_add_callback(&[messages, cancel_msgs, order_msgs]);
+    let submsgs = ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, messages, order_msgs]);
+
+    ob_state.save(deps.storage)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
         attr("action", "swap"),

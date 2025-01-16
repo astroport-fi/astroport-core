@@ -2,15 +2,18 @@ use std::cmp::Ordering;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, coin, ensure, Addr, Api, Attribute, Coin, CosmosMsg, Decimal, Decimal256, Deps, Env,
-    ReplyOn, StdError, StdResult, Storage, SubMsg, Uint128,
+    attr, coin, ensure, from_json, to_json_vec, Addr, Api, Attribute, Coin, CosmosMsg, Decimal,
+    Decimal256, Deps, Empty, Env, QuerierWrapper, QueryRequest, ReplyOn, StdError, StdResult,
+    Storage, SubMsg, Uint128,
 };
 use cw_storage_plus::Item;
 use itertools::Itertools;
-use neutron_std::types::cosmos::base::query::v1beta1::PageRequest;
+use neutron_std::types::cosmos::base::query::v1beta1::{PageRequest, PageResponse};
 use neutron_std::types::neutron::dex::{
-    DexQuerier, MsgCancelLimitOrder, MsgCancelLimitOrderResponse, MsgWithdrawFilledLimitOrder,
+    DexQuerier, MsgCancelLimitOrder, MsgCancelLimitOrderResponse,
+    QueryAllLimitOrderTrancheUserByAddressRequest,
 };
+use serde::Deserialize;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAsset};
 use astroport::cosmwasm_ext::IntegerToDecimal;
@@ -21,7 +24,7 @@ use astroport_pcl_common::state::{Config, Precisions};
 
 use crate::error::ContractError;
 use crate::orderbook::consts::{MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDER_SIZE_LIMITS};
-use crate::orderbook::error::OrderbookError;
+use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
 use crate::orderbook::execute::CumulativeTrade;
 use crate::orderbook::utils::{compute_swap, SpotOrdersFactory};
 
@@ -188,14 +191,14 @@ impl OrderbookState {
     /// This hack helps us to avoid querying orderbook if integration is disabled.
     pub fn query_ob_liquidity(
         &self,
-        deps: Deps,
+        querier: QuerierWrapper,
         addr: &Addr,
         force_update: bool,
     ) -> StdResult<Vec<Coin>> {
         if !force_update && self.last_balances.is_empty() {
             Ok(vec![])
         } else {
-            let dex_querier = DexQuerier::new(&deps.querier);
+            let dex_querier = DexQuerier::new(&querier);
             self.orders
                 .iter()
                 .map(|order_key| {
@@ -254,45 +257,71 @@ impl OrderbookState {
     }
 
     /// Fetch all orders and save their tranche keys in the state.
-    pub fn fetch_all_orders(&mut self, deps: Deps, addr: &Addr) -> Result<(), OrderbookError> {
-        self.orders = DexQuerier::new(&deps.querier)
-            .limit_order_tranche_user_all_by_address(
-                addr.to_string(),
-                Some(PageRequest {
+    pub fn fetch_all_orders(&mut self, deps: Deps, addr: &Addr) -> StdResult<()> {
+        let query_msg = to_json_vec(&QueryRequest::<Empty>::Stargate {
+            path: "/neutron.dex.Query/LimitOrderTrancheUserAllByAddress".to_string(),
+            data: QueryAllLimitOrderTrancheUserByAddressRequest {
+                address: addr.to_string(),
+                pagination: Some(PageRequest {
                     key: Default::default(),
                     offset: 0,
                     limit: (self.orders_number * 2) as u64,
                     count_total: false,
                     reverse: false,
                 }),
-            )
-            .map(|res| {
-                res.limit_orders
-                    .into_iter()
-                    .map(|order| order.tranche_key)
-                    .collect()
-            })?;
+            }
+            .into(),
+        })?;
+
+        let response_raw = deps
+            .querier
+            .raw_query(&query_msg)
+            .into_result()
+            .map_err(|err| StdError::generic_err(err.to_string()))?
+            .into_result()
+            .map_err(|err| StdError::generic_err(err))?;
+
+        self.orders = from_json::<CustomQueryAllLimitOrderTrancheUserByAddressResponse>(
+            &response_raw,
+        )
+        .map(|res| {
+            res.limit_orders
+                .into_iter()
+                .map(|order| order.tranche_key)
+                .collect()
+        })?;
+
+        // self.orders = DexQuerier::new(&deps.querier)
+        //     .limit_order_tranche_user_all_by_address(
+        //         addr.to_string(),
+        //         Some(PageRequest {
+        //             key: Default::default(),
+        //             offset: 0,
+        //             limit: (self.orders_number * 2) as u64,
+        //             count_total: false,
+        //             reverse: false,
+        //         }),
+        //     )
+        //     .map(|res| {
+        //         res.limit_orders
+        //             .into_iter()
+        //             .map(|order| order.tranche_key)
+        //             .collect()
+        //     })?;
 
         Ok(())
     }
 
-    /// Cancel orders and withdraw all balances from the orderbook.
+    /// Cancel orders and automatically withdraw all balances from the orderbook.
     pub fn cancel_orders(&self, addr: &Addr) -> Vec<CosmosMsg> {
         self.orders
             .iter()
-            .flat_map(|tranche_key| {
-                let cancel_msg = MsgCancelLimitOrder {
+            .map(|tranche_key| {
+                MsgCancelLimitOrder {
                     creator: addr.to_string(),
                     tranche_key: tranche_key.clone(),
                 }
-                .into();
-                let withdraw_msg = MsgWithdrawFilledLimitOrder {
-                    creator: addr.to_string(),
-                    tranche_key: tranche_key.clone(),
-                }
-                .into();
-
-                [cancel_msg, withdraw_msg]
+                .into()
             })
             .collect()
     }
@@ -306,9 +335,9 @@ impl OrderbookState {
         addr: &Addr,
         precisions: &Precisions,
     ) -> Result<Option<CumulativeTrade>, ContractError> {
-        let mut new_balances = self.query_ob_liquidity(deps, addr, false)?;
+        let mut new_balances = self.query_ob_liquidity(deps.querier, addr, false)?;
         if !new_balances.is_empty() {
-            if self.last_balances[0] != new_balances[0] {
+            if self.last_balances[0].denom != new_balances[0].denom {
                 new_balances.swap(0, 1);
             }
 
@@ -350,6 +379,7 @@ impl OrderbookState {
 
     /// Construct an array with new orders.
     /// Return an empty array if orderbook integration is disabled.
+    // TODO: remove api from the arguments
     pub fn deploy_orders(
         &self,
         env: &Env,

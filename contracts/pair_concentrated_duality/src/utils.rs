@@ -37,16 +37,16 @@ pub(crate) fn query_contract_balances(
         .collect()
 }
 
-/// Returns current pool's volumes where amount is in [`Decimal256`] form.
+/// Returns current pool's reserves where amount is in [`Decimal256`] form.
 /// Query contract balances and orderbook liquidity and merge them.
 pub(crate) fn query_pools(
-    deps: Deps,
+    querier: QuerierWrapper,
     addr: &Addr,
     config: &Config,
     precisions: &Precisions,
     ob_state: &OrderbookState,
 ) -> Result<Vec<DecimalAsset>, ContractError> {
-    let contract_liq = query_contract_balances(deps.querier, addr, config, precisions)?;
+    let contract_liq = query_contract_balances(querier, addr, config, precisions)?;
     let ob_liquidity = ob_state.query_ob_liquidity_dec(precisions)?;
 
     let mut balances = contract_liq
@@ -73,13 +73,35 @@ pub(crate) fn query_pools(
 pub(crate) fn pool_info(
     querier: QuerierWrapper,
     config: &Config,
+    ob_state: &OrderbookState,
 ) -> StdResult<(Vec<Asset>, Uint128)> {
-    let pools = config
+    let contract_liq = config
         .pair_info
         .query_pools(&querier, &config.pair_info.contract_addr)?;
+    let ob_liquidity = ob_state
+        .query_ob_liquidity(querier, &config.pair_info.contract_addr, false)?
+        .into_iter()
+        .map(|coin| Asset::native(coin.denom, coin.amount))
+        .collect_vec();
+    // Merge contract and orderbook liquidity
+    let mut balances = contract_liq
+        .iter()
+        .chain(ob_liquidity.iter())
+        .into_group_map_by(|asset| asset.info.clone())
+        .into_iter()
+        .map(|(info, assets)| {
+            let amount = assets.iter().fold(Uint128::zero(), |acc, a| acc + a.amount);
+            Ok(Asset { info, amount })
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    if balances[0].info != config.pair_info.asset_infos[0] {
+        balances.swap(0, 1);
+    }
+
     let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?;
 
-    Ok((pools, total_share))
+    Ok((balances, total_share))
 }
 
 pub(crate) fn get_assets_with_precision(

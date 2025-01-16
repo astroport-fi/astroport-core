@@ -115,12 +115,15 @@ impl SpotOrdersFactory {
             .into_iter()
             .map(|order| {
                 if order.is_buy {
-                    let limit_sell_price =
-                        price_to_sci_notation(order.price, self.precision[1], self.precision[0])
-                            .unwrap();
+                    let limit_sell_price = price_to_duality_notation(
+                        order.price,
+                        self.precision[1],
+                        self.precision[0],
+                    )
+                    .unwrap();
 
                     api.debug(&format!(
-                        "limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        "buy: limit_sell_price: {limit_sell_price}, amount_in: {}",
                         (order.amount * self.multiplier[1])
                             .to_uint_floor()
                             .to_string()
@@ -145,12 +148,15 @@ impl SpotOrdersFactory {
                     }
                     .into()
                 } else {
-                    let limit_sell_price =
-                        price_to_sci_notation(order.price, self.precision[0], self.precision[1])
-                            .unwrap();
+                    let limit_sell_price = price_to_duality_notation(
+                        order.price,
+                        self.precision[0],
+                        self.precision[1],
+                    )
+                    .unwrap();
 
                     api.debug(&format!(
-                        "limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        "sell: limit_sell_price: {limit_sell_price}, amount_in: {}",
                         (order.amount * self.multiplier[0])
                             .to_uint_floor()
                             .to_string()
@@ -180,12 +186,9 @@ impl SpotOrdersFactory {
     }
 }
 
-/// Converting [`Decimal256`] price to float in scientific notation.
-///
-/// For example, 1.0 ETH = 3000.0 USDC. ETH 18 decimals, USDC 6 decimals.  
-/// Sell ETH: 3000 / 1 * 10**(6-18) -> 3000e-12 uUSDC per aETH  
-/// Sell USDC: 1 / 3000 * 10**(18-6) -> 0.000333333333333333e12 -> 333333333.333333 aETH per uUSDC
-fn price_to_sci_notation(
+/// Converting [`Decimal256`] price to duality price notation which is
+/// float multiplied by 10^27.
+fn price_to_duality_notation(
     price: Decimal256,
     base_precision: u8,
     quote_precision: u8,

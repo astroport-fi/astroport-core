@@ -7,12 +7,15 @@ use std::collections::HashMap;
 use anyhow::Result as AnyResult;
 use cosmwasm_std::{coin, coins, to_json_binary, Addr, Coin, Decimal};
 use itertools::Itertools;
+use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse;
 use neutron_test_tube::{Account, ExecuteResponse, SigningAccount};
 
+use astroport::pair::PoolResponse;
 use astroport::pair_concentrated_duality::DualityPairMsg;
 use astroport::{
     asset::{native_asset_info, Asset, AssetInfo, PairInfo},
     factory::{PairConfig, PairType},
+    pair,
     pair_concentrated::ConcentratedPoolParams,
     pair_concentrated_duality::{ConcentratedDualityParams, OrderbookConfig},
 };
@@ -244,6 +247,18 @@ impl<'a> AstroportHelper<'a> {
             .map(|_| ())
     }
 
+    pub fn swap_max_spread(
+        &self,
+        sender: &SigningAccount,
+        offer_asset: &Asset,
+    ) -> AnyResult<
+        ExecuteResponse<
+            neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse,
+        >,
+    > {
+        self.swap(sender, offer_asset, Some(f64_to_dec(0.5)))
+    }
+
     pub fn swap(
         &self,
         sender: &SigningAccount,
@@ -271,5 +286,24 @@ impl<'a> AstroportHelper<'a> {
                     .execute_contract(sender, self.pair_addr.as_str(), &msg, &funds)
             }
         }
+    }
+
+    pub fn pool_balances(&self) -> AnyResult<PoolResponse> {
+        self.helper
+            .wasm
+            .query(self.pair_addr.as_str(), &pair::QueryMsg::Pool {})
+            .map_err(Into::into)
+    }
+
+    pub fn sync_orders(
+        &self,
+        sender: &SigningAccount,
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
+        self.helper.execute_contract(
+            sender,
+            self.pair_addr.as_str(),
+            &ExecuteMsg::Custom(DualityPairMsg::SyncOrderbook {}),
+            &[],
+        )
     }
 }

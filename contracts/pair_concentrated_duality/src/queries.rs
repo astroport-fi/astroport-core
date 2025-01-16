@@ -93,7 +93,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 /// tokens currently minted in an object of type [`PoolResponse`].
 fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
     let config = CONFIG.load(deps.storage)?;
-    pool_info(deps.querier, &config).map(|(assets, total_share)| PoolResponse {
+    let ob_state = OrderbookState::load(deps.storage)?;
+    pool_info(deps.querier, &config, &ob_state).map(|(assets, total_share)| PoolResponse {
         assets,
         total_share,
     })
@@ -109,7 +110,7 @@ fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let pools = query_pools(
-        deps,
+        deps.querier,
         &config.pair_info.contract_addr,
         &config,
         &precisions,
@@ -146,7 +147,13 @@ pub fn query_simulation(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)?;
+    let pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &precisions,
+        &ob_state,
+    )?;
 
     let (offer_ind, _) = pools
         .iter()
@@ -205,7 +212,13 @@ pub fn query_reverse_simulation(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)?;
+    let pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &precisions,
+        &ob_state,
+    )?;
 
     let (ask_ind, _) = pools
         .iter()
@@ -234,14 +247,21 @@ fn query_cumulative_prices(
     let precisions = Precisions::new(deps.storage)?;
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)?;
+    let pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &precisions,
+        &ob_state,
+    )?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let last_real_price = calc_last_prices(&xs, &config, &env)?;
 
     accumulate_prices(&env, &mut config, last_real_price);
 
-    let (assets, total_share) = pool_info(deps.querier, &config)?;
+    let ob_state = OrderbookState::load(deps.storage)?;
+    let (assets, total_share) = pool_info(deps.querier, &config, &ob_state)?;
 
     Ok(CumulativePricesResponse {
         assets,
@@ -259,11 +279,17 @@ pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
 
     if !total_lp.is_zero() {
         let precisions = Precisions::new(deps.storage)?;
-        let mut ixs = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)
-            .map_err(|err| StdError::generic_err(err.to_string()))?
-            .into_iter()
-            .map(|asset| asset.amount)
-            .collect_vec();
+        let mut ixs = query_pools(
+            deps.querier,
+            &env.contract.address,
+            &config,
+            &precisions,
+            &ob_state,
+        )
+        .map_err(|err| StdError::generic_err(err.to_string()))?
+        .into_iter()
+        .map(|asset| asset.amount)
+        .collect_vec();
         ixs[1] *= config.pool_state.price_state.price_scale;
         let amp_gamma = config.pool_state.get_amp_gamma(&env);
         let d = calc_d(&ixs, &amp_gamma)?;
@@ -316,11 +342,17 @@ pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let mut xs = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)
-        .map_err(|e| StdError::generic_err(e.to_string()))?
-        .into_iter()
-        .map(|a| a.amount)
-        .collect_vec();
+    let mut xs = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &precisions,
+        &ob_state,
+    )
+    .map_err(|e| StdError::generic_err(e.to_string()))?
+    .into_iter()
+    .map(|a| a.amount)
+    .collect_vec();
 
     if xs[0].is_zero() || xs[1].is_zero() {
         return Err(StdError::generic_err("Pools are empty"));
@@ -347,7 +379,13 @@ pub fn query_simulate_provide(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(deps, &env.contract.address, &config, &precisions, &ob_state)?;
+    let pools = query_pools(
+        deps.querier,
+        &env.contract.address,
+        &config,
+        &precisions,
+        &ob_state,
+    )?;
 
     let deposits = get_assets_with_precision(deps, &config, &mut assets, &pools, &precisions)?;
 

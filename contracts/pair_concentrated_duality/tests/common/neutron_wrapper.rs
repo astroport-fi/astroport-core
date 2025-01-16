@@ -6,12 +6,20 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::{process::Command, str::FromStr};
 
-use anyhow::Result as AnyResult;
+use anyhow::{anyhow, Result as AnyResult};
 use cosmwasm_schema::serde::de::{DeserializeOwned, Error};
 use cosmwasm_schema::serde::Serialize;
 use cosmwasm_std::{coin, Coin, Decimal256, Event, Fraction, Uint128};
+use itertools::Itertools;
+// pub use neutron_std::types::cosmos::base::v1beta1::Coin as ProtoCoin;
+use neutron_std::types::neutron::dex::{
+    MsgCancelLimitOrder, MsgCancelLimitOrderResponse, MsgPlaceLimitOrder,
+    MsgPlaceLimitOrderResponse, QueryAllLimitOrderTrancheUserByAddressRequest,
+    QueryAllLimitOrderTrancheUserByAddressResponse, QuerySimulateCancelLimitOrderRequest,
+};
 use neutron_test_tube::{
-    Account, Bank, Dex, ExecuteResponse, Module, NeutronTestApp, SigningAccount, Wasm,
+    Account, Bank, Dex, ExecuteResponse, Module, NeutronTestApp, RunnerExecuteResult,
+    SigningAccount, Wasm,
 };
 
 const BUILD_CONTRACTS: &[&str] = &[
@@ -183,6 +191,115 @@ impl<'a> TestAppWrapper<'a> {
 
     pub fn next_block(&self) -> () {
         self.app.increase_time(5)
+    }
+
+    pub fn list_orders(
+        &self,
+        addr: &str,
+    ) -> AnyResult<QueryAllLimitOrderTrancheUserByAddressResponse> {
+        self.dex
+            .limit_order_tranche_user_all_by_address(
+                &QueryAllLimitOrderTrancheUserByAddressRequest {
+                    address: addr.to_string(),
+                    pagination: None,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn query_total_ob_liquidity(&self, addr: &str) -> AnyResult<Vec<Coin>> {
+        let orders = self.list_orders(addr).unwrap();
+
+        orders
+            .limit_orders
+            .iter()
+            .map(|order| {
+                self.dex
+                    .simulate_cancel_limit_order(&QuerySimulateCancelLimitOrderRequest {
+                        msg: Some(MsgCancelLimitOrder {
+                            creator: addr.to_string(),
+                            tranche_key: order.tranche_key.to_owned(),
+                        }),
+                    })
+                    .map_err(Into::into)
+                    .and_then(|res| match res.resp {
+                        None
+                        | Some(MsgCancelLimitOrderResponse {
+                            taker_coin_out: None,
+                            maker_coin_out: None,
+                        }) => Err(anyhow!("Unexpected duality response")),
+                        Some(MsgCancelLimitOrderResponse {
+                            taker_coin_out,
+                            maker_coin_out,
+                        }) => Ok([taker_coin_out, maker_coin_out]
+                            .into_iter()
+                            .filter_map(|coin| coin)
+                            .collect_vec()),
+                    })
+            })
+            .flatten_ok()
+            .collect::<AnyResult<Vec<_>>>()
+            .unwrap()
+            .into_iter()
+            .into_group_map_by(|coin| coin.denom.clone())
+            .into_iter()
+            .map(|(denom, coins)| {
+                let amounts: Vec<Uint128> = coins
+                    .iter()
+                    .map(|proto_coin| proto_coin.amount.parse())
+                    .try_collect()?;
+                let amount: Uint128 = amounts.iter().sum();
+                Ok(coin(amount.u128(), denom))
+            })
+            .collect()
+    }
+
+    pub fn swap_on_dex(
+        &self,
+        signer: &SigningAccount,
+        coin_in: Coin,
+        to_denom: &str,
+        price: f64,
+    ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
+        #[allow(deprecated)]
+        let msg = MsgPlaceLimitOrder {
+            creator: signer.address().to_string(),
+            receiver: signer.address().to_string(),
+            token_in: coin_in.denom.clone(),
+            token_out: to_denom.to_string(),
+            tick_index_in_to_out: 0,
+            amount_in: coin_in.amount.to_string(),
+            order_type: 1,
+            expiration_time: None,
+            max_amount_out: None,
+            limit_sell_price: Some((price * 1e27).to_string()),
+            min_average_sell_price: None,
+        };
+        self.dex.place_limit_order(msg, signer)
+    }
+
+    pub fn limit_order(
+        &self,
+        signer: &SigningAccount,
+        coin_in: Coin,
+        to_denom: &str,
+        price: f64,
+    ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
+        #[allow(deprecated)]
+        let msg = MsgPlaceLimitOrder {
+            creator: signer.address().to_string(),
+            receiver: signer.address().to_string(),
+            token_in: coin_in.denom.clone(),
+            token_out: to_denom.to_string(),
+            tick_index_in_to_out: 0,
+            amount_in: coin_in.amount.to_string(),
+            order_type: 0,
+            expiration_time: None,
+            max_amount_out: None,
+            limit_sell_price: Some((price * 1e27).to_string()),
+            min_average_sell_price: None,
+        };
+        self.dex.place_limit_order(msg, signer)
     }
 }
 
