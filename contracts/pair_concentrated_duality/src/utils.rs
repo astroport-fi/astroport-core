@@ -1,11 +1,9 @@
 use cosmwasm_std::{
-    ensure, Addr, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Uint128,
+    ensure, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 
-use astroport::asset::{
-    Asset, AssetInfoExt, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT,
-};
+use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::pair::MIN_TRADE_SIZE;
 use astroport::querier::query_native_supply;
@@ -18,56 +16,7 @@ use astroport_pcl_common::{calc_d, get_xcp};
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
 use crate::orderbook::state::OrderbookState;
-
-pub(crate) fn query_contract_balances(
-    querier: QuerierWrapper,
-    addr: &Addr,
-    config: &Config,
-    precisions: &Precisions,
-) -> Result<Vec<DecimalAsset>, ContractError> {
-    config
-        .pair_info
-        .query_pools(&querier, addr)?
-        .into_iter()
-        .map(|asset| {
-            asset
-                .to_decimal_asset(precisions.get_precision(&asset.info)?)
-                .map_err(Into::into)
-        })
-        .collect()
-}
-
-/// Returns current pool's reserves where amount is in [`Decimal256`] form.
-/// Query contract balances and orderbook liquidity and merge them.
-pub(crate) fn query_pools(
-    querier: QuerierWrapper,
-    addr: &Addr,
-    config: &Config,
-    precisions: &Precisions,
-    ob_state: &OrderbookState,
-) -> Result<Vec<DecimalAsset>, ContractError> {
-    let contract_liq = query_contract_balances(querier, addr, config, precisions)?;
-    let ob_liquidity = ob_state.query_ob_liquidity_dec(precisions)?;
-
-    let mut balances = contract_liq
-        .iter()
-        .chain(ob_liquidity.iter())
-        .into_group_map_by(|asset| asset.info.clone())
-        .into_iter()
-        .map(|(info, assets)| {
-            let sum = assets
-                .iter()
-                .fold(Decimal256::zero(), |acc, a| acc + a.amount);
-            Ok(info.with_dec_balance(sum))
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-
-    if balances[0].info != config.pair_info.asset_infos[0] {
-        balances.swap(0, 1);
-    }
-
-    Ok(balances)
-}
+use crate::orderbook::utils::Liquidity;
 
 /// Returns the total amount of assets in the pool as well as the total amount of LP tokens currently minted.
 pub(crate) fn pool_info(
@@ -75,30 +24,8 @@ pub(crate) fn pool_info(
     config: &Config,
     ob_state: &OrderbookState,
 ) -> StdResult<(Vec<Asset>, Uint128)> {
-    let contract_liq = config
-        .pair_info
-        .query_pools(&querier, &config.pair_info.contract_addr)?;
-    let ob_liquidity = ob_state
-        .query_ob_liquidity(querier, &config.pair_info.contract_addr, false)?
-        .into_iter()
-        .map(|coin| Asset::native(coin.denom, coin.amount))
-        .collect_vec();
-    // Merge contract and orderbook liquidity
-    let mut balances = contract_liq
-        .iter()
-        .chain(ob_liquidity.iter())
-        .into_group_map_by(|asset| asset.info.clone())
-        .into_iter()
-        .map(|(info, assets)| {
-            let amount = assets.iter().fold(Uint128::zero(), |acc, a| acc + a.amount);
-            Ok(Asset { info, amount })
-        })
-        .collect::<StdResult<Vec<_>>>()?;
-
-    if balances[0].info != config.pair_info.asset_infos[0] {
-        balances.swap(0, 1);
-    }
-
+    let liquidity = Liquidity::new(querier, config, ob_state, false)?;
+    let balances = liquidity.total();
     let total_share = query_native_supply(&querier, &config.pair_info.liquidity_token)?;
 
     Ok((balances, total_share))

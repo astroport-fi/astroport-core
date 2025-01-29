@@ -1,4 +1,3 @@
-use neutron_std::types::cosmos::base::query::v1beta1::PageResponse;
 use serde::Deserialize;
 
 // !!! Workaround which fixes an invalid type in the original neutron-std crate
@@ -17,5 +16,5 @@ pub struct CustomLimitOrderTrancheUser {
 #[derive(Deserialize)]
 pub struct CustomQueryAllLimitOrderTrancheUserByAddressResponse {
     pub limit_orders: Vec<CustomLimitOrderTrancheUser>,
-    pub pagination: Option<PageResponse>,
+    // pub pagination: Option<PageResponse>,
 }

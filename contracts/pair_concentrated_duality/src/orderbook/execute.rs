@@ -13,14 +13,14 @@ use astroport_pcl_common::utils::accumulate_prices;
 
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
+use crate::orderbook::utils::{fetch_cumulative_trade, Liquidity};
 use crate::state::CONFIG;
-use crate::utils::query_pools;
 
 use super::error::OrderbookError;
 use super::state::OrderbookState;
 
 /// CumulativeTrade represents all trades that happened on orderbook as one trade.
-/// I.e., swap from base_asset -> output_asset.
+/// I.e., swap from base_asset -> quote_asset.
 /// In this context, Astroport always charges protocol fees from quote asset.
 #[cw_serde]
 pub struct CumulativeTrade {
@@ -140,22 +140,17 @@ pub fn sync_pool_with_orderbook(
     }
 
     let precisions = Precisions::new(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     if let Some(cumulative_trade) =
-        ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
     {
         deps.api.debug(&format!(
             "Syncing pool with orderbook: {:?}",
             &cumulative_trade
         ));
-        let mut config = CONFIG.load(deps.storage)?;
-        let mut pools = query_pools(
-            deps.querier,
-            &env.contract.address,
-            &config,
-            &precisions,
-            &ob_state,
-        )?;
+        let mut pools = liquidity.total_dec(&precisions)?;
         let mut balances = pools
             .iter_mut()
             .map(|asset| &mut asset.amount)
@@ -178,7 +173,8 @@ pub fn sync_pool_with_orderbook(
         let balances = pools.iter().map(|asset| asset.amount).collect_vec();
         let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
 
-        let submsgs = ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, order_msgs]);
+        let submsgs =
+            ob_state.flatten_msgs_and_add_callback(&liquidity, &[cancel_msgs], order_msgs);
 
         Ok(response
             .add_attributes([

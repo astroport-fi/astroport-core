@@ -218,7 +218,6 @@ impl Helper {
                     to_json_binary(&ConcentratedDualityParams {
                         main_params: params,
                         orderbook_config: OrderbookConfig {
-                            enable: false,
                             liquidity_percent: Decimal::percent(20),
                             orders_number: 5,
                             min_asset_0_order_size: Uint128::from(1000u128),

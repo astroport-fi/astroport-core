@@ -1,3 +1,9 @@
+use cosmwasm_std::{
+    to_json_binary, Binary, Decimal, Decimal256, DecimalRangeExceeded, Deps, Env, StdError,
+    StdResult, Uint128,
+};
+use itertools::Itertools;
+
 use astroport::asset::Asset;
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::{
@@ -12,17 +18,13 @@ use astroport_pcl_common::utils::{
     get_share_in_assets,
 };
 use astroport_pcl_common::{calc_d, get_xcp};
-use cosmwasm_std::{
-    to_json_binary, Binary, Decimal, Decimal256, DecimalRangeExceeded, Deps, Env, StdError,
-    StdResult, Uint128,
-};
-use itertools::Itertools;
 
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
 use crate::orderbook::state::OrderbookState;
+use crate::orderbook::utils::Liquidity;
 use crate::state::CONFIG;
-use crate::utils::{calculate_shares, get_assets_with_precision, pool_info, query_pools};
+use crate::utils::{calculate_shares, get_assets_with_precision, pool_info};
 
 /// Exposes all the queries available in the contract.
 ///
@@ -109,14 +111,10 @@ fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     let precisions = Precisions::new(deps.storage)?;
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(
-        deps.querier,
-        &config.pair_info.contract_addr,
-        &config,
-        &precisions,
-        &ob_state,
-    )
-    .map_err(|err| StdError::generic_err(err.to_string()))?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let refund_assets =
         get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
@@ -147,13 +145,10 @@ pub fn query_simulation(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     let (offer_ind, _) = pools
         .iter()
@@ -212,13 +207,10 @@ pub fn query_reverse_simulation(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     let (ask_ind, _) = pools
         .iter()
@@ -247,13 +239,10 @@ fn query_cumulative_prices(
     let precisions = Precisions::new(deps.storage)?;
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let last_real_price = calc_last_prices(&xs, &config, &env)?;
@@ -279,17 +268,13 @@ pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
 
     if !total_lp.is_zero() {
         let precisions = Precisions::new(deps.storage)?;
-        let mut ixs = query_pools(
-            deps.querier,
-            &env.contract.address,
-            &config,
-            &precisions,
-            &ob_state,
-        )
-        .map_err(|err| StdError::generic_err(err.to_string()))?
-        .into_iter()
-        .map(|asset| asset.amount)
-        .collect_vec();
+
+        let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+        let pools = liquidity
+            .total_dec(&precisions)
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+        let mut ixs = pools.into_iter().map(|asset| asset.amount).collect_vec();
         ixs[1] *= config.pool_state.price_state.price_scale;
         let amp_gamma = config.pool_state.get_amp_gamma(&env);
         let d = calc_d(&ixs, &amp_gamma)?;
@@ -342,17 +327,12 @@ pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let mut xs = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )
-    .map_err(|e| StdError::generic_err(e.to_string()))?
-    .into_iter()
-    .map(|a| a.amount)
-    .collect_vec();
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
 
     if xs[0].is_zero() || xs[1].is_zero() {
         return Err(StdError::generic_err("Pools are empty"));
@@ -379,13 +359,10 @@ pub fn query_simulate_provide(
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
-    let pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let pools = liquidity
+        .total_dec(&precisions)
+        .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     let deposits = get_assets_with_precision(deps, &config, &mut assets, &pools, &precisions)?;
 

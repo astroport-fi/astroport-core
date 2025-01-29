@@ -1,13 +1,22 @@
 use std::cmp::Ordering;
 
-use cosmwasm_std::{Addr, Api, CosmosMsg, Decimal256, OverflowError, StdResult, Uint256};
+use cosmwasm_std::{
+    Addr, Api, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdResult, Uint128, Uint256,
+};
+use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
 
-use astroport::asset::{AssetInfo, Decimal256Ext};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAsset};
+use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
     calc_y,
     state::{AmpGamma, Config},
 };
+
+use crate::error::ContractError;
+use crate::orderbook::execute::CumulativeTrade;
+use crate::orderbook::state::OrderbookState;
 
 /// Calculate the swap result using cached D.
 pub fn compute_swap(
@@ -204,6 +213,109 @@ fn price_to_duality_notation(
     .to_string();
 
     Ok(price)
+}
+
+#[derive(Debug)]
+pub struct Liquidity {
+    pub contract: Vec<Asset>,
+    pub orderbook: Vec<Asset>,
+}
+
+impl Liquidity {
+    pub fn new(
+        querier: QuerierWrapper,
+        config: &Config,
+        ob_state: &OrderbookState,
+        force_update: bool,
+    ) -> StdResult<Self> {
+        Ok(Self {
+            contract: config
+                .pair_info
+                .query_pools(&querier, &config.pair_info.contract_addr)?,
+            orderbook: ob_state
+                .query_ob_liquidity(querier, &config.pair_info.contract_addr, force_update)?
+                .into_iter()
+                .map(Asset::from)
+                .collect(),
+        })
+    }
+
+    pub fn total(&self) -> Vec<Asset> {
+        let mut balances = self
+            .contract
+            .iter()
+            .chain(self.orderbook.iter())
+            .into_group_map_by(|asset| asset.info.clone())
+            .into_iter()
+            .map(|(info, assets)| {
+                let sum = assets.iter().fold(Uint128::zero(), |acc, a| acc + a.amount);
+                info.with_balance(sum)
+            })
+            .collect_vec();
+
+        if balances[0].info != self.contract[0].info {
+            balances.swap(0, 1);
+        }
+
+        balances
+    }
+
+    pub fn total_dec(&self, precisions: &Precisions) -> Result<Vec<DecimalAsset>, ContractError> {
+        self.total()
+            .into_iter()
+            .map(|asset| {
+                asset
+                    .to_decimal_asset(precisions.get_precision(&asset.info)?)
+                    .map_err(Into::into)
+            })
+            .collect()
+    }
+}
+
+/// Checking whether there is a difference between the last and current balances.
+/// Return CumulativeTrade object which is the difference between last and current balances.
+pub fn fetch_cumulative_trade(
+    precisions: &Precisions,
+    last_balances: &[Asset],
+    new_balances: &[Asset],
+) -> Result<Option<CumulativeTrade>, ContractError> {
+    let mut new_balances = new_balances.to_vec();
+    if !new_balances.is_empty() {
+        if last_balances[0].info != new_balances[0].info {
+            new_balances.swap(0, 1);
+        }
+
+        let bal_diffs = last_balances
+            .iter()
+            .zip(new_balances.iter())
+            .map(|(a, b)| b.amount.abs_diff(a.amount))
+            .collect_vec();
+
+        let diff_to_dec_asset = |ind: usize| -> Result<_, ContractError> {
+            let asset_info = &new_balances[ind].info;
+            let precision = precisions.get_precision(asset_info)?;
+            Ok(asset_info.with_dec_balance(bal_diffs[ind].to_decimal256(precision)?))
+        };
+
+        let maybe_trade = match last_balances[0].amount.cmp(&new_balances[0].amount) {
+            // We sold asset 0 for asset 1
+            Ordering::Less => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(1)?,
+                quote_asset: diff_to_dec_asset(0)?,
+            }),
+            // We bought asset 0 with asset 1
+            Ordering::Greater => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(0)?,
+                quote_asset: diff_to_dec_asset(1)?,
+            }),
+            // No trade happened
+            Ordering::Equal => None,
+        };
+
+        Ok(maybe_trade)
+    } else {
+        Ok(None)
+    }
 }
 
 // TODO: fix tests

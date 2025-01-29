@@ -32,7 +32,6 @@ fn init_on_duality() {
             ..common_pcl_params()
         },
         OrderbookConfig {
-            enable: true,
             executor: Some(owner),
             liquidity_percent: Decimal::percent(5),
             orders_number: 1,
@@ -41,6 +40,8 @@ fn init_on_duality() {
         },
     )
     .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
 
     let user = astroport
         .helper
@@ -90,15 +91,15 @@ fn init_on_duality() {
 
     dbg!(astroport.pool_balances().unwrap());
 
-    // let orders = astroport
-    //     .helper
-    //     .list_orders(astroport.pair_addr.as_str())
-    //     .unwrap()
-    //     .limit_orders
-    //     .into_iter()
-    //     .map(|order| order.tranche_key)
-    //     .collect_vec();
-    // dbg!(orders);
+    let orders = astroport
+        .helper
+        .list_orders(astroport.pair_addr.as_str())
+        .unwrap()
+        .limit_orders
+        .into_iter()
+        .map(|order| order.tranche_key)
+        .collect_vec();
+    dbg!(orders);
 
     let dex_trader = astroport
         .helper

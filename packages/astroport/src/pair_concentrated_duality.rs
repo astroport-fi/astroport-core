@@ -5,8 +5,6 @@ use crate::pair_concentrated::ConcentratedPoolParams;
 
 #[cw_serde]
 pub struct OrderbookConfig {
-    /// Determines whether the orderbook is enabled
-    pub enable: bool,
     /// The address of the orderbook sync executor. If None, then the sync is permissionless.
     pub executor: Option<String>,
     /// Number of orders on each side of the orderbook

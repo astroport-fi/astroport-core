@@ -28,11 +28,9 @@ use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
 use crate::orderbook::execute::{process_cumulative_trade, sync_pool_with_orderbook};
 use crate::orderbook::state::OrderbookState;
+use crate::orderbook::utils::{fetch_cumulative_trade, Liquidity};
 use crate::state::{CONFIG, OWNERSHIP_PROPOSAL};
-use crate::utils::{
-    calculate_shares, ensure_min_assets_to_receive, get_assets_with_precision,
-    query_contract_balances, query_pools,
-};
+use crate::utils::{calculate_shares, ensure_min_assets_to_receive, get_assets_with_precision};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -166,17 +164,13 @@ pub fn provide_liquidity(
 
     let mut ob_state = OrderbookState::load(deps.storage)?;
 
-    // This call fetches possible cumulative trade and caches orderbook balances in ob_state
-    let maybe_cumulative_trade =
-        ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
-    let mut pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    // This call fetches possible cumulative trade
+    let maybe_cumulative_trade =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+
+    let mut pools = liquidity.total_dec(&precisions)?;
 
     let old_real_price = config.pool_state.price_state.last_price;
 
@@ -272,8 +266,11 @@ pub fn provide_liquidity(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let submsgs =
-        ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, order_msgs, mint_lp_messages]);
+    let submsgs = ob_state.flatten_msgs_and_add_callback(
+        &liquidity,
+        &[cancel_msgs, mint_lp_messages],
+        order_msgs,
+    );
     ob_state.save(deps.storage)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
@@ -308,17 +305,13 @@ fn withdraw_liquidity(
 
     let precisions = Precisions::new(deps.storage)?;
 
-    // This call fetches possible cumulative trade and caches orderbook balances in ob_state
-    let maybe_cumulative_trade =
-        ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
+    let mut liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
-    let mut pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    // This call fetches possible cumulative trade
+    let maybe_cumulative_trade =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+
+    let mut pools = liquidity.total_dec(&precisions)?;
 
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
 
@@ -360,17 +353,6 @@ fn withdraw_liquidity(
     xs[0] -= refund_assets[0].amount;
     xs[1] -= refund_assets[1].amount;
 
-    let contract_balances =
-        query_contract_balances(deps.querier, &env.contract.address, &config, &precisions)?;
-    // If the contract does not have enough liquidity - do not deploy new orders
-    let enough_liq_cond = refund_assets[0].amount <= contract_balances[0].amount
-        && refund_assets[1].amount <= contract_balances[1].amount;
-    let order_msgs = if enough_liq_cond {
-        ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?
-    } else {
-        vec![]
-    };
-
     // decrease XCP
     xs[1] *= config.pool_state.price_state.price_scale;
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
@@ -381,12 +363,16 @@ fn withdraw_liquidity(
 
     let refund_assets = refund_assets
         .into_iter()
-        .map(|asset| {
+        .enumerate()
+        .map(|(ind, asset)| {
             let prec = precisions.get_precision(&asset.info).unwrap();
+            let amount = asset.amount.to_uint(prec)?;
+
+            liquidity.contract[ind].amount -= amount;
 
             Ok(Asset {
                 info: asset.info,
-                amount: asset.amount.to_uint(prec)?,
+                amount,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
@@ -399,14 +385,18 @@ fn withdraw_liquidity(
         .map(|asset| asset.into_msg(&info.sender))
         .collect::<StdResult<Vec<_>>>()?;
     withdraw_messages.push(tf_burn_msg(
-        env.contract.address,
+        &env.contract.address,
         coin(amount.u128(), &config.pair_info.liquidity_token),
     ));
 
     CONFIG.save(deps.storage, &config)?;
 
-    let submsgs =
-        ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, withdraw_messages, order_msgs]);
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?;
+    let submsgs = ob_state.flatten_msgs_and_add_callback(
+        &liquidity,
+        &[cancel_msgs, withdraw_messages],
+        order_msgs,
+    );
     ob_state.save(deps.storage)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
@@ -445,21 +435,17 @@ fn swap(
 
     let mut ob_state = OrderbookState::load(deps.storage)?;
 
-    // This call fetches possible cumulative trade and caches orderbook balances in ob_state
+    let mut liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+
+    // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
-        ob_state.fetch_cumulative_trade(deps.as_ref(), &env.contract.address, &precisions)?;
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
 
     // TODO: delete me
     deps.api
         .debug(&format!("swap: {:?}", maybe_cumulative_trade));
 
-    let mut pools = query_pools(
-        deps.querier,
-        &env.contract.address,
-        &config,
-        &precisions,
-        &ob_state,
-    )?;
+    let mut pools = liquidity.total_dec(&precisions)?;
 
     let (offer_ind, _) = pools
         .iter()
@@ -559,6 +545,8 @@ fn swap(
         .with_balance(return_amount)
         .into_msg(&receiver)?];
 
+    liquidity.contract[ask_ind].amount -= return_amount;
+
     // Send the shared fee
     let mut fee_share_amount = Uint128::zero();
     if let Some(fee_share) = &config.fee_share {
@@ -566,6 +554,7 @@ fn swap(
         if !fee_share_amount.is_zero() {
             let fee = pools[ask_ind].info.with_balance(fee_share_amount);
             messages.push(fee.into_msg(&fee_share.recipient)?);
+            liquidity.contract[ask_ind].amount -= fee_share_amount;
         }
     }
 
@@ -576,6 +565,7 @@ fn swap(
         if !maker_fee.is_zero() {
             let fee = pools[ask_ind].info.with_balance(maker_fee);
             messages.push(fee.into_msg(fee_address)?);
+            liquidity.contract[ask_ind].amount -= maker_fee;
         }
     }
 
@@ -587,7 +577,8 @@ fn swap(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let submsgs = ob_state.flatten_msgs_and_add_callback(&[cancel_msgs, messages, order_msgs]);
+    let submsgs =
+        ob_state.flatten_msgs_and_add_callback(&liquidity, &[cancel_msgs, messages], order_msgs);
 
     ob_state.save(deps.storage)?;
 

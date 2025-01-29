@@ -11,7 +11,7 @@ use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResp
 use neutron_test_tube::{Account, ExecuteResponse, SigningAccount};
 
 use astroport::pair::PoolResponse;
-use astroport::pair_concentrated_duality::DualityPairMsg;
+use astroport::pair_concentrated_duality::{DualityPairMsg, UpdateDualityOrderbook};
 use astroport::{
     asset::{native_asset_info, Asset, AssetInfo, PairInfo},
     factory::{PairConfig, PairType},
@@ -303,6 +303,29 @@ impl<'a> AstroportHelper<'a> {
             sender,
             self.pair_addr.as_str(),
             &ExecuteMsg::Custom(DualityPairMsg::SyncOrderbook {}),
+            &[],
+        )
+    }
+
+    pub fn enable_orderbook(
+        &self,
+        sender: &SigningAccount,
+        enable: bool,
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
+        self.helper.execute_contract(
+            sender,
+            self.pair_addr.as_str(),
+            &ExecuteMsg::Custom(DualityPairMsg::UpdateOrderbookConfig(
+                UpdateDualityOrderbook {
+                    enable: Some(enable),
+                    executor: None,
+                    remove_executor: false,
+                    orders_number: None,
+                    min_asset_0_order_size: None,
+                    min_asset_1_order_size: None,
+                    liquidity_percent: None,
+                },
+            )),
             &[],
         )
     }
