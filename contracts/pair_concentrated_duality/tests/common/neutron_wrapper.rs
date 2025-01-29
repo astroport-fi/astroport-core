@@ -301,6 +301,20 @@ impl<'a> TestAppWrapper<'a> {
         };
         self.dex.place_limit_order(msg, signer)
     }
+
+    pub fn cancel_order(
+        &self,
+        signer: &SigningAccount,
+        tranche_key: &str,
+    ) -> RunnerExecuteResult<MsgCancelLimitOrderResponse> {
+        self.dex.cancel_filled_limit_order(
+            MsgCancelLimitOrder {
+                creator: signer.address().to_string(),
+                tranche_key: tranche_key.to_string(),
+            },
+            signer,
+        )
+    }
 }
 
 fn find_attribute(events: &[Event], key: &str) -> Option<String> {

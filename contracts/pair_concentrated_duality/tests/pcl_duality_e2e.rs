@@ -18,8 +18,10 @@ use common::{
 mod common;
 
 #[test]
-fn init_on_duality() {
+fn test_basic_ops() {
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("astro")];
+    let orders_number = 1;
+
     let app = NeutronTestApp::new();
     let neutron = TestAppWrapper::bootstrap(&app).unwrap();
     let owner = neutron.signer.address();
@@ -28,13 +30,13 @@ fn init_on_duality() {
         neutron,
         test_coins.clone(),
         ConcentratedPoolParams {
-            price_scale: Decimal::percent(50),
+            price_scale: Decimal::from_ratio(2u8, 1u8),
             ..common_pcl_params()
         },
         OrderbookConfig {
             executor: Some(owner),
             liquidity_percent: Decimal::percent(5),
-            orders_number: 1,
+            orders_number,
             min_asset_0_order_size: Uint128::from(1_000u128),
             min_asset_1_order_size: Uint128::from(1_000u128),
         },
@@ -57,39 +59,12 @@ fn init_on_duality() {
         astroport.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
     ];
 
+    // Providing initial liquidity
     astroport
         .provide_liquidity(&user, &initial_balances)
         .unwrap();
 
-    let balances = astroport
-        .pool_balances()
-        .unwrap()
-        .assets
-        .into_iter()
-        .sorted_by(|a, b| a.info.to_string().cmp(&b.info.to_string()))
-        .collect_vec();
-
-    assert_eq!(balances, initial_balances);
-
-    // let orders = astroport
-    //     .helper
-    //     .list_orders(astroport.pair_addr.as_str())
-    //     .unwrap()
-    //     .limit_orders
-    //     .into_iter()
-    //     .map(|order| order.tranche_key)
-    //     .collect_vec();
-    // dbg!(orders);
-    // let total_liquidity = astroport
-    //     .helper
-    //     .query_total_ob_liquidity(astroport.pair_addr.as_str())
-    //     .unwrap();
-    // dbg!(total_liquidity);
-
-    let swap_asset = astroport.assets[&test_coins[1]].with_balance(1_000_000000u128);
-    astroport.swap(&user, &swap_asset, None).unwrap();
-
-    dbg!(astroport.pool_balances().unwrap());
+    assert_eq!(astroport.pool_balances().unwrap().assets, initial_balances);
 
     let orders = astroport
         .helper
@@ -99,7 +74,22 @@ fn init_on_duality() {
         .into_iter()
         .map(|order| order.tranche_key)
         .collect_vec();
-    dbg!(orders);
+    assert_eq!(orders.len(), (orders_number * 2) as usize);
+    let ob_liquidity = astroport
+        .helper
+        .query_total_ob_liquidity(astroport.pair_addr.as_str())
+        .unwrap()
+        .into_iter()
+        .sorted_by(|a, b| a.denom.cmp(&b.denom))
+        .collect_vec();
+    assert_eq!(
+        ob_liquidity,
+        [coin(12388_891279, "astro"), coin(24_777_782558, "untrn")]
+    );
+
+    // Astroport swap ASTRO -> NTRN
+    let swap_asset = astroport.assets[&test_coins[1]].with_balance(1_000_000000u128);
+    astroport.swap(&user, &swap_asset, None).unwrap();
 
     let dex_trader = astroport
         .helper
@@ -110,47 +100,54 @@ fn init_on_duality() {
         ])
         .unwrap();
 
-    // let orders = astroport
-    //     .helper
-    //     .list_orders(astroport.pair_addr.as_str())
-    //     .unwrap();
-    // dbg!(orders);
-
+    // DEX swap NTRN -> ASTRO
     astroport
         .helper
         .swap_on_dex(&dex_trader, coin(1_000_000000u128, "untrn"), "astro", 0.49)
         .unwrap();
 
-    // let bal = astroport
-    //     .helper
-    //     .bank
-    //     .query_all_balances(&QueryAllBalancesRequest {
-    //         address: dex_trader.address(),
-    //         pagination: None,
-    //     })
-    //     .unwrap();
-    // dbg!(bal);
+    // One order was partially filled but still stays on the orderbook
+    let orders = astroport
+        .helper
+        .list_orders(astroport.pair_addr.as_str())
+        .unwrap();
+    assert_eq!(orders.limit_orders.len(), (orders_number * 2) as usize);
 
-    dbg!(astroport.pool_balances().unwrap());
+    assert_eq!(
+        astroport.pool_balances().unwrap().assets,
+        [
+            astroport.assets[&test_coins[1]].with_balance(500503_744799u128),
+            astroport.assets[&test_coins[0]].with_balance(999002_684480u128),
+        ]
+    );
 
+    // Astroport swap NTRN -> ASTRO
     let swap_asset = astroport.assets[&test_coins[0]].with_balance(1_000_000000u128);
     astroport.swap_max_spread(&user, &swap_asset).unwrap();
 
+    // DEX swap ASTRO -> NTRN
     astroport
         .helper
         .swap_on_dex(&dex_trader, coin(500_000000u128, "astro"), "untrn", 1.9)
         .unwrap();
 
+    assert_eq!(
+        astroport.pool_balances().unwrap().assets,
+        [
+            astroport.assets[&test_coins[1]].with_balance(500504_388512u128),
+            astroport.assets[&test_coins[0]].with_balance(999010_222418u128),
+        ]
+    );
+
+    // Astroport swap ASTRO -> NTRN
     let swap_asset = astroport.assets[&test_coins[1]].with_balance(500_000000u128);
     astroport.swap_max_spread(&user, &swap_asset).unwrap();
-
-    dbg!(astroport.pool_balances().unwrap());
 
     let orders = astroport
         .helper
         .list_orders(astroport.pair_addr.as_str())
         .unwrap();
-    dbg!(orders);
+    assert_eq!(orders.limit_orders.len(), (orders_number * 2) as usize);
 
     // Creating a huge limit order which should be partially consumed by Astroport pair
     let whale = astroport
@@ -158,10 +155,12 @@ fn init_on_duality() {
         .app
         .init_account(&[coin(2_000_000_000000u128, "untrn")])
         .unwrap();
-    astroport
+    let tranche_key = astroport
         .helper
         .limit_order(&whale, coin(1_000_000_000000u128, "untrn"), "astro", 0.3)
-        .unwrap();
+        .unwrap()
+        .data
+        .tranche_key;
 
     astroport.sync_orders(&astroport.helper.signer).unwrap();
 
@@ -169,16 +168,30 @@ fn init_on_duality() {
         .helper
         .list_orders(astroport.pair_addr.as_str())
         .unwrap();
-    dbg!(orders);
+    assert_eq!(orders.limit_orders.len(), (orders_number * 2 - 1) as usize);
 
+    // Astroport swap NTRN -> ASTRO
     let swap_asset = astroport.assets[&test_coins[0]].with_balance(1000_000000u128);
     astroport.swap_max_spread(&user, &swap_asset).unwrap();
 
+    // Still only 1 order because other side being constantly consumed by whale's order
     let orders = astroport
         .helper
         .list_orders(astroport.pair_addr.as_str())
         .unwrap();
-    dbg!(orders);
+    assert_eq!(orders.limit_orders.len(), (orders_number * 2 - 1) as usize);
 
-    panic!("Test panic")
+    // Whale cancels order
+    astroport.helper.cancel_order(&whale, &tranche_key).unwrap();
+
+    // Swap to trigger new orders placement
+    let swap_asset = astroport.assets[&test_coins[0]].with_balance(1_000000u128);
+    astroport.swap_max_spread(&user, &swap_asset).unwrap();
+
+    // Confirm we have all orders back
+    let orders = astroport
+        .helper
+        .list_orders(astroport.pair_addr.as_str())
+        .unwrap();
+    assert_eq!(orders.limit_orders.len(), (orders_number * 2) as usize);
 }

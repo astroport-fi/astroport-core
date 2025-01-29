@@ -98,9 +98,9 @@ pub fn process_cumulative_trade(
     // especially if token precisions are 18.
     if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
         let last_price = if offer_ind == 0 {
-            trade.base_asset.amount / trade.quote_asset.amount
-        } else {
             trade.quote_asset.amount / trade.base_asset.amount
+        } else {
+            trade.base_asset.amount / trade.quote_asset.amount
         };
 
         let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?

@@ -251,11 +251,7 @@ impl<'a> AstroportHelper<'a> {
         &self,
         sender: &SigningAccount,
         offer_asset: &Asset,
-    ) -> AnyResult<
-        ExecuteResponse<
-            neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse,
-        >,
-    > {
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
         self.swap(sender, offer_asset, Some(f64_to_dec(0.5)))
     }
 
@@ -264,11 +260,7 @@ impl<'a> AstroportHelper<'a> {
         sender: &SigningAccount,
         offer_asset: &Asset,
         max_spread: Option<Decimal>,
-    ) -> AnyResult<
-        ExecuteResponse<
-            neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse,
-        >,
-    > {
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
         match &offer_asset.info {
             AssetInfo::Token { .. } => unimplemented!(),
             AssetInfo::NativeToken { .. } => {
@@ -292,6 +284,14 @@ impl<'a> AstroportHelper<'a> {
         self.helper
             .wasm
             .query(self.pair_addr.as_str(), &pair::QueryMsg::Pool {})
+            .map(|res: PoolResponse| PoolResponse {
+                assets: res
+                    .assets
+                    .into_iter()
+                    .sorted_by(|a, b| a.info.to_string().cmp(&b.info.to_string()))
+                    .collect_vec(),
+                ..res
+            })
             .map_err(Into::into)
     }
 
