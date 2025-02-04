@@ -66,10 +66,16 @@ pub struct SpotOrdersFactory {
     multiplier: [Decimal256; 2],
     precision: [u8; 2],
     denoms: Vec<String>,
+    avg_price_adjustment: Decimal256,
 }
 
 impl SpotOrdersFactory {
-    pub fn new(asset_infos: &[AssetInfo], asset_0_precision: u8, asset_1_precision: u8) -> Self {
+    pub fn new(
+        asset_infos: &[AssetInfo],
+        asset_0_precision: u8,
+        asset_1_precision: u8,
+        avg_price_adjustment: Decimal256,
+    ) -> Self {
         let denoms = asset_infos
             .iter()
             .map(|info| match &info {
@@ -86,6 +92,7 @@ impl SpotOrdersFactory {
             ],
             precision: [asset_0_precision, asset_1_precision],
             denoms,
+            avg_price_adjustment,
         }
     }
 
@@ -123,8 +130,17 @@ impl SpotOrdersFactory {
         self.orders
             .into_iter()
             .map(|order| {
+                // Worsen the price to make sure rounding errors are covered in favor of our pool
+                let limit_price = order.price + self.avg_price_adjustment * order.price;
+
                 if order.is_buy {
                     let limit_sell_price = price_to_duality_notation(
+                        limit_price,
+                        self.precision[1],
+                        self.precision[0],
+                    )
+                    .unwrap();
+                    let min_average_sell_price = price_to_duality_notation(
                         order.price,
                         self.precision[1],
                         self.precision[0],
@@ -132,7 +148,7 @@ impl SpotOrdersFactory {
                     .unwrap();
 
                     api.debug(&format!(
-                        "buy: limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        "buy: limit_sell_price: {limit_sell_price} min_average_sell_price: {min_average_sell_price}, amount_in: {}",
                         (order.amount * self.multiplier[1])
                             .to_uint_floor()
                             .to_string()
@@ -151,21 +167,27 @@ impl SpotOrdersFactory {
                         receiver: sender.to_string(),
                         token_in: self.denoms[1].clone(),
                         token_out: self.denoms[0].clone(),
-                        limit_sell_price: Some(limit_sell_price),
+                        limit_sell_price: Some(limit_sell_price.clone()),
                         tick_index_in_to_out: 0,
-                        min_average_sell_price: None,
+                        min_average_sell_price: Some(min_average_sell_price),
                     }
                     .into()
                 } else {
                     let limit_sell_price = price_to_duality_notation(
-                        order.price,
+                        limit_price,
                         self.precision[0],
                         self.precision[1],
                     )
                     .unwrap();
+                    let min_average_sell_price = price_to_duality_notation(
+                        order.price,
+                        self.precision[1],
+                        self.precision[0],
+                    )
+                    .unwrap();
 
                     api.debug(&format!(
-                        "sell: limit_sell_price: {limit_sell_price}, amount_in: {}",
+                        "sell: limit_sell_price: {limit_sell_price} min_average_sell_price: {min_average_sell_price}, amount_in: {}",
                         (order.amount * self.multiplier[0])
                             .to_uint_floor()
                             .to_string()
@@ -184,9 +206,9 @@ impl SpotOrdersFactory {
                         receiver: sender.to_string(),
                         token_in: self.denoms[0].clone(),
                         token_out: self.denoms[1].clone(),
-                        limit_sell_price: Some(limit_sell_price),
+                        limit_sell_price: Some(limit_sell_price.clone()),
                         tick_index_in_to_out: 0,
-                        min_average_sell_price: None,
+                        min_average_sell_price: Some(min_average_sell_price),
                     }
                     .into()
                 }

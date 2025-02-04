@@ -17,6 +17,7 @@ use neutron_std::types::neutron::dex::{
     MsgPlaceLimitOrderResponse, QueryAllLimitOrderTrancheUserByAddressRequest,
     QueryAllLimitOrderTrancheUserByAddressResponse, QuerySimulateCancelLimitOrderRequest,
 };
+use neutron_test_tube::cosmrs::proto::cosmos::bank::v1beta1::QueryBalanceRequest;
 use neutron_test_tube::{
     Account, Bank, Dex, ExecuteResponse, Module, NeutronTestApp, RunnerExecuteResult,
     SigningAccount, Wasm,
@@ -254,6 +255,20 @@ impl<'a> TestAppWrapper<'a> {
             .collect()
     }
 
+    pub fn query_balance(&self, address: &str, denom: &str) -> AnyResult<Coin> {
+        self.bank
+            .query_balance(&QueryBalanceRequest {
+                address: address.to_string(),
+                denom: denom.to_string(),
+            })
+            .map_err(Into::into)
+            .and_then(|resp| {
+                resp.balance
+                    .map(|proto_coin| coin(proto_coin.amount.parse().unwrap(), proto_coin.denom))
+                    .ok_or_else(|| anyhow!("No balance found for {denom} in {address}"))
+            })
+    }
+
     pub fn swap_on_dex(
         &self,
         signer: &SigningAccount,
@@ -285,6 +300,16 @@ impl<'a> TestAppWrapper<'a> {
         to_denom: &str,
         price: f64,
     ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
+        self.limit_order_precise(signer, coin_in, to_denom, price * 1e27)
+    }
+
+    pub fn limit_order_precise(
+        &self,
+        signer: &SigningAccount,
+        coin_in: Coin,
+        to_denom: &str,
+        price: f64,
+    ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
         #[allow(deprecated)]
         let msg = MsgPlaceLimitOrder {
             creator: signer.address().to_string(),
@@ -296,7 +321,7 @@ impl<'a> TestAppWrapper<'a> {
             order_type: 0,
             expiration_time: None,
             max_amount_out: None,
-            limit_sell_price: Some((price * 1e27).to_string()),
+            limit_sell_price: Some(price.to_string()),
             min_average_sell_price: None,
         };
         self.dex.place_limit_order(msg, signer)

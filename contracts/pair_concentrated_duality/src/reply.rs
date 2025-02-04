@@ -40,7 +40,6 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             }
         }
         ReplyIds::PostLimitOrderCb => {
-            // Query total liquidity sitting on orderbook and cache it in the contract state
             let mut ob_state = OrderbookState::load(deps.storage)?;
             ob_state.fetch_all_orders(deps.as_ref(), &env.contract.address)?;
 

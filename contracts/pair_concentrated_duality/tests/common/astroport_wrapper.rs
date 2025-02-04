@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, coins, to_json_binary, Addr, Coin, Decimal};
+use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal};
 use itertools::Itertools;
 use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse;
 use neutron_test_tube::{Account, ExecuteResponse, SigningAccount};
@@ -24,7 +24,7 @@ use astroport_test::convert::f64_to_dec;
 
 use super::neutron_wrapper::TestAppWrapper;
 
-type ExecuteMsg = astroport::pair::ExecuteMsgExt<DualityPairMsg>;
+type ExecuteMsg = pair::ExecuteMsgExt<DualityPairMsg>;
 
 const INIT_BALANCE: u128 = u128::MAX;
 
@@ -231,19 +231,14 @@ impl<'a> AstroportHelper<'a> {
             .map(|_| ())
     }
 
-    pub fn withdraw_liquidity(&mut self, sender: &SigningAccount, amount: u128) -> AnyResult<()> {
+    pub fn withdraw_liquidity(&self, sender: &SigningAccount, lp_tokens: Coin) -> AnyResult<()> {
         let msg = ExecuteMsg::WithdrawLiquidity {
             assets: vec![],
             min_assets_to_receive: None,
         };
 
         self.helper
-            .execute_contract(
-                sender,
-                self.pair_addr.as_str(),
-                &msg,
-                &coins(amount, &self.lp_token),
-            )
+            .execute_contract(sender, self.pair_addr.as_str(), &msg, &vec![lp_tokens])
             .map(|_| ())
     }
 

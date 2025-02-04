@@ -266,8 +266,16 @@ pub fn provide_liquidity(
 
     CONFIG.save(deps.storage, &config)?;
 
+    let pools_u128 = pools
+        .iter()
+        .map(|asset| {
+            let prec = precisions.get_precision(&asset.info).unwrap();
+            let amount = asset.amount.to_uint(prec)?;
+            Ok(asset.info.with_balance(amount))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
-        &liquidity,
+        &pools_u128,
         &[cancel_msgs, mint_lp_messages],
         order_msgs,
     );
@@ -305,7 +313,7 @@ fn withdraw_liquidity(
 
     let precisions = Precisions::new(deps.storage)?;
 
-    let mut liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
@@ -361,6 +369,15 @@ fn withdraw_liquidity(
         get_xcp(d, config.pool_state.price_state.price_scale)
             / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
+    let mut pools_u128 = pools
+        .iter()
+        .map(|asset| {
+            let prec = precisions.get_precision(&asset.info).unwrap();
+            let amount = asset.amount.to_uint(prec)?;
+            Ok(asset.info.with_balance(amount))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
     let refund_assets = refund_assets
         .into_iter()
         .enumerate()
@@ -368,12 +385,9 @@ fn withdraw_liquidity(
             let prec = precisions.get_precision(&asset.info).unwrap();
             let amount = asset.amount.to_uint(prec)?;
 
-            liquidity.contract[ind].amount -= amount;
+            pools_u128[ind].amount -= amount;
 
-            Ok(Asset {
-                info: asset.info,
-                amount,
-            })
+            Ok(asset.info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -393,7 +407,7 @@ fn withdraw_liquidity(
 
     let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
-        &liquidity,
+        &pools_u128,
         &[cancel_msgs, withdraw_messages],
         order_msgs,
     );
@@ -435,7 +449,7 @@ fn swap(
 
     let mut ob_state = OrderbookState::load(deps.storage)?;
 
-    let mut liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
+    let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
@@ -545,7 +559,16 @@ fn swap(
         .with_balance(return_amount)
         .into_msg(&receiver)?];
 
-    liquidity.contract[ask_ind].amount -= return_amount;
+    let mut pools_u128 = pools
+        .iter()
+        .map(|asset| {
+            let prec = precisions.get_precision(&asset.info).unwrap();
+            let amount = asset.amount.to_uint(prec)?;
+            Ok(asset.info.with_balance(amount))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+    pools_u128[offer_ind].amount += offer_asset.amount;
+    pools_u128[ask_ind].amount -= return_amount;
 
     // Send the shared fee
     let mut fee_share_amount = Uint128::zero();
@@ -554,7 +577,7 @@ fn swap(
         if !fee_share_amount.is_zero() {
             let fee = pools[ask_ind].info.with_balance(fee_share_amount);
             messages.push(fee.into_msg(&fee_share.recipient)?);
-            liquidity.contract[ask_ind].amount -= fee_share_amount;
+            pools_u128[ask_ind].amount -= fee_share_amount;
         }
     }
 
@@ -565,7 +588,7 @@ fn swap(
         if !maker_fee.is_zero() {
             let fee = pools[ask_ind].info.with_balance(maker_fee);
             messages.push(fee.into_msg(fee_address)?);
-            liquidity.contract[ask_ind].amount -= maker_fee;
+            pools_u128[ask_ind].amount -= maker_fee;
         }
     }
 
@@ -578,7 +601,7 @@ fn swap(
     CONFIG.save(deps.storage, &config)?;
 
     let submsgs =
-        ob_state.flatten_msgs_and_add_callback(&liquidity, &[cancel_msgs, messages], order_msgs);
+        ob_state.flatten_msgs_and_add_callback(&pools_u128, &[cancel_msgs, messages], order_msgs);
 
     ob_state.save(deps.storage)?;
 

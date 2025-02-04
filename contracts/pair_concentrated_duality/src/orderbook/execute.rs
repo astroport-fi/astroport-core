@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     attr, ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult,
 };
 use itertools::Itertools;
 
@@ -173,8 +174,16 @@ pub fn sync_pool_with_orderbook(
         let balances = pools.iter().map(|asset| asset.amount).collect_vec();
         let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
 
+        let pools_u128 = pools
+            .iter()
+            .map(|asset| {
+                let prec = precisions.get_precision(&asset.info).unwrap();
+                let amount = asset.amount.to_uint(prec)?;
+                Ok(asset.info.with_balance(amount))
+            })
+            .collect::<StdResult<Vec<_>>>()?;
         let submsgs =
-            ob_state.flatten_msgs_and_add_callback(&liquidity, &[cancel_msgs], order_msgs);
+            ob_state.flatten_msgs_and_add_callback(&pools_u128, &[cancel_msgs], order_msgs);
 
         Ok(response
             .add_attributes([

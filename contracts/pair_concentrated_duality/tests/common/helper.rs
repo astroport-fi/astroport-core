@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
 use cosmwasm_schema::cw_serde;
@@ -223,6 +224,7 @@ impl Helper {
                             min_asset_0_order_size: Uint128::from(1000u128),
                             min_asset_1_order_size: Uint128::from(1000u128),
                             executor: Some(owner.to_string()),
+                            avg_price_adjustment: Decimal::from_str("0.001").unwrap(),
                         },
                     })
                     .unwrap(),

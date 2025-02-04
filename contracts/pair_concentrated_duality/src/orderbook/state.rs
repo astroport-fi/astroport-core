@@ -22,7 +22,7 @@ use astroport_pcl_common::state::{Config, Precisions};
 use crate::error::ContractError;
 use crate::orderbook::consts::{MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDER_SIZE_LIMITS};
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
-use crate::orderbook::utils::{compute_swap, Liquidity, SpotOrdersFactory};
+use crate::orderbook::utils::{compute_swap, SpotOrdersFactory};
 
 macro_rules! validate_param {
     ($name:ident, $val:expr, $min:expr, $max:expr) => {
@@ -59,6 +59,10 @@ pub struct OrderbookState {
     pub enabled: bool,
     /// Snapshot of total balances before entering reply
     pub pre_reply_balances: Vec<Asset>,
+    /// Due to possible rounding issues on Duality side we have to set price tolerance,
+    /// which serves as a worsening factor for the end price from PCL.
+    /// Should be relatively low something like 1-10 bps.
+    pub avg_price_adjustment: Decimal,
 }
 
 const OB_CONFIG: Item<OrderbookState> = Item::new("orderbook_config");
@@ -75,6 +79,7 @@ impl OrderbookState {
             enabled: false,
             executor: orderbook_config.executor.map(Addr::unchecked),
             pre_reply_balances: vec![],
+            avg_price_adjustment: orderbook_config.avg_price_adjustment,
         };
         config.validate(api)?;
 
@@ -359,6 +364,7 @@ impl OrderbookState {
             &config.pair_info.asset_infos,
             asset_0_precision,
             asset_1_precision,
+            self.avg_price_adjustment.into(),
         );
 
         // Equal heights algorithm
@@ -407,7 +413,7 @@ impl OrderbookState {
     /// if orderbook integration is enabled.
     pub fn flatten_msgs_and_add_callback(
         &mut self,
-        liquidity: &Liquidity,
+        total_liquidity: &[Asset],
         messages: &[Vec<CosmosMsg>],
         order_msgs: Vec<CosmosMsg>,
     ) -> Vec<SubMsg> {
@@ -424,7 +430,7 @@ impl OrderbookState {
             last.reply_on = ReplyOn::Success;
         }
 
-        self.pre_reply_balances = liquidity.total();
+        self.pre_reply_balances = total_liquidity.to_vec();
 
         submsgs
     }

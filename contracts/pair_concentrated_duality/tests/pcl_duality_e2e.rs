@@ -2,9 +2,10 @@
 #![cfg(feature = "test-tube")]
 #![allow(dead_code)]
 
+use std::str::FromStr;
+
 use cosmwasm_std::{coin, Decimal, Uint128};
 use itertools::Itertools;
-use neutron_test_tube::cosmrs::proto::cosmos::bank::v1beta1::QueryAllBalancesRequest;
 use neutron_test_tube::{Account, NeutronTestApp};
 
 use astroport::asset::AssetInfoExt;
@@ -39,6 +40,7 @@ fn test_basic_ops() {
             orders_number,
             min_asset_0_order_size: Uint128::from(1_000u128),
             min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
         },
     )
     .unwrap();
@@ -135,7 +137,7 @@ fn test_basic_ops() {
         astroport.pool_balances().unwrap().assets,
         [
             astroport.assets[&test_coins[1]].with_balance(500504_388512u128),
-            astroport.assets[&test_coins[0]].with_balance(999010_222418u128),
+            astroport.assets[&test_coins[0]].with_balance(999010_420620u128),
         ]
     );
 
@@ -184,6 +186,23 @@ fn test_basic_ops() {
     // Whale cancels order
     astroport.helper.cancel_order(&whale, &tranche_key).unwrap();
 
+    // let res = astroport
+    //     .helper
+    //     .dex
+    //     .tick_liquidity_all(&QueryAllTickLiquidityRequest {
+    //         pair_id: "untrn<>astro".to_string(),
+    //         token_in: "untrn".to_string(),
+    //         pagination: None,
+    //     })
+    //     .unwrap();
+    // dbg!(res);
+    // dbg!(astroport.helper.list_orders(&whale.address()).unwrap());
+    // dbg!(astroport
+    //     .helper
+    //     .list_orders(astroport.pair_addr.as_str())
+    //     .unwrap());
+    // dbg!(astroport.helper.list_orders(&dex_trader.address()).unwrap());
+
     // Swap to trigger new orders placement
     let swap_asset = astroport.assets[&test_coins[0]].with_balance(1_000000u128);
     astroport.swap_max_spread(&user, &swap_asset).unwrap();
@@ -194,4 +213,18 @@ fn test_basic_ops() {
         .list_orders(astroport.pair_addr.as_str())
         .unwrap();
     assert_eq!(orders.limit_orders.len(), (orders_number * 2) as usize);
+
+    // Ensure that the main LP can withdraw all liquidity
+    let lp_token = astroport
+        .helper
+        .query_balance(&user.address(), &astroport.lp_token)
+        .unwrap();
+    astroport.withdraw_liquidity(&user, lp_token).unwrap();
+
+    // Confirm we no longer have any orders
+    let orders = astroport
+        .helper
+        .list_orders(astroport.pair_addr.as_str())
+        .unwrap();
+    assert_eq!(orders.limit_orders.len(), 0);
 }
