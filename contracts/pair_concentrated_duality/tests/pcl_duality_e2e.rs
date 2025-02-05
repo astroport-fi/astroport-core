@@ -228,3 +228,128 @@ fn test_basic_ops() {
         .unwrap();
     assert_eq!(orders.limit_orders.len(), 0);
 }
+
+#[test]
+fn test_different_decimals() {
+    let test_coins = vec![
+        TestCoin::native_precise("aeth", 18),
+        TestCoin::native("astro"),
+    ];
+    let orders_number = 1;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        neutron,
+        test_coins.clone(),
+        ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params()
+        },
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(5),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(1000000_000000u128, "untrn"), // for gas fees
+            coin(1_100_000u128 * 1e18 as u128, "aeth"),
+            coin(505_000_000000u128, "astro"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(1_000_000u128 * 1e18 as u128),
+        astroport.assets[&test_coins[1]].with_balance(500_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    assert_eq!(astroport.pool_balances().unwrap().assets, initial_balances);
+
+    // Astroport swap ASTRO -> ETH
+    let swap_asset = astroport.assets[&test_coins[1]].with_balance(1_000_000000u128);
+    astroport.swap(&user, &swap_asset, None).unwrap();
+
+    let dex_trader = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(1000000_000000u128, "untrn"), // for gas fees
+            coin(10_000u128 * 1e18 as u128, "aeth"),
+        ])
+        .unwrap();
+
+    // DEX swap ETH -> ASTRO
+    astroport
+        .helper
+        .swap_on_dex_precise(
+            &dex_trader,
+            coin(1_000u128 * 1e18 as u128, "aeth"),
+            "astro",
+            490000000000000, // 0.49e-12 uastro per aeth
+        )
+        .unwrap();
+
+    let astro_bal = astroport
+        .helper
+        .query_balance(&dex_trader.address(), "astro")
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 496_206891);
+
+    let dex_trader2 = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(1000000_000000u128, "untrn"), // for gas fees
+            coin(10_000_000000u128, "astro"),
+        ])
+        .unwrap();
+
+    // DEX swap ASTRO -> ETH
+    astroport
+        .helper
+        .swap_on_dex(
+            &dex_trader2,
+            coin(1_000_000000u128, "astro"),
+            "aeth",
+            2018138624033.183, // 2018138624033.183 aeth per astro
+        )
+        .unwrap();
+
+    let eth_bal = astroport
+        .helper
+        .query_balance(&dex_trader2.address(), "aeth")
+        .unwrap();
+    assert_eq!(eth_bal.amount.u128(), 1978_350157256753797143);
+
+    // Ensure that the main LP can withdraw all liquidity
+    let lp_token = astroport
+        .helper
+        .query_balance(&user.address(), &astroport.lp_token)
+        .unwrap();
+    astroport.withdraw_liquidity(&user, lp_token).unwrap();
+
+    // Confirm we no longer have any orders
+    let orders = astroport
+        .helper
+        .list_orders(astroport.pair_addr.as_str())
+        .unwrap();
+    assert_eq!(orders.limit_orders.len(), 0);
+}

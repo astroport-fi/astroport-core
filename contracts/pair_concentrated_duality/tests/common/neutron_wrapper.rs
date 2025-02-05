@@ -269,12 +269,12 @@ impl<'a> TestAppWrapper<'a> {
             })
     }
 
-    pub fn swap_on_dex(
+    pub fn swap_on_dex_precise(
         &self,
         signer: &SigningAccount,
         coin_in: Coin,
         to_denom: &str,
-        price: f64,
+        price: u128,
     ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
         #[allow(deprecated)]
         let msg = MsgPlaceLimitOrder {
@@ -287,10 +287,20 @@ impl<'a> TestAppWrapper<'a> {
             order_type: 1,
             expiration_time: None,
             max_amount_out: None,
-            limit_sell_price: Some((price * 1e27).to_string()),
+            limit_sell_price: Some(price.to_string()),
             min_average_sell_price: None,
         };
         self.dex.place_limit_order(msg, signer)
+    }
+
+    pub fn swap_on_dex(
+        &self,
+        signer: &SigningAccount,
+        coin_in: Coin,
+        to_denom: &str,
+        price: f64,
+    ) -> RunnerExecuteResult<MsgPlaceLimitOrderResponse> {
+        self.swap_on_dex_precise(signer, coin_in, to_denom, (price * 1e27) as u128)
     }
 
     pub fn limit_order(

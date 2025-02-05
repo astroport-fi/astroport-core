@@ -170,6 +170,10 @@ pub fn provide_liquidity(
     let maybe_cumulative_trade =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
 
+    // TODO: delete me
+    deps.api
+        .debug(&format!("provide: {:?}", maybe_cumulative_trade));
+
     let mut pools = liquidity.total_dec(&precisions)?;
 
     let old_real_price = config.pool_state.price_state.last_price;
@@ -318,6 +322,10 @@ fn withdraw_liquidity(
     // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+
+    // TODO: delete me
+    deps.api
+        .debug(&format!("withdraw: {:?}", maybe_cumulative_trade));
 
     let mut pools = liquidity.total_dec(&precisions)?;
 
