@@ -25,7 +25,9 @@ use super::state::OrderbookState;
 /// In this context, Astroport always charges protocol fees from quote asset.
 #[cw_serde]
 pub struct CumulativeTrade {
+    /// An asset that was sold
     pub base_asset: DecimalAsset,
+    /// An asset that was bought
     pub quote_asset: DecimalAsset,
 }
 

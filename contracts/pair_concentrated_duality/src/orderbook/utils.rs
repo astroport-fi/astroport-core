@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    Addr, Api, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdResult, Uint128, Uint256,
+    ensure, ensure_eq, Addr, Api, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdError,
+    StdResult, Uint128, Uint256,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -321,17 +322,42 @@ pub fn fetch_cumulative_trade(
 
         let maybe_trade = match last_balances[0].amount.cmp(&new_balances[0].amount) {
             // We sold asset 0 for asset 1
-            Ordering::Less => Some(CumulativeTrade {
-                base_asset: diff_to_dec_asset(1)?,
-                quote_asset: diff_to_dec_asset(0)?,
-            }),
+            Ordering::Less => {
+                ensure!(
+                    last_balances[1].amount > new_balances[1].amount,
+                    StdError::generic_err(
+                        "Invalid balance difference while calculating cumulative trade"
+                    )
+                );
+                Some(CumulativeTrade {
+                    base_asset: diff_to_dec_asset(1)?,
+                    quote_asset: diff_to_dec_asset(0)?,
+                })
+            }
             // We bought asset 0 with asset 1
-            Ordering::Greater => Some(CumulativeTrade {
-                base_asset: diff_to_dec_asset(0)?,
-                quote_asset: diff_to_dec_asset(1)?,
-            }),
+            Ordering::Greater => {
+                ensure!(
+                    last_balances[1].amount < new_balances[1].amount,
+                    StdError::generic_err(
+                        "Invalid balance difference while calculating cumulative trade"
+                    )
+                );
+                Some(CumulativeTrade {
+                    base_asset: diff_to_dec_asset(0)?,
+                    quote_asset: diff_to_dec_asset(1)?,
+                })
+            }
             // No trade happened
-            Ordering::Equal => None,
+            Ordering::Equal => {
+                ensure_eq!(
+                    last_balances[1].amount,
+                    new_balances[1].amount,
+                    StdError::generic_err(
+                        "Invalid balance difference while calculating cumulative trade"
+                    )
+                );
+                None
+            }
         };
 
         Ok(maybe_trade)
@@ -342,6 +368,10 @@ pub fn fetch_cumulative_trade(
 
 #[cfg(test)]
 mod unit_tests {
+    use cosmwasm_std::testing::MockStorage;
+
+    use astroport_test::convert::f64_to_dec;
+
     use super::*;
 
     #[test]
@@ -368,6 +398,95 @@ mod unit_tests {
         assert_eq!(
             price_to_duality_notation(price, base_precision, quote_precision).unwrap(),
             "500000000000000000000000000"
+        );
+    }
+
+    #[test]
+    fn test_cumulative_trade() {
+        let mut storage = MockStorage::new();
+        for (asset_info, precision) in [
+            (AssetInfo::native("untrn"), 6),
+            (AssetInfo::native("astro"), 8),
+        ] {
+            Precisions::PRECISIONS
+                .save(&mut storage, asset_info.to_string(), &precision)
+                .unwrap();
+        }
+
+        let precisions = Precisions::new(&storage).unwrap();
+        let last_balances = vec![
+            Asset::native("astro", 1000_00000000u128),
+            Asset::native("untrn", 1000_000000u128),
+        ];
+        let new_balances = vec![
+            Asset::native("untrn", 950_000000u128),
+            Asset::native("astro", 1050_00000000u128),
+        ];
+
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            trade,
+            CumulativeTrade {
+                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+            }
+        );
+
+        // Trade in opposite direction
+        let new_balances = vec![
+            Asset::native("untrn", 1050_000000u128),
+            Asset::native("astro", 950_00000000u128),
+        ];
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            trade,
+            CumulativeTrade {
+                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+            }
+        );
+
+        // No trade
+        assert_eq!(
+            fetch_cumulative_trade(&precisions, &last_balances, &last_balances).unwrap(),
+            None
+        );
+
+        // Invalid balance for 2nd asset while 1st asset is the same
+        let new_balances = vec![
+            Asset::native("untrn", 1000_000000u128),
+            Asset::native("astro", 950_00000000u128),
+        ];
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
+        assert_eq!(
+            trade.to_string(),
+            "Generic error: Invalid balance difference while calculating cumulative trade"
+        );
+
+        // Invalid balance for 2nd asset while 1st asset increased
+        let new_balances = vec![
+            Asset::native("untrn", 1050_000000u128),
+            Asset::native("astro", 1000_00000000u128),
+        ];
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
+        assert_eq!(
+            trade.to_string(),
+            "Generic error: Invalid balance difference while calculating cumulative trade"
+        );
+
+        // Invalid balance for 1st asset while 2nd asset increased
+        let new_balances = vec![
+            Asset::native("untrn", 1001_000000u128),
+            Asset::native("astro", 1050_00000000u128),
+        ];
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
+        assert_eq!(
+            trade.to_string(),
+            "Generic error: Invalid balance difference while calculating cumulative trade"
         );
     }
 }
