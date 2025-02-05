@@ -226,7 +226,7 @@ fn price_to_duality_notation(
 ) -> Result<String, OverflowError> {
     let prec_diff = quote_precision as i8 - base_precision as i8;
     let price = match prec_diff.cmp(&0) {
-        Ordering::Less => price / Decimal256::from_integer(10u128.pow(prec_diff as u32)),
+        Ordering::Less => price / Decimal256::from_integer(10u128.pow(prec_diff.abs() as u32)),
         Ordering::Equal => price,
         Ordering::Greater => price * Decimal256::from_integer(10u128.pow(prec_diff as u32)),
     }
@@ -340,35 +340,34 @@ pub fn fetch_cumulative_trade(
     }
 }
 
-// TODO: fix tests
-// #[cfg(test)]
-// mod unit_tests {
-//     use super::*;
-//
-//     #[test]
-//     fn test_sci_notation_conversion() {
-//         let price = Decimal256::from_ratio(1u8, 3000u64);
-//         let base_precision = 6;
-//         let quote_precision = 18;
-//         assert_eq!(
-//             price_to_sci_notation(price, base_precision, quote_precision),
-//             "333333333.333333"
-//         );
-//
-//         let price = Decimal256::from_ratio(3000u64, 1u8);
-//         let base_precision = 18;
-//         let quote_precision = 6;
-//         assert_eq!(
-//             price_to_sci_notation(price, base_precision, quote_precision),
-//             "3000E-12"
-//         );
-//
-//         let price = Decimal256::from_ratio(1u8, 2u8);
-//         let base_precision = 6;
-//         let quote_precision = 6;
-//         assert_eq!(
-//             price_to_sci_notation(price, base_precision, quote_precision),
-//             "0.5"
-//         );
-//     }
-// }
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn test_sci_notation_conversion() {
+        let price = Decimal256::from_ratio(1u8, 3000u64);
+        let base_precision = 6;
+        let quote_precision = 18;
+        assert_eq!(
+            price_to_duality_notation(price, base_precision, quote_precision).unwrap(),
+            "333333333333333000000000000000000000"
+        );
+
+        let price = Decimal256::from_ratio(3000u64, 1u8);
+        let base_precision = 18;
+        let quote_precision = 6;
+        assert_eq!(
+            price_to_duality_notation(price, base_precision, quote_precision).unwrap(),
+            "3000000000000000000"
+        );
+
+        let price = Decimal256::from_ratio(1u8, 2u8);
+        let base_precision = 6;
+        let quote_precision = 6;
+        assert_eq!(
+            price_to_duality_notation(price, base_precision, quote_precision).unwrap(),
+            "500000000000000000000000000"
+        );
+    }
+}
