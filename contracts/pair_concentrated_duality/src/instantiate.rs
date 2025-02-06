@@ -1,17 +1,18 @@
+use cosmwasm_std::{
+    ensure, from_json, Decimal256, DepsMut, Env, MessageInfo, Response, StdError, SubMsg, Uint128,
+};
+use cw2::set_contract_version;
+
 use astroport::pair::ReplyIds;
 use astroport::token_factory::tf_create_denom_msg;
 use astroport::{
-    asset::PairInfo, factory::PairType, pair::InstantiateMsg, pair_concentrated::UpdatePoolParams,
+    asset::PairInfo, pair::InstantiateMsg, pair_concentrated::UpdatePoolParams,
     pair_concentrated_duality::ConcentratedDualityParams,
 };
 use astroport_pcl_common::{
     state::{AmpGamma, Config, PoolParams, PoolState, Precisions, PriceState},
     utils::check_asset_infos,
 };
-use cosmwasm_std::{
-    ensure, from_json, Decimal256, DepsMut, Env, MessageInfo, Response, StdError, SubMsg, Uint128,
-};
-use cw2::set_contract_version;
 
 use crate::error::ContractError;
 use crate::orderbook::state::OrderbookState;
@@ -116,7 +117,7 @@ pub fn instantiate(
             contract_addr: env.contract.address.clone(),
             liquidity_token: "".to_owned(),
             asset_infos: msg.asset_infos.clone(),
-            pair_type: PairType::Custom("concentrated_duality_orderbook".to_string()),
+            pair_type: msg.pair_type,
         },
         factory_addr,
         block_time_last: env.block.time.seconds(),

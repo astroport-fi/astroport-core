@@ -1,15 +1,20 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{Addr, Decimal, Decimal256};
+use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
+use cw2::set_contract_version;
 use itertools::{max, Itertools};
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport::factory::PairType;
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
-use astroport::pair_concentrated_duality::{DualityPairMsg, UpdateDualityOrderbook};
+use astroport::pair_concentrated_duality::{
+    DualityPairMsg, MigrateMsg, OrderbookConfig, UpdateDualityOrderbook,
+};
 use astroport_pair_concentrated_duality::error::ContractError;
+use astroport_pair_concentrated_duality::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
 use astroport_pair_concentrated_duality::orderbook::error::OrderbookError;
 use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
 use astroport_pcl_common::error::PclError;
@@ -17,7 +22,7 @@ use astroport_test::coins::TestCoin;
 use astroport_test::convert::{dec_to_f64, f64_to_dec};
 use astroport_test::cw_multi_test::Executor;
 
-use crate::common::helper::{common_pcl_params, ExecuteMsg, Helper};
+use crate::common::helper::{common_pcl_params, pcl_duality_contract, ExecuteMsg, Helper};
 
 mod common;
 
@@ -34,6 +39,7 @@ fn check_wrong_initialization() {
         &owner,
         vec![TestCoin::native("untrn"), TestCoin::native("ASTRO")],
         wrong_params,
+        true,
     )
     .unwrap_err();
 
@@ -53,6 +59,7 @@ fn check_wrong_initialization() {
         &owner,
         vec![TestCoin::native("untrn"), TestCoin::native("ASTRO")],
         wrong_params,
+        true,
     )
     .unwrap_err();
 
@@ -72,6 +79,7 @@ fn check_wrong_initialization() {
         &owner,
         vec![TestCoin::native("untrn"), TestCoin::native("ASTRO")],
         wrong_params,
+        true,
     )
     .unwrap_err();
 
@@ -85,6 +93,7 @@ fn check_wrong_initialization() {
         &owner,
         vec![TestCoin::native("untrn"), TestCoin::native("ASTRO")],
         params,
+        true,
     )
     .unwrap();
 }
@@ -100,7 +109,7 @@ fn provide_and_withdraw() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     // checking LP token virtual price on an empty pool
     let lp_price = helper.query_lp_price().unwrap();
@@ -308,7 +317,7 @@ fn check_imbalanced_provide() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params.clone()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params.clone(), true).unwrap();
 
     let user1 = Addr::unchecked("user1");
     let assets = vec![
@@ -328,7 +337,7 @@ fn check_imbalanced_provide() {
     // creating a new pool with inverted price scale
     params.price_scale = Decimal::from_ratio(1u8, 2u8);
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -354,7 +363,7 @@ fn provide_with_different_precision() {
         TestCoin::native("untrn"),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_00000u128),
@@ -403,7 +412,7 @@ fn swap_different_precisions() {
         TestCoin::native("untrn"),
     ];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_00000u128),
@@ -447,7 +456,7 @@ fn check_reverse_swap() {
 
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("uusd")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
@@ -476,7 +485,7 @@ fn check_swaps_simple() {
 
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("uusd")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     let user = Addr::unchecked("user");
     let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
@@ -539,7 +548,7 @@ fn check_swaps_with_price_update() {
 
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("uusd")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     helper.next_block(1000);
 
@@ -582,7 +591,7 @@ fn provides_and_swaps() {
 
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("uusd")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
 
     helper.next_block(1000);
 
@@ -632,7 +641,7 @@ fn check_amp_gamma_change() {
         gamma: f64_to_dec(0.0001),
         ..common_pcl_params()
     };
-    let mut helper = Helper::new(&owner, test_coins, params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins, params, true).unwrap();
 
     let random_user = Addr::unchecked("random");
     let action = ConcentratedPoolUpdateParams::Update(UpdatePoolParams {
@@ -717,7 +726,7 @@ fn check_prices() {
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("usdx")];
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
     helper.next_block(50_000);
 
     let check_prices = |helper: &Helper| {
@@ -782,7 +791,7 @@ fn update_owner() {
 
     let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("uusd")];
 
-    let mut helper = Helper::new(&owner, test_coins, common_pcl_params()).unwrap();
+    let mut helper = Helper::new(&owner, test_coins, common_pcl_params(), true).unwrap();
 
     let new_owner = String::from("new_owner");
 
@@ -869,7 +878,7 @@ fn check_orderbook_integration() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
@@ -937,7 +946,7 @@ fn provide_withdraw_provide() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     let assets = vec![
         helper.assets[&test_coins[0]].with_balance(10_938039u128),
@@ -979,7 +988,7 @@ fn provide_withdraw_slippage() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     // Fully balanced provide
     let assets = vec![
@@ -1038,7 +1047,7 @@ fn check_small_trades() {
         ..common_pcl_params()
     };
 
-    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
 
     helper.give_me_money(
         &[
@@ -1109,5 +1118,293 @@ fn check_small_trades() {
         relative_diff < Decimal256::percent(3),
         "Internal PCL value is off. Relative_diff: {}",
         relative_diff
+    );
+}
+
+#[test]
+fn test_migrate_cl_to_orderbook() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("untrn"), TestCoin::native("astro")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: f64_to_dec(0.5),
+        ..common_pcl_params()
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, false).unwrap();
+
+    helper.give_me_money(
+        &[
+            helper.assets[&test_coins[0]].with_balance(u128::MAX / 2),
+            helper.assets[&test_coins[1]].with_balance(u128::MAX / 2),
+        ],
+        &owner,
+    );
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(500_000e6 as u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000e6 as u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    // Make some swaps
+    for _ in 0..2 {
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[0]].with_balance(500e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+    }
+
+    let orders_number = 5;
+    let migrate_msg = MigrateMsg::MigrateToOrderbook {
+        orderbook_config: OrderbookConfig {
+            liquidity_percent: Decimal::percent(20),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1000u128),
+            min_asset_1_order_size: Uint128::from(1000u128),
+            executor: Some(owner.to_string()),
+            avg_price_adjustment: f64_to_dec(0.001),
+        },
+    };
+
+    let new_code_id = helper.app.store_code(pcl_duality_contract());
+
+    // Tweak PCL state to check migration errors
+    {
+        let mut contract_store = helper.app.contract_storage_mut(&helper.pair_addr);
+        set_contract_version(contract_store.as_mut(), "fake_pcl", CONTRACT_VERSION).unwrap()
+    };
+
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &migrate_msg,
+            new_code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Can migrate only from astroport-pair-concentrated >=4.0.0, <5.0.0"
+    );
+
+    // Checking a major version higher than v4
+    {
+        let mut contract_store = helper.app.contract_storage_mut(&helper.pair_addr);
+        set_contract_version(
+            contract_store.as_mut(),
+            "astroport-pair-concentrated",
+            "15.0.0",
+        )
+        .unwrap()
+    };
+
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &migrate_msg,
+            new_code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Can migrate only from astroport-pair-concentrated >=4.0.0, <5.0.0"
+    );
+
+    // Reverting to the correct version
+    {
+        let mut contract_store = helper.app.contract_storage_mut(&helper.pair_addr);
+        set_contract_version(
+            contract_store.as_mut(),
+            "astroport-pair-concentrated",
+            CONTRACT_VERSION,
+        )
+        .unwrap()
+    };
+
+    // for RustRover linter otherwise it assumes that `CONTRACT_NAME` is unused
+    _ = CONTRACT_NAME;
+    // Try to use general migration path for ordinal PCL contract
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg::Migrate {},
+            new_code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: This endpoint is allowed only for {CONTRACT_NAME}")
+    );
+
+    helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &migrate_msg,
+            new_code_id,
+        )
+        .unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert_eq!(
+        config.pair_info.pair_type,
+        PairType::Custom("concentrated_duality_orderbook".to_string())
+    );
+    assert_eq!(config.pool_state.price_state.price_scale.to_string(), "0.5");
+    let ob_state = helper.query_ob_config().unwrap();
+    assert!(!ob_state.enabled, "Must be disabled by default");
+
+    // Cant perform PCL transformation again
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &migrate_msg,
+            new_code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Can migrate only from astroport-pair-concentrated >=4.0.0, <5.0.0"
+    );
+
+    for _ in 0..3 {
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[0]].with_balance(500e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+    }
+
+    // Confirm that PCL is not posting anything to the orderbook
+    // Zero orders since OB integration is disabled
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        0
+    );
+
+    // Enable orderbook
+    helper.enable_orderbook(true).unwrap();
+
+    // Still zero
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        0
+    );
+
+    // Perform swaps to trigger orders placement
+    for _ in 0..3 {
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+        helper
+            .swap(
+                &owner,
+                &helper.assets[&test_coins[0]].with_balance(500e6 as u128),
+                None,
+            )
+            .unwrap();
+        helper.next_block(1000);
+    }
+
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        (orders_number * 2) as usize
+    );
+
+    // Disable orderbook
+    helper.enable_orderbook(false).unwrap();
+
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        0
+    );
+
+    // Enable again
+    helper.enable_orderbook(true).unwrap();
+
+    // Trigger order placement
+    helper
+        .swap(
+            &owner,
+            &helper.assets[&test_coins[1]].with_balance(1000e6 as u128),
+            None,
+        )
+        .unwrap();
+
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        10
+    );
+
+    // Withdraw all liquidity
+    let lp_amount = helper.native_balance(&helper.lp_token, &owner);
+    helper
+        .withdraw_liquidity(&owner, lp_amount, vec![])
+        .unwrap();
+
+    assert_eq!(
+        helper
+            .query_orders(&helper.pair_addr)
+            .unwrap()
+            .limit_orders
+            .len(),
+        0
     );
 }

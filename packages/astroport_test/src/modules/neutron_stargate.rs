@@ -12,7 +12,7 @@ use cw_multi_test::{
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::{
-    LimitOrderTrancheUser, MsgCancelLimitOrderResponse, MsgPlaceLimitOrder,
+    LimitOrderTrancheUser, MsgCancelLimitOrder, MsgCancelLimitOrderResponse, MsgPlaceLimitOrder,
     QueryAllLimitOrderTrancheUserByAddressRequest, QueryAllLimitOrderTrancheUserByAddressResponse,
     QuerySimulateCancelLimitOrderRequest, QuerySimulateCancelLimitOrderResponse,
 };
@@ -27,6 +27,11 @@ use astroport::token_factory::{
 pub struct NeutronStargate {
     // user -> tranche_key -> limit_order
     orders: RefCell<HashMap<String, HashMap<String, MsgPlaceLimitOrder>>>,
+}
+
+impl NeutronStargate {
+    const ESCROW_ADDR: &'static str =
+        "cosmwasm1ypz7dakxd9umutjtxpk7md3ja5shk84qlj7cv0f6yqkj2naef00q4rdsps";
 }
 
 impl Stargate for NeutronStargate {}
@@ -106,12 +111,42 @@ impl Module for NeutronStargate {
             MsgPlaceLimitOrder::TYPE_URL => {
                 let tranche_key = format!("{:x}", sha2::Sha256::digest(&value));
 
+                // Escrow tokens
+                let value: MsgPlaceLimitOrder = value.try_into()?;
+                let bank_msg = BankMsg::Send {
+                    to_address: Self::ESCROW_ADDR.to_string(),
+                    amount: vec![coin(value.amount_in.parse().unwrap(), &value.token_in)],
+                };
+                router.execute(api, storage, block, sender.clone(), bank_msg.into())?;
+
                 self.orders
                     .borrow_mut()
                     .entry(sender.to_string())
                     .or_insert_with(HashMap::new)
                     .insert(tranche_key, value.try_into()?);
                 Ok(AppResponse::default())
+            }
+            MsgCancelLimitOrder::TYPE_URL => {
+                let cancel_msg: MsgCancelLimitOrder = value.try_into()?;
+                let order = self
+                    .orders
+                    .borrow_mut()
+                    .get_mut(&sender.to_string())
+                    .and_then(|m| m.remove(&cancel_msg.tranche_key))
+                    .ok_or_else(|| anyhow::anyhow!("Order not found"))?;
+
+                // Unescrow tokens
+                let msg = BankMsg::Send {
+                    to_address: sender.to_string(),
+                    amount: vec![coin(order.amount_in.parse().unwrap(), &order.token_in)],
+                };
+                router.execute(
+                    api,
+                    storage,
+                    block,
+                    Addr::unchecked(Self::ESCROW_ADDR),
+                    msg.into(),
+                )
             }
             _ => Err(anyhow::anyhow!(
                 "Unexpected exec msg {type_url} from {sender:?}",

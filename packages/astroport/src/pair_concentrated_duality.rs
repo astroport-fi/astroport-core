@@ -75,3 +75,11 @@ impl TryFrom<u64> for ReplyIds {
         }
     }
 }
+
+#[cw_serde]
+pub enum MigrateMsg {
+    /// Migration from plain PCL to PCL with Duality integration
+    MigrateToOrderbook { orderbook_config: OrderbookConfig },
+    /// General migration for `astroport-pair-concentrated-duality` pool
+    Migrate {},
+}

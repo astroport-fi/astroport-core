@@ -719,8 +719,9 @@ pub fn process_custom_msgs(
 
             let mut ob_state = OrderbookState::load(deps.storage)?;
             let cancel_orders_msgs = if let Some(false) = update_orderbook_conf.enable {
+                let msgs = ob_state.cancel_orders(&env.contract.address);
                 ob_state.orders = vec![];
-                ob_state.cancel_orders(&env.contract.address)
+                msgs
             } else {
                 vec![]
             };

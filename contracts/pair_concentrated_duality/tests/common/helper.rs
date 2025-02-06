@@ -4,15 +4,16 @@
 use std::collections::HashMap;
 use std::str::FromStr;
 
-use anyhow::Result as AnyResult;
+use anyhow::{anyhow, Result as AnyResult};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, coins, from_json, to_json_binary, Addr, BankMsg, Decimal, Decimal256, Empty, GovMsg,
-    IbcMsg, IbcQuery, MemoryStorage, StdError, StdResult, Uint128,
+    coin, coins, from_json, to_json_binary, to_json_vec, Addr, BankMsg, Decimal, Decimal256, Empty,
+    GovMsg, IbcMsg, IbcQuery, MemoryStorage, Querier, QueryRequest, StdError, StdResult, Uint128,
 };
 use derivative::Derivative;
 use itertools::Itertools;
+use neutron_std::types::neutron::dex::QueryAllLimitOrderTrancheUserByAddressRequest;
 
 use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::factory::{PairConfig, PairType};
@@ -25,8 +26,9 @@ use astroport::pair_concentrated::{
     ConcentratedPoolConfig, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
 };
 use astroport::pair_concentrated_duality::{
-    ConcentratedDualityParams, DualityPairMsg, OrderbookConfig,
+    ConcentratedDualityParams, DualityPairMsg, OrderbookConfig, UpdateDualityOrderbook,
 };
+use astroport_pair_concentrated_duality::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
 use astroport_pair_concentrated_duality::orderbook::state::OrderbookState;
 use astroport_pcl_common::state::Config;
 use astroport_test::coins::TestCoin;
@@ -62,14 +64,26 @@ pub struct AmpGammaResponse {
     pub future_time: u64,
 }
 
-fn pcl_duality_contract() -> Box<dyn Contract<Empty>> {
+pub fn pcl_duality_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
         ContractWrapper::new(
             astroport_pair_concentrated_duality::execute::execute,
             astroport_pair_concentrated_duality::instantiate::instantiate,
             astroport_pair_concentrated_duality::queries::query,
         )
-        .with_reply_empty(astroport_pair_concentrated_duality::reply::reply),
+        .with_reply_empty(astroport_pair_concentrated_duality::reply::reply)
+        .with_migrate(astroport_pair_concentrated_duality::migrate::migrate),
+    )
+}
+
+pub fn pcl_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new(
+            astroport_pair_concentrated::contract::execute,
+            astroport_pair_concentrated::contract::instantiate,
+            astroport_pair_concentrated::queries::query,
+        )
+        .with_reply_empty(astroport_pair_concentrated::contract::reply),
     )
 }
 
@@ -124,6 +138,7 @@ impl Helper {
         owner: &Addr,
         test_coins: Vec<TestCoin>,
         params: ConcentratedPoolParams,
+        with_orderbook: bool,
     ) -> AnyResult<Self> {
         let mut app = BasicAppBuilder::new()
             .with_stargate(NeutronStargate::default())
@@ -143,9 +158,13 @@ impl Helper {
             })
             .collect::<Vec<_>>();
 
-        let pcl_code_id = app.store_code(pcl_duality_contract());
         let factory_code_id = app.store_code(factory_contract());
-        let pair_type = PairType::Custom("concentrated_duality_orderbook".to_string());
+
+        let pair_type = if with_orderbook {
+            PairType::Custom("concentrated_duality_orderbook".to_string())
+        } else {
+            PairType::Custom("concentrated".to_string())
+        };
 
         let fake_maker = Addr::unchecked("fake_maker");
 
@@ -179,15 +198,26 @@ impl Helper {
 
         let init_msg = astroport::factory::InstantiateMsg {
             fee_address: Some(fake_maker.to_string()),
-            pair_configs: vec![PairConfig {
-                code_id: pcl_code_id,
-                maker_fee_bps: 5000,
-                total_fee_bps: 0u16, // Concentrated pair does not use this field,
-                pair_type: pair_type.clone(),
-                is_disabled: false,
-                is_generator_disabled: false,
-                permissioned: false,
-            }],
+            pair_configs: vec![
+                PairConfig {
+                    code_id: app.store_code(pcl_contract()),
+                    maker_fee_bps: 5000,
+                    total_fee_bps: 0u16, // Concentrated pair does not use this field,
+                    pair_type: PairType::Custom("concentrated".to_string()),
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: false,
+                },
+                PairConfig {
+                    code_id: app.store_code(pcl_duality_contract()),
+                    maker_fee_bps: 5000,
+                    total_fee_bps: 0u16, // Concentrated pair does not use this field,
+                    pair_type: PairType::Custom("concentrated_duality_orderbook".to_string()),
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: false,
+                },
+            ],
             token_code_id: 0,
             generator_address: None,
             owner: owner.to_string(),
@@ -215,7 +245,7 @@ impl Helper {
             astroport::factory::ExecuteMsg::CreatePair {
                 pair_type,
                 asset_infos: asset_infos.clone(),
-                init_params: Some(
+                init_params: Some(if with_orderbook {
                     to_json_binary(&ConcentratedDualityParams {
                         main_params: params,
                         orderbook_config: OrderbookConfig {
@@ -227,8 +257,10 @@ impl Helper {
                             avg_price_adjustment: Decimal::from_str("0.001").unwrap(),
                         },
                     })
-                    .unwrap(),
-                ),
+                    .unwrap()
+                } else {
+                    to_json_binary(&params).unwrap()
+                }),
             };
 
         app.execute_contract(owner.clone(), factory.clone(), &init_pair_msg, &[])?;
@@ -486,6 +518,49 @@ impl Helper {
                 &QueryMsg::Observe { seconds_ago },
             )
             .map(|val| val.price)
+    }
+
+    pub fn query_orders(
+        &self,
+        addr: impl Into<String>,
+    ) -> AnyResult<CustomQueryAllLimitOrderTrancheUserByAddressResponse> {
+        let query_msg = to_json_vec(&QueryRequest::<Empty>::Stargate {
+            path: "/neutron.dex.Query/LimitOrderTrancheUserAllByAddress".to_string(),
+            data: QueryAllLimitOrderTrancheUserByAddressRequest {
+                address: addr.into(),
+                pagination: None,
+            }
+            .into(),
+        })?;
+
+        let response_raw = self
+            .app
+            .raw_query(&query_msg)
+            .into_result()
+            .map_err(|err| anyhow!(err))?
+            .into_result()
+            .map_err(|err| anyhow!(err))?;
+
+        from_json(&response_raw).map_err(Into::into)
+    }
+
+    pub fn enable_orderbook(&mut self, enable: bool) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            self.pair_addr.clone(),
+            &ExecuteMsg::Custom(DualityPairMsg::UpdateOrderbookConfig(
+                UpdateDualityOrderbook {
+                    enable: Some(enable),
+                    executor: None,
+                    remove_executor: false,
+                    orders_number: None,
+                    min_asset_0_order_size: None,
+                    min_asset_1_order_size: None,
+                    liquidity_percent: None,
+                },
+            )),
+            &[],
+        )
     }
 
     pub fn next_block(&mut self, time: u64) {
