@@ -13,9 +13,7 @@ use astroport::pair::{QueryMsg, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
-use astroport::pair_concentrated_duality::{
-    DualityPairMsg, MigrateMsg, OrderbookConfig, UpdateDualityOrderbook,
-};
+use astroport::pair_concentrated_duality::{DualityPairMsg, MigrateMsg, OrderbookConfig};
 use astroport_pair_concentrated_duality::error::ContractError;
 use astroport_pair_concentrated_duality::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
 use astroport_pair_concentrated_duality::orderbook::error::OrderbookError;

@@ -315,14 +315,12 @@ impl OrderbookState {
 
     /// Construct an array with new orders.
     /// Return an empty array if orderbook integration is disabled.
-    // TODO: remove api from the arguments
     pub fn deploy_orders(
         &self,
         env: &Env,
         config: &Config,
         balances: &[Decimal256],
         precisions: &Precisions,
-        api: &dyn Api,
     ) -> Result<Vec<CosmosMsg>, ContractError> {
         // Orderbook is disabled. No need to deploy orders.
         if !self.enabled {
@@ -406,7 +404,7 @@ impl OrderbookState {
             orders_factory.buy(buy_price, buy_amount);
         }
 
-        Ok(orders_factory.collect_spot_orders(&env.contract.address, api))
+        Ok(orders_factory.collect_spot_orders(&env.contract.address))
     }
 
     /// Flatten all messages into one vector and add a callback to the last message only

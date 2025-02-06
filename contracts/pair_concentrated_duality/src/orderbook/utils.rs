@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, Addr, Api, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdError,
+    ensure, ensure_eq, Addr, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdError,
     StdResult, Uint128, Uint256,
 };
 use itertools::Itertools;
@@ -127,7 +127,7 @@ impl SpotOrdersFactory {
             })
     }
 
-    pub fn collect_spot_orders(self, sender: &Addr, api: &dyn Api) -> Vec<CosmosMsg> {
+    pub fn collect_spot_orders(self, sender: &Addr) -> Vec<CosmosMsg> {
         self.orders
             .into_iter()
             .map(|order| {
@@ -147,13 +147,6 @@ impl SpotOrdersFactory {
                         self.precision[0],
                     )
                     .unwrap();
-
-                    api.debug(&format!(
-                        "buy: limit_sell_price: {limit_sell_price} min_average_sell_price: {min_average_sell_price}, amount_in: {}",
-                        (order.amount * self.multiplier[1])
-                            .to_uint_floor()
-                            .to_string()
-                    ));
 
                     #[allow(deprecated)]
                     MsgPlaceLimitOrder {
@@ -186,13 +179,6 @@ impl SpotOrdersFactory {
                         self.precision[0],
                     )
                     .unwrap();
-
-                    api.debug(&format!(
-                        "sell: limit_sell_price: {limit_sell_price} min_average_sell_price: {min_average_sell_price}, amount_in: {}",
-                        (order.amount * self.multiplier[0])
-                            .to_uint_floor()
-                            .to_string()
-                    ));
 
                     #[allow(deprecated)]
                     MsgPlaceLimitOrder {

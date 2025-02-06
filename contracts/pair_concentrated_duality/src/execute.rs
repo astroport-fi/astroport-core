@@ -170,10 +170,6 @@ pub fn provide_liquidity(
     let maybe_cumulative_trade =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
 
-    // TODO: delete me
-    deps.api
-        .debug(&format!("provide: {:?}", maybe_cumulative_trade));
-
     let mut pools = liquidity.total_dec(&precisions)?;
 
     let old_real_price = config.pool_state.price_state.last_price;
@@ -266,7 +262,7 @@ pub fn provide_liquidity(
         .map(|(asset, deposit)| asset.amount + deposit)
         .collect_vec();
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
 
     CONFIG.save(deps.storage, &config)?;
 
@@ -322,10 +318,6 @@ fn withdraw_liquidity(
     // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
-
-    // TODO: delete me
-    deps.api
-        .debug(&format!("withdraw: {:?}", maybe_cumulative_trade));
 
     let mut pools = liquidity.total_dec(&precisions)?;
 
@@ -413,7 +405,7 @@ fn withdraw_liquidity(
 
     CONFIG.save(deps.storage, &config)?;
 
-    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
         &pools_u128,
         &[cancel_msgs, withdraw_messages],
@@ -462,10 +454,6 @@ fn swap(
     // This call fetches possible cumulative trade
     let maybe_cumulative_trade =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
-
-    // TODO: delete me
-    deps.api
-        .debug(&format!("swap: {:?}", maybe_cumulative_trade));
 
     let mut pools = liquidity.total_dec(&precisions)?;
 
@@ -604,7 +592,7 @@ fn swap(
 
     // Reconcile orders
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions, deps.api)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
     CONFIG.save(deps.storage, &config)?;
 

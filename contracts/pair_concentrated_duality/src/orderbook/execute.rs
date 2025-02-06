@@ -149,10 +149,6 @@ pub fn sync_pool_with_orderbook(
     if let Some(cumulative_trade) =
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
     {
-        deps.api.debug(&format!(
-            "Syncing pool with orderbook: {:?}",
-            &cumulative_trade
-        ));
         let mut pools = liquidity.total_dec(&precisions)?;
         let mut balances = pools
             .iter_mut()
@@ -174,7 +170,7 @@ pub fn sync_pool_with_orderbook(
         let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
 
         let balances = pools.iter().map(|asset| asset.amount).collect_vec();
-        let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions, deps.api)?;
+        let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
 
         let pools_u128 = pools
             .iter()
