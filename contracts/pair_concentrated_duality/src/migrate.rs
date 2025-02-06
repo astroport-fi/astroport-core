@@ -49,7 +49,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
         MigrateMsg::Migrate {} => {
             ensure_eq!(
                 stored_info.contract,
-                CONTRACT_VERSION,
+                CONTRACT_NAME,
                 StdError::generic_err(format!("This endpoint is allowed only for {CONTRACT_NAME}"))
             );
 

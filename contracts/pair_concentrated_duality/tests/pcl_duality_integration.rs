@@ -1002,7 +1002,7 @@ fn query_d_test() {
 }
 
 #[test]
-fn asset_balances_tracking_with_in_params() {
+fn test_ob_integration() {
     let owner = Addr::unchecked("owner");
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("untrn")];
@@ -1022,25 +1022,7 @@ fn asset_balances_tracking_with_in_params() {
     helper.give_me_money(&assets, &owner);
     helper.provide_liquidity(&owner, &assets).unwrap();
 
-    helper
-        .app
-        .execute_contract(
-            owner.clone(),
-            helper.pair_addr.clone(),
-            &ExecuteMsg::Custom(DualityPairMsg::UpdateOrderbookConfig(
-                UpdateDualityOrderbook {
-                    enable: Some(true),
-                    executor: None,
-                    remove_executor: false,
-                    orders_number: None,
-                    min_asset_0_order_size: None,
-                    min_asset_1_order_size: None,
-                    liquidity_percent: None,
-                },
-            )),
-            &[],
-        )
-        .unwrap();
+    helper.enable_orderbook(true).unwrap();
 
     let err = helper
         .app
@@ -1065,8 +1047,6 @@ fn asset_balances_tracking_with_in_params() {
     let ob_config = helper.query_ob_config().unwrap();
 
     assert_eq!(ob_config.orders.len() as u8, ob_config.orders_number * 2);
-
-    // TODO: test orderbook disabling
 }
 
 #[test]
@@ -1551,6 +1531,21 @@ fn test_migrate_cl_to_orderbook() {
             new_code_id,
         )
         .unwrap();
+
+    // Try to use general migration path; Currently is not implemented
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg::Migrate {},
+            new_code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Not yet implemented"
+    );
 
     let config = helper.query_config().unwrap();
     assert_eq!(
