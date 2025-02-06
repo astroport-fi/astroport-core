@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Decimal, Decimal256, StdError, Uint128};
 use cw2::set_contract_version;
 use itertools::{max, Itertools};
 
-use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{native_asset_info, Asset, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{QueryMsg, MAX_FEE_SHARE_BPS};
@@ -325,6 +325,106 @@ fn provide_and_withdraw() {
     );
     assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
     assert_eq!(26653_440612, helper.coin_balance(&test_coins[1], &user2));
+
+    let err = helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![helper.assets[&test_coins[0]].with_balance(0u128)]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::WrongAssetLength {
+            expected: 2,
+            actual: 1
+        },
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![
+                Asset::native("random", 100u128),
+                Asset::native("random2", 100u128),
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidAsset("random".to_string()),
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![
+                helper.assets[&test_coins[0]].with_balance(0u128),
+                helper.assets[&test_coins[0]].with_balance(0u128),
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Duplicated assets in min_assets_to_receive"
+    );
+
+    let err = helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![
+                helper.assets[&test_coins[1]].with_balance(100_000_0000000u128),
+                helper.assets[&test_coins[0]].with_balance(0u128),
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::WithdrawSlippageViolation {
+            asset_name: helper.assets[&test_coins[1]].to_string(),
+            received: 7538731439u128.into(),
+            expected: 100_000_0000000u128.into(),
+        },
+        err.downcast().unwrap()
+    );
+
+    let err = helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![
+                helper.assets[&test_coins[1]].with_balance(7538731439u128),
+                helper.assets[&test_coins[0]].with_balance(100_000_0000000u128),
+            ]),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::WithdrawSlippageViolation {
+            asset_name: helper.assets[&test_coins[0]].to_string(),
+            received: 13268167332u128.into(),
+            expected: 100_000_0000000u128.into(),
+        },
+        err.downcast().unwrap()
+    );
+
+    helper
+        .withdraw_liquidity_full(
+            &user2,
+            10_000_000000,
+            vec![],
+            Some(vec![
+                helper.assets[&test_coins[1]].with_balance(7538731439u128),
+                helper.assets[&test_coins[0]].with_balance(13268167332u128),
+            ]),
+        )
+        .unwrap();
 }
 
 #[test]

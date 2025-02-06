@@ -339,21 +339,31 @@ impl Helper {
             .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
     }
 
-    pub fn withdraw_liquidity(
+    pub fn withdraw_liquidity_full(
         &mut self,
         sender: &Addr,
         amount: u128,
         assets: Vec<Asset>,
+        min_assets_to_receive: Option<Vec<Asset>>,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             sender.clone(),
             self.pair_addr.clone(),
             &ExecuteMsg::WithdrawLiquidity {
                 assets,
-                min_assets_to_receive: None,
+                min_assets_to_receive,
             },
             &[coin(amount, self.lp_token.to_string())],
         )
+    }
+
+    pub fn withdraw_liquidity(
+        &mut self,
+        sender: &Addr,
+        amount: u128,
+        assets: Vec<Asset>,
+    ) -> AnyResult<AppResponse> {
+        self.withdraw_liquidity_full(sender, amount, assets, None)
     }
 
     pub fn swap(

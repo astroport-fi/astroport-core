@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    ensure, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Uint128,
+    ensure, ensure_eq, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 
@@ -175,12 +175,22 @@ pub fn ensure_min_assets_to_receive(
     min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<(), ContractError> {
     if let Some(mut min_assets_to_receive) = min_assets_to_receive {
-        ensure!(
-            min_assets_to_receive.len() == min_assets_to_receive.len(),
+        ensure_eq!(
+            min_assets_to_receive.len(),
+            refund_assets.len(),
             ContractError::WrongAssetLength {
                 expected: refund_assets.len(),
                 actual: min_assets_to_receive.len(),
             }
+        );
+
+        // Ensure unique
+        ensure!(
+            min_assets_to_receive
+                .iter()
+                .map(|asset| &asset.info)
+                .all_unique(),
+            StdError::generic_err("Duplicated assets in min_assets_to_receive")
         );
 
         for asset in &min_assets_to_receive {
