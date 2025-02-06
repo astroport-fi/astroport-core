@@ -313,6 +313,32 @@ impl Helper {
             .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
     }
 
+    pub fn provide_liquidity_full(
+        &mut self,
+        sender: &Addr,
+        assets: &[Asset],
+        slippage_tolerance: Option<Decimal>,
+        auto_stake: Option<bool>,
+        receiver: Option<String>,
+        min_lp_to_receive: Option<Uint128>,
+    ) -> AnyResult<AppResponse> {
+        let funds = assets
+            .iter()
+            .map(|asset| asset.as_coin().unwrap())
+            .collect_vec();
+
+        let msg = ExecuteMsg::ProvideLiquidity {
+            assets: assets.to_vec(),
+            slippage_tolerance,
+            auto_stake,
+            receiver,
+            min_lp_to_receive,
+        };
+
+        self.app
+            .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
+    }
+
     pub fn withdraw_liquidity(
         &mut self,
         sender: &Addr,

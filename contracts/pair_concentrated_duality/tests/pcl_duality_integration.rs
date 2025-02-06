@@ -1,12 +1,15 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{Addr, Decimal, Decimal256, Uint128};
+use std::str::FromStr;
+
+use cosmwasm_std::{Addr, Decimal, Decimal256, StdError, Uint128};
 use cw2::set_contract_version;
 use itertools::{max, Itertools};
 
 use astroport::asset::{native_asset_info, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
+use astroport::pair::{QueryMsg, MAX_FEE_SHARE_BPS};
 use astroport::pair_concentrated::{
     ConcentratedPoolParams, ConcentratedPoolUpdateParams, PromoteParams, UpdatePoolParams,
 };
@@ -96,6 +99,24 @@ fn check_wrong_initialization() {
         true,
     )
     .unwrap();
+}
+
+#[test]
+fn check_create_pair_with_unsupported_denom() {
+    let owner = Addr::unchecked("owner");
+
+    let wrong_coins = vec![TestCoin::native("rc"), TestCoin::native("uusdc")];
+    let valid_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
+
+    let params = common_pcl_params();
+
+    let err = Helper::new(&owner, wrong_coins.clone(), params.clone(), true).unwrap_err();
+    assert_eq!(
+        "Generic error: Invalid denom length [3,128]: rc",
+        err.root_cause().to_string()
+    );
+
+    Helper::new(&owner, valid_coins.clone(), params.clone(), true).unwrap();
 }
 
 #[test]
@@ -447,6 +468,71 @@ fn swap_different_precisions() {
     assert_eq!(
         sim_resp.return_amount.u128(),
         helper.coin_balance(&test_coins[1], &user)
+    );
+}
+
+#[test]
+fn simulate_provide() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("untrn")];
+
+    let params = ConcentratedPoolParams {
+        price_scale: Decimal::from_ratio(2u8, 1u8),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params, true).unwrap();
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let user1 = Addr::unchecked("user1");
+
+    let shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: None,
+            },
+        )
+        .unwrap();
+
+    helper.give_me_money(&assets, &user1);
+    helper.provide_liquidity(&user1, &assets).unwrap();
+
+    assert_eq!(
+        shares.u128(),
+        helper.native_balance(&helper.lp_token, &user1)
+    );
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_0000u128),
+        helper.assets[&test_coins[1]].with_balance(50_000_000000u128),
+    ];
+
+    let err = helper
+        .app
+        .wrap()
+        .query_wasm_smart::<Uint128>(
+            helper.pair_addr.to_string(),
+            &QueryMsg::SimulateProvide {
+                assets: assets.clone(),
+                slippage_tolerance: Option::from(Decimal::percent(1)),
+            },
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        err,
+        StdError::generic_err(
+            "Querier contract error: Generic error: Operation exceeds max spread limit"
+        )
     );
 }
 
@@ -851,6 +937,39 @@ fn update_owner() {
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
 
+    // Drop ownership proposal
+    let err = helper
+        .app
+        .execute_contract(
+            Addr::unchecked("invalid_addr"),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::DropOwnershipProposal {},
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Unauthorized");
+
+    helper
+        .app
+        .execute_contract(
+            helper.owner.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::DropOwnershipProposal {},
+            &[],
+        )
+        .unwrap();
+
+    // Propose new owner
+    helper
+        .app
+        .execute_contract(
+            Addr::unchecked(&helper.owner),
+            helper.pair_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
     // Claim ownership
     helper
         .app
@@ -867,7 +986,23 @@ fn update_owner() {
 }
 
 #[test]
-fn check_orderbook_integration() {
+fn query_d_test() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("untrn")];
+
+    // create pair with test_coins
+    let helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
+
+    // query current pool D value before providing any liquidity
+    let err = helper.query_d().unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "Generic error: Querier contract error: Generic error: Pools are empty"
+    );
+}
+
+#[test]
+fn asset_balances_tracking_with_in_params() {
     let owner = Addr::unchecked("owner");
 
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("untrn")];
@@ -1011,7 +1146,7 @@ fn provide_withdraw_slippage() {
         .unwrap_err();
     assert_eq!(
         ContractError::PclError(PclError::MaxSpreadAssertion {}),
-        err.downcast().unwrap()
+        err.downcast().unwrap(),
     );
     // With 3% slippage it should work
     helper
@@ -1034,6 +1169,159 @@ fn provide_withdraw_slippage() {
     helper
         .provide_liquidity_with_slip_tolerance(&owner, &assets, Some(f64_to_dec(0.5)))
         .unwrap();
+
+    helper.give_me_money(&assets, &owner);
+    let err = helper
+        .provide_liquidity_full(
+            &owner,
+            &assets,
+            Some(f64_to_dec(0.5)),
+            None,
+            None,
+            Some(10000000000u128.into()),
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::ProvideSlippageViolation(1000229863u128.into(), 10000000000u128.into()),
+        err.downcast().unwrap(),
+    );
+
+    helper
+        .provide_liquidity_full(
+            &owner,
+            &assets,
+            Some(f64_to_dec(0.5)),
+            None,
+            None,
+            Some(1000229863u128.into()),
+        )
+        .unwrap();
+}
+
+#[test]
+fn check_correct_fee_share() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), true).unwrap();
+
+    let share_recipient = Addr::unchecked("share_recipient");
+    // Attempt setting fee share with max+1 fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: MAX_FEE_SHARE_BPS + 1,
+        fee_share_address: share_recipient.to_string(),
+    };
+    let err = helper.update_config(&owner, &action).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::FeeShareOutOfBounds {}
+    );
+
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: 0,
+        fee_share_address: share_recipient.to_string(),
+    };
+    let err = helper.update_config(&owner, &action).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::FeeShareOutOfBounds {}
+    );
+
+    helper.next_block(1000);
+
+    // Set to 5% fee share
+    let action = ConcentratedPoolUpdateParams::EnableFeeShare {
+        fee_share_bps: 1000,
+        fee_share_address: share_recipient.to_string(),
+    };
+    helper.update_config(&owner, &action).unwrap();
+
+    let config = helper.query_config().unwrap();
+    let fee_share = config.fee_share.unwrap();
+    assert_eq!(fee_share.bps, 1000u16);
+    assert_eq!(fee_share.recipient, share_recipient.to_string());
+
+    helper.next_block(1000);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &owner);
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.next_block(1000);
+
+    let user = Addr::unchecked("user");
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("1.001187607454013938").unwrap()
+    );
+
+    // Check that the shared fees are sent
+    let expected_fee_share = 26081u128;
+    let recipient_balance = helper.coin_balance(&test_coins[1], &share_recipient);
+    assert_eq!(recipient_balance, expected_fee_share);
+
+    let provider = Addr::unchecked("provider");
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(1_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(1_000_000000u128),
+    ];
+    helper.give_me_money(&assets, &provider);
+    helper.provide_liquidity(&provider, &assets).unwrap();
+
+    let offer_asset = helper.assets[&test_coins[1]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("0.998842355796925899").unwrap()
+    );
+
+    helper
+        .withdraw_liquidity(&provider, 999_999354, vec![])
+        .unwrap();
+
+    let offer_asset = helper.assets[&test_coins[0]].with_balance(100_000000u128);
+    helper.give_me_money(&[offer_asset.clone()], &user);
+    helper.swap(&user, &offer_asset, None).unwrap();
+
+    let last_price = helper
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price;
+    assert_eq!(
+        last_price,
+        Decimal256::from_str("1.00118760696709103").unwrap()
+    );
+
+    // Disable fee share
+    let action = ConcentratedPoolUpdateParams::DisableFeeShare {};
+    helper.update_config(&owner, &action).unwrap();
+
+    let config = helper.query_config().unwrap();
+    assert!(config.fee_share.is_none());
 }
 
 #[test]

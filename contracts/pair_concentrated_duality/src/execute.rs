@@ -671,7 +671,7 @@ fn update_config(
 
             // Ensure the fee share isn't 0 and doesn't exceed the maximum allowed value
             ensure!(
-                (0..MAX_FEE_SHARE_BPS).contains(&fee_share_bps),
+                (1..=MAX_FEE_SHARE_BPS).contains(&fee_share_bps),
                 ContractError::FeeShareOutOfBounds {}
             );
 
