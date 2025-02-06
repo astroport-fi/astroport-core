@@ -76,6 +76,15 @@
         }
       ]
     },
+    "token_transfer_gas_limit": {
+      "description": "Max allowed gas limit per one external incentive token transfer. If token transfer hits this gas limit, reward will be considered as claimed while in reality it will be stuck in the contract. If None, there is no gas limit.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
     "total_alloc_points": {
       "description": "Total allocation points. Must be the sum of all allocation points in all active generators",
       "allOf": [

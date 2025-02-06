@@ -1,0 +1,33 @@
+[package]
+name = "astroport-pair-xastro"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Astroport virtual pair for ASTRO<>xASTRO conversion backed by staking contract"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+library = []
+
+[dependencies]
+astroport.workspace = true
+cw2.workspace = true
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
+cw-storage-plus.workspace = true
+thiserror.workspace = true
+cosmwasm-schema.workspace = true
+
+[dev-dependencies]
+anyhow = "1"
+derivative = "2.2"
+itertools.workspace = true
+astroport-test = { path = "../../packages/astroport_test" }
+astroport-factory = { path = "../factory" }
+astroport-staking = { path = "../tokenomics/staking" }
+astroport-tokenfactory-tracker = "1.0.0"

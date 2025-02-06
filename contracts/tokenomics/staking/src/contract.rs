@@ -140,7 +140,11 @@ pub fn execute(
                 ("next_contract", &contract_address),
             ])
         }),
-        ExecuteMsg::Leave {} => execute_leave(deps, env, info),
+        ExecuteMsg::Leave { receiver } => {
+            // ASTRO is returned to the receiver if provided or to the sender.
+            let recipient = receiver.unwrap_or_else(|| info.sender.to_string());
+            execute_leave(deps, env, info, recipient)
+        }
     }
 }
 
@@ -311,7 +315,12 @@ fn execute_enter(
 
 /// Leave unstakes TokenFactory xASTRO for ASTRO. xASTRO is burned and ASTRO
 /// returned to the sender
-fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
+fn execute_leave(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    recipient: String,
+) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
     // Ensure that the correct denom is sent. Sending zero tokens is prohibited on chain level
@@ -338,7 +347,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .into(),
         // Send ASTRO to the sender
         BankMsg::Send {
-            to_address: info.sender.to_string(),
+            to_address: recipient.clone(),
             amount: vec![coin(return_amount.u128(), config.astro_denom)],
         }
         .into(),
@@ -362,7 +371,7 @@ fn execute_leave(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response,
         .set_data(staking_response)
         .add_attributes([
             attr("action", "leave"),
-            attr("recipient", info.sender),
+            attr("recipient", recipient),
             attr("xastro_amount", amount),
             attr("astro_amount", return_amount),
         ]))

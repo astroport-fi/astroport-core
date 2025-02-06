@@ -23,7 +23,7 @@ use crate::state::{
 /// If vesting_contract is None this function reads config from state and gets vesting address.
 pub fn claim_rewards(
     storage: &dyn Storage,
-    vesting_contract: Option<Addr>,
+    config: &Config,
     env: Env,
     user: &Addr,
     pool_tuples: Vec<(&AssetInfo, &mut PoolInfo, &mut UserInfo)>,
@@ -71,20 +71,18 @@ pub fn claim_rewards(
         .into_iter()
         .map(|(info, assets)| {
             let amount: Uint128 = assets.into_iter().map(|asset| asset.amount).sum();
-            info.with_balance(amount)
-                .into_submsg(user, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))
+            info.with_balance(amount).into_submsg(
+                user,
+                Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
+                config.token_transfer_gas_limit,
+            )
         })
         .collect::<StdResult<Vec<_>>>()?;
 
     // Claim Astroport rewards
     if !protocol_reward_amount.is_zero() {
-        let vesting_contract = if let Some(vesting_contract) = vesting_contract {
-            vesting_contract
-        } else {
-            CONFIG.load(storage)?.vesting_contract
-        };
         messages.push(SubMsg::new(wasm_execute(
-            vesting_contract,
+            &config.vesting_contract,
             &vesting::ExecuteMsg::Claim {
                 recipient: Some(user.to_string()),
                 amount: Some(protocol_reward_amount),
@@ -366,9 +364,11 @@ pub fn remove_reward_from_pool(
     // Send unclaimed rewards
     if !unclaimed.is_zero() {
         deps.api.addr_validate(&receiver)?;
-        let transfer_msg = reward_asset
-            .with_balance(unclaimed)
-            .into_submsg(receiver, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))?;
+        let transfer_msg = reward_asset.with_balance(unclaimed).into_submsg(
+            receiver,
+            Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
+            config.token_transfer_gas_limit,
+        )?;
         response = response.add_submessage(transfer_msg);
     }
 
@@ -423,8 +423,7 @@ pub fn is_pool_registered(
             ))
         })
         .map(|resp| {
-            // Eventually resp.liquidity_token will become just a String once token factory LP tokens are implemented
-            if resp.liquidity_token.as_str() == lp_token_addr {
+            if resp.liquidity_token == lp_token_addr {
                 Ok(())
             } else {
                 Err(StdError::generic_err(format!(
@@ -474,8 +473,11 @@ pub fn claim_orphaned_rewards(
 
             attrs.push(attr("claimed_orphaned_reward", reward_asset.to_string()));
 
-            let transfer_msg = reward_asset
-                .into_submsg(&receiver, Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)))?;
+            let transfer_msg = reward_asset.into_submsg(
+                &receiver,
+                Some((ReplyOn::Error, POST_TRANSFER_REPLY_ID)),
+                config.token_transfer_gas_limit,
+            )?;
             messages.push(transfer_msg);
         }
     }

@@ -1294,6 +1294,7 @@ fn test_astro_protocol_reward_if_denom_changed() {
         generator_controller: None,
         guardian: None,
         incentivization_fee_info: None,
+        token_transfer_gas_limit: None,
     };
     helper
         .app
@@ -2055,6 +2056,7 @@ fn test_update_config() {
         fee_receiver: TestAddr::new("new_fee_receiver"),
         fee: coin(1000, "uusd"),
     };
+    let new_gas_limit = 800_000;
 
     let msg = ExecuteMsg::UpdateConfig {
         astro_token: Some(AssetInfo::native("new_astro")),
@@ -2062,6 +2064,7 @@ fn test_update_config() {
         generator_controller: Some(new_generator_controller.to_string()),
         guardian: Some(new_guardian.to_string()),
         incentivization_fee_info: Some(new_incentivization_fee_info.clone()),
+        token_transfer_gas_limit: Some(new_gas_limit),
     };
 
     let err = helper
@@ -2090,6 +2093,7 @@ fn test_update_config() {
         config.incentivization_fee_info.unwrap(),
         new_incentivization_fee_info
     );
+    assert_eq!(config.token_transfer_gas_limit.unwrap(), new_gas_limit);
 }
 
 #[test]

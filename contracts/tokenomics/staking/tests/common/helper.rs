@@ -153,7 +153,7 @@ impl Helper {
         self.app.execute_contract(
             sender.clone(),
             self.staking.clone(),
-            &ExecuteMsg::Leave {},
+            &ExecuteMsg::Leave { receiver: None },
             &coins(amount, &self.xastro_denom),
         )
     }
