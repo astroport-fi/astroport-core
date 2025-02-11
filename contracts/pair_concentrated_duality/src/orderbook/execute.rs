@@ -10,7 +10,7 @@ use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::MIN_TRADE_SIZE;
 use astroport::querier::{query_fee_info, query_native_supply, FeeInfo};
 use astroport_pcl_common::state::{Config, Precisions};
-use astroport_pcl_common::utils::accumulate_prices;
+use astroport_pcl_common::utils::{accumulate_prices, calc_last_prices};
 
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
@@ -95,8 +95,6 @@ pub fn process_cumulative_trade(
         }
     }
 
-    let old_real_price = config.pool_state.price_state.last_price;
-
     // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
     // especially if token precisions are 18.
     if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
@@ -118,13 +116,6 @@ pub fn process_cumulative_trade(
             .pool_state
             .update_price(&config.pool_params, env, total_share, &ixs, last_price)?;
     }
-
-    // TODO: if process_cumulative_trade() originates from swap/provide/withdraw context,
-    // TODO: next TWAP entry won't be added in this block.
-    // TODO: Is it ok or should we post TWAP entry
-    // TODO: formed out of cumulative orderbook trade 1 second before current block time?
-    // Adding TWAP entry
-    accumulate_prices(env, config, old_real_price);
 
     Ok(Response::default()
         .add_messages(messages)
@@ -150,6 +141,10 @@ pub fn sync_pool_with_orderbook(
         fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
     {
         let mut pools = liquidity.total_dec(&precisions)?;
+
+        let xs = pools.iter().map(|a| a.amount).collect_vec();
+        let old_real_price = calc_last_prices(&xs, &config, &env)?;
+
         let mut balances = pools
             .iter_mut()
             .map(|asset| &mut asset.amount)
@@ -164,6 +159,8 @@ pub fn sync_pool_with_orderbook(
             &precisions,
             None,
         )?;
+
+        accumulate_prices(&env, &mut config, old_real_price);
 
         CONFIG.save(deps.storage, &config)?;
 
