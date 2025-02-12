@@ -53,7 +53,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
                 StdError::generic_err(format!("This endpoint is allowed only for {CONTRACT_NAME}"))
             );
 
-            Err(StdError::generic_err("Not yet implemented".to_string()).into())
+            Err(StdError::generic_err("Not yet implemented".to_string()))
         }
     }?;
 

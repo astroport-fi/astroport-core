@@ -213,7 +213,9 @@ fn price_to_duality_notation(
 ) -> Result<String, OverflowError> {
     let prec_diff = quote_precision as i8 - base_precision as i8;
     let price = match prec_diff.cmp(&0) {
-        Ordering::Less => price / Decimal256::from_integer(10u128.pow(prec_diff.abs() as u32)),
+        Ordering::Less => {
+            price / Decimal256::from_integer(10u128.pow(prec_diff.unsigned_abs() as u32))
+        }
         Ordering::Equal => price,
         Ordering::Greater => price * Decimal256::from_integer(10u128.pow(prec_diff as u32)),
     }

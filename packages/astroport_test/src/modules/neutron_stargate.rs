@@ -122,8 +122,8 @@ impl Module for NeutronStargate {
                 self.orders
                     .borrow_mut()
                     .entry(sender.to_string())
-                    .or_insert_with(HashMap::new)
-                    .insert(tranche_key, value.try_into()?);
+                    .or_default()
+                    .insert(tranche_key, value);
                 Ok(AppResponse::default())
             }
             MsgCancelLimitOrder::TYPE_URL => {

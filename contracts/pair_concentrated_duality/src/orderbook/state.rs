@@ -222,7 +222,7 @@ impl OrderbookState {
                                 maker_coin_out,
                             }) => Ok([taker_coin_out, maker_coin_out]
                                 .into_iter()
-                                .filter_map(|coin| coin)
+                                .flatten()
                                 .collect_vec()),
                         })
                 })
@@ -266,7 +266,7 @@ impl OrderbookState {
             .into_result()
             .map_err(|err| StdError::generic_err(err.to_string()))?
             .into_result()
-            .map_err(|err| StdError::generic_err(err))?;
+            .map_err(StdError::generic_err)?;
 
         self.orders = from_json::<CustomQueryAllLimitOrderTrancheUserByAddressResponse>(
             &response_raw,
