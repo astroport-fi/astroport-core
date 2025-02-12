@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "5.7.0"
+version = "5.8.0"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
  "cosmos-sdk-proto 0.19.0",
@@ -212,7 +212,7 @@ name = "astroport-factory"
 version = "1.9.0"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-pair 2.1.0",
  "astroport-test",
  "cosmwasm-schema",
@@ -261,7 +261,7 @@ version = "1.3.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.1.0",
@@ -372,7 +372,7 @@ dependencies = [
 name = "astroport-pair"
 version = "2.1.0"
 dependencies = [
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-test",
@@ -392,10 +392,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "4.1.0"
+version = "4.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
@@ -418,10 +418,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-duality"
-version = "4.1.0"
+version = "4.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "astroport-pair-concentrated",
@@ -434,7 +434,7 @@ dependencies = [
  "cw2 1.1.2",
  "derivative",
  "itertools 0.12.1",
- "neutron-std",
+ "neutron-std 5.0.1-rc0 (git+https://github.com/astroport-fi/neutron-std?branch=backport/cosmwasm_v1)",
  "neutron-test-tube 4.2.2-rc",
  "semver",
  "serde",
@@ -466,10 +466,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-stable"
-version = "4.1.0"
+version = "4.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
@@ -495,7 +495,7 @@ name = "astroport-pair-transmuter"
 version = "1.1.2"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-test",
@@ -516,7 +516,7 @@ name = "astroport-pair-xastro"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-staking",
  "astroport-test",
@@ -534,7 +534,7 @@ dependencies = [
 name = "astroport-pair-xyk-sale-tax"
 version = "2.1.0"
 dependencies = [
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-pair 1.3.3",
@@ -557,10 +557,10 @@ dependencies = [
 
 [[package]]
 name = "astroport-pcl-common"
-version = "2.1.0"
+version = "2.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "astroport-test",
  "cosmwasm-schema",
@@ -596,7 +596,7 @@ version = "2.3.0"
 dependencies = [
  "anyhow",
  "astroport 4.0.3",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-tokenfactory-tracker 1.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -614,7 +614,7 @@ name = "astroport-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 5.7.0",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -623,7 +623,7 @@ dependencies = [
  "cw-utils 1.0.3",
  "cw20-base 1.1.2",
  "itertools 0.12.1",
- "neutron-std",
+ "neutron-std 5.0.1-rc0 (git+https://github.com/astroport-fi/neutron-std?branch=backport/cosmwasm_v1)",
  "osmosis-std",
  "prost 0.12.6",
  "schemars",
@@ -2367,14 +2367,14 @@ dependencies = [
 [[package]]
 name = "neutron-std"
 version = "5.0.1-rc0"
-source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#6079bcb81d6f643b66124997002ac25b471fa24a"
+source = "git+https://github.com/astroport-fi/neutron-std?branch=backport/cosmwasm_v1#6079bcb81d6f643b66124997002ac25b471fa24a"
 dependencies = [
  "bech32 0.9.1",
  "chrono",
  "cosmos-sdk-proto 0.20.0",
  "cosmwasm-schema",
  "cosmwasm-std",
- "neutron-std-derive",
+ "neutron-std-derive 0.20.1 (git+https://github.com/astroport-fi/neutron-std?branch=backport/cosmwasm_v1)",
  "prost 0.12.6",
  "prost-types 0.12.6",
  "protobuf 3.3.0",
@@ -2386,6 +2386,42 @@ dependencies = [
  "speedate",
  "tendermint-proto 0.34.1",
  "thiserror",
+]
+
+[[package]]
+name = "neutron-std"
+version = "5.0.1-rc0"
+source = "git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1#6079bcb81d6f643b66124997002ac25b471fa24a"
+dependencies = [
+ "bech32 0.9.1",
+ "chrono",
+ "cosmos-sdk-proto 0.20.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "neutron-std-derive 0.20.1 (git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1)",
+ "prost 0.12.6",
+ "prost-types 0.12.6",
+ "protobuf 3.3.0",
+ "schemars",
+ "serde",
+ "serde-cw-value",
+ "serde-json-wasm 1.0.1",
+ "serde_json",
+ "speedate",
+ "tendermint-proto 0.34.1",
+ "thiserror",
+]
+
+[[package]]
+name = "neutron-std-derive"
+version = "0.20.1"
+source = "git+https://github.com/astroport-fi/neutron-std?branch=backport/cosmwasm_v1#6079bcb81d6f643b66124997002ac25b471fa24a"
+dependencies = [
+ "itertools 0.10.5",
+ "proc-macro2",
+ "prost-types 0.12.6",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -2420,7 +2456,7 @@ dependencies = [
 [[package]]
 name = "neutron-test-tube"
 version = "4.2.2-rc"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
+source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
 dependencies = [
  "base64",
  "bindgen 0.60.1",
@@ -2428,7 +2464,7 @@ dependencies = [
  "cosmrs",
  "cosmwasm-std",
  "hex",
- "neutron-std",
+ "neutron-std 5.0.1-rc0 (git+https://github.com/epanchee/neutron-std?branch=backport/cosmwasm_v1)",
  "prost 0.12.6",
  "serde",
  "serde_json",
@@ -3790,7 +3826,7 @@ dependencies = [
 [[package]]
 name = "test-tube-ntrn"
 version = "0.1.0"
-source = "git+https://github.com/epanchee/neutron-test-tube-new?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
+source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#98b8284b7920bcf1061da85cdc6fc7fd0f0c623f"
 dependencies = [
  "base64",
  "cosmos-sdk-proto 0.20.0",
