@@ -73,10 +73,10 @@ pub fn process_cumulative_trade(
         }
     }
 
-    let fee_info = if let Some(fee_info) = fee_info {
+    let fee_info = if let Some(fee_info) = fee_info.cloned() {
         fee_info
     } else {
-        &query_fee_info(
+        query_fee_info(
             &deps.querier,
             &config.factory_addr,
             config.pair_info.pair_type.clone(),
