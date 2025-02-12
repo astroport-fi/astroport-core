@@ -286,7 +286,7 @@ name = "astroport-maker"
 version = "1.5.0"
 dependencies = [
  "astro-satellite-package",
- "astroport 4.0.3",
+ "astroport 5.7.0",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry",
  "astroport-pair 2.1.0",
