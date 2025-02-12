@@ -32,6 +32,17 @@
         }
       ]
     },
+    "dev_fund_conf": {
+      "description": "The dev fund configuration",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/DevFundConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "factory_contract": {
       "description": "The factory contract address",
       "allOf": [
@@ -172,6 +183,37 @@
     "Decimal": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
+    },
+    "DevFundConfig": {
+      "type": "object",
+      "required": [
+        "address",
+        "asset_info",
+        "share"
+      ],
+      "properties": {
+        "address": {
+          "description": "The dev fund address",
+          "type": "string"
+        },
+        "asset_info": {
+          "description": "Asset that devs want ASTRO to be swapped to",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AssetInfo"
+            }
+          ]
+        },
+        "share": {
+          "description": "The percentage of fees that go to the dev fund",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "SecondReceiverConfig": {
       "description": "This structure stores the parameters for the second receiver of fees.",
