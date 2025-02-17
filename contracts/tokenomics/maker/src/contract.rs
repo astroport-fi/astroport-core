@@ -697,7 +697,7 @@ fn update_config(
     second_receiver_params: Option<SecondReceiverParams>,
     collect_cooldown: Option<u64>,
     astro_token: Option<AssetInfo>,
-    dev_fund_conf: Option<UpdateDevFundConfig>,
+    dev_fund_conf: Option<Box<UpdateDevFundConfig>>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 

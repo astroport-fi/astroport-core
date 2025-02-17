@@ -2111,7 +2111,7 @@ fn set_dev_fund_config(
             second_receiver_params: None,
             collect_cooldown: None,
             astro_token: None,
-            dev_fund_config: Some(dev_fund_config),
+            dev_fund_config: Some(Box::new(dev_fund_config)),
         },
         &[],
     )

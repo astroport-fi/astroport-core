@@ -115,7 +115,7 @@ pub enum ExecuteMsg {
         /// The ASTRO token asset info
         astro_token: Option<AssetInfo>,
         /// Dev tax configuration
-        dev_fund_config: Option<UpdateDevFundConfig>,
+        dev_fund_config: Option<Box<UpdateDevFundConfig>>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
