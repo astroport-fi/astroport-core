@@ -46,7 +46,7 @@ jobs:
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:
-          version: '0.22.0'
+          version: '0.32.0'
 
       - name: Upload to codecov.io
         if: github.ref == 'refs/heads/main'
