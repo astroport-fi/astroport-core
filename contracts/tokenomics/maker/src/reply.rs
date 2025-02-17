@@ -15,7 +15,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
 
             let amount = dev_fund_conf
                 .asset_info
-                .query_pool(&deps.querier, &env.contract.address)?;
+                .query_pool(&deps.querier, env.contract.address)?;
             let dev_fee = dev_fund_conf.asset_info.with_balance(amount);
 
             Ok(Response::new()
