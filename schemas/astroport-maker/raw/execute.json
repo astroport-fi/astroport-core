@@ -315,6 +315,63 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "description": "Permissionless endpoint that sends certain assets to predefined seizing address",
+      "type": "object",
+      "required": [
+        "seize"
+      ],
+      "properties": {
+        "seize": {
+          "type": "object",
+          "required": [
+            "assets"
+          ],
+          "properties": {
+            "assets": {
+              "description": "The assets to seize",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetWithLimit"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sets parameters for seizing assets. Permissioned to a contract owner. If governance wants to stop seizing assets, it can set an empty list of seizable assets.",
+      "type": "object",
+      "required": [
+        "update_seize_config"
+      ],
+      "properties": {
+        "update_seize_config": {
+          "type": "object",
+          "properties": {
+            "receiver": {
+              "description": "The address that will receive the seized tokens",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "seizable_assets": {
+              "description": "The assets that can be seized. Resets the list to this one every time it is executed",
+              "default": [],
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {
