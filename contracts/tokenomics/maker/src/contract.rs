@@ -3,25 +3,27 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    attr, entry_point, to_json_binary, Addr, Attribute, Binary, Decimal, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, SubMsg, Uint128, Uint64,
+    attr, ensure, entry_point, to_json_binary, to_json_string, Addr, Attribute, Binary, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdError, StdResult, SubMsg,
+    Uint128, Uint64,
 };
 use cw2::{get_contract_version, set_contract_version};
 
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
-    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams,
+    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, UpdateDevFundConfig,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 
 use crate::error::ContractError;
 use crate::migration::migrate_from_v120_plus;
+use crate::reply::PROCESS_DEV_FUND_REPLY_ID;
 use crate::state::{BRIDGES, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL};
 use crate::utils::{
-    build_distribute_msg, build_send_msg, build_swap_msg, try_build_swap_msg,
+    build_distribute_msg, build_send_msg, build_swap_msg, get_pool, try_build_swap_msg,
     update_second_receiver_cfg, validate_bridge, validate_cooldown, BRIDGES_EXECUTION_MAX_DEPTH,
     BRIDGES_INITIAL_DEPTH,
 };
@@ -92,6 +94,7 @@ pub fn instantiate(
         max_spread,
         second_receiver_cfg: None,
         collect_cooldown: msg.collect_cooldown,
+        dev_fund_conf: None,
     };
 
     update_second_receiver_cfg(deps.as_ref(), &mut cfg, &msg.second_receiver_params)?;
@@ -190,6 +193,7 @@ pub fn execute(
             second_receiver_params,
             collect_cooldown,
             astro_token,
+            dev_fund_config,
         } => update_config(
             deps,
             info,
@@ -202,6 +206,7 @@ pub fn execute(
             second_receiver_params,
             collect_cooldown,
             astro_token,
+            dev_fund_config,
         ),
         ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
         ExecuteMsg::SwapBridgeAssets { assets, depth } => {
@@ -610,13 +615,39 @@ fn distribute(
         Uint128::zero()
     };
 
+    let dev_amount = if let Some(dev_fund_conf) = &cfg.dev_fund_conf {
+        let dev_share = amount * dev_fund_conf.share;
+
+        if !dev_share.is_zero() {
+            // Swap ASTRO and process result in reply
+            let pool = get_pool(
+                &deps.querier,
+                &cfg.factory_contract,
+                &cfg.astro_token,
+                &dev_fund_conf.asset_info,
+            )?;
+            let mut swap_msg = build_swap_msg(
+                cfg.max_spread,
+                &pool,
+                &cfg.astro_token,
+                Some(&dev_fund_conf.asset_info),
+                dev_share,
+            )?;
+            swap_msg.reply_on = ReplyOn::Success;
+            swap_msg.id = PROCESS_DEV_FUND_REPLY_ID;
+
+            result.push(swap_msg);
+        }
+
+        dev_share
+    } else {
+        Uint128::zero()
+    };
+
     if let Some(staking_contract) = &cfg.staking_contract {
-        let amount = amount.checked_sub(governance_amount + second_receiver_amount)?;
+        let amount = amount.checked_sub(governance_amount + second_receiver_amount + dev_amount)?;
         if !amount.is_zero() {
-            let to_staking_asset = Asset {
-                info: cfg.astro_token.clone(),
-                amount,
-            };
+            let to_staking_asset = cfg.astro_token.with_balance(amount);
             result.push(SubMsg::new(to_staking_asset.into_msg(staking_contract)?));
         }
     }
@@ -666,6 +697,7 @@ fn update_config(
     second_receiver_params: Option<SecondReceiverParams>,
     collect_cooldown: Option<u64>,
     astro_token: Option<AssetInfo>,
+    dev_fund_conf: Option<Box<UpdateDevFundConfig>>,
 ) -> Result<Response, ContractError> {
     let mut attributes = vec![attr("action", "set_config")];
 
@@ -757,6 +789,29 @@ fn update_config(
         config.astro_token = astro_token;
     }
 
+    if let Some(dev_fund_config) = dev_fund_conf {
+        config.dev_fund_conf = dev_fund_config.set;
+
+        if let Some(dev_fund_conf) = config.dev_fund_conf.as_ref() {
+            deps.api.addr_validate(&dev_fund_conf.address)?;
+            ensure!(
+                dev_fund_conf.share > Decimal::zero() && dev_fund_conf.share <= Decimal::one(),
+                StdError::generic_err("Dev fund share must be > 0 and <= 1")
+            );
+            // Ensure we can swap ASTRO into dev fund asset
+            get_pool(
+                &deps.querier,
+                &config.factory_contract,
+                &config.astro_token,
+                &dev_fund_conf.asset_info,
+            )?;
+            attributes.push(attr(
+                "new_dev_fund_settings",
+                to_json_string(dev_fund_conf)?,
+            ));
+        }
+    }
+
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(attributes))
@@ -841,6 +896,7 @@ fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
         owner: config.owner,
         factory_contract: config.factory_contract,
         staking_contract: config.staking_contract,
+        dev_fund_conf: config.dev_fund_conf,
         governance_contract: config.governance_contract,
         governance_percent: config.governance_percent,
         astro_token: config.astro_token,
@@ -890,13 +946,20 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
 
     match contract_version.contract.as_ref() {
         "astroport-maker" => match contract_version.version.as_ref() {
-            // atlantic-2, injective-1, injective-888, pisco-1: 1.2.0
-            // neutron-1, pion-1, phoenix-1: 1.3.1
-            "1.2.0" | "1.3.1" => {
+            // atlantic-2, injective-888: 1.2.0
+            // neutron-1, pion-1, phoenix-1, pisco-1: 1.5.0
+            // injective-1, pacific-1: 1.4.0
+            "1.2.0" => {
                 migrate_from_v120_plus(deps.branch(), msg)?;
                 LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
             }
             "1.4.0" => {}
+            "1.5.0" => {
+                // It is enough to load and save config
+                // as we added only one optional field config.dev_fund_conf
+                let config = CONFIG.load(deps.storage)?;
+                CONFIG.save(deps.storage, &config)?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

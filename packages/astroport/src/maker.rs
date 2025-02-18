@@ -7,6 +7,16 @@ use std::ops::RangeInclusive;
 /// Validations limits for cooldown period. From 30 to 600 seconds.
 pub const COOLDOWN_LIMITS: RangeInclusive<u64> = 30..=600;
 
+#[cw_serde]
+pub struct DevFundConfig {
+    /// The dev fund address
+    pub address: String,
+    /// The percentage of fees that go to the dev fund
+    pub share: Decimal,
+    /// Asset that devs want ASTRO to be swapped to
+    pub asset_info: AssetInfo,
+}
+
 /// This structure stores the main parameters for the Maker contract.
 #[cw_serde]
 pub struct Config {
@@ -16,6 +26,8 @@ pub struct Config {
     pub factory_contract: Addr,
     /// The xASTRO staking contract address.
     pub staking_contract: Option<Addr>,
+    /// The dev fund configuration
+    pub dev_fund_conf: Option<DevFundConfig>,
     /// Default bridge asset (Terra1 - LUNC, Terra2 - LUNA, etc.)
     pub default_bridge: Option<AssetInfo>,
     /// The vxASTRO fee distributor contract address
@@ -67,6 +79,13 @@ pub struct InstantiateMsg {
     pub collect_cooldown: Option<u64>,
 }
 
+#[cw_serde]
+pub struct UpdateDevFundConfig {
+    /// If 'set' is None then dev fund config will be removed,
+    /// otherwise it will be updated with the new parameters
+    pub set: Option<DevFundConfig>,
+}
+
 /// This structure describes the functions that can be executed in this contract.
 #[cw_serde]
 pub enum ExecuteMsg {
@@ -95,6 +114,8 @@ pub enum ExecuteMsg {
         collect_cooldown: Option<u64>,
         /// The ASTRO token asset info
         astro_token: Option<AssetInfo>,
+        /// Dev tax configuration
+        dev_fund_config: Option<Box<UpdateDevFundConfig>>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
@@ -147,6 +168,8 @@ pub struct ConfigResponse {
     pub factory_contract: Addr,
     /// The xASTRO staking contract address
     pub staking_contract: Option<Addr>,
+    /// The dev fund configuration
+    pub dev_fund_conf: Option<DevFundConfig>,
     /// The governance contract address (fee distributor for vxASTRO stakers)
     pub governance_contract: Option<Addr>,
     /// The percentage of fees that go to governance_contract
