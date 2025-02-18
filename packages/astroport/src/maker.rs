@@ -139,6 +139,21 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
     /// Enables the distribution of current fees accrued in the contract over "blocks" number of blocks
     EnableRewards { blocks: u64 },
+    /// Permissionless endpoint that sends certain assets to predefined seizing address
+    Seize {
+        /// The assets to seize
+        assets: Vec<AssetWithLimit>,
+    },
+    /// Sets parameters for seizing assets.
+    /// Permissioned to a contract owner.
+    /// If governance wants to stop seizing assets, it can set an empty list of seizable assets.
+    UpdateSeizeConfig {
+        /// The address that will receive the seized tokens
+        receiver: Option<String>,
+        /// The assets that can be seized. Resets the list to this one every time it is executed
+        #[serde(default)]
+        seizable_assets: Vec<AssetInfo>,
+    },
 }
 
 /// This structure describes the query functions available in the contract.
@@ -153,6 +168,9 @@ pub enum QueryMsg {
     Balances { assets: Vec<AssetInfo> },
     #[returns(Vec<(String, String)>)]
     Bridges {},
+    /// Returns the seize config
+    #[returns(SeizeConfig)]
+    QuerySeizeConfig {},
 }
 
 /// A custom struct that holds contract parameters and is used to retrieve them.
@@ -222,6 +240,14 @@ pub struct SecondReceiverConfig {
     pub second_fee_receiver: Addr,
     /// The percentage of fees that go to the second fee receiver
     pub second_receiver_cut: Uint64,
+}
+
+#[cw_serde]
+pub struct SeizeConfig {
+    /// The address of the contract that will receive the seized tokens
+    pub receiver: Addr,
+    /// The assets that can be seized
+    pub seizable_assets: Vec<AssetInfo>,
 }
 
 /// The maximum allowed second receiver share (percents)
