@@ -900,11 +900,12 @@ fn update_bridges(
     Ok(Response::default().add_attribute("action", "update_bridges"))
 }
 
-fn seize(
-    deps: DepsMut,
-    env: Env,
-    mut assets: Vec<AssetWithLimit>,
-) -> Result<Response, ContractError> {
+fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Response, ContractError> {
+    ensure!(
+        !assets.is_empty(),
+        StdError::generic_err("assets vector is empty")
+    );
+
     let conf = SEIZE_CONFIG.load(deps.storage)?;
 
     ensure!(
@@ -927,35 +928,25 @@ fn seize(
         StdError::generic_err("Input vector contains assets that are not seizable")
     );
 
-    if assets.is_empty() {
-        assets = conf
-            .seizable_assets
-            .iter()
-            .map(|a| AssetWithLimit {
-                info: a.clone(),
-                limit: None,
-            })
-            .collect();
-    }
-
     let send_msgs = assets
         .into_iter()
-        .map(|asset| {
+        .filter_map(|asset| {
             let balance = asset
                 .info
-                .query_pool(&deps.querier, &env.contract.address)?;
+                .query_pool(&deps.querier, &env.contract.address)
+                .ok()?;
 
             let limit = asset
                 .limit
                 .map(|limit| limit.min(balance))
                 .unwrap_or(balance);
 
-            ensure!(
-                !limit.is_zero(),
-                StdError::generic_err(format!("No balance for {} to seize", &asset.info))
-            );
-
-            asset.info.with_balance(limit).into_msg(&conf.receiver)
+            // Filter assets with empty balances
+            if limit.is_zero() {
+                None
+            } else {
+                Some(asset.info.with_balance(limit).into_msg(&conf.receiver))
+            }
         })
         .collect::<StdResult<Vec<_>>>()?;
 

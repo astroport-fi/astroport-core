@@ -2384,7 +2384,7 @@ fn test_seize() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: No seizable assets found"
+        "Generic error: assets vector is empty"
     );
 
     // Unauthorized check
@@ -2451,23 +2451,19 @@ fn test_seize() {
     );
 
     // Try to seize asset with empty balance
-    let err = app
-        .execute_contract(
-            owner.clone(),
-            maker_instance.clone(),
-            &ExecuteMsg::Seize {
-                assets: vec![AssetWithLimit {
-                    info: AssetInfo::native(luna),
-                    limit: None,
-                }],
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        "Generic error: No balance for uluna to seize"
-    );
+    // This does nothing and doesn't throw an error
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(luna),
+                limit: None,
+            }],
+        },
+        &[],
+    )
+    .unwrap();
 
     mint_coins(
         &mut app,
@@ -2511,7 +2507,19 @@ fn test_seize() {
     app.execute_contract(
         owner.clone(),
         maker_instance.clone(),
-        &ExecuteMsg::Seize { assets: vec![] },
+        &ExecuteMsg::Seize {
+            assets: vec![
+                AssetWithLimit {
+                    info: AssetInfo::native(usdc),
+                    // seizing more than available doesn't throw an error
+                    limit: Some(10000_000000u128.into()),
+                },
+                AssetWithLimit {
+                    info: AssetInfo::native(luna),
+                    limit: Some(3000_000000u128.into()),
+                },
+            ],
+        },
         &[],
     )
     .unwrap();
