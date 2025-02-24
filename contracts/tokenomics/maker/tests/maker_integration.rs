@@ -2,17 +2,14 @@
 
 use std::str::FromStr;
 
-use astroport_test::cw_multi_test::{
-    next_block, AppBuilder, AppResponse, BankSudo, Contract, ContractWrapper, Executor,
-};
-use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
+use anyhow::Result as AnyResult;
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
     MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
-use anyhow::Result as AnyResult;
 use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, AssetInfoExt,
     PairInfo,
@@ -20,10 +17,14 @@ use astroport::asset::{
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, DevFundConfig, ExecuteMsg, InstantiateMsg,
-    QueryMsg, SecondReceiverConfig, SecondReceiverParams, UpdateDevFundConfig, COOLDOWN_LIMITS,
+    QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig, UpdateDevFundConfig,
+    COOLDOWN_LIMITS,
 };
 use astroport_maker::error::ContractError;
-use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
+use astroport_test::cw_multi_test::{
+    next_block, AppBuilder, AppResponse, BankSudo, Contract, ContractWrapper, Executor,
+};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const OWNER: &str = "owner";
 
@@ -2353,6 +2354,208 @@ fn test_dev_fund_fee() {
             .amount
             .u128(),
         502_487561
+    );
+}
+
+#[test]
+fn test_seize() {
+    let owner = Addr::unchecked("owner");
+    let mut app = mock_app(owner.clone(), vec![]);
+
+    let (_, _, maker_instance, _) = instantiate_contracts(
+        &mut app,
+        owner.clone(),
+        Addr::unchecked("staking"),
+        0u64.into(),
+        Some(Decimal::from_str("0.5").unwrap()),
+        None,
+        None,
+        None,
+    );
+
+    // Try to seize before config is set
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::Seize { assets: vec![] },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: assets vector is empty"
+    );
+
+    // Unauthorized check
+    let err = app
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateSeizeConfig {
+                receiver: None,
+                seizable_assets: vec![],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let receiver = Addr::unchecked("seize");
+
+    let usdc = "uusdc";
+    let luna = "uluna";
+
+    // Set valid config
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::UpdateSeizeConfig {
+            receiver: Some(receiver.to_string()),
+            seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Assert that the config is set
+    let config: SeizeConfig = app
+        .wrap()
+        .query_wasm_smart(&maker_instance, &QueryMsg::QuerySeizeConfig {})
+        .unwrap();
+    assert_eq!(
+        config,
+        SeizeConfig {
+            receiver: receiver.clone(),
+            seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)]
+        }
+    );
+
+    // Try to seize non-seizable asset
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::Seize {
+                assets: vec![AssetWithLimit {
+                    info: AssetInfo::native("utest"),
+                    limit: None,
+                }],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Input vector contains assets that are not seizable"
+    );
+
+    // Try to seize asset with empty balance
+    // This does nothing and doesn't throw an error
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(luna),
+                limit: None,
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    mint_coins(
+        &mut app,
+        &maker_instance,
+        &[coin(1000_000000u128, usdc), coin(3000_000000u128, luna)],
+    );
+
+    // Seize 100 USDC
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(usdc),
+                limit: Some(100_000000u128.into()),
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        900_000000
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        100_000000
+    );
+
+    // Seize all
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![
+                AssetWithLimit {
+                    info: AssetInfo::native(usdc),
+                    // seizing more than available doesn't throw an error
+                    limit: Some(10000_000000u128.into()),
+                },
+                AssetWithLimit {
+                    info: AssetInfo::native(luna),
+                    limit: Some(3000_000000u128.into()),
+                },
+            ],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        1000_000000
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        3000_000000
     );
 }
 

@@ -3,9 +3,9 @@ use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    attr, ensure, entry_point, to_json_binary, to_json_string, Addr, Attribute, Binary, Decimal,
-    Deps, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdError, StdResult, SubMsg,
-    Uint128, Uint64,
+    attr, ensure, ensure_eq, entry_point, to_json_binary, to_json_string, Addr, Attribute, Binary,
+    Decimal, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdError, StdResult,
+    SubMsg, Uint128, Uint64,
 };
 use cw2::{get_contract_version, set_contract_version};
 
@@ -14,14 +14,15 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
-    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, UpdateDevFundConfig,
+    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig,
+    UpdateDevFundConfig,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 
 use crate::error::ContractError;
 use crate::migration::migrate_from_v120_plus;
 use crate::reply::PROCESS_DEV_FUND_REPLY_ID;
-use crate::state::{BRIDGES, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL};
+use crate::state::{BRIDGES, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, SEIZE_CONFIG};
 use crate::utils::{
     build_distribute_msg, build_send_msg, build_swap_msg, get_pool, try_build_swap_msg,
     update_second_receiver_cfg, validate_bridge, validate_cooldown, BRIDGES_EXECUTION_MAX_DEPTH,
@@ -119,6 +120,16 @@ pub fn instantiate(
     } else {
         (String::from("none"), String::from("0"))
     };
+
+    SEIZE_CONFIG.save(
+        deps.storage,
+        &SeizeConfig {
+            // set to invalid address initially
+            // governance must update this explicitly
+            receiver: Addr::unchecked(""),
+            seizable_assets: vec![],
+        },
+    )?;
 
     Ok(Response::default().add_attributes([
         attr("owner", msg.owner),
@@ -269,6 +280,25 @@ pub fn execute(
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::default().add_attribute("action", "enable_rewards"))
+        }
+        ExecuteMsg::Seize { assets } => seize(deps, env, assets),
+        ExecuteMsg::UpdateSeizeConfig {
+            receiver,
+            seizable_assets,
+        } => {
+            let config = CONFIG.load(deps.storage)?;
+
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            SEIZE_CONFIG.update::<_, StdError>(deps.storage, |mut seize_config| {
+                if let Some(receiver) = receiver {
+                    seize_config.receiver = deps.api.addr_validate(&receiver)?;
+                }
+                seize_config.seizable_assets = seizable_assets;
+                Ok(seize_config)
+            })?;
+
+            Ok(Response::new().add_attribute("action", "update_seize_config"))
         }
     }
 }
@@ -870,6 +900,61 @@ fn update_bridges(
     Ok(Response::default().add_attribute("action", "update_bridges"))
 }
 
+fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Response, ContractError> {
+    ensure!(
+        !assets.is_empty(),
+        StdError::generic_err("assets vector is empty")
+    );
+
+    let conf = SEIZE_CONFIG.load(deps.storage)?;
+
+    ensure!(
+        !conf.seizable_assets.is_empty(),
+        StdError::generic_err("No seizable assets found")
+    );
+
+    let input_set = assets
+        .iter()
+        .map(|a| a.info.to_string())
+        .collect::<HashSet<_>>();
+    let seizable_set = conf
+        .seizable_assets
+        .iter()
+        .map(|a| a.to_string())
+        .collect::<HashSet<_>>();
+
+    ensure!(
+        input_set.is_subset(&seizable_set),
+        StdError::generic_err("Input vector contains assets that are not seizable")
+    );
+
+    let send_msgs = assets
+        .into_iter()
+        .filter_map(|asset| {
+            let balance = asset
+                .info
+                .query_pool(&deps.querier, &env.contract.address)
+                .ok()?;
+
+            let limit = asset
+                .limit
+                .map(|limit| limit.min(balance))
+                .unwrap_or(balance);
+
+            // Filter assets with empty balances
+            if limit.is_zero() {
+                None
+            } else {
+                Some(asset.info.with_balance(limit).into_msg(&conf.receiver))
+            }
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(Response::new()
+        .add_messages(send_msgs)
+        .add_attribute("action", "seize"))
+}
+
 /// Exposes all the queries available in the contract.
 ///
 /// ## Queries
@@ -886,6 +971,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Config {} => to_json_binary(&query_get_config(deps)?),
         QueryMsg::Balances { assets } => to_json_binary(&query_get_balances(deps, env, assets)?),
         QueryMsg::Bridges {} => to_json_binary(&query_bridges(deps)?),
+        QueryMsg::QuerySeizeConfig {} => to_json_binary(&SEIZE_CONFIG.load(deps.storage)?),
     }
 }
 
@@ -952,13 +1038,32 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
             "1.2.0" => {
                 migrate_from_v120_plus(deps.branch(), msg)?;
                 LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
+
+                SEIZE_CONFIG.save(
+                    deps.storage,
+                    &SeizeConfig {
+                        // set to invalid address initially
+                        // governance must update this explicitly
+                        receiver: Addr::unchecked(""),
+                        seizable_assets: vec![],
+                    },
+                )?;
             }
-            "1.4.0" => {}
-            "1.5.0" => {
+            "1.4.0" | "1.5.0" => {
                 // It is enough to load and save config
                 // as we added only one optional field config.dev_fund_conf
                 let config = CONFIG.load(deps.storage)?;
                 CONFIG.save(deps.storage, &config)?;
+
+                SEIZE_CONFIG.save(
+                    deps.storage,
+                    &SeizeConfig {
+                        // set to invalid address initially
+                        // governance must update this explicitly
+                        receiver: Addr::unchecked(""),
+                        seizable_assets: vec![],
+                    },
+                )?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },

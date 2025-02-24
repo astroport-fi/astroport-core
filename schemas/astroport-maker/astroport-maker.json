@@ -502,6 +502,63 @@
           }
         },
         "additionalProperties": false
+      },
+      {
+        "description": "Permissionless endpoint that sends certain assets to predefined seizing address",
+        "type": "object",
+        "required": [
+          "seize"
+        ],
+        "properties": {
+          "seize": {
+            "type": "object",
+            "required": [
+              "assets"
+            ],
+            "properties": {
+              "assets": {
+                "description": "The assets to seize",
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AssetWithLimit"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Sets parameters for seizing assets. Permissioned to a contract owner. If governance wants to stop seizing assets, it can set an empty list of seizable assets.",
+        "type": "object",
+        "required": [
+          "update_seize_config"
+        ],
+        "properties": {
+          "update_seize_config": {
+            "type": "object",
+            "properties": {
+              "receiver": {
+                "description": "The address that will receive the seized tokens",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "seizable_assets": {
+                "description": "The assets that can be seized. Resets the list to this one every time it is executed",
+                "default": [],
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AssetInfo"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     ],
     "definitions": {
@@ -755,6 +812,20 @@
         ],
         "properties": {
           "bridges": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Returns the seize config",
+        "type": "object",
+        "required": [
+          "query_seize_config"
+        ],
+        "properties": {
+          "query_seize_config": {
             "type": "object",
             "additionalProperties": false
           }
@@ -1249,6 +1320,88 @@
         "Uint64": {
           "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
           "type": "string"
+        }
+      }
+    },
+    "query_seize_config": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "SeizeConfig",
+      "type": "object",
+      "required": [
+        "receiver",
+        "seizable_assets"
+      ],
+      "properties": {
+        "receiver": {
+          "description": "The address of the contract that will receive the seized tokens",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        },
+        "seizable_assets": {
+          "description": "The assets that can be seized",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AssetInfo"
+          }
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
+        "AssetInfo": {
+          "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+          "oneOf": [
+            {
+              "description": "Non-native Token",
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "required": [
+                    "contract_addr"
+                  ],
+                  "properties": {
+                    "contract_addr": {
+                      "$ref": "#/definitions/Addr"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Native token",
+              "type": "object",
+              "required": [
+                "native_token"
+              ],
+              "properties": {
+                "native_token": {
+                  "type": "object",
+                  "required": [
+                    "denom"
+                  ],
+                  "properties": {
+                    "denom": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
         }
       }
     }
