@@ -7,6 +7,16 @@ use std::ops::RangeInclusive;
 /// Validations limits for cooldown period. From 30 to 600 seconds.
 pub const COOLDOWN_LIMITS: RangeInclusive<u64> = 30..=600;
 
+#[cw_serde]
+pub struct DevFundConfig {
+    /// The dev fund address
+    pub address: String,
+    /// The percentage of fees that go to the dev fund
+    pub share: Decimal,
+    /// Asset that devs want ASTRO to be swapped to
+    pub asset_info: AssetInfo,
+}
+
 /// This structure stores the main parameters for the Maker contract.
 #[cw_serde]
 pub struct Config {
@@ -16,6 +26,8 @@ pub struct Config {
     pub factory_contract: Addr,
     /// The xASTRO staking contract address.
     pub staking_contract: Option<Addr>,
+    /// The dev fund configuration
+    pub dev_fund_conf: Option<DevFundConfig>,
     /// Default bridge asset (Terra1 - LUNC, Terra2 - LUNA, etc.)
     pub default_bridge: Option<AssetInfo>,
     /// The vxASTRO fee distributor contract address
@@ -67,6 +79,13 @@ pub struct InstantiateMsg {
     pub collect_cooldown: Option<u64>,
 }
 
+#[cw_serde]
+pub struct UpdateDevFundConfig {
+    /// If 'set' is None then dev fund config will be removed,
+    /// otherwise it will be updated with the new parameters
+    pub set: Option<DevFundConfig>,
+}
+
 /// This structure describes the functions that can be executed in this contract.
 #[cw_serde]
 pub enum ExecuteMsg {
@@ -95,6 +114,8 @@ pub enum ExecuteMsg {
         collect_cooldown: Option<u64>,
         /// The ASTRO token asset info
         astro_token: Option<AssetInfo>,
+        /// Dev tax configuration
+        dev_fund_config: Option<Box<UpdateDevFundConfig>>,
     },
     /// Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)
     UpdateBridges {
@@ -118,6 +139,21 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
     /// Enables the distribution of current fees accrued in the contract over "blocks" number of blocks
     EnableRewards { blocks: u64 },
+    /// Permissionless endpoint that sends certain assets to predefined seizing address
+    Seize {
+        /// The assets to seize
+        assets: Vec<AssetWithLimit>,
+    },
+    /// Sets parameters for seizing assets.
+    /// Permissioned to a contract owner.
+    /// If governance wants to stop seizing assets, it can set an empty list of seizable assets.
+    UpdateSeizeConfig {
+        /// The address that will receive the seized tokens
+        receiver: Option<String>,
+        /// The assets that can be seized. Resets the list to this one every time it is executed
+        #[serde(default)]
+        seizable_assets: Vec<AssetInfo>,
+    },
 }
 
 /// This structure describes the query functions available in the contract.
@@ -132,6 +168,9 @@ pub enum QueryMsg {
     Balances { assets: Vec<AssetInfo> },
     #[returns(Vec<(String, String)>)]
     Bridges {},
+    /// Returns the seize config
+    #[returns(SeizeConfig)]
+    QuerySeizeConfig {},
 }
 
 /// A custom struct that holds contract parameters and is used to retrieve them.
@@ -147,6 +186,8 @@ pub struct ConfigResponse {
     pub factory_contract: Addr,
     /// The xASTRO staking contract address
     pub staking_contract: Option<Addr>,
+    /// The dev fund configuration
+    pub dev_fund_conf: Option<DevFundConfig>,
     /// The governance contract address (fee distributor for vxASTRO stakers)
     pub governance_contract: Option<Addr>,
     /// The percentage of fees that go to governance_contract
@@ -199,6 +240,14 @@ pub struct SecondReceiverConfig {
     pub second_fee_receiver: Addr,
     /// The percentage of fees that go to the second fee receiver
     pub second_receiver_cut: Uint64,
+}
+
+#[cw_serde]
+pub struct SeizeConfig {
+    /// The address of the contract that will receive the seized tokens
+    pub receiver: Addr,
+    /// The assets that can be seized
+    pub seizable_assets: Vec<AssetInfo>,
 }
 
 /// The maximum allowed second receiver share (percents)

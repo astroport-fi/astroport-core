@@ -42,6 +42,7 @@ fn proper_initialization() {
             owner: Addr::unchecked("owner"),
             factory_contract: Addr::unchecked("factory"),
             staking_contract: Some(Addr::unchecked("staking")),
+            dev_fund_conf: None,
             default_bridge: Some(native_asset_info("uluna".to_string())),
             governance_contract: Option::from(governance_contract),
             governance_percent,
