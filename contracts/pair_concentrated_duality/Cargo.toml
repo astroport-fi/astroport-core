@@ -1,0 +1,53 @@
+[package]
+name = "astroport-pair-concentrated-duality"
+version = "4.1.1" # must share the same version with the original PCL
+authors = ["Astroport"]
+edition = "2021"
+description = "The Astroport concentrated liquidity pair with Duality orderbook integration"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+test-tube = ["neutron-test-tube"]
+library = []
+
+[dependencies]
+cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
+cw-storage-plus = { workspace = true }
+thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
+itertools = { workspace = true }
+cw-utils = { workspace = true }
+cw2 = { workspace = true }
+
+astroport = { path = "../../packages/astroport", version = "5.8", features = ["duality"] }
+astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
+
+serde = { version = "1.0.203", features = ["derive"] }
+semver = "1.0"
+
+neutron-std = { git = "https://github.com/astroport-fi/neutron-std", branch = "backport/cosmwasm_v1" }
+neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
+
+[dev-dependencies]
+astroport-native-coin-registry = { version = "1.1", features = ["library"] }
+astroport-test = { path = "../../packages/astroport_test", version = "0.1.0" }
+astroport-factory = { path = "../factory", version = "1.8", features = ["library"] }
+astroport-pair-concentrated = { path = "../pair_concentrated", version = "4.1.0", features = ["library"] }
+anyhow = "1.0"
+derivative = "2.2"

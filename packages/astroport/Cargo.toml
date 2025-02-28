@@ -16,6 +16,7 @@ homepage = "https://astroport.fi"
 backtraces = ["cosmwasm-std/backtraces"]
 injective = ["injective-math", "thiserror"]
 sei = []
+duality = []
 
 [dependencies]
 cw20 = "1.1"

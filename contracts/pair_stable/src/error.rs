@@ -114,6 +114,9 @@ pub enum ContractError {
 
     #[error("Wrong asset length: expected {expected}, actual {actual}")]
     WrongAssetLength { expected: usize, actual: usize },
+
+    #[error("Operation is not supported")]
+    NotSupported {},
 }
 
 impl From<OverflowError> for ContractError {

@@ -21,13 +21,18 @@ cosmwasm_1_4 = ["cosmwasm_1_3", "cosmwasm-std/cosmwasm_1_4", "cw-multi-test/cosm
 
 [dependencies]
 astroport = { path = "../astroport" }
+astroport-factory = { path = "../../contracts/factory" }
 cosmwasm-schema = "1.2.5"
 cosmwasm-std = "1.2.5"
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks_1_0", features = ["cosmwasm_1_1"] }
 serde = "1.0"
 schemars = "0.8.1"
 anyhow = "1.0"
+cw20-base = "1.1"
 itertools = { workspace = true }
 cw-utils = { workspace = true }
 cw-storage-plus = { workspace = true }
 osmosis-std = "0.21.0"
+neutron-std = { git = "https://github.com/astroport-fi/neutron-std", branch = "backport/cosmwasm_v1" }
+prost = "0.12"
+sha2 = "0.10.8"
