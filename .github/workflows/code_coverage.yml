@@ -44,7 +44,7 @@ jobs:
           override: true
 
       - name: Install cargo-tarpaulin
-        run: cargo install cargo-tarpaulin@0.32.0 || true
+        run: cargo install cargo-tarpaulin@0.32.0
 
       - name: Run cargo-tarpaulin
         run: cargo tarpaulin --out Xml
