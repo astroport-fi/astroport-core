@@ -318,8 +318,8 @@ pub fn fetch_cumulative_trade(
                     )
                 );
                 Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(1)?,
-                    quote_asset: diff_to_dec_asset(0)?,
+                    base_asset: diff_to_dec_asset(0)?,
+                    quote_asset: diff_to_dec_asset(1)?,
                 })
             }
             // We bought asset 0 with asset 1
@@ -331,8 +331,8 @@ pub fn fetch_cumulative_trade(
                     )
                 );
                 Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(0)?,
-                    quote_asset: diff_to_dec_asset(1)?,
+                    base_asset: diff_to_dec_asset(1)?,
+                    quote_asset: diff_to_dec_asset(0)?,
                 })
             }
             // No trade happened
@@ -417,8 +417,8 @@ mod unit_tests {
         assert_eq!(
             trade,
             CumulativeTrade {
-                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
             }
         );
 
@@ -433,8 +433,8 @@ mod unit_tests {
         assert_eq!(
             trade,
             CumulativeTrade {
-                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
             }
         );
 

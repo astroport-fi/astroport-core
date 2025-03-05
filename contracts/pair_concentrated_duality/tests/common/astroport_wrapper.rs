@@ -5,10 +5,12 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, to_json_binary, Addr, Coin, Decimal};
+use cosmwasm_std::{coin, from_json, to_json_binary, Addr, Coin, Decimal};
 use itertools::Itertools;
-use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::MsgExecuteContractResponse;
-use neutron_test_tube::{Account, ExecuteResponse, SigningAccount};
+use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::{
+    MsgExecuteContractResponse, QueryRawContractStateRequest, QueryRawContractStateResponse,
+};
+use neutron_test_tube::{Account, ExecuteResponse, Runner, SigningAccount};
 
 use astroport::pair::PoolResponse;
 use astroport::pair_concentrated_duality::{DualityPairMsg, UpdateDualityOrderbook};
@@ -19,6 +21,8 @@ use astroport::{
     pair_concentrated::ConcentratedPoolParams,
     pair_concentrated_duality::{ConcentratedDualityParams, OrderbookConfig},
 };
+use astroport_pair_concentrated_duality::orderbook::state::OrderbookState;
+use astroport_pcl_common::state::Config;
 use astroport_test::coins::TestCoin;
 use astroport_test::convert::f64_to_dec;
 
@@ -323,5 +327,35 @@ impl<'a> AstroportHelper<'a> {
             )),
             &[],
         )
+    }
+
+    pub fn query_ob_config(&self) -> AnyResult<OrderbookState> {
+        let res = self
+            .helper
+            .app
+            .query::<QueryRawContractStateRequest, QueryRawContractStateResponse>(
+                "/cosmwasm.wasm.v1.Query/RawContractState",
+                &QueryRawContractStateRequest {
+                    address: self.pair_addr.to_string(),
+                    query_data: b"orderbook_config".to_vec(),
+                },
+            )?;
+
+        Ok(from_json(&res.data)?)
+    }
+
+    pub fn query_config(&self) -> AnyResult<Config> {
+        let res = self
+            .helper
+            .app
+            .query::<QueryRawContractStateRequest, QueryRawContractStateResponse>(
+                "/cosmwasm.wasm.v1.Query/RawContractState",
+                &QueryRawContractStateRequest {
+                    address: self.pair_addr.to_string(),
+                    query_data: b"config".to_vec(),
+                },
+            )?;
+
+        Ok(from_json(&res.data)?)
     }
 }
