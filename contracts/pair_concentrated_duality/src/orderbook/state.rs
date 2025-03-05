@@ -22,7 +22,7 @@ use astroport_pcl_common::state::{Config, Precisions};
 use crate::error::ContractError;
 use crate::orderbook::consts::{MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDER_SIZE_LIMITS};
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
-use crate::orderbook::utils::{compute_swap, SpotOrdersFactory};
+use crate::orderbook::utils::SpotOrdersFactory;
 
 macro_rules! validate_param {
     ($name:ident, $val:expr, $min:expr, $max:expr) => {
@@ -365,46 +365,21 @@ impl OrderbookState {
             self.avg_price_adjustment.into(),
         );
 
-        // Equal heights algorithm
-        for i in 1..=self.orders_number {
-            let i_dec = Decimal256::from_integer(i);
+        let success = orders_factory.construct_orders(
+            config,
+            amp_gamma,
+            d,
+            &ixs,
+            asset_0_trade_size,
+            asset_1_trade_size,
+            self.orders_number,
+        )?;
 
-            let asset_1_sell_amount = asset_1_trade_size * i_dec;
-            let asset_0_sell_amount =
-                compute_swap(&ixs, asset_1_sell_amount, 0, config, amp_gamma, d)?;
-
-            let sell_amount = asset_0_sell_amount / i_dec;
-
-            let sell_price = if i > 1 {
-                (asset_1_sell_amount - orders_factory.orderbook_one_side_liquidity(false))
-                    / sell_amount
-            } else {
-                asset_1_sell_amount / sell_amount
-            };
-
-            let asset_0_buy_amount = asset_0_trade_size * i_dec;
-            let asset_1_buy_amount =
-                compute_swap(&ixs, asset_0_buy_amount, 1, config, amp_gamma, d)?;
-
-            let buy_amount = asset_1_buy_amount / i_dec;
-
-            let buy_price = if i > 1 {
-                (asset_0_buy_amount - orders_factory.orderbook_one_side_liquidity(true))
-                    / buy_amount
-            } else {
-                asset_0_buy_amount / buy_amount
-            };
-
-            // If at some point the price becomes zero, we don't post new orders
-            if sell_price.is_zero() || buy_price.is_zero() {
-                return Ok(vec![]);
-            }
-
-            orders_factory.sell(sell_price, sell_amount);
-            orders_factory.buy(buy_price, buy_amount);
+        if success {
+            Ok(orders_factory.collect_spot_orders(&env.contract.address))
+        } else {
+            Ok(vec![])
         }
-
-        Ok(orders_factory.collect_spot_orders(&env.contract.address))
     }
 
     /// Flatten all messages into one vector and add a callback to the last message only
