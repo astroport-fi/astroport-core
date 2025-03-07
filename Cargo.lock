@@ -574,18 +574,20 @@ dependencies = [
 
 [[package]]
 name = "astroport-router"
-version = "1.2.1"
+version = "1.3.0"
 dependencies = [
  "anyhow",
- "astroport 3.12.2",
+ "astroport 5.8.0",
  "astroport-factory 1.9.0",
+ "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.1.0",
+ "astroport-pair-concentrated",
  "astroport-test",
  "cosmwasm-schema",
  "cosmwasm-std",
- "cw-storage-plus 0.15.1",
+ "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
- "cw20 0.15.1",
+ "cw20 1.1.2",
  "cw20-base 1.1.2",
  "integer-sqrt",
  "thiserror",

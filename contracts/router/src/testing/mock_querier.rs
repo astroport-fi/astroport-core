@@ -138,7 +138,7 @@ impl WasmMockQuerier {
                 match self.astroport_factory_querier.pairs.get(&key) {
                     Some(v) => SystemResult::Ok(ContractResult::from(to_json_binary(&PairInfo {
                         contract_addr: Addr::unchecked(v),
-                        liquidity_token: Addr::unchecked("liquidity"),
+                        liquidity_token: "liquidity".to_string(),
                         asset_infos: vec![
                             AssetInfo::NativeToken {
                                 denom: "uusd".to_string(),

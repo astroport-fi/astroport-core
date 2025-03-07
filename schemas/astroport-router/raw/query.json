@@ -51,6 +51,40 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "reverse_simulate_swap_operations"
+      ],
+      "properties": {
+        "reverse_simulate_swap_operations": {
+          "type": "object",
+          "required": [
+            "ask_amount",
+            "operations"
+          ],
+          "properties": {
+            "ask_amount": {
+              "description": "The amount of tokens one is willing to receive",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                }
+              ]
+            },
+            "operations": {
+              "description": "The swap operations to perform, each swap involving a specific pool",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/SwapOperation"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   ],
   "definitions": {

@@ -1,12 +1,17 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{coins, from_json, to_json_binary, Addr, Empty, StdError};
-use cw20::Cw20ExecuteMsg;
+use cosmwasm_std::{coins, from_json, to_json_binary, Addr, Decimal, Empty, StdError, Uint128};
+use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 
-use astroport::asset::{native_asset_info, token_asset_info};
+use astroport::asset::{native_asset_info, token_asset_info, AssetInfo};
 use astroport::factory::PairType;
-use astroport::router::{ExecuteMsg, InstantiateMsg, SwapOperation, SwapResponseData};
+use astroport::pair_concentrated::ConcentratedPoolParams;
+use astroport::router::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, SimulateSwapOperationsResponse, SwapOperation,
+    SwapResponseData,
+};
 use astroport_router::error::ContractError;
+use astroport_test::convert::f64_to_dec;
 use astroport_test::cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 
@@ -315,14 +320,6 @@ fn route_through_pairs_with_natives() {
 
 #[test]
 fn test_swap_route() {
-    use crate::factory_helper::{instantiate_token, mint, FactoryHelper};
-    use astroport::asset::AssetInfo;
-    use astroport::factory::PairType;
-    use astroport::router::{
-        ExecuteMsg, InstantiateMsg, QueryMsg, SimulateSwapOperationsResponse, SwapOperation,
-    };
-    use cosmwasm_std::{to_json_binary, Addr, Uint128};
-    use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
@@ -892,4 +889,107 @@ fn test_swap_route() {
 
     let profit = balance_res.balance.saturating_sub(donated_atom);
     println!("Attacker2's profit: {:?}", profit);
+}
+
+#[test]
+fn test_reverse_simulation() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let denom_x = "denom_x";
+    let denom_y = "denom_y";
+    let denom_z = "denom_z";
+
+    for (a, b, liq) in [
+        (&denom_x, &denom_y, 100_000_000000),
+        (&denom_x, &denom_z, 100_000_000000),
+        (&denom_y, &denom_z, 100_000_000000),
+    ] {
+        let pair = helper
+            .create_pair(
+                &mut app,
+                &owner,
+                PairType::Custom("concentrated".to_string()),
+                [
+                    native_asset_info(a.to_string()),
+                    native_asset_info(b.to_string()),
+                ],
+                Some(
+                    to_json_binary(&ConcentratedPoolParams {
+                        amp: f64_to_dec(10f64),
+                        gamma: f64_to_dec(0.000145),
+                        mid_fee: f64_to_dec(0.0026),
+                        out_fee: f64_to_dec(0.0045),
+                        fee_gamma: f64_to_dec(0.00023),
+                        repeg_profit_threshold: f64_to_dec(0.000002),
+                        min_price_scale_delta: f64_to_dec(0.000146),
+                        price_scale: Decimal::one(),
+                        ma_half_time: 600,
+                        track_asset_balances: None,
+                        fee_share: None,
+                    })
+                    .unwrap(),
+                ),
+            )
+            .unwrap();
+        mint_native(&mut app, a, liq, &pair).unwrap();
+        mint_native(&mut app, b, liq, &pair).unwrap();
+    }
+
+    let router_code = app.store_code(router_contract());
+    let router = app
+        .instantiate_contract(
+            router_code,
+            owner.clone(),
+            &InstantiateMsg {
+                astroport_factory: helper.factory.to_string(),
+            },
+            &[],
+            "router",
+            None,
+        )
+        .unwrap();
+
+    let operations = vec![
+        SwapOperation::AstroSwap {
+            offer_asset_info: AssetInfo::native(denom_x),
+            ask_asset_info: AssetInfo::native(denom_y),
+        },
+        SwapOperation::AstroSwap {
+            offer_asset_info: AssetInfo::native(denom_y),
+            ask_asset_info: AssetInfo::native(denom_z),
+        },
+    ];
+
+    let ask_amount = Uint128::new(1_000_000000);
+    let offer_amount: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            router.clone(),
+            &QueryMsg::ReverseSimulateSwapOperations {
+                ask_amount,
+                operations: operations.clone(),
+            },
+        )
+        .unwrap();
+
+    let return_amount = app
+        .wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            router.clone(),
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount,
+                operations,
+            },
+        )
+        .unwrap()
+        .amount;
+
+    // ensure return amount is greater or equal to the requested amount
+    assert!(
+        return_amount >= ask_amount,
+        "Return amount is less than ask amount: {return_amount} >= {ask_amount}"
+    );
 }
