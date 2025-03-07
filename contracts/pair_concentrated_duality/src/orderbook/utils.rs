@@ -11,7 +11,7 @@ use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAss
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
-    calc_y,
+    calc_d, calc_y,
     state::{AmpGamma, Config},
 };
 
@@ -134,18 +134,19 @@ impl SpotOrdersFactory {
         &mut self,
         pair_config: &Config,
         amp_gamma: AmpGamma,
-        d: Decimal256,
         ixs: &[Decimal256],
         asset_0_trade_size: Decimal256,
         asset_1_trade_size: Decimal256,
         orders_number: u8,
     ) -> Result<bool, ContractError> {
+        let d = calc_d(ixs, &amp_gamma)?;
+
         for i in 1..=orders_number {
             let i_dec = Decimal256::from_integer(i);
 
             let asset_0_sell_amount = asset_0_trade_size * i_dec;
             let asset_1_sell_amount =
-                compute_offer_amount(&ixs, asset_0_sell_amount, 1, pair_config, amp_gamma, d)?;
+                compute_offer_amount(ixs, asset_0_sell_amount, 1, pair_config, amp_gamma, d)?;
 
             let sell_price = if i > 1 {
                 (asset_1_sell_amount - self.orderbook_one_side_liquidity(false))
@@ -156,7 +157,7 @@ impl SpotOrdersFactory {
 
             let asset_1_buy_amount = asset_1_trade_size * i_dec;
             let asset_0_buy_amount =
-                compute_offer_amount(&ixs, asset_1_buy_amount, 0, pair_config, amp_gamma, d)?;
+                compute_offer_amount(ixs, asset_1_buy_amount, 0, pair_config, amp_gamma, d)?;
 
             let buy_price = if i > 1 {
                 (asset_0_buy_amount - self.orderbook_one_side_liquidity(true)) / asset_1_trade_size
@@ -617,7 +618,6 @@ mod unit_tests {
             .construct_orders(
                 &pair_config,
                 amp_gamma,
-                d,
                 &ixs,
                 asset_0_trade_size,
                 asset_1_trade_size,

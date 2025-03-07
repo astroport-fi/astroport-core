@@ -16,7 +16,6 @@ use astroport::asset::{Asset, Decimal256Ext};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::pair_concentrated_duality::UpdateDualityOrderbook;
 use astroport::pair_concentrated_duality::{OrderbookConfig, ReplyIds};
-use astroport_pcl_common::calc_d;
 use astroport_pcl_common::state::{Config, Precisions};
 
 use crate::error::ContractError;
@@ -356,7 +355,6 @@ impl OrderbookState {
         let amp_gamma = config.pool_state.get_amp_gamma(env);
         let mut ixs = balances.to_vec();
         ixs[1] *= config.pool_state.price_state.price_scale;
-        let d = calc_d(&ixs, &amp_gamma)?;
 
         let mut orders_factory = SpotOrdersFactory::new(
             &config.pair_info.asset_infos,
@@ -368,7 +366,6 @@ impl OrderbookState {
         let success = orders_factory.construct_orders(
             config,
             amp_gamma,
-            d,
             &ixs,
             asset_0_trade_size,
             asset_1_trade_size,
