@@ -1,11 +1,10 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response,
-    StdResult,
+    ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 use itertools::Itertools;
 
-use astroport::asset::{AssetInfoExt, DecimalAsset};
+use astroport::asset::{Asset, AssetInfoExt, DecimalAsset};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::pair::MIN_TRADE_SIZE;
 use astroport::querier::{query_fee_info, query_native_supply, FeeInfo};
@@ -29,6 +28,33 @@ pub struct CumulativeTrade {
     pub base_asset: DecimalAsset,
     /// An asset that was bought
     pub quote_asset: DecimalAsset,
+}
+
+impl CumulativeTrade {
+    pub fn try_into_uint(
+        &self,
+        precisions: &Precisions,
+    ) -> Result<CumulativeTradeUint, OrderbookError> {
+        let into_uint_asset = |dec_asset: &DecimalAsset| {
+            let amount = dec_asset
+                .amount
+                .to_uint(precisions.get_precision(&dec_asset.info)?)?;
+            Ok::<_, OrderbookError>(dec_asset.info.with_balance(amount))
+        };
+        Ok(CumulativeTradeUint {
+            base_asset: into_uint_asset(&self.base_asset)?,
+            quote_asset: into_uint_asset(&self.quote_asset)?,
+        })
+    }
+}
+
+/// Auxiliary type fo indexing purposes
+#[cw_serde]
+pub struct CumulativeTradeUint {
+    /// An asset that was sold
+    pub base_asset: Asset,
+    /// An asset that was bought
+    pub quote_asset: Asset,
 }
 
 pub fn process_cumulative_trade(
@@ -57,7 +83,10 @@ pub fn process_cumulative_trade(
 
     let ask_asset_prec = precisions.get_precision(&config.pair_info.asset_infos[ask_ind])?;
     let mut messages = vec![];
-    let mut attrs = vec![];
+    let mut attrs = vec![(
+        "cumulative_trade",
+        to_json_string(&trade.try_into_uint(precisions)?)?,
+    )];
 
     let mut share_amount = Decimal256::zero();
     // Send the shared fee
@@ -68,8 +97,8 @@ pub fn process_cumulative_trade(
         let fee_share_amount = share_amount.to_uint(ask_asset_prec)?;
         if !fee_share_amount.is_zero() {
             let fee = config.pair_info.asset_infos[ask_ind].with_balance(fee_share_amount);
+            attrs.push(("fee_share_amount", fee.to_string()));
             messages.push(fee.into_msg(&fee_share.recipient)?);
-            attrs.push(("fee_share_amount", fee_share_amount))
         }
     }
 
@@ -90,8 +119,8 @@ pub fn process_cumulative_trade(
         let maker_fee = maker_share.to_uint(ask_asset_prec)?;
         if !maker_fee.is_zero() {
             let fee = config.pair_info.asset_infos[ask_ind].with_balance(maker_fee);
+            attrs.push(("maker_fee_amount", fee.to_string()));
             messages.push(fee.into_msg(fee_address)?);
-            attrs.push(("maker_fee_amount", maker_fee));
         }
     }
 
@@ -99,9 +128,9 @@ pub fn process_cumulative_trade(
     // especially if token precisions are 18.
     if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
         let last_price = if offer_ind == 0 {
-            trade.quote_asset.amount / trade.base_asset.amount
-        } else {
             trade.base_asset.amount / trade.quote_asset.amount
+        } else {
+            trade.quote_asset.amount / trade.base_asset.amount
         };
 
         let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
@@ -181,10 +210,7 @@ pub fn sync_pool_with_orderbook(
             ob_state.flatten_msgs_and_add_callback(&pools_u128, &[cancel_msgs], order_msgs);
 
         Ok(response
-            .add_attributes([
-                attr("action", "sync_pool_with_orderbook"),
-                attr("cumulative_trade", to_json_string(&cumulative_trade)?),
-            ])
+            .add_attribute("action", "sync_pool_with_orderbook")
             .add_submessages(submsgs))
     } else {
         Err(OrderbookError::NoNeedToSync {}.into())

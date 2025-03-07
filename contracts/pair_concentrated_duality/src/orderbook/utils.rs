@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, Addr, CosmosMsg, Decimal256, OverflowError, QuerierWrapper, StdError,
-    StdResult, Uint128, Uint256,
+    ensure, ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper,
+    StdError, StdResult, Uint128, Uint256,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -11,7 +11,7 @@ use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAss
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
-    calc_y,
+    calc_d, calc_y,
     state::{AmpGamma, Config},
 };
 
@@ -19,39 +19,40 @@ use crate::error::ContractError;
 use crate::orderbook::execute::CumulativeTrade;
 use crate::orderbook::state::OrderbookState;
 
-/// Calculate the swap result using cached D.
-pub fn compute_swap(
+pub fn compute_offer_amount(
     ixs: &[Decimal256],
-    offer_amount: Decimal256,
-    ask_ind: usize,
+    ask_amount: Decimal256,
+    offer_ind: usize,
     config: &Config,
     amp_gamma: AmpGamma,
     d: Decimal256,
 ) -> StdResult<Decimal256> {
-    let offer_ind = 1 ^ ask_ind;
+    let ask_ind = 1 ^ offer_ind;
 
-    let offer_amount = if offer_ind == 1 {
-        offer_amount * config.pool_state.price_state.price_scale
+    let ask_amount = if ask_ind == 1 {
+        ask_amount * config.pool_state.price_state.price_scale
     } else {
-        offer_amount
+        ask_amount
     };
 
     let mut ixs = ixs.to_vec();
-    ixs[offer_ind] += offer_amount;
 
-    let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
-    let mut dy = ixs[ask_ind] - new_y;
-    ixs[ask_ind] = new_y;
+    // It's hard to predict fee rate thus we use maximum possible fee rate
+    let before_fee = ask_amount
+        * (Decimal256::one() - Decimal256::from(config.pool_params.out_fee))
+            .inv()
+            .unwrap();
 
-    if ask_ind == 1 {
-        dy /= config.pool_state.price_state.price_scale;
+    ixs[ask_ind] -= before_fee;
+
+    let new_y = calc_y(&ixs, d, &amp_gamma, offer_ind)?;
+    let mut dx = new_y - ixs[offer_ind];
+
+    if offer_ind == 1 {
+        dx /= config.pool_state.price_state.price_scale;
     }
 
-    let fee_rate = config.pool_params.fee(&ixs);
-    let total_fee = fee_rate * dy;
-    dy -= total_fee;
-
-    Ok(dy)
+    Ok(dx)
 }
 
 #[derive(Debug)]
@@ -125,6 +126,55 @@ impl SpotOrdersFactory {
             .fold(Decimal256::zero(), |acc, order| {
                 acc + order.price * order.amount
             })
+    }
+
+    /// Create internal orders using equal heights algorithm.
+    /// Returns boolean indicating whether the orders were successfully created.
+    pub fn construct_orders(
+        &mut self,
+        pair_config: &Config,
+        amp_gamma: AmpGamma,
+        ixs: &[Decimal256],
+        asset_0_trade_size: Decimal256,
+        asset_1_trade_size: Decimal256,
+        orders_number: u8,
+    ) -> Result<bool, ContractError> {
+        let d = calc_d(ixs, &amp_gamma)?;
+
+        for i in 1..=orders_number {
+            let i_dec = Decimal256::from_integer(i);
+
+            let asset_0_sell_amount = asset_0_trade_size * i_dec;
+            let asset_1_sell_amount =
+                compute_offer_amount(ixs, asset_0_sell_amount, 1, pair_config, amp_gamma, d)?;
+
+            let sell_price = if i > 1 {
+                (asset_1_sell_amount - self.orderbook_one_side_liquidity(false))
+                    / asset_0_trade_size
+            } else {
+                asset_1_sell_amount / asset_0_sell_amount
+            };
+
+            let asset_1_buy_amount = asset_1_trade_size * i_dec;
+            let asset_0_buy_amount =
+                compute_offer_amount(ixs, asset_1_buy_amount, 0, pair_config, amp_gamma, d)?;
+
+            let buy_price = if i > 1 {
+                (asset_0_buy_amount - self.orderbook_one_side_liquidity(true)) / asset_1_trade_size
+            } else {
+                asset_0_buy_amount / asset_1_buy_amount
+            };
+
+            // If at some point the price becomes zero, we don't post new orders
+            if sell_price.is_zero() || buy_price.is_zero() {
+                return Ok(false);
+            }
+
+            self.sell(sell_price, asset_0_trade_size);
+            self.buy(buy_price, asset_1_trade_size);
+        }
+
+        Ok(true)
     }
 
     pub fn collect_spot_orders(self, sender: &Addr) -> Vec<CosmosMsg> {
@@ -318,8 +368,8 @@ pub fn fetch_cumulative_trade(
                     )
                 );
                 Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(1)?,
-                    quote_asset: diff_to_dec_asset(0)?,
+                    base_asset: diff_to_dec_asset(0)?,
+                    quote_asset: diff_to_dec_asset(1)?,
                 })
             }
             // We bought asset 0 with asset 1
@@ -331,8 +381,8 @@ pub fn fetch_cumulative_trade(
                     )
                 );
                 Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(0)?,
-                    quote_asset: diff_to_dec_asset(1)?,
+                    base_asset: diff_to_dec_asset(1)?,
+                    quote_asset: diff_to_dec_asset(0)?,
                 })
             }
             // No trade happened
@@ -358,6 +408,10 @@ pub fn fetch_cumulative_trade(
 mod unit_tests {
     use cosmwasm_std::testing::MockStorage;
 
+    use astroport::asset::PairInfo;
+    use astroport::factory::PairType;
+    use astroport_pcl_common::calc_d;
+    use astroport_pcl_common::state::{PoolParams, PoolState, PriceState};
     use astroport_test::convert::f64_to_dec;
 
     use super::*;
@@ -417,8 +471,8 @@ mod unit_tests {
         assert_eq!(
             trade,
             CumulativeTrade {
-                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
             }
         );
 
@@ -433,8 +487,8 @@ mod unit_tests {
         assert_eq!(
             trade,
             CumulativeTrade {
-                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
             }
         );
 
@@ -475,6 +529,122 @@ mod unit_tests {
         assert_eq!(
             trade.to_string(),
             "Generic error: Invalid balance difference while calculating cumulative trade"
+        );
+    }
+
+    /// Calculate the swap result using cached D.
+    pub fn compute_swap(
+        ixs: &[Decimal256],
+        offer_amount: Decimal256,
+        ask_ind: usize,
+        config: &Config,
+        amp_gamma: AmpGamma,
+        d: Decimal256,
+    ) -> StdResult<Decimal256> {
+        let offer_ind = 1 ^ ask_ind;
+
+        let offer_amount = if offer_ind == 1 {
+            offer_amount * config.pool_state.price_state.price_scale
+        } else {
+            offer_amount
+        };
+
+        let mut ixs = ixs.to_vec();
+        ixs[offer_ind] += offer_amount;
+
+        let new_y = calc_y(&ixs, d, &amp_gamma, ask_ind)?;
+        let mut dy = ixs[ask_ind] - new_y;
+        ixs[ask_ind] = new_y;
+
+        if ask_ind == 1 {
+            dy /= config.pool_state.price_state.price_scale;
+        }
+
+        let fee_rate = config.pool_params.fee(&ixs);
+        let total_fee = fee_rate * dy;
+        dy -= total_fee;
+
+        Ok(dy)
+    }
+
+    #[test]
+    fn check_equal_heights_algo() {
+        let pair_config = Config {
+            pair_info: PairInfo {
+                asset_infos: vec![AssetInfo::native("foo"), AssetInfo::native("bar")],
+                contract_addr: Addr::unchecked(""),
+                liquidity_token: "".to_string(),
+                pair_type: PairType::Custom("".to_string()),
+            },
+            factory_addr: Addr::unchecked(""),
+            block_time_last: 0,
+            cumulative_prices: vec![],
+            pool_params: PoolParams {
+                mid_fee: f64_to_dec(0.0026),
+                out_fee: f64_to_dec(0.0045),
+                fee_gamma: f64_to_dec(0.00023),
+                ..Default::default()
+            },
+            pool_state: PoolState {
+                initial: Default::default(),
+                future: Default::default(),
+                future_time: 0,
+                initial_time: 0,
+                price_state: PriceState {
+                    price_scale: Decimal256::from_ratio(2u8, 1u8),
+                    ..Default::default()
+                },
+            },
+            owner: None,
+            track_asset_balances: false,
+            fee_share: None,
+            tracker_addr: None,
+        };
+        let orders_number = 5;
+        let asset_0_trade_size = f64_to_dec(400.0);
+        let asset_1_trade_size = f64_to_dec(200.0);
+        let amp_gamma = AmpGamma {
+            amp: f64_to_dec(10f64),
+            gamma: f64_to_dec(0.000145),
+        };
+
+        let mut orders_factory =
+            SpotOrdersFactory::new(&pair_config.pair_info.asset_infos, 6, 6, Decimal256::raw(1));
+
+        let ixs = [f64_to_dec(20_000.0), f64_to_dec(20_000.0)];
+        let d = calc_d(&ixs, &amp_gamma).unwrap();
+
+        orders_factory
+            .construct_orders(
+                &pair_config,
+                amp_gamma,
+                &ixs,
+                asset_0_trade_size,
+                asset_1_trade_size,
+                orders_number,
+            )
+            .unwrap();
+
+        // How much one needs to pay to buy all asset_0 from orderbook?
+        let orderbook_result = orders_factory.orderbook_one_side_liquidity(false);
+        // How much would they receive from PCL?
+        let pcl_result =
+            compute_swap(&ixs, orderbook_result, 0, &pair_config, amp_gamma, d).unwrap();
+
+        assert!(
+            pcl_result >= asset_0_trade_size * Decimal256::from_integer(5u8),
+            "Orderbook trades at discount from PCL: {pcl_result} <= {orderbook_result}",
+        );
+
+        // How much one needs to pay to buy all asset_1?
+        let orderbook_result = orders_factory.orderbook_one_side_liquidity(true);
+        // How much would they receive from PCL?
+        let pcl_result =
+            compute_swap(&ixs, orderbook_result, 1, &pair_config, amp_gamma, d).unwrap();
+
+        assert!(
+            pcl_result >= asset_1_trade_size * Decimal256::from_integer(5u8),
+            "Orderbook trades at discount from PCL: {pcl_result} <= {orderbook_result}",
         );
     }
 }
