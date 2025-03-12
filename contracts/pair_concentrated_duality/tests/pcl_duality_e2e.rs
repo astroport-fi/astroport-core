@@ -210,6 +210,15 @@ fn test_basic_ops() {
         Decimal256::from_str("2.016503220355952024").unwrap()
     );
 
+    let ob_config = astroport.query_ob_config().unwrap();
+    assert_eq!(
+        ob_config.pre_reply_balances,
+        [
+            astroport.assets[&test_coins[0]].with_balance(1_023_269_292243u128),
+            astroport.assets[&test_coins[1]].with_balance(488_454_377797u128),
+        ]
+    );
+
     let orders = astroport
         .helper
         .list_orders(astroport.pair_addr.as_str())

@@ -209,6 +209,8 @@ pub fn sync_pool_with_orderbook(
         let submsgs =
             ob_state.flatten_msgs_and_add_callback(&pools_u128, &[cancel_msgs], order_msgs);
 
+        ob_state.save(deps.storage)?;
+
         Ok(response
             .add_attribute("action", "sync_pool_with_orderbook")
             .add_submessages(submsgs))
