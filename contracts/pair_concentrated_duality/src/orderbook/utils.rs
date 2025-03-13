@@ -225,8 +225,8 @@ impl SpotOrdersFactory {
                     .unwrap();
                     let min_average_sell_price = price_to_duality_notation(
                         order.price,
-                        self.precision[1],
                         self.precision[0],
+                        self.precision[1],
                     )
                     .unwrap();
 
