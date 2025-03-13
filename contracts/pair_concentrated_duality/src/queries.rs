@@ -244,6 +244,10 @@ fn query_cumulative_prices(
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
+    if pools[0].amount.is_zero() || pools[1].amount.is_zero() {
+        return Err(StdError::generic_err("Pools are empty").into());
+    }
+
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let last_real_price = calc_last_prices(&xs, &config, &env)?;
 
