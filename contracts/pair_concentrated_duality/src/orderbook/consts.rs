@@ -13,3 +13,7 @@ pub const ORDERS_NUMBER_LIMITS: RangeInclusive<u8> = 1..=15;
 pub const MIN_LIQUIDITY_PERCENT: Decimal = Decimal::raw(1e16 as u128);
 /// Max liquidity percent for orders to be placed in the orderbook. (50%)
 pub const MAX_LIQUIDITY_PERCENT: Decimal = Decimal::raw(5e17 as u128);
+/// Min average price adjustment percent (1bps)
+pub const MIN_AVG_PRICE_ADJ_PERCENT: Decimal = Decimal::raw(1e14 as u128);
+/// Max average price adjustment percent (30bps)
+pub const MAX_AVG_PRICE_ADJ_PERCENT: Decimal = Decimal::raw(3e15 as u128);

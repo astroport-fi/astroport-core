@@ -39,6 +39,10 @@ pub struct UpdateDualityOrderbook {
     pub min_asset_1_order_size: Option<Uint128>,
     /// Percent of liquidity to be deployed to the orderbook
     pub liquidity_percent: Option<Decimal>,
+    /// Due to possible rounding issues on Duality side we have to set price tolerance,
+    /// which serves as a worsening factor for the end price from PCL.
+    /// Should be relatively low something like 1-10 bps.
+    pub avg_price_adjustment: Option<Decimal>,
 }
 
 /// This structure holds concentrated pool parameters along with orderbook params.

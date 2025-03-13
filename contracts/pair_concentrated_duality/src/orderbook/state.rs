@@ -20,7 +20,8 @@ use astroport_pcl_common::state::{Config, Precisions};
 
 use crate::error::ContractError;
 use crate::orderbook::consts::{
-    MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDERS_NUMBER_LIMITS,
+    MAX_AVG_PRICE_ADJ_PERCENT, MAX_LIQUIDITY_PERCENT, MIN_AVG_PRICE_ADJ_PERCENT,
+    MIN_LIQUIDITY_PERCENT, ORDERS_NUMBER_LIMITS,
 };
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
 use crate::orderbook::utils::SpotOrdersFactory;
@@ -145,6 +146,14 @@ impl OrderbookState {
             self.liquidity_percent = liquidity_percent;
         }
 
+        if let Some(avg_price_adjustment) = update_config.avg_price_adjustment {
+            attrs.push(attr(
+                "avg_price_adjustment",
+                avg_price_adjustment.to_string(),
+            ));
+            self.avg_price_adjustment = avg_price_adjustment;
+        }
+
         self.validate(api)?;
 
         Ok(attrs)
@@ -170,9 +179,20 @@ impl OrderbookState {
         Ok(())
     }
 
+    fn validate_avg_price_adjustment(avg_price_adjustment: Decimal) -> StdResult<()> {
+        validate_param!(
+            avg_price_adjustment,
+            avg_price_adjustment,
+            MIN_AVG_PRICE_ADJ_PERCENT,
+            MAX_AVG_PRICE_ADJ_PERCENT
+        );
+        Ok(())
+    }
+
     pub fn validate(&self, api: &dyn Api) -> StdResult<()> {
         Self::validate_orders_number(self.orders_number)?;
         Self::validate_liquidity_percent(self.liquidity_percent)?;
+        Self::validate_avg_price_adjustment(self.avg_price_adjustment)?;
 
         ensure!(
             !self.min_asset_0_order_size.is_zero(),
