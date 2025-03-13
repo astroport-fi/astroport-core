@@ -500,3 +500,71 @@ fn test_sync_after_whole_side_consumed() {
 
     astroport.sync_orders(&astroport.helper.signer).unwrap();
 }
+
+#[test]
+fn estimate_gas_usage() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("untrn")];
+    let orders_number = 15;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        neutron,
+        test_coins.clone(),
+        common_pcl_params(),
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(50),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(2_000_000_000000u128, "astro"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(10_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(10_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    // Provide again for clear experiment
+    // (includes fetching orderbook liquidity and cancelling old orders)
+    let resp = astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+    println!("Provide gas {:?}", resp.gas_info);
+
+    // Astroport swap ASTRO -> NTRN
+    let swap_asset = astroport.assets[&test_coins[1]].with_balance(100_000000u128);
+    let resp = astroport.swap(&user, &swap_asset, None).unwrap();
+    println!("Swap gas {:?}", resp.gas_info);
+
+    // Withdraw liquidity
+    let mut lp_token = astroport
+        .helper
+        .query_balance(&user.address(), &astroport.lp_token)
+        .unwrap();
+    // Withdraw only 1%
+    lp_token.amount = lp_token.amount.multiply_ratio(1u8, 100u8);
+    let resp = astroport.withdraw_liquidity(&user, lp_token).unwrap();
+    print!("Withdraw gas {:?}", resp.gas_info);
+}

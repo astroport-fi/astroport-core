@@ -238,7 +238,11 @@ impl<'a> AstroportHelper<'a> {
             .execute_contract(sender, self.pair_addr.as_str(), &msg, &funds)
     }
 
-    pub fn withdraw_liquidity(&self, sender: &SigningAccount, lp_tokens: Coin) -> AnyResult<()> {
+    pub fn withdraw_liquidity(
+        &self,
+        sender: &SigningAccount,
+        lp_tokens: Coin,
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
         let msg = ExecuteMsg::WithdrawLiquidity {
             assets: vec![],
             min_assets_to_receive: None,
@@ -246,7 +250,6 @@ impl<'a> AstroportHelper<'a> {
 
         self.helper
             .execute_contract(sender, self.pair_addr.as_str(), &msg, &vec![lp_tokens])
-            .map(|_| ())
     }
 
     pub fn swap_max_spread(

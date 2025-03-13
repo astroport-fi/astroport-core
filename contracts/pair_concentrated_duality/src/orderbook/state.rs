@@ -19,13 +19,15 @@ use astroport::pair_concentrated_duality::{OrderbookConfig, ReplyIds};
 use astroport_pcl_common::state::{Config, Precisions};
 
 use crate::error::ContractError;
-use crate::orderbook::consts::{MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDER_SIZE_LIMITS};
+use crate::orderbook::consts::{
+    MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDERS_NUMBER_LIMITS,
+};
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
 use crate::orderbook::utils::SpotOrdersFactory;
 
 macro_rules! validate_param {
     ($name:ident, $val:expr, $min:expr, $max:expr) => {
-        if !($min..$max).contains(&$val) {
+        if !($min..=$max).contains(&$val) {
             return Err(StdError::generic_err(format!(
                 "Incorrect orderbook params: must be {min} <= {name} <= {max}, but value is {val}",
                 name = stringify!($name),
@@ -152,8 +154,8 @@ impl OrderbookState {
         validate_param!(
             orders_number,
             orders_number,
-            *ORDER_SIZE_LIMITS.start(),
-            *ORDER_SIZE_LIMITS.end()
+            *ORDERS_NUMBER_LIMITS.start(),
+            *ORDERS_NUMBER_LIMITS.end()
         );
         Ok(())
     }
