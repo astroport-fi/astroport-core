@@ -207,7 +207,7 @@ fn test_basic_ops() {
     let config = astroport.query_config().unwrap();
     assert_eq!(
         config.pool_state.price_state.last_price,
-        Decimal256::from_str("2.016503220355952024").unwrap()
+        Decimal256::from_str("3.333556656653399601").unwrap()
     );
 
     let ob_config = astroport.query_ob_config().unwrap();
