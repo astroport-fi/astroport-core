@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use cosmwasm_std::{
     ensure, ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper,
-    StdError, StdResult, Uint128, Uint256,
+    StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -16,6 +16,7 @@ use astroport_pcl_common::{
 };
 
 use crate::error::ContractError;
+use crate::orderbook::consts::DUALITY_PRICE_ADJUSTMENT;
 use crate::orderbook::execute::CumulativeTrade;
 use crate::orderbook::state::OrderbookState;
 
@@ -271,7 +272,7 @@ fn price_to_duality_notation(
         Ordering::Greater => price * Decimal256::from_integer(10u128.pow(prec_diff as u32)),
     }
     .atomics()
-    .checked_mul(Uint256::from(10u128).pow(9))?
+    .checked_mul(DUALITY_PRICE_ADJUSTMENT)?
     .to_string();
 
     Ok(price)
