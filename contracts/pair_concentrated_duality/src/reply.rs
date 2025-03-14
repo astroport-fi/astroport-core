@@ -61,9 +61,9 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                     &liquidity.total(),
                 )?;
 
-                let mut pools = liquidity.total_dec(&precisions)?;
                 // Process all filled orders as one cumulative trade; send maker fees; repeg PCL
                 if let Some(cumulative_trade) = maybe_cumulative_trade {
+                    let mut pools = liquidity.total_dec(&precisions)?;
                     let mut balances = pools
                         .iter_mut()
                         .map(|asset| &mut asset.amount)

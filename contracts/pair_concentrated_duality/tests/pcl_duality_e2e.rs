@@ -4,13 +4,15 @@
 
 use std::str::FromStr;
 
-use cosmwasm_std::{coin, Decimal, Uint128};
+use cosmwasm_schema::schemars::_serde_json::from_str;
+use cosmwasm_std::{coin, Decimal, Decimal256, Uint128};
 use itertools::Itertools;
 use neutron_test_tube::{Account, NeutronTestApp};
 
 use astroport::asset::AssetInfoExt;
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::pair_concentrated_duality::OrderbookConfig;
+use astroport_pair_concentrated_duality::orderbook::execute::CumulativeTradeUint;
 use astroport_test::coins::TestCoin;
 use common::{
     astroport_wrapper::AstroportHelper, helper::common_pcl_params, neutron_wrapper::TestAppWrapper,
@@ -86,12 +88,20 @@ fn test_basic_ops() {
         .collect_vec();
     assert_eq!(
         ob_liquidity,
-        [coin(12388_891279, "astro"), coin(24_777_782558, "untrn")]
+        [coin(12500_000000, "astro"), coin(25000_000000, "untrn")]
     );
 
     // Astroport swap ASTRO -> NTRN
     let swap_asset = astroport.assets[&test_coins[1]].with_balance(1_000_000000u128);
     astroport.swap(&user, &swap_asset, None).unwrap();
+
+    assert_eq!(
+        astroport.pool_balances().unwrap().assets,
+        [
+            astroport.assets[&test_coins[1]].with_balance(501_000_000000u128),
+            astroport.assets[&test_coins[0]].with_balance(998_002_684482u128),
+        ]
+    );
 
     let dex_trader = astroport
         .helper
@@ -118,14 +128,36 @@ fn test_basic_ops() {
     assert_eq!(
         astroport.pool_balances().unwrap().assets,
         [
-            astroport.assets[&test_coins[1]].with_balance(500503_744799u128),
-            astroport.assets[&test_coins[0]].with_balance(999002_684480u128),
+            astroport.assets[&test_coins[1]].with_balance(500_504_092039u128),
+            astroport.assets[&test_coins[0]].with_balance(999_002_684480u128),
         ]
     );
 
     // Astroport swap NTRN -> ASTRO
     let swap_asset = astroport.assets[&test_coins[0]].with_balance(1_000_000000u128);
-    astroport.swap_max_spread(&user, &swap_asset).unwrap();
+    let resp = astroport.swap_max_spread(&user, &swap_asset).unwrap();
+
+    // Ensure that the previous order from DEX was processed
+    let cumulative_trade: CumulativeTradeUint = resp
+        .events
+        .iter()
+        .flat_map(|e| e.attributes.iter())
+        .find_map(|attr| {
+            if attr.key == "cumulative_trade" {
+                Some(from_str(&attr.value).unwrap())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    assert_eq!(
+        cumulative_trade,
+        CumulativeTradeUint {
+            base_asset: astroport.assets[&test_coins[0]].with_balance(999_999998u128),
+            quote_asset: astroport.assets[&test_coins[1]].with_balance(495_907961u128)
+        }
+    );
 
     // DEX swap ASTRO -> NTRN
     astroport
@@ -136,14 +168,20 @@ fn test_basic_ops() {
     assert_eq!(
         astroport.pool_balances().unwrap().assets,
         [
-            astroport.assets[&test_coins[1]].with_balance(500504_388512u128),
-            astroport.assets[&test_coins[0]].with_balance(999010_420620u128),
+            astroport.assets[&test_coins[1]].with_balance(500_504_089034u128),
+            astroport.assets[&test_coins[0]].with_balance(999_012_319119u128),
         ]
     );
 
     // Astroport swap ASTRO -> NTRN
     let swap_asset = astroport.assets[&test_coins[1]].with_balance(500_000000u128);
     astroport.swap_max_spread(&user, &swap_asset).unwrap();
+
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price,
+        Decimal256::from_str("1.997288637334109118").unwrap()
+    );
 
     let orders = astroport
         .helper
@@ -165,6 +203,12 @@ fn test_basic_ops() {
         .tranche_key;
 
     astroport.sync_orders(&astroport.helper.signer).unwrap();
+
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price,
+        Decimal256::from_str("2.016503220355952024").unwrap()
+    );
 
     let orders = astroport
         .helper
@@ -311,7 +355,7 @@ fn test_different_decimals() {
         .helper
         .query_balance(&dex_trader.address(), "astro")
         .unwrap();
-    assert_eq!(astro_bal.amount.u128(), 496_206891);
+    assert_eq!(astro_bal.amount.u128(), 495_859685);
 
     let dex_trader2 = astroport
         .helper
@@ -337,7 +381,7 @@ fn test_different_decimals() {
         .helper
         .query_balance(&dex_trader2.address(), "aeth")
         .unwrap();
-    assert_eq!(eth_bal.amount.u128(), 1978_350157256753797143);
+    assert_eq!(eth_bal.amount.u128(), 1977_163562505171343978);
 
     // Ensure that the main LP can withdraw all liquidity
     let lp_token = astroport
@@ -352,4 +396,98 @@ fn test_different_decimals() {
         .list_orders(astroport.pair_addr.as_str())
         .unwrap();
     assert_eq!(orders.limit_orders.len(), 0);
+}
+
+#[test]
+fn test_sync_after_whole_side_consumed() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("untrn")];
+    let orders_number = 5;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        neutron,
+        test_coins.clone(),
+        ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(1u8, 2u8),
+            ..common_pcl_params()
+        },
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(20),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(2_000_000_000000u128, "astro"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(10_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(20_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    let ob_liquidity = astroport
+        .helper
+        .query_total_ob_liquidity(astroport.pair_addr.as_str())
+        .unwrap()
+        .into_iter()
+        .sorted_by(|a, b| a.denom.cmp(&b.denom))
+        .collect_vec();
+    assert_eq!(
+        ob_liquidity,
+        [
+            coin(1_000_000000u128, "astro"),
+            coin(2_000_000000u128, "untrn")
+        ]
+    );
+
+    let swap_simulation = astroport
+        .simulate_swap(astroport.assets[&test_coins[1]].with_balance(2_000_000000u128))
+        .unwrap();
+
+    let dex_trader = astroport
+        .helper
+        .app
+        .init_account(&[coin(10_000_000000u128, "untrn")])
+        .unwrap();
+
+    // Trying to consume all orders on one side
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(2_000_000000u128, "untrn"), "astro", 0.3)
+        .unwrap();
+
+    // Ensure that ASTRO received is less or equal to the simulation
+    let astro_bal = astroport
+        .helper
+        .query_balance(&dex_trader.address(), "astro")
+        .unwrap();
+    assert!(
+        astro_bal.amount <= swap_simulation.return_amount,
+        "Received more ASTRO than in simulation: {} <= {}",
+        astro_bal.amount,
+        swap_simulation.return_amount
+    );
+
+    astroport.sync_orders(&astroport.helper.signer).unwrap();
 }
