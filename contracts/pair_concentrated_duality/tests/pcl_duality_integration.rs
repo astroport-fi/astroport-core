@@ -628,9 +628,7 @@ fn simulate_provide() {
 
     assert_eq!(
         err,
-        StdError::generic_err(
-            "Querier contract error: Generic error: Operation exceeds max spread limit"
-        )
+        StdError::generic_err("Querier contract error: Operation exceeds max spread limit")
     );
 }
 

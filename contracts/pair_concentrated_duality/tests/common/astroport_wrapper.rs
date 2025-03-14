@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, from_json, to_json_binary, Addr, Coin, Decimal};
+use cosmwasm_std::{coin, from_json, to_json_binary, Addr, Coin, Decimal, Uint128};
 use itertools::Itertools;
 use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::{
     MsgExecuteContractResponse, QueryRawContractStateRequest, QueryRawContractStateResponse,
@@ -329,6 +329,7 @@ impl<'a> AstroportHelper<'a> {
                     min_asset_0_order_size: None,
                     min_asset_1_order_size: None,
                     liquidity_percent: None,
+                    avg_price_adjustment: None,
                 },
             )),
             &[],
@@ -374,6 +375,29 @@ impl<'a> AstroportHelper<'a> {
                     offer_asset,
                     ask_asset_info: None,
                 },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn simulate_provide_liquidity(&self, assets: Vec<Asset>) -> AnyResult<Uint128> {
+        self.helper
+            .wasm
+            .query(
+                self.pair_addr.as_str(),
+                &pair::QueryMsg::SimulateProvide {
+                    assets,
+                    slippage_tolerance: None,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn simulate_withdraw_liquidity(&self, lp_amount: Uint128) -> AnyResult<Vec<Asset>> {
+        self.helper
+            .wasm
+            .query(
+                self.pair_addr.as_str(),
+                &pair::QueryMsg::SimulateWithdraw { lp_amount },
             )
             .map_err(Into::into)
     }
