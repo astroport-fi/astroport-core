@@ -149,7 +149,7 @@ impl SpotOrdersFactory {
                 compute_offer_amount(ixs, asset_0_sell_amount, 1, pair_config, amp_gamma, d)?;
 
             let sell_price = if i > 1 {
-                (asset_1_sell_amount - self.orderbook_one_side_liquidity(false))
+                asset_1_sell_amount.checked_sub(self.orderbook_one_side_liquidity(false))?
                     / asset_0_trade_size
             } else {
                 asset_1_sell_amount / asset_0_sell_amount
@@ -160,7 +160,8 @@ impl SpotOrdersFactory {
                 compute_offer_amount(ixs, asset_1_buy_amount, 0, pair_config, amp_gamma, d)?;
 
             let buy_price = if i > 1 {
-                (asset_0_buy_amount - self.orderbook_one_side_liquidity(true)) / asset_1_trade_size
+                asset_0_buy_amount.checked_sub(self.orderbook_one_side_liquidity(true))?
+                    / asset_1_trade_size
             } else {
                 asset_0_buy_amount / asset_1_buy_amount
             };
