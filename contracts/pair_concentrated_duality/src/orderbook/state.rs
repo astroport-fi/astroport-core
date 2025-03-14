@@ -299,24 +299,6 @@ impl OrderbookState {
                 .collect()
         })?;
 
-        // self.orders = DexQuerier::new(&deps.querier)
-        //     .limit_order_tranche_user_all_by_address(
-        //         addr.to_string(),
-        //         Some(PageRequest {
-        //             key: Default::default(),
-        //             offset: 0,
-        //             limit: (self.orders_number * 2) as u64,
-        //             count_total: false,
-        //             reverse: false,
-        //         }),
-        //     )
-        //     .map(|res| {
-        //         res.limit_orders
-        //             .into_iter()
-        //             .map(|order| order.tranche_key)
-        //             .collect()
-        //     })?;
-
         Ok(())
     }
 
