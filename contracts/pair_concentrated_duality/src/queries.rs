@@ -21,8 +21,9 @@ use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
+use crate::orderbook::execute::process_cumulative_trade;
 use crate::orderbook::state::OrderbookState;
-use crate::orderbook::utils::Liquidity;
+use crate::orderbook::utils::{fetch_cumulative_trade, Liquidity};
 use crate::state::CONFIG;
 use crate::utils::{calculate_shares, get_assets_with_precision, pool_info};
 
@@ -50,44 +51,39 @@ use crate::utils::{calculate_shares, get_assets_with_precision, pool_info};
 /// * **QueryMsg::AssetBalanceAt { asset_info, block_height }** Returns the balance of the specified
 /// asset that was in the pool just preceding the moment of the specified block height creation.
 #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
-pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
-        QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
-        QueryMsg::Pool {} => to_json_binary(&query_pool(deps)?),
-        QueryMsg::Share { amount } => to_json_binary(
-            &query_share(deps, amount).map_err(|err| StdError::generic_err(err.to_string()))?,
-        ),
-        QueryMsg::Simulation { offer_asset, .. } => to_json_binary(
-            &query_simulation(deps, env, offer_asset)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
-        QueryMsg::ReverseSimulation { ask_asset, .. } => to_json_binary(
-            &query_reverse_simulation(deps, env, ask_asset)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
-        QueryMsg::CumulativePrices {} => to_json_binary(
-            &query_cumulative_prices(deps, env)
-                .map_err(|err| StdError::generic_err(format!("{err}")))?,
-        ),
+        QueryMsg::Pair {} => Ok(to_json_binary(&CONFIG.load(deps.storage)?.pair_info)?),
+        QueryMsg::Pool {} => Ok(to_json_binary(&query_pool(deps)?)?),
+        QueryMsg::Share { amount } => Ok(to_json_binary(&query_share(deps, env, amount)?)?),
+        QueryMsg::Simulation { offer_asset, .. } => {
+            Ok(to_json_binary(&query_simulation(deps, env, offer_asset)?)?)
+        }
+        QueryMsg::ReverseSimulation { ask_asset, .. } => Ok(to_json_binary(
+            &query_reverse_simulation(deps, env, ask_asset)?,
+        )?),
+        QueryMsg::CumulativePrices {} => Ok(to_json_binary(&query_cumulative_prices(deps, env)?)?),
         QueryMsg::Observe { .. } => unimplemented!(
             "Simple moving average observations has been removed from PCL for Duality"
         ),
-        QueryMsg::Config {} => to_json_binary(&query_config(deps, env)?),
-        QueryMsg::LpPrice {} => to_json_binary(&query_lp_price(deps, env)?),
-        QueryMsg::ComputeD {} => to_json_binary(&query_compute_d(deps, env)?),
+        QueryMsg::Config {} => Ok(to_json_binary(&query_config(deps, env)?)?),
+        QueryMsg::LpPrice {} => Ok(to_json_binary(&query_lp_price(deps, env)?)?),
+        QueryMsg::ComputeD {} => Ok(to_json_binary(&query_compute_d(deps, env)?)?),
         QueryMsg::AssetBalanceAt { .. } => {
             unimplemented!("PCL for Duality doesn't support balances tracking")
         }
         QueryMsg::SimulateProvide {
             assets,
             slippage_tolerance,
-        } => to_json_binary(
-            &query_simulate_provide(deps, env, assets, slippage_tolerance)
-                .map_err(|err| StdError::generic_err(err.to_string()))?,
-        ),
-        QueryMsg::SimulateWithdraw { lp_amount } => to_json_binary(
-            &query_share(deps, lp_amount).map_err(|err| StdError::generic_err(err.to_string()))?,
-        ),
+        } => Ok(to_json_binary(&query_simulate_provide(
+            deps,
+            env,
+            assets,
+            slippage_tolerance,
+        )?)?),
+        QueryMsg::SimulateWithdraw { lp_amount } => {
+            Ok(to_json_binary(&query_share(deps, env, lp_amount)?)?)
+        }
     }
 }
 
@@ -106,15 +102,38 @@ fn query_pool(deps: Deps) -> StdResult<PoolResponse> {
 /// The result is returned in a vector that contains objects of type [`Asset`].
 ///
 /// * **amount** is the amount of LP tokens for which we calculate associated amounts of assets.
-fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
-    let config = CONFIG.load(deps.storage)?;
+fn query_share(deps: Deps, env: Env, amount: Uint128) -> Result<Vec<Asset>, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
+
     let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?;
     let refund_assets =
         get_share_in_assets(&pools, amount.saturating_sub(Uint128::one()), total_share);
@@ -122,7 +141,7 @@ fn query_share(deps: Deps, amount: Uint128) -> StdResult<Vec<Asset>> {
     refund_assets
         .into_iter()
         .map(|asset| {
-            let prec = precisions.get_precision(&asset.info).unwrap();
+            let prec = precisions.get_precision(&asset.info)?;
 
             Ok(Asset {
                 info: asset.info,
@@ -138,7 +157,7 @@ pub fn query_simulation(
     env: Env,
     offer_asset: Asset,
 ) -> Result<SimulationResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;
     let offer_asset_prec = precisions.get_precision(&offer_asset.info)?;
     let offer_asset_dec = offer_asset.to_decimal_asset(offer_asset_prec)?;
@@ -146,9 +165,31 @@ pub fn query_simulation(
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
 
     let (offer_ind, _) = pools
         .iter()
@@ -200,7 +241,7 @@ pub fn query_reverse_simulation(
     env: Env,
     ask_asset: Asset,
 ) -> Result<ReverseSimulationResponse, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;
     let ask_asset_prec = precisions.get_precision(&ask_asset.info)?;
     let ask_asset_dec = ask_asset.to_decimal_asset(ask_asset_prec)?;
@@ -208,9 +249,31 @@ pub fn query_reverse_simulation(
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
 
     let (ask_ind, _) = pools
         .iter()
@@ -240,9 +303,35 @@ fn query_cumulative_prices(
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
+
+    if pools[0].amount.is_zero() || pools[1].amount.is_zero() {
+        return Err(StdError::generic_err("Pools are empty").into());
+    }
 
     let xs = pools.iter().map(|asset| asset.amount).collect_vec();
     let last_real_price = calc_last_prices(&xs, &config, &env)?;
@@ -260,8 +349,8 @@ fn query_cumulative_prices(
 }
 
 /// Compute the current LP token virtual price.
-pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
-    let config = CONFIG.load(deps.storage)?;
+pub fn query_lp_price(deps: Deps, env: Env) -> Result<Decimal256, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
     let total_lp = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
         .to_decimal256(LP_TOKEN_PRECISION)?;
     let ob_state = OrderbookState::load(deps.storage)?;
@@ -270,9 +359,31 @@ pub fn query_lp_price(deps: Deps, env: Env) -> StdResult<Decimal256> {
         let precisions = Precisions::new(deps.storage)?;
 
         let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-        let pools = liquidity
+        let mut pools = liquidity
             .total_dec(&precisions)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+        // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+        if let Some(cumulative_trade) =
+            fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+        {
+            // This non-trivial array of mutable refs allows us to keep balances updated
+            // considering sent maker and share fees
+            let mut balances = pools
+                .iter_mut()
+                .map(|asset| &mut asset.amount)
+                .collect_vec();
+
+            process_cumulative_trade(
+                deps,
+                &env,
+                &cumulative_trade,
+                &mut config,
+                &mut balances,
+                &precisions,
+                None,
+            )?;
+        }
 
         let mut ixs = pools.into_iter().map(|asset| asset.amount).collect_vec();
         ixs[1] *= config.pool_state.price_state.price_scale;
@@ -321,27 +432,49 @@ pub fn query_config(deps: Deps, env: Env) -> StdResult<ConfigResponse> {
 }
 
 /// Compute the current pool D value.
-pub fn query_compute_d(deps: Deps, env: Env) -> StdResult<Decimal256> {
-    let config = CONFIG.load(deps.storage)?;
+pub fn query_compute_d(deps: Deps, env: Env) -> Result<Decimal256, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
     let precisions = Precisions::new(deps.storage)?;
 
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
 
     let mut xs = pools.into_iter().map(|a| a.amount).collect_vec();
 
     if xs[0].is_zero() || xs[1].is_zero() {
-        return Err(StdError::generic_err("Pools are empty"));
+        return Err(StdError::generic_err("Pools are empty").into());
     }
 
     xs[1] *= config.pool_state.price_state.price_scale;
 
     let amp_gamma = config.pool_state.get_amp_gamma(&env);
-    calc_d(&xs, &amp_gamma)
+    Ok(calc_d(&xs, &amp_gamma)?)
 }
 
 pub fn query_simulate_provide(
@@ -360,9 +493,32 @@ pub fn query_simulate_provide(
     let ob_state = OrderbookState::load(deps.storage)?;
 
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
-    let pools = liquidity
+
+    let mut pools = liquidity
         .total_dec(&precisions)
         .map_err(|e| StdError::generic_err(e.to_string()))?;
+
+    // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
+    if let Some(cumulative_trade) =
+        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
+    {
+        // This non-trivial array of mutable refs allows us to keep balances updated
+        // considering sent maker and share fees
+        let mut balances = pools
+            .iter_mut()
+            .map(|asset| &mut asset.amount)
+            .collect_vec();
+
+        process_cumulative_trade(
+            deps,
+            &env,
+            &cumulative_trade,
+            &mut config,
+            &mut balances,
+            &precisions,
+            None,
+        )?;
+    }
 
     let deposits = get_assets_with_precision(deps, &config, &mut assets, &pools, &precisions)?;
 

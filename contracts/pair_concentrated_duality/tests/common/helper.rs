@@ -593,6 +593,7 @@ impl Helper {
                     min_asset_0_order_size: None,
                     min_asset_1_order_size: None,
                     liquidity_percent: None,
+                    avg_price_adjustment: None,
                 },
             )),
             &[],

@@ -69,7 +69,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                         .map(|asset| &mut asset.amount)
                         .collect_vec();
 
-                    process_cumulative_trade(
+                    let response = process_cumulative_trade(
                         deps.as_ref(),
                         &env,
                         &cumulative_trade,
@@ -77,7 +77,10 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                         &mut balances,
                         &precisions,
                         None,
-                    )?
+                    )?;
+                    CONFIG.save(deps.storage, &config)?;
+
+                    response
                 } else {
                     Response::default()
                 }

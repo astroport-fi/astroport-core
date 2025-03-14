@@ -407,6 +407,17 @@
     "UpdateDualityOrderbook": {
       "type": "object",
       "properties": {
+        "avg_price_adjustment": {
+          "description": "Due to possible rounding issues on Duality side we have to set price tolerance, which serves as a worsening factor for the end price from PCL. Should be relatively low something like 1-10 bps.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Decimal"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "enable": {
           "description": "Determines whether the orderbook is enabled",
           "type": [
