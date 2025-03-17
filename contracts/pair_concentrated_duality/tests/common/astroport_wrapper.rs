@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
-use cosmwasm_std::{coin, from_json, to_json_binary, Addr, Coin, Decimal};
+use cosmwasm_std::{coin, from_json, to_json_binary, Addr, Coin, Decimal, Uint128};
 use itertools::Itertools;
 use neutron_test_tube::cosmrs::proto::cosmwasm::wasm::v1::{
     MsgExecuteContractResponse, QueryRawContractStateRequest, QueryRawContractStateResponse,
@@ -238,7 +238,11 @@ impl<'a> AstroportHelper<'a> {
             .execute_contract(sender, self.pair_addr.as_str(), &msg, &funds)
     }
 
-    pub fn withdraw_liquidity(&self, sender: &SigningAccount, lp_tokens: Coin) -> AnyResult<()> {
+    pub fn withdraw_liquidity(
+        &self,
+        sender: &SigningAccount,
+        lp_tokens: Coin,
+    ) -> AnyResult<ExecuteResponse<MsgExecuteContractResponse>> {
         let msg = ExecuteMsg::WithdrawLiquidity {
             assets: vec![],
             min_assets_to_receive: None,
@@ -246,7 +250,6 @@ impl<'a> AstroportHelper<'a> {
 
         self.helper
             .execute_contract(sender, self.pair_addr.as_str(), &msg, &vec![lp_tokens])
-            .map(|_| ())
     }
 
     pub fn swap_max_spread(
@@ -326,6 +329,7 @@ impl<'a> AstroportHelper<'a> {
                     min_asset_0_order_size: None,
                     min_asset_1_order_size: None,
                     liquidity_percent: None,
+                    avg_price_adjustment: None,
                 },
             )),
             &[],
@@ -371,6 +375,29 @@ impl<'a> AstroportHelper<'a> {
                     offer_asset,
                     ask_asset_info: None,
                 },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn simulate_provide_liquidity(&self, assets: Vec<Asset>) -> AnyResult<Uint128> {
+        self.helper
+            .wasm
+            .query(
+                self.pair_addr.as_str(),
+                &pair::QueryMsg::SimulateProvide {
+                    assets,
+                    slippage_tolerance: None,
+                },
+            )
+            .map_err(Into::into)
+    }
+
+    pub fn simulate_withdraw_liquidity(&self, lp_amount: Uint128) -> AnyResult<Vec<Asset>> {
+        self.helper
+            .wasm
+            .query(
+                self.pair_addr.as_str(),
+                &pair::QueryMsg::SimulateWithdraw { lp_amount },
             )
             .map_err(Into::into)
     }

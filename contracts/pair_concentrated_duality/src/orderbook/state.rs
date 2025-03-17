@@ -19,13 +19,16 @@ use astroport::pair_concentrated_duality::{OrderbookConfig, ReplyIds};
 use astroport_pcl_common::state::{Config, Precisions};
 
 use crate::error::ContractError;
-use crate::orderbook::consts::{MAX_LIQUIDITY_PERCENT, MIN_LIQUIDITY_PERCENT, ORDER_SIZE_LIMITS};
+use crate::orderbook::consts::{
+    MAX_AVG_PRICE_ADJ_PERCENT, MAX_LIQUIDITY_PERCENT, MIN_AVG_PRICE_ADJ_PERCENT,
+    MIN_LIQUIDITY_PERCENT, ORDERS_NUMBER_LIMITS,
+};
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
 use crate::orderbook::utils::SpotOrdersFactory;
 
 macro_rules! validate_param {
     ($name:ident, $val:expr, $min:expr, $max:expr) => {
-        if !($min..$max).contains(&$val) {
+        if !($min..=$max).contains(&$val) {
             return Err(StdError::generic_err(format!(
                 "Incorrect orderbook params: must be {min} <= {name} <= {max}, but value is {val}",
                 name = stringify!($name),
@@ -143,6 +146,14 @@ impl OrderbookState {
             self.liquidity_percent = liquidity_percent;
         }
 
+        if let Some(avg_price_adjustment) = update_config.avg_price_adjustment {
+            attrs.push(attr(
+                "avg_price_adjustment",
+                avg_price_adjustment.to_string(),
+            ));
+            self.avg_price_adjustment = avg_price_adjustment;
+        }
+
         self.validate(api)?;
 
         Ok(attrs)
@@ -152,8 +163,8 @@ impl OrderbookState {
         validate_param!(
             orders_number,
             orders_number,
-            *ORDER_SIZE_LIMITS.start(),
-            *ORDER_SIZE_LIMITS.end()
+            *ORDERS_NUMBER_LIMITS.start(),
+            *ORDERS_NUMBER_LIMITS.end()
         );
         Ok(())
     }
@@ -168,9 +179,20 @@ impl OrderbookState {
         Ok(())
     }
 
+    fn validate_avg_price_adjustment(avg_price_adjustment: Decimal) -> StdResult<()> {
+        validate_param!(
+            avg_price_adjustment,
+            avg_price_adjustment,
+            MIN_AVG_PRICE_ADJ_PERCENT,
+            MAX_AVG_PRICE_ADJ_PERCENT
+        );
+        Ok(())
+    }
+
     pub fn validate(&self, api: &dyn Api) -> StdResult<()> {
         Self::validate_orders_number(self.orders_number)?;
         Self::validate_liquidity_percent(self.liquidity_percent)?;
+        Self::validate_avg_price_adjustment(self.avg_price_adjustment)?;
 
         ensure!(
             !self.min_asset_0_order_size.is_zero(),
@@ -276,24 +298,6 @@ impl OrderbookState {
                 .map(|order| order.tranche_key)
                 .collect()
         })?;
-
-        // self.orders = DexQuerier::new(&deps.querier)
-        //     .limit_order_tranche_user_all_by_address(
-        //         addr.to_string(),
-        //         Some(PageRequest {
-        //             key: Default::default(),
-        //             offset: 0,
-        //             limit: (self.orders_number * 2) as u64,
-        //             count_total: false,
-        //             reverse: false,
-        //         }),
-        //     )
-        //     .map(|res| {
-        //         res.limit_orders
-        //             .into_iter()
-        //             .map(|order| order.tranche_key)
-        //             .collect()
-        //     })?;
 
         Ok(())
     }

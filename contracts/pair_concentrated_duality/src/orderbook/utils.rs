@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 
 use cosmwasm_std::{
     ensure, ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper,
-    StdError, StdResult, Uint128, Uint256,
+    StdError, StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -16,6 +16,7 @@ use astroport_pcl_common::{
 };
 
 use crate::error::ContractError;
+use crate::orderbook::consts::DUALITY_PRICE_ADJUSTMENT;
 use crate::orderbook::execute::CumulativeTrade;
 use crate::orderbook::state::OrderbookState;
 
@@ -149,7 +150,7 @@ impl SpotOrdersFactory {
                 compute_offer_amount(ixs, asset_0_sell_amount, 1, pair_config, amp_gamma, d)?;
 
             let sell_price = if i > 1 {
-                (asset_1_sell_amount - self.orderbook_one_side_liquidity(false))
+                asset_1_sell_amount.checked_sub(self.orderbook_one_side_liquidity(false))?
                     / asset_0_trade_size
             } else {
                 asset_1_sell_amount / asset_0_sell_amount
@@ -160,7 +161,8 @@ impl SpotOrdersFactory {
                 compute_offer_amount(ixs, asset_1_buy_amount, 0, pair_config, amp_gamma, d)?;
 
             let buy_price = if i > 1 {
-                (asset_0_buy_amount - self.orderbook_one_side_liquidity(true)) / asset_1_trade_size
+                asset_0_buy_amount.checked_sub(self.orderbook_one_side_liquidity(true))?
+                    / asset_1_trade_size
             } else {
                 asset_0_buy_amount / asset_1_buy_amount
             };
@@ -225,8 +227,8 @@ impl SpotOrdersFactory {
                     .unwrap();
                     let min_average_sell_price = price_to_duality_notation(
                         order.price,
-                        self.precision[1],
                         self.precision[0],
+                        self.precision[1],
                     )
                     .unwrap();
 
@@ -270,7 +272,7 @@ fn price_to_duality_notation(
         Ordering::Greater => price * Decimal256::from_integer(10u128.pow(prec_diff as u32)),
     }
     .atomics()
-    .checked_mul(Uint256::from(10u128).pow(9))?
+    .checked_mul(DUALITY_PRICE_ADJUSTMENT)?
     .to_string();
 
     Ok(price)
