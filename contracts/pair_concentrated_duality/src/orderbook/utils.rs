@@ -1,8 +1,8 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper,
-    StdError, StdResult, Uint128,
+    ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdError,
+    StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -362,38 +362,22 @@ pub fn fetch_cumulative_trade(
 
         let maybe_trade = match last_balances[0].amount.cmp(&new_balances[0].amount) {
             // We sold asset 0 for asset 1
-            Ordering::Less => {
-                ensure!(
-                    last_balances[1].amount > new_balances[1].amount,
-                    StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(0)?,
-                    quote_asset: diff_to_dec_asset(1)?,
-                })
-            }
+            Ordering::Less => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(0)?,
+                quote_asset: diff_to_dec_asset(1)?,
+            }),
             // We bought asset 0 with asset 1
-            Ordering::Greater => {
-                ensure!(
-                    last_balances[1].amount < new_balances[1].amount,
-                    StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(1)?,
-                    quote_asset: diff_to_dec_asset(0)?,
-                })
-            }
+            Ordering::Greater => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(1)?,
+                quote_asset: diff_to_dec_asset(0)?,
+            }),
             // No trade happened
             Ordering::Equal => {
                 ensure_eq!(
                     last_balances[1].amount,
                     new_balances[1].amount,
                     StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
+                        "No trade: Invalid balance difference while calculating cumulative trade"
                     )
                 );
                 None
@@ -498,39 +482,6 @@ mod unit_tests {
         assert_eq!(
             fetch_cumulative_trade(&precisions, &last_balances, &last_balances).unwrap(),
             None
-        );
-
-        // Invalid balance for 2nd asset while 1st asset is the same
-        let new_balances = vec![
-            Asset::native("untrn", 1000_000000u128),
-            Asset::native("astro", 950_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
-        );
-
-        // Invalid balance for 2nd asset while 1st asset increased
-        let new_balances = vec![
-            Asset::native("untrn", 1050_000000u128),
-            Asset::native("astro", 1000_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
-        );
-
-        // Invalid balance for 1st asset while 2nd asset increased
-        let new_balances = vec![
-            Asset::native("untrn", 1001_000000u128),
-            Asset::native("astro", 1050_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
         );
     }
 

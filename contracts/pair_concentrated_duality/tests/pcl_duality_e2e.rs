@@ -742,3 +742,98 @@ fn test_simulation_matches_execution() {
         ]
     );
 }
+
+#[test]
+fn test_cumulative_trade_when_both_sides_filled() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("usdc")];
+    let orders_number = 5;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        neutron,
+        test_coins.clone(),
+        common_pcl_params(),
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(20),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(2_000_000_000000u128, "astro"),
+            coin(2_000_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(10_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(10_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    let dex_trader = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(10_000_000000u128, "untrn"),
+            coin(10_000_000000u128, "astro"),
+            coin(10_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    // DEX swap USDC -> ASTRO
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(1_000_000000u128, "usdc"), "astro", 0.3)
+        .unwrap();
+
+    // DEX swap ASTRO -> USDC
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(700_000000u128, "astro"), "usdc", 0.3)
+        .unwrap();
+
+    // Sync with orderbook
+    let resp = astroport.sync_orders(&astroport.helper.signer).unwrap();
+
+    // Check cumulative trade
+    let cumulative_trade: CumulativeTradeUint = resp
+        .events
+        .iter()
+        .flat_map(|e| e.attributes.iter())
+        .find_map(|attr| {
+            if attr.key == "cumulative_trade" {
+                Some(from_str(&attr.value).unwrap())
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    // Buy pressure on astro was higher than on usdc hence cumulative trade is considered as USDC -> ASTRO
+    assert_eq!(
+        cumulative_trade,
+        CumulativeTradeUint {
+            base_asset: astroport.assets[&test_coins[1]].with_balance(334_652794u128),
+            quote_asset: astroport.assets[&test_coins[0]].with_balance(223_642193u128)
+        }
+    );
+}
