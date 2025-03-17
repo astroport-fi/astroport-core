@@ -83,10 +83,16 @@ pub fn process_cumulative_trade(
 
     let ask_asset_prec = precisions.get_precision(&config.pair_info.asset_infos[ask_ind])?;
     let mut messages = vec![];
-    let mut attrs = vec![(
-        "cumulative_trade",
-        to_json_string(&trade.try_into_uint(precisions)?)?,
-    )];
+    let mut attrs = vec![
+        (
+            "cumulative_trade",
+            to_json_string(&trade.try_into_uint(precisions)?)?,
+        ),
+        (
+            "total_fee_amount",
+            total_fee.to_uint(ask_asset_prec)?.to_string(),
+        ),
+    ];
 
     let mut share_amount = Decimal256::zero();
     // Send the shared fee
