@@ -361,14 +361,6 @@ fn withdraw_liquidity(
     xs[0] -= refund_assets[0].amount;
     xs[1] -= refund_assets[1].amount;
 
-    // decrease XCP
-    xs[1] *= config.pool_state.price_state.price_scale;
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
-    let d = calc_d(&xs, &amp_gamma)?;
-    config.pool_state.price_state.xcp_profit_real =
-        get_xcp(d, config.pool_state.price_state.price_scale)
-            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
-
     let mut pools_u128 = pools
         .iter()
         .map(|asset| {
@@ -403,8 +395,6 @@ fn withdraw_liquidity(
         coin(amount.u128(), &config.pair_info.liquidity_token),
     ));
 
-    CONFIG.save(deps.storage, &config)?;
-
     let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
         &pools_u128,
@@ -412,6 +402,16 @@ fn withdraw_liquidity(
         order_msgs,
     );
     ob_state.save(deps.storage)?;
+
+    // decrease XCP
+    xs[1] *= config.pool_state.price_state.price_scale;
+    let amp_gamma = config.pool_state.get_amp_gamma(&env);
+    let d = calc_d(&xs, &amp_gamma)?;
+    config.pool_state.price_state.xcp_profit_real =
+        get_xcp(d, config.pool_state.price_state.price_scale)
+            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
+
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(response.add_submessages(submsgs).add_attributes([
         attr("action", "withdraw_liquidity"),
