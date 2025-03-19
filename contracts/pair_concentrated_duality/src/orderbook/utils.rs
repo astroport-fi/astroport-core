@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdError,
-    StdResult, Uint128,
+    Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -372,16 +371,7 @@ pub fn fetch_cumulative_trade(
                 quote_asset: diff_to_dec_asset(0)?,
             }),
             // No trade happened
-            Ordering::Equal => {
-                ensure_eq!(
-                    last_balances[1].amount,
-                    new_balances[1].amount,
-                    StdError::generic_err(
-                        "No trade: Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                None
-            }
+            Ordering::Equal => None,
         };
 
         Ok(maybe_trade)
