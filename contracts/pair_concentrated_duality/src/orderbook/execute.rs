@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, Event, MessageInfo, Response,
+    StdResult,
 };
 use itertools::Itertools;
 
@@ -154,7 +155,7 @@ pub fn process_cumulative_trade(
 
     Ok(Response::default()
         .add_messages(messages)
-        .add_attributes(attrs))
+        .add_event(Event::new("cumulative_trade").add_attributes(attrs)))
 }
 
 pub fn sync_pool_with_orderbook(
