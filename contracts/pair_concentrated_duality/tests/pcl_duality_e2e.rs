@@ -837,3 +837,97 @@ fn test_cumulative_trade_when_both_sides_filled() {
         }
     );
 }
+
+#[test]
+fn check_orderbook_after_withdrawal() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("usdc")];
+    let orders_number = 5;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        neutron,
+        test_coins.clone(),
+        ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(1u8, 2u8),
+            ..common_pcl_params()
+        },
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(20),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(20_000_000_000000u128, "astro"),
+            coin(20_000_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(500_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    // Withdraw half
+    let mut lp_coins = astroport
+        .helper
+        .query_balance(&user.address(), &astroport.lp_token)
+        .unwrap();
+    lp_coins.amount = lp_coins.amount.multiply_ratio(1u8, 2u8);
+    astroport.withdraw_liquidity(&user, lp_coins).unwrap();
+
+    let trader = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(10_000_000000u128, "untrn"),
+            coin(10_000_000000u128, "astro"),
+        ])
+        .unwrap();
+
+    // Swap on DEX a little liquidity to make sure the price there is close to the simulation
+    let swap_asset = astroport.assets[&test_coins[0]].with_balance(10_000000u128);
+    let return_amount = astroport
+        .simulate_swap(swap_asset.clone())
+        .unwrap()
+        .return_amount;
+    let price = return_amount.u128() as f64 / 10_000000u128 as f64;
+    // Worsen price by 5%
+    let price = price * 0.95;
+    astroport
+        .helper
+        .swap_on_dex(&trader, swap_asset.as_coin().unwrap(), "usdc", price)
+        .unwrap();
+
+    let usdc_received = astroport
+        .helper
+        .query_balance(&trader.address(), "usdc")
+        .unwrap()
+        .amount
+        .u128() as f64;
+    let usdc_expected = 10_000000.0 * price;
+
+    assert!(
+        (1.0 - usdc_expected / usdc_received).abs() <= 0.05,
+        "Expected: {usdc_expected}, received: {usdc_received}",
+    );
+}
