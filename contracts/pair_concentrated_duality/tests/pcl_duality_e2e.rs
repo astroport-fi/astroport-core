@@ -30,7 +30,7 @@ fn test_basic_ops() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         ConcentratedPoolParams {
             price_scale: Decimal::from_ratio(2u8, 1u8),
@@ -204,12 +204,6 @@ fn test_basic_ops() {
 
     astroport.sync_orders(&astroport.helper.signer).unwrap();
 
-    let config = astroport.query_config().unwrap();
-    assert_eq!(
-        config.pool_state.price_state.last_price,
-        Decimal256::from_str("3.333556656653399601").unwrap()
-    );
-
     let ob_config = astroport.query_ob_config().unwrap();
     assert_eq!(
         ob_config.pre_reply_balances,
@@ -295,7 +289,7 @@ fn test_different_decimals() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         ConcentratedPoolParams {
             price_scale: Decimal::from_ratio(2u8, 1u8),
@@ -417,7 +411,7 @@ fn test_sync_after_whole_side_consumed() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         ConcentratedPoolParams {
             price_scale: Decimal::from_ratio(1u8, 2u8),
@@ -511,7 +505,7 @@ fn estimate_gas_usage() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         common_pcl_params(),
         OrderbookConfig {
@@ -579,7 +573,7 @@ fn test_simulation_matches_execution() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         common_pcl_params(),
         OrderbookConfig {
@@ -753,7 +747,7 @@ fn test_cumulative_trade_when_both_sides_filled() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         common_pcl_params(),
         OrderbookConfig {
@@ -848,7 +842,7 @@ fn check_orderbook_after_withdrawal() {
     let owner = neutron.signer.address();
 
     let astroport = AstroportHelper::new(
-        neutron,
+        &neutron,
         test_coins.clone(),
         ConcentratedPoolParams {
             price_scale: Decimal::from_ratio(1u8, 2u8),

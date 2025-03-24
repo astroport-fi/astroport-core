@@ -54,36 +54,41 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             // as their traces stay on chain until the next contract execution.
             let response = if ob_state.orders.len() < (ob_state.orders_number * 2) as usize {
                 let precisions = Precisions::new(deps.storage)?;
-                // This call fetches possible cumulative trade based on diff between pre-reply and current total balances
-                let maybe_cumulative_trade = fetch_cumulative_trade(
+                // This call fetches cumulative trade based on diff between pre-reply and current total balances.
+                // The fact that current orders number less than expected must guarantee
+                // there is cumulative trade to process.
+                let cumulative_trade = fetch_cumulative_trade(
                     &precisions,
                     &ob_state.pre_reply_balances,
                     &liquidity.total(),
-                )?;
+                )?
+                .ok_or_else(|| StdError::generic_err("PCL pool lost its liquidity in orderbook"))?;
 
                 // Process all filled orders as one cumulative trade; send maker fees; repeg PCL
-                if let Some(cumulative_trade) = maybe_cumulative_trade {
-                    let mut pools = liquidity.total_dec(&precisions)?;
-                    let mut balances = pools
-                        .iter_mut()
-                        .map(|asset| &mut asset.amount)
-                        .collect_vec();
+                let mut pools = liquidity.total_dec(&precisions)?;
+                let mut balances = pools
+                    .iter_mut()
+                    .map(|asset| &mut asset.amount)
+                    .collect_vec();
 
-                    let response = process_cumulative_trade(
-                        deps.as_ref(),
-                        &env,
-                        &cumulative_trade,
-                        &mut config,
-                        &mut balances,
-                        &precisions,
-                        None,
-                    )?;
-                    CONFIG.save(deps.storage, &config)?;
+                // TODO: ideally we should save all PCL profit tracking logic and possible repegging changes.
+                // However, if we did so we would need to cancel all orders and
+                // post new ones. Then, of course, we have to call reply logic again to snapshot new
+                // order tranche keys and process possible filled order.
+                // This might end up in costly and possibly endless recursion.
+                //
+                // For now we only send maker fees and pretend that this
+                // cumulative trade has never happened for PCL.
 
-                    response
-                } else {
-                    Response::default()
-                }
+                process_cumulative_trade(
+                    deps.as_ref(),
+                    &env,
+                    &cumulative_trade,
+                    &mut config,
+                    &mut balances,
+                    &precisions,
+                    None,
+                )?
             } else {
                 Response::default()
             };

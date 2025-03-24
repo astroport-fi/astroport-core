@@ -294,11 +294,11 @@ impl Liquidity {
             contract: config
                 .pair_info
                 .query_pools(&querier, &config.pair_info.contract_addr)?,
-            orderbook: ob_state
-                .query_ob_liquidity(querier, &config.pair_info.contract_addr, force_update)?
-                .into_iter()
-                .map(Asset::from)
-                .collect(),
+            orderbook: ob_state.query_ob_liquidity(
+                querier,
+                &config.pair_info.contract_addr,
+                force_update,
+            )?,
         })
     }
 
