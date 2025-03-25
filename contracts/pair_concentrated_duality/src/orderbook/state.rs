@@ -24,6 +24,7 @@ use crate::orderbook::consts::{
     MIN_LIQUIDITY_PERCENT, ORDERS_NUMBER_LIMITS,
 };
 use crate::orderbook::custom_types::CustomQueryAllLimitOrderTrancheUserByAddressResponse;
+use crate::orderbook::execute::CumulativeTrade;
 use crate::orderbook::utils::SpotOrdersFactory;
 
 macro_rules! validate_param {
@@ -61,6 +62,8 @@ pub struct OrderbookState {
     pub enabled: bool,
     /// Snapshot of total balances before entering reply
     pub pre_reply_balances: Vec<Asset>,
+    /// In the case of some orders were auto-executed, we keep cumulative trade for delayed processing.
+    pub delayed_cumulative_trade: Option<CumulativeTrade>,
     /// Due to possible rounding issues on Duality side we have to set price tolerance,
     /// which serves as a worsening factor for the end price from PCL.
     /// Should be relatively low something like 1-10 bps.
@@ -81,6 +84,7 @@ impl OrderbookState {
             enabled: false,
             executor: orderbook_config.executor.map(Addr::unchecked),
             pre_reply_balances: vec![],
+            delayed_cumulative_trade: None,
             avg_price_adjustment: orderbook_config.avg_price_adjustment,
         };
         config.validate(api)?;
@@ -405,6 +409,7 @@ impl OrderbookState {
         }
 
         self.pre_reply_balances = total_liquidity.to_vec();
+        self.delayed_cumulative_trade = None;
 
         submsgs
     }

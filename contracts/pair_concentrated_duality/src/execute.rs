@@ -167,8 +167,12 @@ pub fn provide_liquidity(
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     // This call fetches possible cumulative trade
-    let maybe_cumulative_trade =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+    let maybe_cumulative_trade = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )?;
 
     let mut pools = liquidity.total_dec(&precisions)?;
 
@@ -316,8 +320,12 @@ fn withdraw_liquidity(
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     // This call fetches possible cumulative trade
-    let maybe_cumulative_trade =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+    let maybe_cumulative_trade = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )?;
 
     let mut pools = liquidity.total_dec(&precisions)?;
 
@@ -452,8 +460,12 @@ fn swap(
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
     // This call fetches possible cumulative trade
-    let maybe_cumulative_trade =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?;
+    let maybe_cumulative_trade = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )?;
 
     let mut pools = liquidity.total_dec(&precisions)?;
 

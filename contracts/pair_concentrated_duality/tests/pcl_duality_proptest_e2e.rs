@@ -155,10 +155,10 @@ fn simulate_case(events: Vec<Event>, neutron: &TestAppWrapper) {
 
                 let amount = coin_in_balance * Decimal::from_ratio(percent_bps, 10_000u16);
 
-                println!(
-                    "AMM swap {}",
-                    astroport.assets[coin_in].with_balance(amount)
-                );
+                // println!(
+                //     "AMM swap {}",
+                //     astroport.assets[coin_in].with_balance(amount)
+                // );
 
                 if let Err(err) = astroport
                     .swap_max_spread(&user, &astroport.assets[coin_in].with_balance(amount))
@@ -228,15 +228,15 @@ fn simulate_case(events: Vec<Event>, neutron: &TestAppWrapper) {
                     (Decimal::one() - price_divergence) * last_price
                 };
 
-                println!("DEX swap {} with price: {price}", &swap_asset);
-
-                println!(
-                    "OB liquidity before DEX swap: {:?}",
-                    astroport
-                        .helper
-                        .query_total_ob_liquidity(astroport.pair_addr.as_str())
-                        .unwrap()
-                );
+                // println!("DEX swap {} with price: {price}", &swap_asset);
+                //
+                // println!(
+                //     "OB liquidity before DEX swap: {:?}",
+                //     astroport
+                //         .helper
+                //         .query_total_ob_liquidity(astroport.pair_addr.as_str())
+                //         .unwrap()
+                // );
 
                 if let Err(err) = astroport.helper.limit_order(
                     &user,
