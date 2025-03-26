@@ -277,7 +277,7 @@ impl OrderbookState {
                 pagination: Some(PageRequest {
                     key: Default::default(),
                     offset: 0,
-                    limit: (self.orders_number * 2) as u64,
+                    limit: (ORDERS_NUMBER_LIMITS.end() * 2) as u64,
                     count_total: false,
                     reverse: false,
                 }),
