@@ -51,3 +51,4 @@ astroport-factory = { path = "../factory", version = "1.8", features = ["library
 astroport-pair-concentrated = { path = "../pair_concentrated", version = "4.1.0", features = ["library"] }
 anyhow = "1.0"
 derivative = "2.2"
+proptest = "1.6"

@@ -1,14 +1,13 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    ensure, ensure_eq, Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper,
-    StdError, StdResult, Uint128,
+    Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAsset};
-use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
     calc_d, calc_y,
@@ -295,11 +294,11 @@ impl Liquidity {
             contract: config
                 .pair_info
                 .query_pools(&querier, &config.pair_info.contract_addr)?,
-            orderbook: ob_state
-                .query_ob_liquidity(querier, &config.pair_info.contract_addr, force_update)?
-                .into_iter()
-                .map(Asset::from)
-                .collect(),
+            orderbook: ob_state.query_ob_liquidity(
+                querier,
+                &config.pair_info.contract_addr,
+                force_update,
+            )?,
         })
     }
 
@@ -336,16 +335,33 @@ impl Liquidity {
 }
 
 /// Checking whether there is a difference between the last and current balances.
+/// Function also considers possible delayed cumulative trade.
 /// Return CumulativeTrade object which is the difference between last and current balances.
 pub fn fetch_cumulative_trade(
     precisions: &Precisions,
     last_balances: &[Asset],
     new_balances: &[Asset],
+    delayed_cumulative_trade: Option<&CumulativeTrade>,
 ) -> Result<Option<CumulativeTrade>, ContractError> {
     let mut new_balances = new_balances.to_vec();
     if !new_balances.is_empty() {
         if last_balances[0].info != new_balances[0].info {
             new_balances.swap(0, 1);
+        }
+
+        let mut last_balances = last_balances.to_vec();
+
+        if let Some(trade) = delayed_cumulative_trade {
+            let base_prec = precisions.get_precision(&trade.base_asset.info)?;
+            let quote_prec = precisions.get_precision(&trade.quote_asset.info)?;
+
+            if last_balances[0].info == trade.base_asset.info {
+                new_balances[0].amount += trade.base_asset.amount.to_uint(base_prec)?;
+                last_balances[1].amount += trade.quote_asset.amount.to_uint(quote_prec)?;
+            } else {
+                new_balances[1].amount += trade.base_asset.amount.to_uint(base_prec)?;
+                last_balances[0].amount += trade.quote_asset.amount.to_uint(quote_prec)?;
+            }
         }
 
         let bal_diffs = last_balances
@@ -362,42 +378,17 @@ pub fn fetch_cumulative_trade(
 
         let maybe_trade = match last_balances[0].amount.cmp(&new_balances[0].amount) {
             // We sold asset 0 for asset 1
-            Ordering::Less => {
-                ensure!(
-                    last_balances[1].amount > new_balances[1].amount,
-                    StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(0)?,
-                    quote_asset: diff_to_dec_asset(1)?,
-                })
-            }
+            Ordering::Less => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(0)?,
+                quote_asset: diff_to_dec_asset(1)?,
+            }),
             // We bought asset 0 with asset 1
-            Ordering::Greater => {
-                ensure!(
-                    last_balances[1].amount < new_balances[1].amount,
-                    StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                Some(CumulativeTrade {
-                    base_asset: diff_to_dec_asset(1)?,
-                    quote_asset: diff_to_dec_asset(0)?,
-                })
-            }
+            Ordering::Greater => Some(CumulativeTrade {
+                base_asset: diff_to_dec_asset(1)?,
+                quote_asset: diff_to_dec_asset(0)?,
+            }),
             // No trade happened
-            Ordering::Equal => {
-                ensure_eq!(
-                    last_balances[1].amount,
-                    new_balances[1].amount,
-                    StdError::generic_err(
-                        "Invalid balance difference while calculating cumulative trade"
-                    )
-                );
-                None
-            }
+            Ordering::Equal => None,
         };
 
         Ok(maybe_trade)
@@ -467,7 +458,7 @@ mod unit_tests {
             Asset::native("astro", 1050_00000000u128),
         ];
 
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances)
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances, None)
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -483,7 +474,7 @@ mod unit_tests {
             Asset::native("untrn", 1050_000000u128),
             Asset::native("astro", 950_00000000u128),
         ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances)
+        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances, None)
             .unwrap()
             .unwrap();
         assert_eq!(
@@ -494,43 +485,32 @@ mod unit_tests {
             }
         );
 
+        // Trade with delayed cumulative trade
+        let delayed_trade = CumulativeTrade {
+            base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+            quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+        };
+
+        let trade = fetch_cumulative_trade(
+            &precisions,
+            &last_balances,
+            &new_balances,
+            Some(&delayed_trade),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            trade,
+            CumulativeTrade {
+                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(100.0)),
+                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(100.0)),
+            }
+        );
+
         // No trade
         assert_eq!(
-            fetch_cumulative_trade(&precisions, &last_balances, &last_balances).unwrap(),
+            fetch_cumulative_trade(&precisions, &last_balances, &last_balances, None).unwrap(),
             None
-        );
-
-        // Invalid balance for 2nd asset while 1st asset is the same
-        let new_balances = vec![
-            Asset::native("untrn", 1000_000000u128),
-            Asset::native("astro", 950_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
-        );
-
-        // Invalid balance for 2nd asset while 1st asset increased
-        let new_balances = vec![
-            Asset::native("untrn", 1050_000000u128),
-            Asset::native("astro", 1000_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
-        );
-
-        // Invalid balance for 1st asset while 2nd asset increased
-        let new_balances = vec![
-            Asset::native("untrn", 1001_000000u128),
-            Asset::native("astro", 1050_00000000u128),
-        ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances).unwrap_err();
-        assert_eq!(
-            trade.to_string(),
-            "Generic error: Invalid balance difference while calculating cumulative trade"
         );
     }
 

@@ -1,6 +1,7 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
+    ensure_eq, to_json_string, Decimal256, Deps, DepsMut, Env, Event, MessageInfo, Response,
+    StdResult,
 };
 use itertools::Itertools;
 
@@ -83,10 +84,16 @@ pub fn process_cumulative_trade(
 
     let ask_asset_prec = precisions.get_precision(&config.pair_info.asset_infos[ask_ind])?;
     let mut messages = vec![];
-    let mut attrs = vec![(
-        "cumulative_trade",
-        to_json_string(&trade.try_into_uint(precisions)?)?,
-    )];
+    let mut attrs = vec![
+        (
+            "cumulative_trade",
+            to_json_string(&trade.try_into_uint(precisions)?)?,
+        ),
+        (
+            "total_fee_amount",
+            total_fee.to_uint(ask_asset_prec)?.to_string(),
+        ),
+    ];
 
     let mut share_amount = Decimal256::zero();
     // Send the shared fee
@@ -148,7 +155,7 @@ pub fn process_cumulative_trade(
 
     Ok(Response::default()
         .add_messages(messages)
-        .add_attributes(attrs))
+        .add_event(Event::new("cumulative_trade").add_attributes(attrs)))
 }
 
 pub fn sync_pool_with_orderbook(
@@ -166,9 +173,12 @@ pub fn sync_pool_with_orderbook(
     let mut config = CONFIG.load(deps.storage)?;
     let liquidity = Liquidity::new(deps.querier, &config, &ob_state, false)?;
 
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         let mut pools = liquidity.total_dec(&precisions)?;
 
         let xs = pools.iter().map(|a| a.amount).collect_vec();

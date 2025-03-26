@@ -113,9 +113,12 @@ fn query_share(deps: Deps, env: Env, amount: Uint128) -> Result<Vec<Asset>, Cont
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
@@ -170,9 +173,12 @@ pub fn query_simulation(
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
@@ -254,9 +260,12 @@ pub fn query_reverse_simulation(
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
@@ -308,9 +317,12 @@ fn query_cumulative_prices(
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
@@ -364,9 +376,12 @@ pub fn query_lp_price(deps: Deps, env: Env) -> Result<Decimal256, ContractError>
             .map_err(|e| StdError::generic_err(e.to_string()))?;
 
         // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-        if let Some(cumulative_trade) =
-            fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-        {
+        if let Some(cumulative_trade) = fetch_cumulative_trade(
+            &precisions,
+            &ob_state.last_balances,
+            &liquidity.orderbook,
+            ob_state.delayed_cumulative_trade.as_ref(),
+        )? {
             // This non-trivial array of mutable refs allows us to keep balances updated
             // considering sent maker and share fees
             let mut balances = pools
@@ -444,9 +459,12 @@ pub fn query_compute_d(deps: Deps, env: Env) -> Result<Decimal256, ContractError
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
@@ -499,9 +517,12 @@ pub fn query_simulate_provide(
         .map_err(|e| StdError::generic_err(e.to_string()))?;
 
     // Process all filled orders as one cumulative trade; subtract maker fees; repeg PCL
-    if let Some(cumulative_trade) =
-        fetch_cumulative_trade(&precisions, &ob_state.last_balances, &liquidity.orderbook)?
-    {
+    if let Some(cumulative_trade) = fetch_cumulative_trade(
+        &precisions,
+        &ob_state.last_balances,
+        &liquidity.orderbook,
+        ob_state.delayed_cumulative_trade.as_ref(),
+    )? {
         // This non-trivial array of mutable refs allows us to keep balances updated
         // considering sent maker and share fees
         let mut balances = pools
