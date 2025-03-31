@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdResult, Uint128,
+    Addr, Coin, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdError,
+    StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAsset};
-use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
     calc_d, calc_y,
@@ -16,8 +16,7 @@ use astroport_pcl_common::{
 
 use crate::error::ContractError;
 use crate::orderbook::consts::DUALITY_PRICE_ADJUSTMENT;
-use crate::orderbook::execute::CumulativeTrade;
-use crate::orderbook::state::OrderbookState;
+use crate::orderbook::state::{OrderState, OrderbookState};
 
 pub fn compute_offer_amount(
     ixs: &[Decimal256],
@@ -178,6 +177,42 @@ impl SpotOrdersFactory {
         Ok(true)
     }
 
+    pub fn total_exported_liquidity(&self) -> StdResult<Vec<Asset>> {
+        let mut liquidity = self
+            .orders
+            .iter()
+            .map(|order| {
+                let asset = if order.is_buy {
+                    Asset::native(
+                        &self.denoms[1],
+                        Uint128::try_from((order.amount * self.multiplier[1]).to_uint_floor())?,
+                    )
+                } else {
+                    Asset::native(
+                        &self.denoms[0],
+                        Uint128::try_from((order.amount * self.multiplier[0]).to_uint_floor())?,
+                    )
+                };
+
+                Ok(asset)
+            })
+            .collect::<StdResult<Vec<_>>>()?
+            .into_iter()
+            .into_group_map_by(|asset| asset.info.clone())
+            .into_iter()
+            .map(|(info, assets)| {
+                let sum = assets.iter().fold(Uint128::zero(), |acc, a| acc + a.amount);
+                info.with_balance(sum)
+            })
+            .collect_vec();
+
+        if liquidity[0].info.to_string() != self.denoms[0] {
+            liquidity.swap(0, 1);
+        }
+
+        Ok(liquidity)
+    }
+
     pub fn collect_spot_orders(self, sender: &Addr) -> Vec<CosmosMsg> {
         self.orders
             .into_iter()
@@ -287,7 +322,7 @@ impl Liquidity {
     pub fn new(
         querier: QuerierWrapper,
         config: &Config,
-        ob_state: &OrderbookState,
+        ob_state: &mut OrderbookState,
         force_update: bool,
     ) -> StdResult<Self> {
         Ok(Self {
@@ -335,71 +370,55 @@ impl Liquidity {
 }
 
 /// Checking whether there is a difference between the last and current balances.
-/// Function also considers possible delayed cumulative trade.
-/// Return CumulativeTrade object which is the difference between last and current balances.
-pub fn fetch_cumulative_trade(
-    precisions: &Precisions,
+/// Return OrderState object which is the difference between last and current balances.
+pub fn fetch_autoexecuted_trade(
     last_balances: &[Asset],
     new_balances: &[Asset],
-    delayed_cumulative_trade: Option<&CumulativeTrade>,
-) -> Result<Option<CumulativeTrade>, ContractError> {
+) -> StdResult<OrderState> {
     let mut new_balances = new_balances.to_vec();
-    if !new_balances.is_empty() {
-        if last_balances[0].info != new_balances[0].info {
-            new_balances.swap(0, 1);
-        }
-
-        let mut last_balances = last_balances.to_vec();
-
-        if let Some(trade) = delayed_cumulative_trade {
-            let base_prec = precisions.get_precision(&trade.base_asset.info)?;
-            let quote_prec = precisions.get_precision(&trade.quote_asset.info)?;
-
-            if last_balances[0].info == trade.base_asset.info {
-                new_balances[0].amount += trade.base_asset.amount.to_uint(base_prec)?;
-                last_balances[1].amount += trade.quote_asset.amount.to_uint(quote_prec)?;
-            } else {
-                new_balances[1].amount += trade.base_asset.amount.to_uint(base_prec)?;
-                last_balances[0].amount += trade.quote_asset.amount.to_uint(quote_prec)?;
-            }
-        }
-
-        let bal_diffs = last_balances
-            .iter()
-            .zip(new_balances.iter())
-            .map(|(a, b)| b.amount.abs_diff(a.amount))
-            .collect_vec();
-
-        let diff_to_dec_asset = |ind: usize| -> Result<_, ContractError> {
-            let asset_info = &new_balances[ind].info;
-            let precision = precisions.get_precision(asset_info)?;
-            Ok(asset_info.with_dec_balance(bal_diffs[ind].to_decimal256(precision)?))
-        };
-
-        let maybe_trade = match last_balances[0].amount.cmp(&new_balances[0].amount) {
-            // We sold asset 0 for asset 1
-            Ordering::Less => Some(CumulativeTrade {
-                base_asset: diff_to_dec_asset(0)?,
-                quote_asset: diff_to_dec_asset(1)?,
-            }),
-            // We bought asset 0 with asset 1
-            Ordering::Greater => Some(CumulativeTrade {
-                base_asset: diff_to_dec_asset(1)?,
-                quote_asset: diff_to_dec_asset(0)?,
-            }),
-            // No trade happened
-            Ordering::Equal => None,
-        };
-
-        Ok(maybe_trade)
-    } else {
-        Ok(None)
+    if last_balances[0].info != new_balances[0].info {
+        new_balances.swap(0, 1);
     }
+
+    let trade = if last_balances[0].amount < new_balances[0].amount {
+        // We sold asset 1 for asset 0
+        Ok(OrderState {
+            taker_coin_out: Coin {
+                denom: last_balances[0].info.to_string(),
+                amount: new_balances[0].amount - last_balances[0].amount,
+            },
+            maker_coin_out: Coin {
+                denom: last_balances[1].info.to_string(),
+                // auto-executed order guarantees that maker side is fully consumed
+                amount: Uint128::zero(),
+            },
+        })
+    } else if last_balances[1].amount < new_balances[1].amount {
+        // We sold asset 0 for asset 1
+        Ok(OrderState {
+            taker_coin_out: Coin {
+                denom: last_balances[1].info.to_string(),
+                amount: new_balances[1].amount - last_balances[1].amount,
+            },
+            maker_coin_out: Coin {
+                denom: last_balances[0].info.to_string(),
+                // auto-executed order guarantees that maker side is fully consumed
+                amount: Uint128::zero(),
+            },
+        })
+    } else {
+        // No trade happened
+        Err(StdError::generic_err(
+            "PCL pool lost its liquidity in orderbook",
+        ))
+    }?;
+
+    Ok(trade)
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use cosmwasm_std::testing::MockStorage;
+    use cosmwasm_std::coin;
 
     use astroport::asset::PairInfo;
     use astroport::factory::PairType;
@@ -437,80 +456,43 @@ mod unit_tests {
     }
 
     #[test]
-    fn test_cumulative_trade() {
-        let mut storage = MockStorage::new();
-        for (asset_info, precision) in [
-            (AssetInfo::native("untrn"), 6),
-            (AssetInfo::native("astro"), 8),
-        ] {
-            Precisions::PRECISIONS
-                .save(&mut storage, asset_info.to_string(), &precision)
-                .unwrap();
-        }
-
-        let precisions = Precisions::new(&storage).unwrap();
+    fn test_autoexecuted_trade() {
         let last_balances = vec![
-            Asset::native("astro", 1000_00000000u128),
+            Asset::native("astro", 1000_000000u128),
             Asset::native("untrn", 1000_000000u128),
         ];
         let new_balances = vec![
-            Asset::native("untrn", 950_000000u128),
-            Asset::native("astro", 1050_00000000u128),
+            Asset::native("untrn", 1000_000000u128),
+            Asset::native("astro", 1050_000000u128),
         ];
 
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances, None)
-            .unwrap()
-            .unwrap();
+        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances).unwrap();
         assert_eq!(
             trade,
-            CumulativeTrade {
-                base_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
+            OrderState {
+                maker_coin_out: coin(0, "untrn"),
+                taker_coin_out: coin(50_000000, "astro"),
             }
         );
 
         // Trade in opposite direction
         let new_balances = vec![
             Asset::native("untrn", 1050_000000u128),
-            Asset::native("astro", 950_00000000u128),
+            Asset::native("astro", 1000_000000u128),
         ];
-        let trade = fetch_cumulative_trade(&precisions, &last_balances, &new_balances, None)
-            .unwrap()
-            .unwrap();
+        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances).unwrap();
         assert_eq!(
             trade,
-            CumulativeTrade {
-                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
-                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
+            OrderState {
+                maker_coin_out: coin(0, "astro"),
+                taker_coin_out: coin(50_000000, "untrn"),
             }
         );
 
-        // Trade with delayed cumulative trade
-        let delayed_trade = CumulativeTrade {
-            base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(50.0)),
-            quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(50.0)),
-        };
-
-        let trade = fetch_cumulative_trade(
-            &precisions,
-            &last_balances,
-            &new_balances,
-            Some(&delayed_trade),
-        )
-        .unwrap()
-        .unwrap();
+        let err = fetch_autoexecuted_trade(&last_balances, &last_balances).unwrap_err();
         assert_eq!(
-            trade,
-            CumulativeTrade {
-                base_asset: AssetInfo::native("untrn").with_dec_balance(f64_to_dec(100.0)),
-                quote_asset: AssetInfo::native("astro").with_dec_balance(f64_to_dec(100.0)),
-            }
-        );
-
-        // No trade
-        assert_eq!(
-            fetch_cumulative_trade(&precisions, &last_balances, &last_balances, None).unwrap(),
-            None
+            err,
+            StdError::generic_err("PCL pool lost its liquidity in orderbook")
         );
     }
 

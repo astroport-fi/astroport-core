@@ -168,7 +168,7 @@ fn test_basic_ops() {
     assert_eq!(
         astroport.pool_balances().unwrap().assets,
         [
-            astroport.assets[&test_coins[1]].with_balance(500_504_089034u128),
+            astroport.assets[&test_coins[1]].with_balance(500_503_619978u128),
             astroport.assets[&test_coins[0]].with_balance(999_012_319119u128),
         ]
     );
@@ -180,7 +180,7 @@ fn test_basic_ops() {
     let config = astroport.query_config().unwrap();
     assert_eq!(
         config.pool_state.price_state.last_price,
-        Decimal256::from_str("1.997288637334109118").unwrap()
+        Decimal256::from_str("1.997288637250696996").unwrap()
     );
 
     let orders = astroport
@@ -206,10 +206,10 @@ fn test_basic_ops() {
 
     let ob_config = astroport.query_ob_config().unwrap();
     assert_eq!(
-        ob_config.pre_reply_balances,
+        ob_config.pre_reply_contract_balances,
         [
-            astroport.assets[&test_coins[0]].with_balance(1_023_269_292243u128),
-            astroport.assets[&test_coins[1]].with_balance(488_454_377797u128),
+            astroport.assets[&test_coins[0]].with_balance(997_686_623511u128),
+            astroport.assets[&test_coins[1]].with_balance(476_239_089325u128),
         ]
     );
 
@@ -680,8 +680,8 @@ fn test_simulation_matches_execution() {
     // Because PCL repeg algo is time-dependent, the swap amount can be slightly different.
     // Query simulation uses old block time while swap pushes block production on test-tube hence
     // incrementing block time by 3 seconds
-    assert_eq!(astro_swap_amount.u128(), 73_687_885);
-    assert_eq!(simulation.return_amount.u128(), 73_687_825);
+    assert_eq!(astro_swap_amount.u128(), 73_687816);
+    assert_eq!(simulation.return_amount.u128(), 73_687755);
 
     // Confirm withdraw simulation matches execution result
 
@@ -808,27 +808,32 @@ fn test_cumulative_trade_when_both_sides_filled() {
     // Sync with orderbook
     let resp = astroport.sync_orders(&astroport.helper.signer).unwrap();
 
-    // Check cumulative trade
-    let cumulative_trade: CumulativeTradeUint = resp
+    // Check cumulative trades
+    let cumulative_trades: Vec<CumulativeTradeUint> = resp
         .events
         .iter()
         .flat_map(|e| e.attributes.iter())
-        .find_map(|attr| {
+        .filter_map(|attr| {
             if attr.key == "cumulative_trade" {
                 Some(from_str(&attr.value).unwrap())
             } else {
                 None
             }
         })
-        .unwrap();
+        .collect();
 
-    // Buy pressure on astro was higher than on usdc hence cumulative trade is considered as USDC -> ASTRO
     assert_eq!(
-        cumulative_trade,
-        CumulativeTradeUint {
-            base_asset: astroport.assets[&test_coins[1]].with_balance(334_652794u128),
-            quote_asset: astroport.assets[&test_coins[0]].with_balance(223_642193u128)
-        }
+        cumulative_trades,
+        [
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[0]].with_balance(699_999996u128),
+                quote_asset: astroport.assets[&test_coins[1]].with_balance(665_347201u128)
+            },
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[1]].with_balance(999_999995u128),
+                quote_asset: astroport.assets[&test_coins[0]].with_balance(923_642189u128)
+            }
+        ]
     );
 }
 
