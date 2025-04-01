@@ -82,9 +82,9 @@ pub fn process_cumulative_trades(
     };
 
     let mut messages = vec![];
-    let mut attrs = vec![];
+    let mut events = vec![];
 
-    for trade in trades {
+    for (i, trade) in trades.iter().enumerate() {
         let offer_ind = config
             .pair_info
             .asset_infos
@@ -97,7 +97,7 @@ pub fn process_cumulative_trades(
         // Using max possible fee because this was the fee used while posting orders
         let total_fee = Decimal256::from(config.pool_params.out_fee) * trade.quote_asset.amount;
 
-        attrs.extend([
+        let mut attrs = vec![
             (
                 "cumulative_trade",
                 to_json_string(&trade.try_into_uint(precisions)?)?,
@@ -106,7 +106,7 @@ pub fn process_cumulative_trades(
                 "total_fee_amount",
                 total_fee.to_uint(ask_asset_prec)?.to_string(),
             ),
-        ]);
+        ];
 
         let mut share_amount = Decimal256::zero();
         // Send the shared fee
@@ -135,6 +135,8 @@ pub fn process_cumulative_trades(
                 messages.push(fee.into_msg(fee_address)?);
             }
         }
+
+        events.push(Event::new(format!("cumulative_trade_{i}")).add_attributes(attrs))
     }
 
     // Considering only base_asset in the end calculations
@@ -187,7 +189,7 @@ pub fn process_cumulative_trades(
 
     Ok(Response::default()
         .add_messages(messages)
-        .add_event(Event::new("cumulative_trade").add_attributes(attrs)))
+        .add_events(events))
 }
 
 pub fn sync_pool_with_orderbook(
