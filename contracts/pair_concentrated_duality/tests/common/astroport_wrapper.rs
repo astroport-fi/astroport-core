@@ -54,7 +54,7 @@ pub fn init_native_coins(test_coins: &[TestCoin]) -> Vec<Coin> {
 }
 
 pub struct AstroportHelper<'a> {
-    pub helper: TestAppWrapper<'a>,
+    pub helper: &'a TestAppWrapper<'a>,
     pub owner: SigningAccount,
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
@@ -67,7 +67,7 @@ pub struct AstroportHelper<'a> {
 
 impl<'a> AstroportHelper<'a> {
     pub fn new(
-        helper: TestAppWrapper<'a>,
+        helper: &'a TestAppWrapper<'a>,
         test_coins: Vec<TestCoin>,
         params: ConcentratedPoolParams,
         orderbook_config: OrderbookConfig,

@@ -1,0 +1,18 @@
+vec! [
+        Provide {
+            coin_0_amount: 1000,
+            coin_1_price_scale_divergence: 0,
+        },
+        DexSwap {
+            coin_in_index: 0,
+            percent_bps: 1112,
+            price_divergence_bps: -1484,
+            sync_pool_after: false,
+        },
+        DexSwap {
+            coin_in_index: 1,
+            percent_bps: 1026,
+            price_divergence_bps: -1440,
+            sync_pool_after: true,
+        }
+    ]

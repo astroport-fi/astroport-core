@@ -22,7 +22,7 @@ use crate::orderbook::utils::Liquidity;
 pub(crate) fn pool_info(
     querier: QuerierWrapper,
     config: &Config,
-    ob_state: &OrderbookState,
+    ob_state: &mut OrderbookState,
 ) -> StdResult<(Vec<Asset>, Uint128)> {
     let liquidity = Liquidity::new(querier, config, ob_state, false)?;
     let balances = liquidity.total();
