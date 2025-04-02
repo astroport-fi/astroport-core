@@ -35,7 +35,7 @@ itertools = { workspace = true }
 cw-utils = { workspace = true }
 cw2 = { workspace = true }
 
-astroport = { path = "../../packages/astroport", version = "5.8", features = ["duality"] }
+astroport = { path = "../../packages/astroport", version = "5.9", features = ["duality"] }
 astroport-pcl-common = { path = "../../packages/astroport_pcl_common", version = "2" }
 
 serde = { version = "1.0.203", features = ["derive"] }

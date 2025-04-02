@@ -1065,6 +1065,17 @@ pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response,
                     },
                 )?;
             }
+            "1.6.0" => {
+                SEIZE_CONFIG.save(
+                    deps.storage,
+                    &SeizeConfig {
+                        // set to invalid address initially
+                        // governance must update this explicitly
+                        receiver: Addr::unchecked(""),
+                        seizable_assets: vec![],
+                    },
+                )?;
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

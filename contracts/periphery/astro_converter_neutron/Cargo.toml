@@ -1,6 +1,6 @@
 [package]
 name = "astro-token-converter-neutron"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "ASTRO.cw20 to tokenfactory ASTRO converter on Neutron chain"
