@@ -182,6 +182,7 @@ where
 }
 
 /// This structure holds parameters that describe the fee structure for a pool.
+#[derive(Clone)]
 pub struct FeeInfo {
     /// The fee address
     pub fee_address: Option<Addr>,

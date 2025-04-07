@@ -367,6 +367,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 
@@ -905,7 +906,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "4.0.0" | "4.0.1" => {}
+            "4.0.0" | "4.0.1" | "4.1.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

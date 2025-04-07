@@ -279,6 +279,7 @@ pub fn execute(
             assets,
             min_assets_to_receive,
         } => withdraw_liquidity(deps, env, info, assets, min_assets_to_receive),
+        _ => Err(ContractError::NotSupported {}),
     }
 }
 

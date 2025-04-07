@@ -33,6 +33,8 @@ mod mock_querier;
 
 pub mod astro_converter;
 pub mod incentives;
+#[cfg(feature = "duality")]
+pub mod pair_concentrated_duality;
 pub mod pair_xastro;
 #[cfg(test)]
 mod testing;

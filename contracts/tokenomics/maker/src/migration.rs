@@ -35,6 +35,7 @@ pub(crate) fn migrate_from_v120_plus(deps: DepsMut, msg: MigrateMsg) -> Result<(
         owner: cfg_v130.owner,
         factory_contract: cfg_v130.factory_contract,
         staking_contract: cfg_v130.staking_contract,
+        dev_fund_conf: None,
         default_bridge: cfg_v130.default_bridge,
         governance_contract: cfg_v130.governance_contract,
         governance_percent: cfg_v130.governance_percent,

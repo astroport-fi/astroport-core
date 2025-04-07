@@ -128,6 +128,7 @@ impl Helper {
                             owner,
                         ))
                     }
+                    TestCoin::NativePrecise(..) => unimplemented!(),
                 };
                 (coin, asset_info)
             })

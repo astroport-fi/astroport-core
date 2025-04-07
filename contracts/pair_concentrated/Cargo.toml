@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated"
-version = "4.1.0"
+version = "4.1.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"

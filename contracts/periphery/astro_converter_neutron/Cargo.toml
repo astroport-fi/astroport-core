@@ -1,6 +1,6 @@
 [package]
 name = "astro-token-converter-neutron"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "ASTRO.cw20 to tokenfactory ASTRO converter on Neutron chain"
@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-neutron-sdk = "0.8.0"
+neutron-sdk = "0.9.0"
 astroport = "4"
 astro-token-converter = { path = "../astro_converter", version = "1.0", features = ["library"] }
 cosmwasm-std = "1.5"
