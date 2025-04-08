@@ -1,5 +1,4 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-
 use cosmwasm_std::{Decimal, Uint128};
 use cw20::Cw20ReceiveMsg;
 
@@ -101,6 +100,13 @@ pub enum QueryMsg {
         /// The swap operations to perform, each swap involving a specific pool
         operations: Vec<SwapOperation>,
     },
+    #[returns(Uint128)]
+    ReverseSimulateSwapOperations {
+        /// The amount of tokens one is willing to receive
+        ask_amount: Uint128,
+        /// The swap operations to perform, each swap involving a specific pool
+        operations: Vec<SwapOperation>,
+    },
 }
 
 /// This structure describes a custom struct to return a query response containing the base contract configuration.
@@ -116,8 +122,3 @@ pub struct SimulateSwapOperationsResponse {
     /// The amount of tokens received in a swap simulation
     pub amount: Uint128,
 }
-
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
-#[cw_serde]
-pub struct MigrateMsg {}

@@ -185,6 +185,7 @@ pub fn before_swap_check(pools: &[DecimalAsset], offer_amount: Decimal256) -> St
 }
 
 /// This structure is for internal use only. Represents swap's result.
+#[derive(Debug)]
 pub struct SwapResult {
     pub dy: Decimal256,
     pub spread_fee: Decimal256,
@@ -288,7 +289,7 @@ pub fn compute_swap(
         dy /= config.pool_state.price_state.price_scale;
         (offer_amount / config.pool_state.price_state.oracle_price).saturating_sub(dy)
     } else {
-        offer_amount.saturating_sub(dy / config.pool_state.price_state.oracle_price)
+        (offer_amount * config.pool_state.price_state.oracle_price).saturating_sub(dy)
     };
 
     let fee_rate = config.pool_params.fee(&ixs);

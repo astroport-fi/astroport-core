@@ -1,15 +1,16 @@
 use cosmwasm_std::{
     entry_point, from_json, to_json_binary, wasm_execute, Addr, Api, Binary, Decimal, Deps,
-    DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult, Uint128,
+    DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult,
+    Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo};
-use astroport::pair::{QueryMsg as PairQueryMsg, SimulationResponse};
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
+use astroport::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 use astroport::querier::query_pair_info;
 use astroport::router::{
-    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+    ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, SwapResponseData, MAX_SWAP_OPERATIONS,
 };
 
@@ -233,6 +234,10 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///             offer_amount,
 ///             operations,
 ///         }** Simulates one or multiple swap operations and returns the end result in a [`SimulateSwapOperationsResponse`] object.
+/// * **QueryMsg::ReverseSimulateSwapOperations {
+///            ask_amount,
+///           operations,
+///        }** Simulates one or multiple swap operations in reverse and returns the end result in a [`Uint128`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
@@ -244,6 +249,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             deps,
             offer_amount,
             operations,
+        )?)?),
+        QueryMsg::ReverseSimulateSwapOperations {
+            ask_amount,
+            operations,
+        } => Ok(to_json_binary(&simulate_reverse_swap_operations(
+            deps, ask_amount, operations,
         )?)?),
     }
 }
@@ -261,12 +272,12 @@ pub fn query_config(deps: Deps) -> Result<ConfigResponse, ContractError> {
 /// Manages contract migration.
 #[cfg(not(tarpaulin_include))]
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.1.1" => {}
+            "1.1.2" | "1.2.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -333,6 +344,47 @@ fn simulate_swap_operations(
     Ok(SimulateSwapOperationsResponse {
         amount: return_amount,
     })
+}
+
+fn simulate_reverse_swap_operations(
+    deps: Deps,
+    ask_amount: Uint128,
+    operations: Vec<SwapOperation>,
+) -> Result<Uint128, ContractError> {
+    assert_operations(deps.api, &operations)?;
+
+    let config = CONFIG.load(deps.storage)?;
+    let mut step_amount = ask_amount;
+
+    for operation in operations.into_iter().rev() {
+        match operation {
+            SwapOperation::AstroSwap {
+                offer_asset_info,
+                ask_asset_info,
+            } => {
+                let pair_info = query_pair_info(
+                    &deps.querier,
+                    &config.astroport_factory,
+                    &[offer_asset_info.clone(), ask_asset_info.clone()],
+                )?;
+
+                let res: ReverseSimulationResponse = deps.querier.query_wasm_smart(
+                    pair_info.contract_addr,
+                    &PairQueryMsg::ReverseSimulation {
+                        offer_asset_info: Some(ask_asset_info.clone()),
+                        ask_asset: offer_asset_info.with_balance(step_amount),
+                    },
+                )?;
+
+                step_amount = res.offer_amount;
+            }
+            SwapOperation::NativeSwap { .. } => {
+                return Err(ContractError::NativeSwapNotSupported {})
+            }
+        }
+    }
+
+    Ok(step_amount)
 }
 
 /// Validates swap operations.

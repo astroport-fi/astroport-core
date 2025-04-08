@@ -69,4 +69,7 @@ pub enum ContractError {
 
     #[error("Slippage is more than expected: received {0}, expected {1} LP tokens")]
     ProvideSlippageViolation(Uint128, Uint128),
+
+    #[error("Operation is not supported")]
+    NotSupported {},
 }

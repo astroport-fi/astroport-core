@@ -11,8 +11,8 @@ use astroport_test::modules::stargate::StargateApp as App;
 
 pub struct FactoryHelper {
     pub owner: Addr,
-    pub astro_token: Addr,
     pub factory: Addr,
+    pub coin_registry: Addr,
     pub cw20_token_code_id: u64,
 }
 
@@ -26,29 +26,6 @@ impl FactoryHelper {
 
         let cw20_token_code_id = router.store_code(astro_token_contract);
 
-        let msg = astroport::token::InstantiateMsg {
-            name: String::from("Astro token"),
-            symbol: String::from("ASTRO"),
-            decimals: 6,
-            initial_balances: vec![],
-            mint: Some(MinterResponse {
-                minter: owner.to_string(),
-                cap: None,
-            }),
-            marketing: None,
-        };
-
-        let astro_token = router
-            .instantiate_contract(
-                cw20_token_code_id,
-                owner.clone(),
-                &msg,
-                &[],
-                String::from("ASTRO"),
-                None,
-            )
-            .unwrap();
-
         let pair_contract = Box::new(
             ContractWrapper::new_with_empty(
                 astroport_pair::contract::execute,
@@ -59,6 +36,36 @@ impl FactoryHelper {
         );
 
         let pair_code_id = router.store_code(pair_contract);
+
+        let pcl_contract = Box::new(
+            ContractWrapper::new_with_empty(
+                astroport_pair_concentrated::contract::execute,
+                astroport_pair_concentrated::contract::instantiate,
+                astroport_pair_concentrated::queries::query,
+            )
+            .with_reply_empty(astroport_pair_concentrated::contract::reply),
+        );
+        let pcl_code_id = router.store_code(pcl_contract);
+
+        let coin_registry_contract = Box::new(ContractWrapper::new_with_empty(
+            astroport_native_coin_registry::contract::execute,
+            astroport_native_coin_registry::contract::instantiate,
+            astroport_native_coin_registry::contract::query,
+        ));
+        let coin_registry_code_id = router.store_code(coin_registry_contract);
+
+        let coin_registry = router
+            .instantiate_contract(
+                coin_registry_code_id,
+                owner.clone(),
+                &astroport::native_coin_registry::InstantiateMsg {
+                    owner: owner.to_string(),
+                },
+                &[],
+                "coin_registry",
+                None,
+            )
+            .unwrap();
 
         let factory_contract = Box::new(
             ContractWrapper::new_with_empty(
@@ -91,13 +98,23 @@ impl FactoryHelper {
                     is_generator_disabled: false,
                     permissioned: false,
                 },
+                PairConfig {
+                    code_id: pcl_code_id,
+                    maker_fee_bps: 5000,
+                    total_fee_bps: 0u16, // Concentrated pair does not use this field,
+                    pair_type: PairType::Custom("concentrated".to_string()),
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: false,
+                },
             ],
             token_code_id: cw20_token_code_id,
             fee_address: None,
             generator_address: None,
             owner: owner.to_string(),
             whitelist_code_id: 0,
-            coin_registry_address: "coin_registry".to_string(),
+            coin_registry_address: coin_registry.to_string(),
+            tracker_config: None,
         };
 
         let factory = router
@@ -113,15 +130,15 @@ impl FactoryHelper {
 
         Self {
             owner: owner.clone(),
-            astro_token,
             factory,
+            coin_registry,
             cw20_token_code_id,
         }
     }
 
     pub fn create_pair(
         &mut self,
-        router: &mut App,
+        app: &mut App,
         sender: &Addr,
         pair_type: PairType,
         asset_infos: [AssetInfo; 2],
@@ -133,9 +150,25 @@ impl FactoryHelper {
             init_params,
         };
 
-        router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])?;
+        for asset_info in &asset_infos {
+            match &asset_info {
+                AssetInfo::Token { .. } => {}
+                AssetInfo::NativeToken { denom } => {
+                    app.execute_contract(
+                        self.owner.clone(),
+                        self.coin_registry.clone(),
+                        &astroport::native_coin_registry::ExecuteMsg::Add {
+                            native_coins: vec![(denom.clone(), 6)],
+                        },
+                        &[],
+                    )?;
+                }
+            }
+        }
 
-        let res: PairInfo = router.wrap().query_wasm_smart(
+        app.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])?;
+
+        let res: PairInfo = app.wrap().query_wasm_smart(
             self.factory.clone(),
             &QueryMsg::Pair {
                 asset_infos: asset_infos.to_vec(),

@@ -2,24 +2,29 @@
 
 use std::str::FromStr;
 
-use astroport_test::cw_multi_test::{next_block, AppBuilder, Contract, ContractWrapper, Executor};
-use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
+use anyhow::Result as AnyResult;
 use cosmwasm_std::{
     attr, coin, to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env,
     MessageInfo, QueryRequest, Response, StdResult, Uint128, Uint64, WasmQuery,
 };
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::asset::{
-    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, PairInfo,
+    native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, AssetInfoExt,
+    PairInfo,
 };
 use astroport::factory::{PairConfig, PairType, UpdateAddr};
 use astroport::maker::{
-    AssetWithLimit, BalancesResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
-    SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
+    AssetWithLimit, BalancesResponse, ConfigResponse, DevFundConfig, ExecuteMsg, InstantiateMsg,
+    QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig, UpdateDevFundConfig,
+    COOLDOWN_LIMITS,
 };
 use astroport_maker::error::ContractError;
-use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
+use astroport_test::cw_multi_test::{
+    next_block, AppBuilder, AppResponse, BankSudo, Contract, ContractWrapper, Executor,
+};
+use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const OWNER: &str = "owner";
 
@@ -208,6 +213,7 @@ fn instantiate_contracts(
         generator_address: Some(String::from("generator")),
         whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        tracker_config: None,
     };
 
     let factory_instance = router
@@ -234,11 +240,14 @@ fn instantiate_contracts(
         )
         .unwrap();
 
-    let maker_contract = Box::new(ContractWrapper::new_with_empty(
-        astroport_maker::contract::execute,
-        astroport_maker::contract::instantiate,
-        astroport_maker::contract::query,
-    ));
+    let maker_contract = Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_maker::contract::execute,
+            astroport_maker::contract::instantiate,
+            astroport_maker::contract::query,
+        )
+        .with_reply_empty(astroport_maker::reply::reply),
+    );
 
     let market_code_id = router.store_code(maker_contract);
 
@@ -463,6 +472,7 @@ fn create_pair(
                 slippage_tolerance: None,
                 auto_stake: None,
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &funds,
         )
@@ -532,6 +542,7 @@ fn update_config() {
         second_receiver_params: None,
         collect_cooldown: None,
         astro_token: None,
+        dev_fund_config: None,
     };
 
     // Assert cannot update with improper owner
@@ -575,6 +586,7 @@ fn update_config() {
         }),
         collect_cooldown: None,
         astro_token: None,
+        dev_fund_config: None,
     };
 
     let err = router
@@ -595,6 +607,7 @@ fn update_config() {
         }),
         collect_cooldown: None,
         astro_token: None,
+        dev_fund_config: None,
     };
 
     router
@@ -625,6 +638,7 @@ fn update_config() {
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.start() - 1),
         astro_token: None,
+        dev_fund_config: None,
     };
 
     let err = router
@@ -648,6 +662,7 @@ fn update_config() {
         second_receiver_params: None,
         collect_cooldown: Some(*COOLDOWN_LIMITS.end() + 1),
         astro_token: None,
+        dev_fund_config: None,
     };
     let err = router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
@@ -670,6 +685,7 @@ fn update_config() {
         second_receiver_params: None,
         collect_cooldown: Some((*COOLDOWN_LIMITS.end() - *COOLDOWN_LIMITS.start()) / 2),
         astro_token: None,
+        dev_fund_config: None,
     };
     router
         .execute_contract(owner.clone(), maker_instance.clone(), &msg, &[])
@@ -2075,6 +2091,472 @@ fn test_collect_cooldown() {
             &[],
         )
         .unwrap();
+}
+
+fn set_dev_fund_config(
+    app: &mut TestApp,
+    sender: &Addr,
+    maker: &Addr,
+    dev_fund_config: UpdateDevFundConfig,
+) -> AnyResult<AppResponse> {
+    app.execute_contract(
+        sender.clone(),
+        maker.clone(),
+        &ExecuteMsg::UpdateConfig {
+            factory_contract: None,
+            staking_contract: None,
+            governance_contract: None,
+            governance_percent: None,
+            basic_asset: None,
+            max_spread: None,
+            second_receiver_params: None,
+            collect_cooldown: None,
+            astro_token: None,
+            dev_fund_config: Some(Box::new(dev_fund_config)),
+        },
+        &[],
+    )
+}
+
+fn mint_coins(app: &mut TestApp, to: impl Into<String>, amount: &[Coin]) {
+    app.sudo(
+        BankSudo::Mint {
+            to_address: to.into(),
+            amount: amount.to_vec(),
+        }
+        .into(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_dev_fund_fee() {
+    let usdc = "uusdc";
+    let owner = Addr::unchecked("owner");
+    let mut app = mock_app(owner.clone(), vec![coin(300_000_000_000u128, usdc)]);
+
+    let staking = Addr::unchecked("staking");
+    let (astro_token, factory_instance, maker_instance, _) = instantiate_contracts(
+        &mut app,
+        owner.clone(),
+        staking.clone(),
+        0u64.into(),
+        Some(Decimal::from_str("0.5").unwrap()),
+        None,
+        None,
+        None,
+    );
+
+    // enable rewards
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::EnableRewards { blocks: 1 },
+        &[],
+    )
+    .unwrap();
+
+    let mut dev_fund_conf = DevFundConfig {
+        address: "".to_string(),
+        share: Default::default(),
+        asset_info: AssetInfo::native(usdc),
+    };
+
+    let err = set_dev_fund_config(
+        &mut app,
+        &owner,
+        &maker_instance,
+        UpdateDevFundConfig {
+            set: Some(dev_fund_conf.clone()),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Invalid input: human address too short for this mock implementation (must be >= 3)."
+    );
+
+    dev_fund_conf.address = "devs".to_string();
+
+    let err = set_dev_fund_config(
+        &mut app,
+        &owner,
+        &maker_instance,
+        UpdateDevFundConfig {
+            set: Some(dev_fund_conf.clone()),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Dev fund share must be > 0 and <= 1"
+    );
+
+    dev_fund_conf.share = Decimal::percent(50);
+
+    let err = set_dev_fund_config(
+        &mut app,
+        &owner,
+        &maker_instance,
+        UpdateDevFundConfig {
+            set: Some(dev_fund_conf.clone()),
+        },
+    )
+    .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidBridgeNoPool(astro_token.to_string(), usdc.to_string()),
+        err.downcast().unwrap()
+    );
+
+    // Create ASTRO<>USDC pool
+    create_pair(
+        &mut app,
+        owner.clone(),
+        owner.clone(),
+        &factory_instance,
+        vec![
+            AssetInfo::native(usdc).with_balance(100_000_000000u128),
+            AssetInfo::cw20(astro_token.clone()).with_balance(100_000_000000u128),
+        ],
+        None,
+    );
+
+    set_dev_fund_config(
+        &mut app,
+        &owner,
+        &maker_instance,
+        UpdateDevFundConfig {
+            set: Some(dev_fund_conf.clone()),
+        },
+    )
+    .unwrap();
+
+    // Emulate usdc income to the Maker contract
+    mint_coins(
+        &mut app,
+        maker_instance.to_string(),
+        &[coin(1000_000000u128, usdc)],
+    );
+
+    app.execute_contract(
+        Addr::unchecked("anyone"),
+        maker_instance.clone(),
+        &ExecuteMsg::Collect {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(usdc),
+                limit: None,
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    // ASTRO
+    check_balance(
+        &mut app,
+        maker_instance.clone(),
+        astro_token.clone(),
+        0u128.into(),
+    );
+    check_balance(
+        &mut app,
+        staking.clone(),
+        astro_token.clone(),
+        495_049505u128.into(),
+    );
+    check_balance(
+        &mut app,
+        Addr::unchecked(&dev_fund_conf.address),
+        astro_token.clone(),
+        0u128.into(),
+    );
+    // USDC
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&dev_fund_conf.address, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        502_487561
+    );
+
+    // Disable dev funds
+    set_dev_fund_config(
+        &mut app,
+        &owner,
+        &maker_instance,
+        UpdateDevFundConfig { set: None },
+    )
+    .unwrap();
+
+    // Emulate usdc income to the Maker contract
+    mint_coins(
+        &mut app,
+        maker_instance.to_string(),
+        &[coin(1000_000000u128, usdc)],
+    );
+
+    app.execute_contract(
+        Addr::unchecked("anyone"),
+        maker_instance.clone(),
+        &ExecuteMsg::Collect {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(usdc),
+                limit: None,
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    // ASTRO
+    check_balance(
+        &mut app,
+        maker_instance.clone(),
+        astro_token.clone(),
+        0u128.into(),
+    );
+    check_balance(
+        &mut app,
+        staking.clone(),
+        astro_token.clone(),
+        1475_417871u128.into(),
+    );
+    check_balance(
+        &mut app,
+        Addr::unchecked(&dev_fund_conf.address),
+        astro_token.clone(),
+        0u128.into(),
+    );
+    // USDC
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&dev_fund_conf.address, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        502_487561
+    );
+}
+
+#[test]
+fn test_seize() {
+    let owner = Addr::unchecked("owner");
+    let mut app = mock_app(owner.clone(), vec![]);
+
+    let (_, _, maker_instance, _) = instantiate_contracts(
+        &mut app,
+        owner.clone(),
+        Addr::unchecked("staking"),
+        0u64.into(),
+        Some(Decimal::from_str("0.5").unwrap()),
+        None,
+        None,
+        None,
+    );
+
+    // Try to seize before config is set
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::Seize { assets: vec![] },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: assets vector is empty"
+    );
+
+    // Unauthorized check
+    let err = app
+        .execute_contract(
+            Addr::unchecked("anyone"),
+            maker_instance.clone(),
+            &ExecuteMsg::UpdateSeizeConfig {
+                receiver: None,
+                seizable_assets: vec![],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let receiver = Addr::unchecked("seize");
+
+    let usdc = "uusdc";
+    let luna = "uluna";
+
+    // Set valid config
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::UpdateSeizeConfig {
+            receiver: Some(receiver.to_string()),
+            seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Assert that the config is set
+    let config: SeizeConfig = app
+        .wrap()
+        .query_wasm_smart(&maker_instance, &QueryMsg::QuerySeizeConfig {})
+        .unwrap();
+    assert_eq!(
+        config,
+        SeizeConfig {
+            receiver: receiver.clone(),
+            seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)]
+        }
+    );
+
+    // Try to seize non-seizable asset
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            maker_instance.clone(),
+            &ExecuteMsg::Seize {
+                assets: vec![AssetWithLimit {
+                    info: AssetInfo::native("utest"),
+                    limit: None,
+                }],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Input vector contains assets that are not seizable"
+    );
+
+    // Try to seize asset with empty balance
+    // This does nothing and doesn't throw an error
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(luna),
+                limit: None,
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    mint_coins(
+        &mut app,
+        &maker_instance,
+        &[coin(1000_000000u128, usdc), coin(3000_000000u128, luna)],
+    );
+
+    // Seize 100 USDC
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![AssetWithLimit {
+                info: AssetInfo::native(usdc),
+                limit: Some(100_000000u128.into()),
+            }],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        900_000000
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        100_000000
+    );
+
+    // Seize all
+    app.execute_contract(
+        owner.clone(),
+        maker_instance.clone(),
+        &ExecuteMsg::Seize {
+            assets: vec![
+                AssetWithLimit {
+                    info: AssetInfo::native(usdc),
+                    // seizing more than available doesn't throw an error
+                    limit: Some(10000_000000u128.into()),
+                },
+                AssetWithLimit {
+                    info: AssetInfo::native(luna),
+                    limit: Some(3000_000000u128.into()),
+                },
+            ],
+        },
+        &[],
+    )
+    .unwrap();
+
+    // Check balances
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&maker_instance, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        1000_000000
+    );
+    assert_eq!(
+        app.wrap()
+            .query_balance(&receiver, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        3000_000000
+    );
 }
 
 struct CheckDistributedAstro {
