@@ -689,30 +689,55 @@ pub fn process_custom_msgs(
     match msg {
         DualityPairMsg::SyncOrderbook {} => sync_pool_with_orderbook(deps, env, info),
         DualityPairMsg::UpdateOrderbookConfig(update_orderbook_conf) => {
-            let config = CONFIG.load(deps.storage)?;
+            let mut config = CONFIG.load(deps.storage)?;
             let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-            let owner = config.owner.unwrap_or(factory_config.owner);
+            let owner = config.owner.clone().unwrap_or(factory_config.owner);
             ensure_eq!(info.sender, owner, ContractError::Unauthorized {});
 
+            let mut response =
+                Response::new().add_attribute("action", "update_duality_orderbook_config");
+
             let mut ob_state = OrderbookState::load(deps.storage)?;
-            let cancel_orders_msgs = if let Some(false) = update_orderbook_conf.enable {
-                // TODO: process cumulative trades
-                let msgs = ob_state.cancel_orders(&env.contract.address);
+            if let Some(false) = update_orderbook_conf.enable {
+                let precisions = Precisions::new(deps.storage)?;
+
+                let cumulative_trades = ob_state.fetch_cumulative_trades(&precisions)?;
+                if !cumulative_trades.is_empty() {
+                    let liquidity = Liquidity::new(deps.querier, &config, &mut ob_state, false)?;
+                    let mut pools = liquidity.total_dec(&precisions)?;
+
+                    let xs = pools.iter().map(|a| a.amount).collect_vec();
+                    let old_real_price = calc_last_prices(&xs, &config, &env)?;
+
+                    let mut balances = pools
+                        .iter_mut()
+                        .map(|asset| &mut asset.amount)
+                        .collect_vec();
+
+                    response = process_cumulative_trades(
+                        deps.as_ref(),
+                        &env,
+                        &cumulative_trades,
+                        &mut config,
+                        &mut balances,
+                        &precisions,
+                        None,
+                    )?;
+
+                    accumulate_prices(&env, &mut config, old_real_price);
+                    CONFIG.save(deps.storage, &config)?;
+                }
+
+                response = response.add_messages(ob_state.cancel_orders(&env.contract.address));
                 ob_state.orders = vec![];
-                msgs
-            } else {
-                vec![]
             };
 
-            let mut attrs = vec![attr("action", "update_duality_orderbook_config")];
-            attrs.extend(ob_state.update_config(deps.api, update_orderbook_conf)?);
+            let attrs = ob_state.update_config(deps.api, update_orderbook_conf)?;
 
             ob_state.save(deps.storage)?;
 
-            Ok(Response::default()
-                .add_messages(cancel_orders_msgs)
-                .add_attributes(attrs))
+            Ok(response.add_attributes(attrs))
         }
     }
 }
