@@ -262,16 +262,15 @@ pub fn provide_liquidity(
         .map(|(asset, deposit)| asset.amount + deposit)
         .collect_vec();
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let (exported_liq, order_msgs) =
-        ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
 
     let next_contract_liquidity = balances
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -381,15 +380,15 @@ fn withdraw_liquidity(
         coin(amount.u128(), &config.pair_info.liquidity_token),
     ));
 
-    let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
     let next_contract_liquidity = xs
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -574,15 +573,15 @@ fn swap(
     CONFIG.save(deps.storage, &config)?;
 
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
     let next_contract_liquidity = xs
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -698,6 +697,7 @@ pub fn process_custom_msgs(
 
             let mut ob_state = OrderbookState::load(deps.storage)?;
             let cancel_orders_msgs = if let Some(false) = update_orderbook_conf.enable {
+                // TODO: process cumulative trades
                 let msgs = ob_state.cancel_orders(&env.contract.address);
                 ob_state.orders = vec![];
                 msgs

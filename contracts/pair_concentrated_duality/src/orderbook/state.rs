@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::iter::once;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
@@ -17,7 +16,7 @@ use neutron_std::types::neutron::dex::{
 };
 
 use astroport::asset::{Asset, Decimal256Ext};
-use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::pair_concentrated_duality::UpdateDualityOrderbook;
 use astroport::pair_concentrated_duality::{OrderbookConfig, ReplyIds};
 use astroport_pcl_common::state::{Config, Precisions};
@@ -68,19 +67,18 @@ pub struct OrderbookState {
     pub orders: Vec<String>,
     /// Whether the orderbook integration enabled or not.
     pub enabled: bool,
-    /// Snapshot of contract balances before entering reply.
-    /// Note that liquidity exported to orderbook is subtracted from these reserves.
-    pub pre_reply_contract_balances: Vec<Asset>,
+    /// Snapshot of total balances before entering reply.
+    pub pre_reply_balances: Vec<Asset>,
     /// In the case of some orders were auto-executed, we keep trade for delayed processing.
-    pub delayed_trade: Option<OrderState>,
+    pub delayed_trade: Option<CumulativeTradeUint>,
     /// Due to possible rounding issues on Duality side we have to set price tolerance,
     /// which serves as a worsening factor for the end price from PCL.
     /// Should be relatively low something like 1-10 bps.
     pub avg_price_adjustment: Decimal,
-    /// Last order sizes for each asset. Key - denom, value - order size in integer form.
-    pub last_order_sizes: HashMap<String, Uint128>,
+    /// The latest orders state. Key - tranche key, value - order state.
+    pub orders_state: HashMap<String, OrderState>,
     #[serde(skip)]
-    pub orders_state: Vec<OrderState>,
+    pub old_orders_state: HashMap<String, OrderState>,
 }
 
 const OB_CONFIG: Item<OrderbookState> = Item::new("orderbook_config");
@@ -95,11 +93,11 @@ impl OrderbookState {
             orders: vec![],
             enabled: false,
             executor: orderbook_config.executor.map(Addr::unchecked),
-            pre_reply_contract_balances: vec![],
+            pre_reply_balances: vec![],
             delayed_trade: None,
             avg_price_adjustment: orderbook_config.avg_price_adjustment,
-            last_order_sizes: Default::default(),
-            orders_state: vec![],
+            orders_state: Default::default(),
+            old_orders_state: Default::default(),
         };
         config.validate(api)?;
 
@@ -244,6 +242,8 @@ impl OrderbookState {
         } else {
             let dex_querier = DexQuerier::new(&querier);
 
+            self.old_orders_state = self.orders_state.clone();
+
             self.orders_state = self
                 .orders
                 .iter()
@@ -264,7 +264,7 @@ impl OrderbookState {
                                 maker_coin_out,
                             }) => {
                                 let denoms = self
-                                    .pre_reply_contract_balances
+                                    .pre_reply_balances
                                     .iter()
                                     .map(|asset| asset.info.to_string())
                                     .collect_vec();
@@ -302,17 +302,20 @@ impl OrderbookState {
                                         }
                                     };
 
-                                Ok(OrderState {
-                                    taker_coin_out,
-                                    maker_coin_out,
-                                })
+                                Ok((
+                                    order_key.clone(),
+                                    OrderState {
+                                        taker_coin_out,
+                                        maker_coin_out,
+                                    },
+                                ))
                             }
                         })
                 })
-                .collect::<StdResult<Vec<_>>>()?;
+                .collect::<StdResult<HashMap<_, _>>>()?;
 
             self.orders_state
-                .iter()
+                .values()
                 .cloned()
                 .flat_map(|order_state| [order_state.maker_coin_out, order_state.taker_coin_out])
                 .into_group_map_by(|coin| coin.denom.clone())
@@ -367,34 +370,37 @@ impl OrderbookState {
         &self,
         precisions: &Precisions,
     ) -> Result<Vec<CumulativeTrade>, ContractError> {
-        let orders_state = if let Some(delayed_trade) = self.delayed_trade.clone() {
-            self.orders_state
-                .iter()
-                .cloned()
-                .chain(once(delayed_trade))
-                .collect_vec()
-        } else {
-            self.orders_state.to_vec()
-        };
-
         let mut trades: HashMap<String, CumulativeTradeUint> = HashMap::new();
-        for order in orders_state {
-            let trade = trades
-                .entry(order.taker_coin_out.denom.clone())
-                .or_insert_with(|| CumulativeTradeUint {
-                    base_asset: Asset::native(&order.taker_coin_out.denom, 0u8),
-                    quote_asset: Asset::native(&order.maker_coin_out.denom, 0u8),
-                });
 
-            trade.base_asset.amount += order.taker_coin_out.amount;
-            // Diff between last order size for order.maker_coin_out.denom and maker_coin_out.amount.
-            // Using saturating sub cause maker_coin_out.amount can be greater than last order size
-            // due to internal duality rounding and our self.avg_price_adjustment.
-            trade.quote_asset.amount += self
-                .last_order_sizes
-                .get(&order.maker_coin_out.denom)
-                .unwrap()
-                .saturating_sub(order.maker_coin_out.amount)
+        // Add delayed trade
+        if let Some(trade) = &self.delayed_trade {
+            trades
+                .entry(trade.base_asset.info.to_string())
+                .or_insert_with(|| CumulativeTradeUint {
+                    base_asset: trade.base_asset.clone(),
+                    quote_asset: trade.quote_asset.clone(),
+                });
+        }
+
+        if !self.old_orders_state.is_empty() {
+            for (order_key, order) in &self.orders_state {
+                let trade = trades
+                    .entry(order.taker_coin_out.denom.clone())
+                    .or_insert_with(|| CumulativeTradeUint {
+                        base_asset: Asset::native(&order.taker_coin_out.denom, 0u8),
+                        quote_asset: Asset::native(&order.maker_coin_out.denom, 0u8),
+                    });
+
+                trade.base_asset.amount += order.taker_coin_out.amount;
+                // Diff between current and initial maker sides
+                trade.quote_asset.amount += self
+                    .old_orders_state
+                    .get(order_key)
+                    .unwrap()
+                    .maker_coin_out
+                    .amount
+                    .saturating_sub(order.maker_coin_out.amount)
+            }
         }
 
         trades
@@ -434,10 +440,10 @@ impl OrderbookState {
         config: &Config,
         balances: &[Decimal256],
         precisions: &Precisions,
-    ) -> Result<(Vec<Asset>, Vec<CosmosMsg>), ContractError> {
+    ) -> Result<Vec<CosmosMsg>, ContractError> {
         // Orderbook is disabled. No need to deploy orders.
         if !self.enabled {
-            return Ok((vec![], vec![]));
+            return Ok(vec![]);
         }
 
         let liquidity_percent_to_deploy =
@@ -463,21 +469,8 @@ impl OrderbookState {
         if asset_0_trade_size < min_asset_0_order_size
             || asset_1_trade_size < min_asset_1_order_size
         {
-            return Ok((vec![], vec![]));
+            return Ok(vec![]);
         }
-
-        self.last_order_sizes = [
-            (
-                config.pair_info.asset_infos[0].to_string(),
-                asset_0_trade_size.to_uint(asset_0_precision)?,
-            ),
-            (
-                config.pair_info.asset_infos[1].to_string(),
-                asset_1_trade_size.to_uint(asset_1_precision)?,
-            ),
-        ]
-        .into_iter()
-        .collect();
 
         let amp_gamma = config.pool_state.get_amp_gamma(env);
         let mut ixs = balances.to_vec();
@@ -500,12 +493,9 @@ impl OrderbookState {
         )?;
 
         if success {
-            Ok((
-                orders_factory.total_exported_liquidity()?,
-                orders_factory.collect_spot_orders(&env.contract.address),
-            ))
+            Ok(orders_factory.collect_spot_orders(&env.contract.address))
         } else {
-            Ok((vec![], vec![]))
+            Ok(vec![])
         }
     }
 
@@ -513,7 +503,7 @@ impl OrderbookState {
     /// if orderbook integration is enabled.
     pub fn flatten_msgs_and_add_callback(
         &mut self,
-        ob_liquidity: &[Asset],
+        total_liquidity: &[Asset],
         messages: &[Vec<CosmosMsg>],
         order_msgs: Vec<CosmosMsg>,
     ) -> Vec<SubMsg> {
@@ -530,7 +520,7 @@ impl OrderbookState {
             last.reply_on = ReplyOn::Success;
         }
 
-        self.pre_reply_contract_balances = ob_liquidity.to_vec();
+        self.pre_reply_balances = total_liquidity.to_vec();
         self.delayed_trade = None;
 
         submsgs
