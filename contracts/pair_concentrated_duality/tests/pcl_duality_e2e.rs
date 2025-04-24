@@ -206,10 +206,10 @@ fn test_basic_ops() {
 
     let ob_config = astroport.query_ob_config().unwrap();
     assert_eq!(
-        ob_config.pre_reply_contract_balances,
+        ob_config.pre_reply_balances,
         [
-            astroport.assets[&test_coins[0]].with_balance(997_686_623511u128),
-            astroport.assets[&test_coins[1]].with_balance(476_239_089325u128),
+            astroport.assets[&test_coins[0]].with_balance(1_023_268_331806u128),
+            astroport.assets[&test_coins[1]].with_balance(488_450_348025u128),
         ]
     );
 
@@ -928,5 +928,82 @@ fn check_orderbook_after_withdrawal() {
     assert!(
         (1.0 - usdc_expected / usdc_received).abs() <= 0.05,
         "Expected: {usdc_expected}, received: {usdc_received}",
+    );
+}
+
+#[test]
+fn check_partial_auto_executed_order() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("usdc")];
+    let orders_number = 3;
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        &neutron,
+        test_coins.clone(),
+        ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(1u8, 2u8),
+            ..common_pcl_params()
+        },
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(3),
+            orders_number,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    let dex_trader = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(10_000_000000u128, "untrn"),
+            coin(10_000_000000u128, "astro"),
+            coin(10_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    // Create limit order on DEX: ASTRO -> USDC
+    astroport
+        .helper
+        .limit_order(&dex_trader, coin(1_000_000000u128, "astro"), "usdc", 0.49)
+        .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(20_000_000_000000u128, "astro"),
+            coin(20_000_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(1_000_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(500_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    let ob_config = astroport.query_ob_config().unwrap();
+
+    // Ensure that the previous order from DEX was processed
+    assert_eq!(
+        ob_config.delayed_trade,
+        Some(CumulativeTradeUint {
+            base_asset: Asset::native("astro", 1_000_000000u128),
+            quote_asset: Asset::native("usdc", 490_041922u128)
+        })
     );
 }

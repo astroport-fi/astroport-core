@@ -43,22 +43,13 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             let config = CONFIG.load(deps.storage)?;
             let liquidity = Liquidity::new(deps.querier, &config, &mut ob_state, true)?;
 
-            // We need to track auto-executed trade only if the number of orders is lower than expected.
+            // We need to track auto-executed trades.
             // We delay their processing until the next contract call.
-            // We don't need to process partially filled orders
-            // as their traces stay on chain until the next contract execution.
-            if ob_state.orders.len() < (ob_state.orders_number * 2) as usize {
-                // Since we are tracking only contract balance changes, it is not impacted by
-                // partially filled orders,
-                // which liquidity stays locked in the orderbook module.
-
-                let autoexecuted_trade = fetch_autoexecuted_trade(
-                    &ob_state.pre_reply_contract_balances,
-                    &liquidity.contract,
-                )?;
-
-                ob_state.delayed_trade = Some(autoexecuted_trade);
-            }
+            ob_state.delayed_trade = fetch_autoexecuted_trade(
+                &ob_state.pre_reply_balances,
+                &liquidity.total(),
+                ob_state.orders_number,
+            );
 
             ob_state.save(deps.storage)?;
 

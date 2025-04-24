@@ -235,15 +235,15 @@ pub fn sync_pool_with_orderbook(
 
         let xs = pools.iter().map(|a| a.amount).collect_vec();
         let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-        let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+        let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
-        let next_contract_liquidity = pools
+        let next_contract_liquidity = xs
             .iter()
-            .zip(exported_liq.iter())
-            .map(|(pool_asset, ex_asset)| {
-                let prec = precisions.get_precision(&pool_asset.info).unwrap();
-                let amount = pool_asset.amount.to_uint(prec)?;
-                Ok(pool_asset.info.with_balance(amount - ex_asset.amount))
+            .zip(config.pair_info.asset_infos.iter())
+            .map(|(amount_dec, asset_info)| {
+                let prec = precisions.get_precision(asset_info).unwrap();
+                let amount = amount_dec.to_uint(prec)?;
+                Ok(asset_info.with_balance(amount))
             })
             .collect::<StdResult<Vec<_>>>()?;
         let submsgs = ob_state.flatten_msgs_and_add_callback(

@@ -262,16 +262,15 @@ pub fn provide_liquidity(
         .map(|(asset, deposit)| asset.amount + deposit)
         .collect_vec();
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let (exported_liq, order_msgs) =
-        ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &balances, &precisions)?;
 
     let next_contract_liquidity = balances
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -381,15 +380,15 @@ fn withdraw_liquidity(
         coin(amount.u128(), &config.pair_info.liquidity_token),
     ));
 
-    let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
     let next_contract_liquidity = xs
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -574,15 +573,15 @@ fn swap(
     CONFIG.save(deps.storage, &config)?;
 
     let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-    let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+    let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
     let next_contract_liquidity = xs
         .iter()
-        .zip(exported_liq.iter())
-        .map(|(pool_asset, ex_asset)| {
-            let prec = precisions.get_precision(&ex_asset.info).unwrap();
-            let amount = pool_asset.to_uint(prec)?;
-            Ok(ex_asset.info.with_balance(amount - ex_asset.amount))
+        .zip(config.pair_info.asset_infos.iter())
+        .map(|(amount_dec, asset_info)| {
+            let prec = precisions.get_precision(asset_info).unwrap();
+            let amount = amount_dec.to_uint(prec)?;
+            Ok(asset_info.with_balance(amount))
         })
         .collect::<StdResult<Vec<_>>>()?;
     let submsgs = ob_state.flatten_msgs_and_add_callback(
@@ -690,29 +689,55 @@ pub fn process_custom_msgs(
     match msg {
         DualityPairMsg::SyncOrderbook {} => sync_pool_with_orderbook(deps, env, info),
         DualityPairMsg::UpdateOrderbookConfig(update_orderbook_conf) => {
-            let config = CONFIG.load(deps.storage)?;
+            let mut config = CONFIG.load(deps.storage)?;
             let factory_config = query_factory_config(&deps.querier, &config.factory_addr)?;
 
-            let owner = config.owner.unwrap_or(factory_config.owner);
+            let owner = config.owner.clone().unwrap_or(factory_config.owner);
             ensure_eq!(info.sender, owner, ContractError::Unauthorized {});
 
+            let mut response =
+                Response::new().add_attribute("action", "update_duality_orderbook_config");
+
             let mut ob_state = OrderbookState::load(deps.storage)?;
-            let cancel_orders_msgs = if let Some(false) = update_orderbook_conf.enable {
-                let msgs = ob_state.cancel_orders(&env.contract.address);
+            if let Some(false) = update_orderbook_conf.enable {
+                let precisions = Precisions::new(deps.storage)?;
+
+                let cumulative_trades = ob_state.fetch_cumulative_trades(&precisions)?;
+                if !cumulative_trades.is_empty() {
+                    let liquidity = Liquidity::new(deps.querier, &config, &mut ob_state, false)?;
+                    let mut pools = liquidity.total_dec(&precisions)?;
+
+                    let xs = pools.iter().map(|a| a.amount).collect_vec();
+                    let old_real_price = calc_last_prices(&xs, &config, &env)?;
+
+                    let mut balances = pools
+                        .iter_mut()
+                        .map(|asset| &mut asset.amount)
+                        .collect_vec();
+
+                    response = process_cumulative_trades(
+                        deps.as_ref(),
+                        &env,
+                        &cumulative_trades,
+                        &mut config,
+                        &mut balances,
+                        &precisions,
+                        None,
+                    )?;
+
+                    accumulate_prices(&env, &mut config, old_real_price);
+                    CONFIG.save(deps.storage, &config)?;
+                }
+
+                response = response.add_messages(ob_state.cancel_orders(&env.contract.address));
                 ob_state.orders = vec![];
-                msgs
-            } else {
-                vec![]
             };
 
-            let mut attrs = vec![attr("action", "update_duality_orderbook_config")];
-            attrs.extend(ob_state.update_config(deps.api, update_orderbook_conf)?);
+            let attrs = ob_state.update_config(deps.api, update_orderbook_conf)?;
 
             ob_state.save(deps.storage)?;
 
-            Ok(Response::default()
-                .add_messages(cancel_orders_msgs)
-                .add_attributes(attrs))
+            Ok(response.add_attributes(attrs))
         }
     }
 }

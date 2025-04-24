@@ -1640,7 +1640,7 @@ fn test_migrate_cl_to_orderbook() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Not yet implemented"
+        "Generic error: Invalid contract version"
     );
 
     let config = helper.query_config().unwrap();
