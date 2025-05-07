@@ -151,7 +151,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "5.9.2"
+version = "5.9.3"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
  "cosmos-sdk-proto 0.19.0",
@@ -212,7 +212,7 @@ name = "astroport-factory"
 version = "1.9.0"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-pair 2.1.0",
  "astroport-test",
  "cosmwasm-schema",
@@ -261,7 +261,7 @@ version = "1.3.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.1.0",
@@ -287,7 +287,7 @@ version = "1.7.0"
 dependencies = [
  "anyhow",
  "astro-satellite-package",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.1.0",
@@ -373,7 +373,7 @@ dependencies = [
 name = "astroport-pair"
 version = "2.1.0"
 dependencies = [
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-test",
@@ -396,7 +396,7 @@ name = "astroport-pair-concentrated"
 version = "4.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
@@ -422,7 +422,7 @@ name = "astroport-pair-concentrated-duality"
 version = "4.2.1"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "astroport-pair-concentrated",
@@ -471,7 +471,7 @@ name = "astroport-pair-stable"
 version = "4.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory 1.9.0",
  "astroport-incentives",
@@ -497,7 +497,7 @@ name = "astroport-pair-transmuter"
 version = "1.1.2"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-test",
@@ -518,7 +518,7 @@ name = "astroport-pair-xastro"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-staking",
  "astroport-test",
@@ -536,7 +536,7 @@ dependencies = [
 name = "astroport-pair-xyk-sale-tax"
 version = "2.1.0"
 dependencies = [
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-incentives",
  "astroport-pair 1.3.3",
@@ -562,7 +562,7 @@ name = "astroport-pcl-common"
 version = "2.1.1"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-test",
  "cosmwasm-schema",
@@ -578,7 +578,7 @@ name = "astroport-router"
 version = "1.3.1"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.1.0",
@@ -600,7 +600,7 @@ version = "2.3.0"
 dependencies = [
  "anyhow",
  "astroport 4.0.3",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-tokenfactory-tracker 1.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -618,7 +618,7 @@ name = "astroport-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 5.9.2",
+ "astroport 5.9.3",
  "astroport-factory 1.9.0",
  "cosmwasm-schema",
  "cosmwasm-std",
