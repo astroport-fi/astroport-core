@@ -1,20 +1,16 @@
-use std::collections::HashMap;
-
-use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, entry_point, Addr, Decimal, DepsMut, Env, Response, StdError,
-    StdResult, Uint128,
+    attr, ensure, ensure_eq, entry_point, Decimal256, DepsMut, Env, Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Item;
+use std::str::FromStr;
 
-use astroport::asset::Asset;
 use astroport::factory::PairType;
 use astroport::pair_concentrated_duality::MigrateMsg;
 use astroport_pcl_common::state::Config;
 
 use crate::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
-use crate::orderbook::state::{OrderState, OrderbookState};
+use crate::orderbook::state::OrderbookState;
 use crate::state::CONFIG;
 
 const MIGRATE_FROM: &str = "astroport-pair-concentrated";
@@ -26,7 +22,7 @@ fn from_semver(err: semver::Error) -> StdError {
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let mut attrs = vec![];
 
     let stored_info = get_contract_version(deps.storage)?;
@@ -59,53 +55,29 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             );
 
             match stored_info.version.as_str() {
-                "4.1.1" => {
-                    #[cw_serde]
-                    pub struct OldOrderbookState {
-                        pub executor: Option<Addr>,
-                        pub orders_number: u8,
-                        pub min_asset_0_order_size: Uint128,
-                        pub min_asset_1_order_size: Uint128,
-                        pub liquidity_percent: Decimal,
-                        pub orders: Vec<String>,
-                        pub enabled: bool,
-                        pub pre_reply_contract_balances: Vec<Asset>,
-                        pub delayed_trade: Option<OrderState>,
-                        pub avg_price_adjustment: Decimal,
-                        pub last_order_sizes: HashMap<String, Uint128>,
+                "4.2.0" => {
+                    // Fixing skewed last price in dTIA-USDC and dNTRN-USDC pools
+                    if env.contract.address.as_str()
+                        == "neutron1awgqp5ma90qy0ecezzf6ghple8mpgtlv8z3kez065z7x5fprd4qs7vz4dc"
+                    {
+                        CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                            config.pool_state.price_state.last_price =
+                                Decimal256::from_str("2.46062").unwrap();
+                            config.pool_state.price_state.last_price_update =
+                                env.block.time.seconds();
+                            Ok(config)
+                        })?;
+                    } else if env.contract.address.as_str()
+                        == "neutron1hme8vcsky2xeq4qc4wg3uy9gc47xzga6uqk8plaps8tvutjshuwqajnze6"
+                    {
+                        CONFIG.update::<_, StdError>(deps.storage, |mut config| {
+                            config.pool_state.price_state.last_price =
+                                Decimal256::from_str("0.120487").unwrap();
+                            config.pool_state.price_state.last_price_update =
+                                env.block.time.seconds();
+                            Ok(config)
+                        })?;
                     }
-                    let old_ob_state: OldOrderbookState =
-                        Item::new("orderbook_config").load(deps.storage)?;
-
-                    ensure!(
-                        old_ob_state.delayed_trade.is_none(),
-                        StdError::generic_err(
-                            "Delayed trade must be none. Sync orderbook and migrate after"
-                        )
-                    );
-
-                    ensure!(
-                        !old_ob_state.enabled,
-                        StdError::generic_err("Orderbook must be disabled")
-                    );
-
-                    let ob_state = OrderbookState {
-                        executor: old_ob_state.executor,
-                        orders_number: old_ob_state.orders_number,
-                        min_asset_0_order_size: old_ob_state.min_asset_0_order_size,
-                        min_asset_1_order_size: old_ob_state.min_asset_1_order_size,
-                        liquidity_percent: old_ob_state.liquidity_percent,
-                        orders: vec![],
-                        enabled: false,
-                        pre_reply_balances: vec![],
-                        delayed_trade: None,
-                        avg_price_adjustment: old_ob_state.avg_price_adjustment,
-                        orders_state: Default::default(),
-                        old_orders_state: Default::default(),
-                    };
-
-                    Item::new("orderbook_config").save(deps.storage, &ob_state)?;
-
                     Ok(())
                 }
                 _ => Err(StdError::generic_err("Invalid contract version")),

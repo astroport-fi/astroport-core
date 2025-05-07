@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-duality"
-version = "4.2.0"
+version = "4.2.1"
 dependencies = [
  "anyhow",
  "astroport 5.9.2",
