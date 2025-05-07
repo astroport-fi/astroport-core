@@ -139,19 +139,29 @@ pub fn process_cumulative_trades(
         events.push(Event::new(format!("cumulative_trade_{i}")).add_attributes(attrs))
     }
 
-    // Considering only base_asset in the end calculations
-    // as this is the only assets that left contract
     let trade = match &trades {
         [trade1, trade2] => match trade1.base_asset.amount.cmp(&trade2.quote_asset.amount) {
             // We received less trade1.base_asset than sold i.e. we sold trade1.base_asset
             Ordering::Less => CumulativeTrade {
-                base_asset: trade2.base_asset.clone(),
-                quote_asset: trade1.base_asset.clone(),
+                base_asset: trade1
+                    .quote_asset
+                    .info
+                    .with_dec_balance(trade2.base_asset.amount - trade1.quote_asset.amount),
+                quote_asset: trade1
+                    .base_asset
+                    .info
+                    .with_dec_balance(trade2.quote_asset.amount - trade1.base_asset.amount),
             },
             // We received more trade1.base_asset than sold i.e. we bought trade1.quote_asset
             Ordering::Greater => CumulativeTrade {
-                base_asset: trade1.base_asset.clone(),
-                quote_asset: trade2.base_asset.clone(),
+                base_asset: trade1
+                    .base_asset
+                    .info
+                    .with_dec_balance(trade1.base_asset.amount - trade2.quote_asset.amount),
+                quote_asset: trade1
+                    .quote_asset
+                    .info
+                    .with_dec_balance(trade1.quote_asset.amount - trade2.base_asset.amount),
             },
             Ordering::Equal => unreachable!(),
         },

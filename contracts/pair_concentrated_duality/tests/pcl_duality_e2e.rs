@@ -802,7 +802,7 @@ fn test_cumulative_trade_when_both_sides_filled() {
     // DEX swap ASTRO -> USDC
     astroport
         .helper
-        .swap_on_dex(&dex_trader, coin(700_000000u128, "astro"), "usdc", 0.3)
+        .swap_on_dex(&dex_trader, coin(700_000000u128, "astro"), "usdc", 0.5)
         .unwrap();
 
     // Sync with orderbook
@@ -834,6 +834,63 @@ fn test_cumulative_trade_when_both_sides_filled() {
                 quote_asset: astroport.assets[&test_coins[0]].with_balance(923_642189u128)
             }
         ]
+    );
+
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price.to_string(),
+        "0.668281266463892125"
+    );
+
+    // DEX swap USDC -> ASTRO
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(10u128, "usdc"), "astro", 0.3)
+        .unwrap();
+
+    // DEX swap ASTRO -> USDC
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(700_000000u128, "astro"), "usdc", 0.4)
+        .unwrap();
+
+    // Sync with orderbook
+    let resp = astroport.sync_orders(&astroport.helper.signer).unwrap();
+
+    // Check cumulative trades
+    let cumulative_trades: Vec<CumulativeTradeUint> = resp
+        .events
+        .iter()
+        .flat_map(|e| e.attributes.iter())
+        .filter_map(|attr| {
+            if attr.key == "cumulative_trade" {
+                Some(from_str(&attr.value).unwrap())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(
+        cumulative_trades,
+        [
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[0]].with_balance(699999996u128),
+                quote_asset: astroport.assets[&test_coins[1]].with_balance(690075060u128)
+            },
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[1]].with_balance(9u128),
+                quote_asset: astroport.assets[&test_coins[0]].with_balance(10u128)
+            }
+        ]
+    );
+    // We've received 699999996 - 10 astro and sold 690075060 - 9 usdc =>
+    // (699999996 - 10) / (690075060 - 9) = 1.014382399400786
+
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price.to_string(),
+        "1.014382399400786335"
     );
 }
 
