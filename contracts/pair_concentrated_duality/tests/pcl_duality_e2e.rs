@@ -895,6 +895,176 @@ fn test_cumulative_trade_when_both_sides_filled() {
 }
 
 #[test]
+fn check_orders_eliminate_each_other() {
+    let test_coins = vec![TestCoin::native("astro"), TestCoin::native("usdc")];
+
+    let app = NeutronTestApp::new();
+    let neutron = TestAppWrapper::bootstrap(&app).unwrap();
+    let owner = neutron.signer.address();
+
+    let astroport = AstroportHelper::new(
+        &neutron,
+        test_coins.clone(),
+        ConcentratedPoolParams {
+            price_scale: Decimal::one(),
+            ..common_pcl_params()
+        },
+        OrderbookConfig {
+            executor: Some(owner),
+            liquidity_percent: Decimal::percent(5),
+            orders_number: 10,
+            min_asset_0_order_size: Uint128::from(1_000u128),
+            min_asset_1_order_size: Uint128::from(1_000u128),
+            avg_price_adjustment: Decimal::from_str("0.0001").unwrap(),
+        },
+    )
+    .unwrap();
+
+    astroport.enable_orderbook(&astroport.owner, true).unwrap();
+
+    let user = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(2_000_000_000000u128, "untrn"),
+            coin(2_000_000_000000u128, "astro"),
+            coin(2_000_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    let initial_balances = [
+        astroport.assets[&test_coins[0]].with_balance(10_000_000000u128),
+        astroport.assets[&test_coins[1]].with_balance(10_000_000000u128),
+    ];
+
+    // Providing initial liquidity
+    astroport
+        .provide_liquidity(&user, &initial_balances)
+        .unwrap();
+
+    let last_last_price = astroport
+        .query_config()
+        .unwrap()
+        .pool_state
+        .price_state
+        .last_price
+        .to_string();
+
+    let dex_trader = astroport
+        .helper
+        .app
+        .init_account(&[
+            coin(10_000_000000u128, "untrn"),
+            coin(10_000_000000u128, "astro"),
+            coin(10_000_000000u128, "usdc"),
+        ])
+        .unwrap();
+
+    // Checking trades that eliminate each other in terms of PCL
+
+    // DEX swap USDC -> ASTRO
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(3u128, "usdc"), "astro", 0.4)
+        .unwrap();
+
+    // DEX swap ASTRO -> USDC
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(3u128, "astro"), "usdc", 0.4)
+        .unwrap();
+
+    // Sync with orderbook
+    let resp = astroport.sync_orders(&astroport.helper.signer).unwrap();
+
+    // Check cumulative trades
+    let cumulative_trades: Vec<CumulativeTradeUint> = resp
+        .events
+        .iter()
+        .flat_map(|e| e.attributes.iter())
+        .filter_map(|attr| {
+            if attr.key == "cumulative_trade" {
+                Some(from_str(&attr.value).unwrap())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    assert_eq!(
+        cumulative_trades,
+        [
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[0]].with_balance(2u128),
+                quote_asset: astroport.assets[&test_coins[1]].with_balance(3u128)
+            },
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[1]].with_balance(2u128),
+                quote_asset: astroport.assets[&test_coins[0]].with_balance(3u128)
+            }
+        ]
+    );
+
+    // Last price didn't change
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price.to_string(),
+        last_last_price
+    );
+
+    // DEX swap USDC -> ASTRO
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(12u128, "usdc"), "astro", 0.8)
+        .unwrap();
+
+    // DEX swap ASTRO -> USDC
+    astroport
+        .helper
+        .swap_on_dex(&dex_trader, coin(13u128, "astro"), "usdc", 0.8)
+        .unwrap();
+
+    // Sync with orderbook
+    let resp = astroport.sync_orders(&astroport.helper.signer).unwrap();
+
+    // Check cumulative trades
+    let cumulative_trades: Vec<CumulativeTradeUint> = resp
+        .events
+        .iter()
+        .flat_map(|e| e.attributes.iter())
+        .filter_map(|attr| {
+            if attr.key == "cumulative_trade" {
+                Some(from_str(&attr.value).unwrap())
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    // Sold 10 uASTRO and received 10 uASTRO
+    assert_eq!(
+        cumulative_trades,
+        [
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[0]].with_balance(10u128),
+                quote_asset: astroport.assets[&test_coins[1]].with_balance(11u128)
+            },
+            CumulativeTradeUint {
+                base_asset: astroport.assets[&test_coins[1]].with_balance(9u128),
+                quote_asset: astroport.assets[&test_coins[0]].with_balance(10u128)
+            }
+        ]
+    );
+
+    // Last price didn't change
+    let config = astroport.query_config().unwrap();
+    assert_eq!(
+        config.pool_state.price_state.last_price.to_string(),
+        last_last_price
+    );
+}
+
+#[test]
 fn check_orderbook_after_withdrawal() {
     let test_coins = vec![TestCoin::native("astro"), TestCoin::native("usdc")];
     let orders_number = 5;

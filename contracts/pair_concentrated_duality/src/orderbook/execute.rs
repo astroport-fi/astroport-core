@@ -142,59 +142,71 @@ pub fn process_cumulative_trades(
     let trade = match &trades {
         [trade1, trade2] => match trade1.base_asset.amount.cmp(&trade2.quote_asset.amount) {
             // We received less trade1.base_asset than sold i.e. we sold trade1.base_asset
-            Ordering::Less => CumulativeTrade {
-                base_asset: trade1
-                    .quote_asset
-                    .info
-                    .with_dec_balance(trade2.base_asset.amount - trade1.quote_asset.amount),
+            Ordering::Less => Some(CumulativeTrade {
+                base_asset: trade1.quote_asset.info.with_dec_balance(
+                    trade2
+                        .base_asset
+                        .amount
+                        .saturating_sub(trade1.quote_asset.amount),
+                ),
                 quote_asset: trade1
                     .base_asset
                     .info
                     .with_dec_balance(trade2.quote_asset.amount - trade1.base_asset.amount),
-            },
+            }),
             // We received more trade1.base_asset than sold i.e. we bought trade1.quote_asset
-            Ordering::Greater => CumulativeTrade {
+            Ordering::Greater => Some(CumulativeTrade {
                 base_asset: trade1
                     .base_asset
                     .info
                     .with_dec_balance(trade1.base_asset.amount - trade2.quote_asset.amount),
-                quote_asset: trade1
-                    .quote_asset
-                    .info
-                    .with_dec_balance(trade1.quote_asset.amount - trade2.base_asset.amount),
-            },
-            Ordering::Equal => unreachable!(),
+                quote_asset: trade1.quote_asset.info.with_dec_balance(
+                    trade1
+                        .quote_asset
+                        .amount
+                        .saturating_sub(trade2.base_asset.amount),
+                ),
+            }),
+            // Sell and buy sides eliminated each other. No need to repeg PCL
+            Ordering::Equal => None,
         },
-        [trade] => trade.clone(),
+        [trade] => Some(trade.clone()),
         _ => unreachable!("Must be at least 1 and at most 2 cumulative trades"),
     };
 
-    // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
-    // especially if token precisions are 18.
-    if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
-        let offer_ind = config
-            .pair_info
-            .asset_infos
-            .iter()
-            .position(|asset_info| asset_info == &trade.base_asset.info)
-            .unwrap();
-        let last_price = if offer_ind == 0 {
-            trade.base_asset.amount / trade.quote_asset.amount
-        } else {
-            trade.quote_asset.amount / trade.base_asset.amount
-        };
+    if let Some(trade) = trade {
+        // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
+        // especially if token precisions are 18.
+        if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
+            let offer_ind = config
+                .pair_info
+                .asset_infos
+                .iter()
+                .position(|asset_info| asset_info == &trade.base_asset.info)
+                .unwrap();
+            let last_price = if offer_ind == 0 {
+                trade.base_asset.amount / trade.quote_asset.amount
+            } else {
+                trade.quote_asset.amount / trade.base_asset.amount
+            };
 
-        let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
-            .to_decimal256(LP_TOKEN_PRECISION)?;
+            let total_share =
+                query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
+                    .to_decimal256(LP_TOKEN_PRECISION)?;
 
-        let ixs = [
-            *balances[0],
-            *balances[1] * config.pool_state.price_state.price_scale,
-        ];
+            let ixs = [
+                *balances[0],
+                *balances[1] * config.pool_state.price_state.price_scale,
+            ];
 
-        config
-            .pool_state
-            .update_price(&config.pool_params, env, total_share, &ixs, last_price)?;
+            config.pool_state.update_price(
+                &config.pool_params,
+                env,
+                total_share,
+                &ixs,
+                last_price,
+            )?;
+        }
     }
 
     Ok(Response::default()
