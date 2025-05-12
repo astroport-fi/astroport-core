@@ -833,6 +833,8 @@ fn check_amp_gamma_change() {
         repeg_profit_threshold: None,
         min_price_scale_delta: None,
         ma_half_time: None,
+        allowed_xcp_profit_drop: None,
+        xcp_profit_losses_threshold: None,
     });
 
     let err = helper.update_config(&random_user, &action).unwrap_err();

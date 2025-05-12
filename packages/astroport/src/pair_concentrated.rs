@@ -38,6 +38,10 @@ pub struct ConcentratedPoolParams {
     pub track_asset_balances: Option<bool>,
     /// The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
+    /// Allowed xCP profit real drop per each PCL repeg try
+    pub allowed_xcp_profit_drop: Option<Decimal>,
+    /// Total allowed xCP profit loss i.e. cap for `price_state.xcp_profit_losses`
+    pub xcp_profit_losses_threshold: Option<Decimal>,
 }
 
 /// This structure holds concentrated pool parameters which can be changed immediately.
@@ -49,6 +53,8 @@ pub struct UpdatePoolParams {
     pub repeg_profit_threshold: Option<Decimal>,
     pub min_price_scale_delta: Option<Decimal>,
     pub ma_half_time: Option<u64>,
+    pub allowed_xcp_profit_drop: Option<Decimal>,
+    pub xcp_profit_losses_threshold: Option<Decimal>,
 }
 
 /// Amp and gamma should be changed gradually. This structure holds all necessary parameters.

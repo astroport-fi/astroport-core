@@ -18,7 +18,10 @@ use astroport::tokenfactory_tracker::{
     ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
 };
 use astroport_pair_concentrated::error::ContractError;
-use astroport_pcl_common::consts::{AMP_MAX, AMP_MIN, MA_HALF_TIME_LIMITS};
+use astroport_pcl_common::consts::{
+    AMP_MAX, AMP_MIN, MAX_ALLOWED_XCP_PROFIT_DROP, MAX_XCP_PROFIT_THRESHOLD, MA_HALF_TIME_LIMITS,
+    MIN_ALLOWED_XCP_PROFIT_DROP, MIN_XCP_PROFIT_THRESHOLD,
+};
 use astroport_pcl_common::error::PclError;
 
 use astroport_test::coins::TestCoin;
@@ -152,6 +155,40 @@ fn check_wrong_initialization() {
     assert_eq!(
         err.root_cause().to_string(),
         "Generic error: Initial price scale can not be zero",
+    );
+
+    let mut wrong_params = params.clone();
+    wrong_params.allowed_xcp_profit_drop = Some(Decimal::one());
+    let err = Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        wrong_params,
+    )
+    .unwrap_err();
+    assert_eq!(
+        ContractError::PclError(PclError::IncorrectPoolParam(
+            "allowed_xcp_profit_drop".to_string(),
+            MIN_ALLOWED_XCP_PROFIT_DROP.to_string(),
+            MAX_ALLOWED_XCP_PROFIT_DROP.to_string()
+        )),
+        err.downcast().unwrap(),
+    );
+
+    let mut wrong_params = params.clone();
+    wrong_params.xcp_profit_losses_threshold = Some(Decimal::one());
+    let err = Helper::new(
+        &owner,
+        vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
+        wrong_params,
+    )
+    .unwrap_err();
+    assert_eq!(
+        ContractError::PclError(PclError::IncorrectPoolParam(
+            "xcp_profit_losses_threshold".to_string(),
+            MIN_XCP_PROFIT_THRESHOLD.to_string(),
+            MAX_XCP_PROFIT_THRESHOLD.to_string()
+        )),
+        err.downcast().unwrap(),
     );
 
     // check instantiation with valid params
@@ -851,6 +888,8 @@ fn check_amp_gamma_change() {
         repeg_profit_threshold: None,
         min_price_scale_delta: None,
         ma_half_time: None,
+        allowed_xcp_profit_drop: None,
+        xcp_profit_losses_threshold: None,
     });
 
     let err = helper.update_config(&random_user, &action).unwrap_err();
@@ -1834,6 +1873,8 @@ fn check_lsd_swaps_with_price_update() {
         ma_half_time: 600,
         track_asset_balances: None,
         fee_share: None,
+        allowed_xcp_profit_drop: None,
+        xcp_profit_losses_threshold: None,
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 

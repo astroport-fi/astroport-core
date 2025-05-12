@@ -109,6 +109,8 @@ pub fn instantiate(
         repeg_profit_threshold: Some(params.repeg_profit_threshold),
         min_price_scale_delta: Some(params.min_price_scale_delta),
         ma_half_time: Some(params.ma_half_time),
+        allowed_xcp_profit_drop: params.allowed_xcp_profit_drop,
+        xcp_profit_losses_threshold: params.xcp_profit_losses_threshold,
     })?;
 
     let pool_state = PoolState {
@@ -123,6 +125,7 @@ pub fn instantiate(
             last_price_update: env.block.time.seconds(),
             xcp_profit: Decimal256::zero(),
             xcp_profit_real: Decimal256::zero(),
+            xcp_profit_losses: Decimal256::zero(),
         },
     };
 
@@ -906,7 +909,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "4.0.0" | "4.0.1" | "4.1.0" => {}
+            "4.0.0" | "4.0.1" | "4.1.0" | "4.1.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
