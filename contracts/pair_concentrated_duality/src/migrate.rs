@@ -54,7 +54,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             );
 
             match stored_info.version.as_str() {
-                "4.2.1" => Ok(()),
+                "4.2.0" | "4.2.1" => Ok(()),
                 _ => Err(StdError::generic_err("Invalid contract version")),
             }
         }
