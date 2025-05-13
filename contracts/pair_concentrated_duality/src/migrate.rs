@@ -1,9 +1,8 @@
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, entry_point, Decimal256, DepsMut, Env, Response, StdError, StdResult,
+    attr, ensure, ensure_eq, entry_point, DepsMut, Env, Response, StdError, StdResult,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Item;
-use std::str::FromStr;
 
 use astroport::factory::PairType;
 use astroport::pair_concentrated_duality::MigrateMsg;
@@ -22,7 +21,7 @@ fn from_semver(err: semver::Error) -> StdError {
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response> {
     let mut attrs = vec![];
 
     let stored_info = get_contract_version(deps.storage)?;
@@ -55,31 +54,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> StdResult<Response> 
             );
 
             match stored_info.version.as_str() {
-                "4.2.0" => {
-                    // Fixing skewed last price in dTIA-USDC and dNTRN-USDC pools
-                    if env.contract.address.as_str()
-                        == "neutron1awgqp5ma90qy0ecezzf6ghple8mpgtlv8z3kez065z7x5fprd4qs7vz4dc"
-                    {
-                        CONFIG.update::<_, StdError>(deps.storage, |mut config| {
-                            config.pool_state.price_state.last_price =
-                                Decimal256::from_str("2.46062").unwrap();
-                            config.pool_state.price_state.last_price_update =
-                                env.block.time.seconds();
-                            Ok(config)
-                        })?;
-                    } else if env.contract.address.as_str()
-                        == "neutron1hme8vcsky2xeq4qc4wg3uy9gc47xzga6uqk8plaps8tvutjshuwqajnze6"
-                    {
-                        CONFIG.update::<_, StdError>(deps.storage, |mut config| {
-                            config.pool_state.price_state.last_price =
-                                Decimal256::from_str("0.120487").unwrap();
-                            config.pool_state.price_state.last_price_update =
-                                env.block.time.seconds();
-                            Ok(config)
-                        })?;
-                    }
-                    Ok(())
-                }
+                "4.2.0" | "4.2.1" => Ok(()),
                 _ => Err(StdError::generic_err("Invalid contract version")),
             }
         }
