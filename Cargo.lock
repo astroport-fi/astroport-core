@@ -393,7 +393,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "4.1.1"
+version = "4.2.0"
 dependencies = [
  "anyhow",
  "astroport 5.9.4",
@@ -419,7 +419,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-duality"
-version = "4.2.2"
+version = "4.3.0"
 dependencies = [
  "anyhow",
  "astroport 5.9.4",
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pcl-common"
-version = "2.1.1"
+version = "2.2.0"
 dependencies = [
  "anyhow",
  "astroport 5.9.4",

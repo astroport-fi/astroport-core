@@ -59,3 +59,12 @@ pub const GAMMA_MAX: Decimal = Decimal::raw(20000000000000000);
 pub const MIN_AMP_CHANGING_TIME: u64 = 86400;
 /// The maximum allowed change of Amplifier or Gamma (1000%).
 pub const MAX_CHANGE: Decimal = Decimal::raw(1e19 as u128);
+
+/// Minimum allowed xCP profit real drop
+pub const MIN_ALLOWED_XCP_PROFIT_DROP: Decimal = Decimal::zero();
+/// Maximum allowed xCP profit real drop (1e-6)
+pub const MAX_ALLOWED_XCP_PROFIT_DROP: Decimal = Decimal::raw(1000000000000);
+/// Minimum allowed cumulative xCP profit real drop threshold
+pub const MIN_XCP_PROFIT_THRESHOLD: Decimal = Decimal::zero();
+/// Maximum allowed cumulative xCP profit real drop threshold (1e-4)
+pub const MAX_XCP_PROFIT_THRESHOLD: Decimal = Decimal::raw(100000000000000);
