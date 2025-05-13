@@ -379,25 +379,28 @@ impl PoolState {
             // If xcp dropped and no ramping happens,
             // then the pool either now or previously lost a fraction of its liquidity
             // which somehow bypassed the PCL curve.
-            if xcp_profit_real < price_state.xcp_profit_real && block_time >= self.future_time {
-                let losses = price_state.xcp_profit_real - xcp_profit_real;
-                if losses > Decimal256::from(pool_params.allowed_xcp_profit_drop) {
-                    return Err(StdError::generic_err(
-                        "XCP profit real value dropped. This action makes loss",
-                    ));
+            if block_time >= self.future_time {
+                if xcp_profit_real < price_state.xcp_profit_real {
+                    let losses = price_state.xcp_profit_real - xcp_profit_real;
+                    if losses > Decimal256::from(pool_params.allowed_xcp_profit_drop) {
+                        return Err(StdError::generic_err(
+                            "XCP profit real value dropped. This action makes loss",
+                        ));
+                    } else {
+                        price_state.xcp_profit_losses += losses;
+                    }
                 } else {
-                    price_state.xcp_profit_losses += losses;
+                    let gain = xcp_profit_real - price_state.xcp_profit_real;
+                    price_state.xcp_profit_losses =
+                        price_state.xcp_profit_losses.saturating_sub(gain);
                 }
-            } else {
-                let gain = xcp_profit_real - price_state.xcp_profit_real;
-                price_state.xcp_profit_losses = price_state.xcp_profit_losses.saturating_sub(gain);
-            }
 
-            ensure!(
-                price_state.xcp_profit_losses
-                    <= Decimal256::from(pool_params.xcp_profit_losses_threshold),
-                StdError::generic_err("PCL has reached the limit of losses")
-            );
+                ensure!(
+                    price_state.xcp_profit_losses
+                        <= Decimal256::from(pool_params.xcp_profit_losses_threshold),
+                    StdError::generic_err("PCL has reached the limit of losses")
+                );
+            }
 
             price_state.xcp_profit =
                 price_state.xcp_profit * xcp_profit_real / price_state.xcp_profit_real;
@@ -411,8 +414,10 @@ impl PoolState {
             .max(norm * Decimal256::from_ratio(1u8, 10u8));
 
         if norm >= scale_delta
-            && price_state.xcp_profit_real - Decimal256::one()
-                > (xcp_profit - Decimal256::one()) / TWO
+            && price_state
+                .xcp_profit_real
+                .saturating_sub(Decimal256::one())
+                > xcp_profit.saturating_sub(Decimal256::one()) / TWO
                     + Decimal256::from(pool_params.repeg_profit_threshold)
         {
             let numerator = price_state.price_scale * (norm - scale_delta)
@@ -1218,6 +1223,64 @@ mod test {
         ext_xs[0] -= f64_to_dec256(1e-3);
 
         let offer_amount = f64_to_dec256(1e-5);
+        let price = swap(
+            &mut ext_xs,
+            offer_amount,
+            pool_state.price_state.price_scale,
+            0,
+            &amp_gamma,
+            &pool_params,
+        );
+        let err = pool_state
+            .update_price(
+                &pool_params,
+                &env,
+                total_lp,
+                &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
+                price,
+            )
+            .unwrap_err();
+        assert_eq!(
+            err,
+            StdError::generic_err("XCP profit real value dropped. This action makes loss")
+        );
+
+        // Ramp gamma
+        pool_state.initial = pool_state.future;
+        pool_state.future = AmpGamma {
+            amp: f64_to_dec(10.0),
+            gamma: f64_to_dec(0.0001),
+        };
+        pool_state.future_time = env.block.time.plus_seconds(100).seconds();
+
+        to_future(&mut env, 10);
+
+        ext_xs[0] -= f64_to_dec256(1e-6);
+
+        let offer_amount = f64_to_dec256(1e-5);
+        let price = swap(
+            &mut ext_xs,
+            offer_amount,
+            pool_state.price_state.price_scale,
+            0,
+            &amp_gamma,
+            &pool_params,
+        );
+        // During gamma ramp the pool doesn't account losses
+        pool_state
+            .update_price(
+                &pool_params,
+                &env,
+                total_lp,
+                &to_internal_repr(&ext_xs, pool_state.price_state.price_scale),
+                price,
+            )
+            .unwrap();
+
+        to_future(&mut env, 90);
+
+        ext_xs[0] -= f64_to_dec256(1e-5);
+
         let price = swap(
             &mut ext_xs,
             offer_amount,
