@@ -59,46 +59,6 @@ pub struct ConcentratedPoolParamsSaleTax {
     pub tax_config_admin: String,
 }
 
-/// This structure holds concentrated pool parameters which can be changed immediately.
-// #[cw_serde]
-// pub struct UpdatePoolParams {
-//     pub mid_fee: Option<Decimal>,
-//     pub out_fee: Option<Decimal>,
-//     pub fee_gamma: Option<Decimal>,
-//     pub repeg_profit_threshold: Option<Decimal>,
-//     pub min_price_scale_delta: Option<Decimal>,
-//     pub ma_half_time: Option<u64>,
-//     pub allowed_xcp_profit_drop: Option<Decimal>,
-//     pub xcp_profit_losses_threshold: Option<Decimal>,
-// }
-
-// /// Amp and gamma should be changed gradually. This structure holds all necessary parameters.
-// #[cw_serde]
-// pub struct PromoteParams {
-//     pub next_amp: Decimal,
-//     pub next_gamma: Decimal,
-//     pub future_time: u64,
-// }
-
-// /// This enum intended for parameters update.
-// #[cw_serde]
-// pub enum ConcentratedPoolUpdateParams {
-//     /// Allows to update fee parameters as well as repeg_profit_threshold, min_price_scale_delta and EMA interval.
-//     Update(UpdatePoolParams),
-//     /// Starts gradual (de/in)crease of Amp or Gamma parameters. Can handle an update of both of them.
-//     Promote(PromoteParams),
-//     /// Stops Amp and Gamma update and stores current values.
-//     StopChangingAmpGamma {},
-//     /// Enables the sharing of swap fees with an external party.
-//     EnableFeeShare {
-//         /// The fee shared with the fee_share_address
-//         fee_share_bps: u16,
-//         /// The fee_share_bps is sent to this address on every swap
-//         fee_share_address: String,
-//     },
-//     DisableFeeShare,
-// }
-
 /// This enum intended for parameters update.
 #[cw_serde]
 pub enum ConcentratedPoolUpdateParamsSaleTax {
