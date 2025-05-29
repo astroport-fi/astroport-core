@@ -186,6 +186,26 @@ where `<base64_encoded_json_string>` is one of
 }
 ```
 
+4. Update sale tax
+
+```json
+{
+  "update_sale_tax": {
+    "tax_configs": {
+      "uusd": {
+        "tax_rate": "0.01",
+        "tax_recipient": "terra..."
+      },
+      "terra...": {
+        "tax_rate": "0.02",
+        "tax_recipient": "terra..."
+      }
+    },
+    "tax_config_admin": "terra..."
+  }
+}
+```
+
 ## QueryMsg
 
 All query messages are described below. A custom struct is defined for each query response.
