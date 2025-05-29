@@ -206,6 +206,7 @@ fn instantiate_contracts(
             is_disabled: false,
             is_generator_disabled: false,
             permissioned: false,
+            whitelist: None,
         }],
         token_code_id: 1u64,
         fee_address: None,

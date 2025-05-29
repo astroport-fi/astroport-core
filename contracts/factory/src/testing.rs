@@ -51,6 +51,7 @@ fn proper_initialization() {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
             PairConfig {
                 code_id: 325u64,
@@ -60,6 +61,7 @@ fn proper_initialization() {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
         ],
         token_code_id: 123u64,
@@ -86,6 +88,7 @@ fn proper_initialization() {
             is_disabled: false,
             is_generator_disabled: false,
             permissioned: false,
+            whitelist: None,
         }],
         token_code_id: 123u64,
         fee_address: None,
@@ -114,6 +117,7 @@ fn proper_initialization() {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
             PairConfig {
                 code_id: 123u64,
@@ -123,6 +127,7 @@ fn proper_initialization() {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
         ],
         token_code_id: 123u64,
@@ -159,6 +164,7 @@ fn update_config() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     }];
 
     let msg = InstantiateMsg {
@@ -313,6 +319,7 @@ fn update_pair_config() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     }];
 
     let msg = InstantiateMsg {
@@ -346,6 +353,7 @@ fn update_pair_config() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     };
 
     // Unauthorized err
@@ -370,6 +378,7 @@ fn update_pair_config() {
             is_disabled: false,
             is_generator_disabled: false,
             permissioned: false,
+            whitelist: None,
         },
     };
 
@@ -398,6 +407,7 @@ fn update_pair_config() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     };
 
     let info = mock_info(owner, &[]);
@@ -428,6 +438,7 @@ fn create_pair() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     };
 
     let msg = InstantiateMsg {
@@ -532,6 +543,7 @@ fn register() {
             is_disabled: false,
             is_generator_disabled: false,
             permissioned: false,
+            whitelist: None,
         }],
         token_code_id: 123u64,
         fee_address: None,

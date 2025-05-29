@@ -88,6 +88,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: pair_code_id,
@@ -97,6 +98,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: pcl_code_id,
@@ -106,6 +108,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
             ],
             token_code_id: cw20_token_code_id,
