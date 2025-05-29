@@ -1,6 +1,6 @@
 # Astroport Concentrated Liquidity Pair
 
-[//]: # (TODO: write README)
+[//]: # "TODO: write README"
 
 ## InstantiateMsg
 
@@ -39,7 +39,18 @@ where `<base64_encoded_json_string>` is
   "min_price_scale_delta": "0.000001",
   "initial_price_scale": "1.5",
   "ma_half_time": 600,
-  "owner": "terra..."
+  "owner": "terra...",
+  "tax_config_admin": "terra...",
+  "tax_configs": {
+    "uusd": {
+      "tax_rate": "0.01",
+      "tax_recipient": "terra..."
+    },
+    "terra...": {
+      "tax_rate": "0.02",
+      "tax_recipient": "terra..."
+    }
+  }
 }
 ```
 
@@ -65,7 +76,7 @@ Withdraws liquidity or assets that were swapped to (ask assets from a swap opera
 
 Provides liquidity by sending a user's native or token assets to the pool.
 
-__NOTE__: you should increase your token allowance for the pool before providing liquidity!
+**NOTE**: you should increase your token allowance for the pool before providing liquidity!
 
 ```json
 {
