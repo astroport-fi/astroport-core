@@ -437,6 +437,21 @@ fn test_create_permissioned_pair_whitelist() {
         ContractError::Unauthorized {}
     );
 
+    // should also not yet be able to create a pair with whitelisted address
+    let err = helper
+        .create_pair(
+            &mut app,
+            &whitelisted,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
     let err = app
         .execute_contract(
             random_stranger.clone(),
