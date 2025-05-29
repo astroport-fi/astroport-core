@@ -2,9 +2,12 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::vec;
 
 use anyhow::Result as AnyResult;
 
+use astroport::pair_xyk_sale_tax::{TaxConfig, TaxConfigs};
+use astroport_pcl_common::state::Config;
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, from_json, to_json_binary, Addr, Coin, Decimal, Decimal256, DepsMut, Empty, Env,
@@ -21,12 +24,12 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, PoolResponse,
     ReverseSimulationResponse, SimulationResponse,
 };
-use astroport::pair_concentrated::{
-    ConcentratedPoolConfig, ConcentratedPoolParams, ConcentratedPoolUpdateParams, QueryMsg,
+use astroport::pair_concentrated_sale_tax::{
+    ConcentratedPoolConfigSaleTax, ConcentratedPoolParamsSaleTax,
+    ConcentratedPoolUpdateParamsSaleTax, QueryMsg,
 };
-use astroport_pair_concentrated::contract::{execute, instantiate, reply};
-use astroport_pair_concentrated::queries::query;
-use astroport_pcl_common::state::Config;
+use astroport_pair_concentrated_sale_tax::contract::{execute, instantiate, reply};
+use astroport_pair_concentrated_sale_tax::queries::query;
 
 use astroport_test::coins::TestCoin;
 use astroport_test::convert::f64_to_dec;
@@ -37,8 +40,8 @@ use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 
-pub fn common_pcl_params() -> ConcentratedPoolParams {
-    ConcentratedPoolParams {
+pub fn common_pcl_params() -> ConcentratedPoolParamsSaleTax {
+    ConcentratedPoolParamsSaleTax {
         amp: f64_to_dec(40f64),
         gamma: f64_to_dec(0.000145),
         mid_fee: f64_to_dec(0.0026),
@@ -52,6 +55,35 @@ pub fn common_pcl_params() -> ConcentratedPoolParams {
         fee_share: None,
         allowed_xcp_profit_drop: None,
         xcp_profit_losses_threshold: None,
+        tax_config_admin: "addr0000".to_string(),
+        tax_configs: TaxConfigs::from(vec![]),
+    }
+}
+
+pub fn common_pcl_params_uusdc_tax() -> ConcentratedPoolParamsSaleTax {
+    ConcentratedPoolParamsSaleTax {
+        amp: f64_to_dec(40f64),
+        gamma: f64_to_dec(0.000145),
+        mid_fee: f64_to_dec(0.0026),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.00023),
+        repeg_profit_threshold: f64_to_dec(0.000002),
+        min_price_scale_delta: f64_to_dec(0.000146),
+        price_scale: Decimal::one(),
+        ma_half_time: 600,
+        track_asset_balances: None,
+        fee_share: None,
+        allowed_xcp_profit_drop: None,
+        xcp_profit_losses_threshold: None,
+        tax_config_admin: "tax_admin".to_string(),
+        // adds 5% tax on uusdc to addr0000
+        tax_configs: TaxConfigs::from(vec![(
+            "uusdc",
+            TaxConfig {
+                tax_rate: f64_to_dec(0.05),
+                tax_recipient: "tax_recipient".to_string(),
+            },
+        )]),
     }
 }
 
@@ -146,7 +178,7 @@ impl Helper {
     pub fn new(
         owner: &Addr,
         test_coins: Vec<TestCoin>,
-        params: ConcentratedPoolParams,
+        params: ConcentratedPoolParamsSaleTax,
     ) -> AnyResult<Self> {
         let mut app = AppBuilder::new_custom()
             .with_stargate(MockStargate::default())
@@ -586,6 +618,12 @@ impl Helper {
         from_json(&binary)
     }
 
+    pub fn query_config_smart(&self) -> StdResult<ConfigResponse> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})
+    }
+
     pub fn query_pool(&self) -> StdResult<PoolResponse> {
         self.app
             .wrap()
@@ -615,7 +653,7 @@ impl Helper {
     pub fn update_config(
         &mut self,
         user: &Addr,
-        action: &ConcentratedPoolUpdateParams,
+        action: &ConcentratedPoolUpdateParamsSaleTax,
     ) -> AnyResult<AppResponse> {
         self.app.execute_contract(
             user.clone(),
@@ -632,7 +670,7 @@ impl Helper {
             .app
             .wrap()
             .query_wasm_smart(&self.pair_addr, &QueryMsg::Config {})?;
-        let params: ConcentratedPoolConfig = from_json(
+        let params: ConcentratedPoolConfigSaleTax = from_json(
             &config_resp
                 .params
                 .ok_or_else(|| StdError::generic_err("Params not found in config response!"))?,

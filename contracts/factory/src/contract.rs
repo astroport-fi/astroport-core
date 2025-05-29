@@ -272,6 +272,21 @@ pub fn execute_update_pair_config(
         return Err(ContractError::PairConfigInvalidFeeBps {});
     }
 
+    // Check if whitelist is valid
+    if let Some(whitelist) = &pair_config.whitelist {
+        let unique_whitelist: HashSet<String> = whitelist.iter().cloned().collect();
+        if unique_whitelist.len() != whitelist.len() {
+            return Err(ContractError::PairConfigDuplicateWhitelist {});
+        }
+
+        // Validate addresses in whitelist
+        for addr in unique_whitelist.iter() {
+            deps.api
+                .addr_validate(addr)
+                .map_err(|_| ContractError::PairConfigInvalidWhitelistAddress {})?;
+        }
+    }
+
     PAIR_CONFIGS.save(
         deps.storage,
         pair_config.pair_type.to_string(),
@@ -309,7 +324,10 @@ pub fn execute_create_pair(
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
 
-    if pair_config.permissioned && info.sender != config.owner {
+    if pair_config.permissioned
+        && info.sender != config.owner
+        && !is_whitelisted(&pair_config, &info.sender.to_string())
+    {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -348,6 +366,14 @@ pub fn execute_create_pair(
             attr("action", "create_pair"),
             attr("pair", asset_infos.iter().join("-")),
         ]))
+}
+
+fn is_whitelisted(pair_config: &PairConfig, sender: &String) -> bool {
+    if let Some(whitelist) = &pair_config.whitelist {
+        whitelist.contains(sender)
+    } else {
+        false
+    }
 }
 
 /// The entry point to the contract for processing replies from submessages.

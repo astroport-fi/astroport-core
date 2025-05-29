@@ -79,6 +79,9 @@ pub struct PairConfig {
     /// Default is false.
     #[serde(default)]
     pub permissioned: bool,
+    /// If permissioned, this is a list of addresses that are allowed to create pairs of this type
+    #[serde(default)]
+    pub whitelist: Option<Vec<String>>,
 }
 
 impl PairConfig {
