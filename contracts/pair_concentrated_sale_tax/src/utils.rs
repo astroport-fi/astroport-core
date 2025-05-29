@@ -31,6 +31,7 @@ pub struct SwapResultSaleTax {
     pub sale_tax_dec: Decimal256,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn compute_swap_sale_tax(
     xs: &[Decimal256],
     offer_amount: Decimal256,

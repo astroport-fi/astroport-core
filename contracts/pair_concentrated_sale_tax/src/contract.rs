@@ -899,7 +899,7 @@ fn update_config(
                 if info.sender != tax_config.tax_config_admin {
                     return Err(ContractError::Unauthorized {});
                 }
-                tax_config.tax_config_admin = deps.api.addr_validate(&new_tax_config_admin)?;
+                tax_config.tax_config_admin = deps.api.addr_validate(new_tax_config_admin)?;
             }
             TAX_CONFIG.save(deps.storage, &tax_config)?;
 
