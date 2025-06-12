@@ -1,8 +1,8 @@
 #![cfg(not(tarpaulin_include))]
 
 use anyhow::Result as AnyResult;
-use astroport::asset::AssetInfo;
-use astroport::factory::{PairConfig, PairType, TrackerConfig};
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{Config, ConfigResponse, PairConfig, PairType, TrackerConfig};
 use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use astroport_test::modules::stargate::StargateApp as TestApp;
 
@@ -81,6 +81,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: pair_code_id,
@@ -90,6 +91,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: true,
+                    whitelist: None,
                 },
             ],
             token_code_id: cw20_token_code_id,
@@ -187,6 +189,13 @@ impl FactoryHelper {
         router
             .wrap()
             .query_wasm_smart::<TrackerConfig>(self.factory.clone(), &msg)
+    }
+
+    pub fn query_config(&mut self, router: &mut TestApp) -> StdResult<ConfigResponse> {
+        let msg = astroport::factory::QueryMsg::Config {};
+        router
+            .wrap()
+            .query_wasm_smart::<ConfigResponse>(self.factory.clone(), &msg)
     }
 }
 

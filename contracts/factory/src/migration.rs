@@ -54,6 +54,7 @@ pub fn migrate_pair_configs(storage: &mut dyn Storage) -> StdResult<()> {
             is_disabled: old_pair_config.is_disabled,
             is_generator_disabled: old_pair_config.is_generator_disabled,
             permissioned: false,
+            whitelist: None,
         };
 
         if key != pair_type.to_string() {

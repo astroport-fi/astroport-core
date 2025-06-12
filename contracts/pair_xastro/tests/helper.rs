@@ -129,6 +129,7 @@ impl Helper {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: true,
+                whitelist: None,
             }],
             token_code_id: 0,
             generator_address: None,

@@ -120,6 +120,17 @@
             "type": "integer",
             "format": "uint16",
             "minimum": 0.0
+          },
+          "whitelist": {
+            "description": "If permissioned, this is a list of addresses that are allowed to create pairs of this type",
+            "default": null,
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -549,6 +560,17 @@
             "type": "integer",
             "format": "uint16",
             "minimum": 0.0
+          },
+          "whitelist": {
+            "description": "If permissioned, this is a list of addresses that are allowed to create pairs of this type",
+            "default": null,
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
           }
         },
         "additionalProperties": false
@@ -1024,6 +1046,17 @@
               "type": "integer",
               "format": "uint16",
               "minimum": 0.0
+            },
+            "whitelist": {
+              "description": "If permissioned, this is a list of addresses that are allowed to create pairs of this type",
+              "default": null,
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false

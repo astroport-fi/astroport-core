@@ -209,6 +209,7 @@ impl Helper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: app.store_code(pcl_duality_contract()),
@@ -218,6 +219,7 @@ impl Helper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
             ],
             token_code_id: 0,
