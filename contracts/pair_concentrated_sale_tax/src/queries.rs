@@ -1,3 +1,4 @@
+use astroport::pair_concentrated::QueryMsg;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
@@ -12,7 +13,7 @@ use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, PoolResponse, ReverseSimulationResponse,
     SimulationResponse,
 };
-use astroport::pair_concentrated_sale_tax::{ConcentratedPoolConfigSaleTax, QueryMsg};
+use astroport::pair_concentrated_sale_tax::ConcentratedPoolConfigSaleTax;
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::utils::{

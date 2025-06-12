@@ -1,5 +1,7 @@
-use astroport::pair::{ExecuteMsg, InstantiateMsg, MigrateMsg};
-use astroport::pair_concentrated_sale_tax::QueryMsg;
+use astroport::{
+    pair::{ExecuteMsg, InstantiateMsg, MigrateMsg},
+    pair_concentrated::QueryMsg,
+};
 use cosmwasm_schema::write_api;
 
 fn main() {

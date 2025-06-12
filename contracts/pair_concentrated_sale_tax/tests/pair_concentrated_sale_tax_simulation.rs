@@ -4,6 +4,7 @@ extern crate core;
 
 mod helper;
 
+use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::pair_concentrated_sale_tax::{
     ConcentratedPoolParamsSaleTax, ConcentratedPoolUpdateParamsSaleTax,
 };
@@ -407,8 +408,11 @@ fn simulate_mixed_case(cases: Vec<(PclEvent, u64)>) {
     let test_coins = vec![TestCoin::cw20precise("inj", 18), TestCoin::native("uusd")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(10f64),
-        price_scale: Decimal::from_str("0.297172").unwrap(),
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(10f64),
+            price_scale: Decimal::from_str("0.297172").unwrap(),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 

@@ -2,7 +2,8 @@
 
 use std::str::FromStr;
 
-use astroport::pair_concentrated::{PromoteParams, UpdatePoolParams};
+use astroport::common;
+use astroport::pair_concentrated::{ConcentratedPoolParams, PromoteParams, UpdatePoolParams};
 use astroport::pair_xyk_sale_tax::TaxConfigs;
 use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, StdError, Uint128};
 use itertools::{max, Itertools};
@@ -13,8 +14,9 @@ use astroport::asset::{
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
 use astroport::observation::OracleObservation;
 use astroport::pair::{ExecuteMsg, PoolResponse, MAX_FEE_SHARE_BPS};
+use astroport::pair_concentrated::QueryMsg;
 use astroport::pair_concentrated_sale_tax::{
-    ConcentratedPoolParamsSaleTax, ConcentratedPoolUpdateParamsSaleTax, QueryMsg,
+    ConcentratedPoolParamsSaleTax, ConcentratedPoolUpdateParamsSaleTax,
 };
 use astroport::tokenfactory_tracker::{
     ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
@@ -95,7 +97,10 @@ fn check_wrong_initialization() {
     let owner = Addr::unchecked("owner");
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -107,7 +112,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.amp = Decimal::zero();
+    wrong_params.main_params.amp = Decimal::zero();
 
     let err = Helper::new(
         &owner,
@@ -126,7 +131,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.ma_half_time = MA_HALF_TIME_LIMITS.end() + 1;
+    wrong_params.main_params.ma_half_time = MA_HALF_TIME_LIMITS.end() + 1;
 
     let err = Helper::new(
         &owner,
@@ -145,7 +150,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.price_scale = Decimal::zero();
+    wrong_params.main_params.price_scale = Decimal::zero();
 
     let err = Helper::new(
         &owner,
@@ -160,7 +165,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.allowed_xcp_profit_drop = Some(Decimal::one());
+    wrong_params.main_params.allowed_xcp_profit_drop = Some(Decimal::one());
     let err = Helper::new(
         &owner,
         vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
@@ -177,7 +182,7 @@ fn check_wrong_initialization() {
     );
 
     let mut wrong_params = params.clone();
-    wrong_params.xcp_profit_losses_threshold = Some(Decimal::one());
+    wrong_params.main_params.xcp_profit_losses_threshold = Some(Decimal::one());
     let err = Helper::new(
         &owner,
         vec![TestCoin::native("uluna"), TestCoin::cw20("ASTRO")],
@@ -210,7 +215,10 @@ fn check_create_pair_with_unsupported_denom() {
     let valid_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -230,7 +238,10 @@ fn provide_and_withdraw() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -435,7 +446,10 @@ fn check_imbalanced_provide() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("USDC")];
 
     let mut params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -461,7 +475,7 @@ fn check_imbalanced_provide() {
     assert_eq!(0, helper.coin_balance(&test_coins[1], &user1));
 
     // creating a new pool with inverted price scale
-    params.price_scale = Decimal::from_ratio(1u8, 2u8);
+    params.main_params.price_scale = Decimal::from_ratio(1u8, 2u8);
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
 
@@ -585,7 +599,10 @@ fn simulate_provide() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::cw20("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -876,8 +893,11 @@ fn check_amp_gamma_change() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.0001),
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(40f64),
+            gamma: f64_to_dec(0.0001),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins, params).unwrap();
@@ -1161,7 +1181,10 @@ fn asset_balances_tracking_with_in_params() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        track_asset_balances: Some(true),
+        main_params: ConcentratedPoolParams {
+            track_asset_balances: Some(true),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1289,7 +1312,10 @@ fn provides_and_swaps_and_withdraw() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(1u8, 2u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(1u8, 2u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -1351,7 +1377,10 @@ fn provide_liquidity_with_autostaking_to_generator() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(1u8, 2u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(1u8, 2u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
@@ -1376,8 +1405,11 @@ fn provide_withdraw_provide() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(10f64),
-        price_scale: Decimal::from_ratio(10u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(10f64),
+            price_scale: Decimal::from_ratio(10u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1415,8 +1447,11 @@ fn provide_withdraw_slippage() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(10f64),
-        price_scale: Decimal::from_ratio(10u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(10f64),
+            price_scale: Decimal::from_ratio(10u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1498,8 +1533,11 @@ fn test_frontrun_before_initial_provide() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(10f64),
-        price_scale: Decimal::from_ratio(10u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(10f64),
+            price_scale: Decimal::from_ratio(10u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1703,7 +1741,10 @@ fn check_small_trades() {
     let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: f64_to_dec(4.360000915600192),
+        main_params: ConcentratedPoolParams {
+            price_scale: f64_to_dec(4.360000915600192),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1783,7 +1824,10 @@ fn check_small_trades_18decimals() {
     ];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: f64_to_dec(4.360000915600192),
+        main_params: ConcentratedPoolParams {
+            price_scale: f64_to_dec(4.360000915600192),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1864,19 +1908,21 @@ fn check_lsd_swaps_with_price_update() {
 
     // checking swaps in PCL pair with LSD params
     let params = ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(500_f64),
-        gamma: f64_to_dec(0.00000001),
-        mid_fee: f64_to_dec(0.0003),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.3),
-        repeg_profit_threshold: f64_to_dec(0.00000001),
-        min_price_scale_delta: f64_to_dec(0.0000055),
-        price_scale: f64_to_dec(price_scale),
-        ma_half_time: 600,
-        track_asset_balances: None,
-        fee_share: None,
-        allowed_xcp_profit_drop: None,
-        xcp_profit_losses_threshold: None,
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(500_f64),
+            gamma: f64_to_dec(0.00000001),
+            mid_fee: f64_to_dec(0.0003),
+            out_fee: f64_to_dec(0.0045),
+            fee_gamma: f64_to_dec(0.3),
+            repeg_profit_threshold: f64_to_dec(0.00000001),
+            min_price_scale_delta: f64_to_dec(0.0000055),
+            price_scale: f64_to_dec(price_scale),
+            ma_half_time: 600,
+            track_asset_balances: None,
+            fee_share: None,
+            allowed_xcp_profit_drop: None,
+            xcp_profit_losses_threshold: None,
+        },
         tax_config_admin: "admin".to_string(),
         tax_configs: TaxConfigs::from(vec![]),
     };
@@ -1933,7 +1979,10 @@ fn test_provide_liquidity_without_funds() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusdc")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        price_scale: Decimal::from_ratio(2u8, 1u8),
+        main_params: ConcentratedPoolParams {
+            price_scale: Decimal::from_ratio(2u8, 1u8),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 
@@ -1978,7 +2027,10 @@ fn test_tracker_contract() {
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
 
     let params = ConcentratedPoolParamsSaleTax {
-        track_asset_balances: Some(true),
+        main_params: ConcentratedPoolParams {
+            track_asset_balances: Some(true),
+            ..common_pcl_params().main_params
+        },
         ..common_pcl_params()
     };
 

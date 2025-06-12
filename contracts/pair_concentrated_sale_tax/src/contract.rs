@@ -74,10 +74,12 @@ pub fn instantiate(
 
     check_asset_infos(deps.api, &msg.asset_infos)?;
 
-    let params: ConcentratedPoolParamsSaleTax = from_json(
+    let tax_params: ConcentratedPoolParamsSaleTax = from_json(
         msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
+
+    let params = tax_params.main_params;
 
     if params.price_scale.is_zero() {
         return Err(StdError::generic_err("Initial price scale can not be zero").into());
@@ -156,8 +158,8 @@ pub fn instantiate(
     }
 
     let tax_config = StoredTaxConfig {
-        tax_configs: params.tax_configs.check(deps.api, &msg.asset_infos)?,
-        tax_config_admin: deps.api.addr_validate(&params.tax_config_admin)?,
+        tax_configs: tax_params.tax_configs.check(deps.api, &msg.asset_infos)?,
+        tax_config_admin: deps.api.addr_validate(&tax_params.tax_config_admin)?,
     };
 
     CONFIG.save(deps.storage, &config)?;
@@ -888,17 +890,11 @@ fn update_config(
                 return Err(ContractError::Unauthorized {});
             }
             if let Some(new_tax_config) = &config_updates.tax_configs {
-                if info.sender != tax_config.tax_config_admin {
-                    return Err(ContractError::Unauthorized {});
-                }
                 tax_config.tax_configs = new_tax_config
                     .clone()
                     .check(deps.api, &config.pair_info.asset_infos)?;
             }
             if let Some(new_tax_config_admin) = &config_updates.tax_config_admin {
-                if info.sender != tax_config.tax_config_admin {
-                    return Err(ContractError::Unauthorized {});
-                }
                 tax_config.tax_config_admin = deps.api.addr_validate(new_tax_config_admin)?;
             }
             TAX_CONFIG.save(deps.storage, &tax_config)?;

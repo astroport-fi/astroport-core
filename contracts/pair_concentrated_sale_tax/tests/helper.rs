@@ -6,6 +6,7 @@ use std::vec;
 
 use anyhow::Result as AnyResult;
 
+use astroport::pair_concentrated::{ConcentratedPoolParams, QueryMsg};
 use astroport::pair_xyk_sale_tax::{TaxConfig, TaxConfigs};
 use astroport_pcl_common::state::Config;
 use cosmwasm_schema::cw_serde;
@@ -26,7 +27,7 @@ use astroport::pair::{
 };
 use astroport::pair_concentrated_sale_tax::{
     ConcentratedPoolConfigSaleTax, ConcentratedPoolParamsSaleTax,
-    ConcentratedPoolUpdateParamsSaleTax, QueryMsg,
+    ConcentratedPoolUpdateParamsSaleTax,
 };
 use astroport_pair_concentrated_sale_tax::contract::{execute, instantiate, reply};
 use astroport_pair_concentrated_sale_tax::queries::query;
@@ -42,19 +43,21 @@ const INIT_BALANCE: u128 = u128::MAX;
 
 pub fn common_pcl_params() -> ConcentratedPoolParamsSaleTax {
     ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-        fee_share: None,
-        allowed_xcp_profit_drop: None,
-        xcp_profit_losses_threshold: None,
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(40f64),
+            gamma: f64_to_dec(0.000145),
+            mid_fee: f64_to_dec(0.0026),
+            out_fee: f64_to_dec(0.0045),
+            fee_gamma: f64_to_dec(0.00023),
+            repeg_profit_threshold: f64_to_dec(0.000002),
+            min_price_scale_delta: f64_to_dec(0.000146),
+            price_scale: Decimal::one(),
+            ma_half_time: 600,
+            track_asset_balances: None,
+            fee_share: None,
+            allowed_xcp_profit_drop: None,
+            xcp_profit_losses_threshold: None,
+        },
         tax_config_admin: "addr0000".to_string(),
         tax_configs: TaxConfigs::from(vec![]),
     }
@@ -62,19 +65,21 @@ pub fn common_pcl_params() -> ConcentratedPoolParamsSaleTax {
 
 pub fn common_pcl_params_uusdc_tax() -> ConcentratedPoolParamsSaleTax {
     ConcentratedPoolParamsSaleTax {
-        amp: f64_to_dec(40f64),
-        gamma: f64_to_dec(0.000145),
-        mid_fee: f64_to_dec(0.0026),
-        out_fee: f64_to_dec(0.0045),
-        fee_gamma: f64_to_dec(0.00023),
-        repeg_profit_threshold: f64_to_dec(0.000002),
-        min_price_scale_delta: f64_to_dec(0.000146),
-        price_scale: Decimal::one(),
-        ma_half_time: 600,
-        track_asset_balances: None,
-        fee_share: None,
-        allowed_xcp_profit_drop: None,
-        xcp_profit_losses_threshold: None,
+        main_params: ConcentratedPoolParams {
+            amp: f64_to_dec(40f64),
+            gamma: f64_to_dec(0.000145),
+            mid_fee: f64_to_dec(0.0026),
+            out_fee: f64_to_dec(0.0045),
+            fee_gamma: f64_to_dec(0.00023),
+            repeg_profit_threshold: f64_to_dec(0.000002),
+            min_price_scale_delta: f64_to_dec(0.000146),
+            price_scale: Decimal::one(),
+            ma_half_time: 600,
+            track_asset_balances: None,
+            fee_share: None,
+            allowed_xcp_profit_drop: None,
+            xcp_profit_losses_threshold: None,
+        },
         tax_config_admin: "tax_admin".to_string(),
         // adds 5% tax on uusdc to addr0000
         tax_configs: TaxConfigs::from(vec![(
