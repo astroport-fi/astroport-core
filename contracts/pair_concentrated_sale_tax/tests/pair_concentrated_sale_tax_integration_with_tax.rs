@@ -1858,9 +1858,9 @@ fn check_small_trades_18decimals() {
     let params = ConcentratedPoolParamsSaleTax {
         main_params: ConcentratedPoolParams {
             price_scale: f64_to_dec(4.360000915600192),
-            ..common_pcl_params_uusdc_tax().main_params
+            ..common_pcl_params().main_params
         },
-        ..common_pcl_params_uusdc_tax()
+        ..common_pcl_params()
     };
 
     let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
