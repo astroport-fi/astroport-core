@@ -1,8 +1,8 @@
 #![cfg(not(tarpaulin_include))]
 
 use anyhow::Result as AnyResult;
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{Config, ConfigResponse, PairConfig, PairType, TrackerConfig};
+use astroport::asset::AssetInfo;
+use astroport::factory::{ConfigResponse, PairConfig, PairType, TrackerConfig};
 use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use astroport_test::modules::stargate::StargateApp as TestApp;
 

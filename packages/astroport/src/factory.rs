@@ -201,11 +201,6 @@ pub enum QueryMsg {
     TrackerConfig {},
 }
 
-#[cw_serde]
-pub struct MigrateMsg {
-    pub tracker_config: Option<TrackerConfig>,
-}
-
 /// A custom struct for each query response that returns general contract settings/configs.
 #[cw_serde]
 pub struct ConfigResponse {

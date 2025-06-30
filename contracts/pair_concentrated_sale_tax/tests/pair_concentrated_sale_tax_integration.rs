@@ -2,7 +2,6 @@
 
 use std::str::FromStr;
 
-use astroport::common;
 use astroport::pair_concentrated::{ConcentratedPoolParams, PromoteParams, UpdatePoolParams};
 use astroport::pair_xyk_sale_tax::TaxConfigs;
 use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, StdError, Uint128};
