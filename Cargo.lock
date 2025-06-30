@@ -614,6 +614,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-supervault-adapter"
+version = "1.0.0"
+dependencies = [
+ "astroport 5.9.4",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "itertools 0.12.1",
+ "neutron-std",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-test"
 version = "0.1.0"
 dependencies = [

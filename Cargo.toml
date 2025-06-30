@@ -11,6 +11,7 @@ members = [
     "contracts/pair_concentrated_duality",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
     "contracts/pair_xastro",
+    "contracts/pair_supervault_adapter",
     "contracts/pair_xyk_sale_tax",
     "contracts/router",
     "contracts/whitelist",
