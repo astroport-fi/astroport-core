@@ -3,6 +3,7 @@ use cosmwasm_std::{
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_storage_plus::Item;
+use std::collections::HashMap;
 
 use astroport::factory::PairType;
 use astroport::pair_concentrated_duality::MigrateMsg;
@@ -54,7 +55,19 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             );
 
             match stored_info.version.as_str() {
-                "4.2.0" | "4.2.1" => Ok(()),
+                "4.3.0" => {
+                    let mut ob_state = OrderbookState::load(deps.storage)?;
+                    ensure!(
+                        !ob_state.enabled,
+                        StdError::generic_err(
+                            "Can't migrate the pool while its OB integration is enabled"
+                        )
+                    );
+
+                    ob_state.orders_state = HashMap::new();
+
+                    ob_state.save(deps.storage)
+                }
                 _ => Err(StdError::generic_err("Invalid contract version")),
             }
         }
