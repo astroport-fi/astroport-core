@@ -6,6 +6,7 @@ use cosmwasm_std::{
 };
 use cw_utils::must_pay;
 use itertools::Itertools;
+use std::collections::HashMap;
 
 use astroport::asset::{
     addr_opt_validate, Asset, AssetInfo, AssetInfoExt, CoinsExt, MINIMUM_LIQUIDITY_AMOUNT,
@@ -730,7 +731,10 @@ pub fn process_custom_msgs(
                 }
 
                 response = response.add_messages(ob_state.cancel_orders(&env.contract.address));
+
                 ob_state.orders = vec![];
+                ob_state.orders_state = HashMap::new();
+                ob_state.delayed_trade = None;
             };
 
             let attrs = ob_state.update_config(deps.api, update_orderbook_conf)?;
