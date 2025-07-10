@@ -17,7 +17,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Transfer { .. } => return Err(StdError::generic_err("Haha").into()),
+        ExecuteMsg::Transfer { .. } => Err(StdError::generic_err("Haha").into()),
         ExecuteMsg::Burn { amount } => execute_burn(deps, env, info, amount),
         ExecuteMsg::Send {
             contract,
