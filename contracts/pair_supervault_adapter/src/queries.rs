@@ -58,14 +58,8 @@ pub fn simulate_withdraw(deps: Deps, lp_amount: Uint128) -> StdResult<Binary> {
     let response = sv_querier.simulate_withdraw_liquidity(deps.querier, lp_amount)?;
 
     to_json_binary(&[
-        Asset::native(
-            sv_config.pair_data.token_0.denom,
-            response.withdraw_amount_0,
-        ),
-        Asset::native(
-            sv_config.pair_data.token_1.denom,
-            response.withdraw_amount_1,
-        ),
+        Asset::native(sv_config.pair_data.token_0.denom, response.0),
+        Asset::native(sv_config.pair_data.token_1.denom, response.1),
     ])
 }
 

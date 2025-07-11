@@ -11,6 +11,9 @@ pub enum ContractError {
     #[error("{0}")]
     PaymentError(#[from] PaymentError),
 
+    #[error("Invalid number of assets infos. Must be exactly 2")]
+    InvalidNumberOfAssets {},
+
     #[error("Operation is not supported")]
     NotSupported {},
 

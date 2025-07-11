@@ -12,8 +12,8 @@ use astroport::pair::ExecuteMsg;
 use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, coin, ensure, from_json, wasm_execute, Addr, Decimal, DepsMut, Env, MessageInfo,
-    Response, SubMsg, Uint128,
+    attr, coin, ensure, ensure_eq, from_json, wasm_execute, Addr, Decimal, DepsMut, Env,
+    MessageInfo, Response, SubMsg, Uint128,
 };
 use cw2::set_contract_version;
 use cw_utils::{must_pay, one_coin};
@@ -38,6 +38,12 @@ pub fn instantiate(
     msg: pair::InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    ensure_eq!(
+        msg.asset_infos.len(),
+        2,
+        ContractError::InvalidNumberOfAssets {}
+    );
 
     let init_params: SuperVaultAdapterParams = from_json(
         &msg.init_params

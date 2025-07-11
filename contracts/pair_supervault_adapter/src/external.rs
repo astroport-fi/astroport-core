@@ -66,11 +66,8 @@ pub struct SvConfig {
     pub pair_data: PairData,
 }
 
-#[cw_serde]
-pub struct WithdrawLiquidityResponse {
-    pub withdraw_amount_0: Uint128,
-    pub withdraw_amount_1: Uint128,
-}
+/// https://github.com/neutron-org/slinky-vault/blob/b2e2ff486cb5c012610573690232fe49c7be49cd/contracts/mmvault/src/query.rs#L82
+pub type WithdrawLiquidityResponse = (Uint128, Uint128);
 
 pub struct SvQuerier(pub Addr);
 
