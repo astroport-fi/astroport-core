@@ -46,7 +46,7 @@ pub fn instantiate(
     );
 
     let init_params: SuperVaultAdapterParams = from_json(
-        &msg.init_params
+        msg.init_params
             .ok_or(ContractError::InitParamsNotFound {})?,
     )?;
 
