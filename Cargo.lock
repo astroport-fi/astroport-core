@@ -436,7 +436,7 @@ dependencies = [
  "derivative",
  "itertools 0.12.1",
  "neutron-std",
- "neutron-test-tube 4.2.2-rc",
+ "neutron-test-tube",
  "proptest",
  "semver",
  "serde",
@@ -686,8 +686,8 @@ dependencies = [
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
  "neutron-sdk 0.8.0",
- "neutron-test-tube 0.1.0",
- "test-tube",
+ "neutron-test-tube",
+ "test-tube-ntrn",
  "thiserror",
 ]
 
@@ -855,29 +855,6 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
- "which",
-]
-
-[[package]]
-name = "bindgen"
-version = "0.69.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a00dc851838a2120612785d195287475a3ac45514741da670b735818822129a0"
-dependencies = [
- "bitflags 2.6.0",
- "cexpr",
- "clang-sys",
- "itertools 0.12.1",
- "lazy_static",
- "lazycell",
- "log",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.68",
  "which",
 ]
 
@@ -2427,28 +2404,11 @@ dependencies = [
 
 [[package]]
 name = "neutron-test-tube"
-version = "0.1.0"
-source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
-dependencies = [
- "base64",
- "bindgen 0.69.4",
- "cosmrs",
- "cosmwasm-std",
- "neutron-sdk 0.8.0",
- "prost 0.12.6",
- "serde",
- "serde_json",
- "test-tube",
- "thiserror",
-]
-
-[[package]]
-name = "neutron-test-tube"
 version = "4.2.2-rc"
 source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#12a14c9c45bd19b8aa8c360e6f80d07b80b26ae6"
 dependencies = [
  "base64",
- "bindgen 0.60.1",
+ "bindgen",
  "cosmos-sdk-proto 0.20.0",
  "cosmrs",
  "cosmwasm-std",
@@ -2690,16 +2650,6 @@ name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
-
-[[package]]
-name = "prettyplease"
-version = "0.2.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f12335488a2f3b0a83b14edad48dca9879ce89b2edd10e80237e4e852dd645e"
-dependencies = [
- "proc-macro2",
- "syn 2.0.68",
-]
 
 [[package]]
 name = "proc-macro2"
@@ -3795,20 +3745,6 @@ dependencies = [
  "quote",
  "syn 2.0.68",
  "test-case-core",
-]
-
-[[package]]
-name = "test-tube"
-version = "0.5.0"
-source = "git+https://github.com/j0nl1/neutron-test-tube#7b478ebc5e8bd4a6fb5df8655a5d4028d90d00d9"
-dependencies = [
- "base64",
- "cosmrs",
- "cosmwasm-std",
- "prost 0.12.6",
- "serde",
- "serde_json",
- "thiserror",
 ]
 
 [[package]]

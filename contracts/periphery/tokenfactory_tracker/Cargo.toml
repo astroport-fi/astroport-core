@@ -24,8 +24,8 @@ thiserror.workspace = true
 astroport = "5.1"
 
 # Optional dependencies
-neutron-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
-test-tube = { git = "https://github.com/j0nl1/neutron-test-tube", optional = true }
+neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
+test-tube = { package = "test-tube-ntrn", git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "0.1.0" }
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
