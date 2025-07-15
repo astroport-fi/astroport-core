@@ -685,7 +685,7 @@ dependencies = [
  "cw-multi-test 0.20.0",
  "cw-storage-plus 1.2.0",
  "cw2 1.1.2",
- "neutron-sdk 0.8.0",
+ "neutron-std",
  "neutron-test-tube",
  "test-tube-ntrn",
  "thiserror",
@@ -2405,7 +2405,7 @@ dependencies = [
 [[package]]
 name = "neutron-test-tube"
 version = "4.2.2-rc"
-source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#12a14c9c45bd19b8aa8c360e6f80d07b80b26ae6"
+source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#e85a1476c3d6de0c44bd7a1f2d0ae3a5cbe510bf"
 dependencies = [
  "base64",
  "bindgen",
@@ -3750,7 +3750,7 @@ dependencies = [
 [[package]]
 name = "test-tube-ntrn"
 version = "0.1.0"
-source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#12a14c9c45bd19b8aa8c360e6f80d07b80b26ae6"
+source = "git+https://github.com/astroport-fi/neutron-test-tube?branch=feat/neutron-v5-cosmwasm-v1#e85a1476c3d6de0c44bd7a1f2d0ae3a5cbe510bf"
 dependencies = [
  "base64",
  "cosmos-sdk-proto 0.20.0",

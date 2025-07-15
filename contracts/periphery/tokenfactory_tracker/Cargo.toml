@@ -26,7 +26,9 @@ astroport = "5.1"
 # Optional dependencies
 neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
 test-tube = { package = "test-tube-ntrn", git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "0.1.0" }
+#neutron-test-tube = { path = "../../../../../RustroverProjects/neutron-test-tube-new/packages/neutron-test-tube", optional = true }
+#test-tube = { package = "test-tube-ntrn", path = "../../../../../RustroverProjects/neutron-test-tube-new/packages/test-tube", optional = true }
 
 [dev-dependencies]
 cw-multi-test = { git = "https://github.com/astroport-fi/cw-multi-test", branch = "feat/bank_with_send_hooks", features = ["cosmwasm_1_1"] }
-neutron-sdk = "0.8.0"
+neutron-std = { git = "https://github.com/astroport-fi/neutron-std", branch = "backport/cosmwasm_v1" }
