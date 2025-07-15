@@ -50,6 +50,7 @@ fn proper_initialization() {
         is_disabled: false,
         is_generator_disabled: false,
         permissioned: false,
+        whitelist: None,
     }];
 
     let msg = InstantiateMsg {
@@ -213,6 +214,7 @@ fn test_create_pair() {
                 is_disabled: true,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
         },
         &[],
@@ -401,6 +403,150 @@ fn test_create_permissioned_pair() {
 }
 
 #[test]
+fn test_create_permissioned_pair_whitelist() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let random_stranger = Addr::unchecked("random_stranger");
+    let whitelisted = Addr::unchecked("whitelisted");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let config = helper.query_config(&mut app).unwrap();
+    // Find the pair config for "transmuter"
+    let transmuter_config = config
+        .pair_configs
+        .iter()
+        .find(|c| matches!(&c.pair_type, PairType::Custom(s) if s == "transmuter"))
+        .unwrap()
+        .clone();
+
+    let token1 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenX", None);
+    let token2 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenY", None);
+    let token3 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenZ", None);
+
+    let err = helper
+        .create_pair(
+            &mut app,
+            &random_stranger,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // should also not yet be able to create a pair with whitelisted address
+    let err = helper
+        .create_pair(
+            &mut app,
+            &whitelisted,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    let err = app
+        .execute_contract(
+            random_stranger.clone(),
+            helper.factory.clone(),
+            &ExecuteMsg::UpdatePairConfig {
+                config: PairConfig {
+                    whitelist: Some(vec![
+                        Addr::unchecked("whitelisted").to_string(),
+                        Addr::unchecked("whitelisted").to_string(),
+                    ]),
+                    ..transmuter_config.clone()
+                },
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // Add whitelist
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            helper.factory.clone(),
+            &ExecuteMsg::UpdatePairConfig {
+                config: PairConfig {
+                    whitelist: Some(vec![
+                        Addr::unchecked("whitelisted").to_string(),
+                        Addr::unchecked("whitelisted").to_string(),
+                    ]),
+                    ..transmuter_config.clone()
+                },
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::PairConfigDuplicateWhitelist {}
+    );
+
+    app.execute_contract(
+        owner.clone(),
+        helper.factory.clone(),
+        &ExecuteMsg::UpdatePairConfig {
+            config: PairConfig {
+                whitelist: Some(vec![Addr::unchecked("whitelisted").to_string()]),
+                ..transmuter_config.clone()
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    // stranger not allowed
+    let err = helper
+        .create_pair(
+            &mut app,
+            &Addr::unchecked("random_stranger"),
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // owner still allowed
+    helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token2],
+            None,
+        )
+        .unwrap();
+
+    // whitelisted address allowed
+    helper
+        .create_pair(
+            &mut app,
+            &whitelisted,
+            PairType::Custom("transmuter".to_string()),
+            [&token1, &token3],
+            None,
+        )
+        .unwrap();
+}
+
+#[test]
 fn tracker_config() {
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
@@ -457,6 +603,7 @@ fn tracker_config() {
             is_disabled: false,
             is_generator_disabled: false,
             permissioned: false,
+            whitelist: None,
         }],
         token_code_id: 0,
         generator_address: None,

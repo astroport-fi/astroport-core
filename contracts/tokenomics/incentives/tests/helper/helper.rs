@@ -324,6 +324,7 @@ impl Helper {
                             is_disabled: false,
                             is_generator_disabled: false,
                             permissioned: false,
+                            whitelist: None,
                         },
                         PairConfig {
                             code_id: pair_stable_code,
@@ -333,6 +334,7 @@ impl Helper {
                             is_disabled: false,
                             is_generator_disabled: false,
                             permissioned: false,
+                            whitelist: None,
                         },
                     ],
                     token_code_id,
