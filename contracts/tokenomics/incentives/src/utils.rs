@@ -227,7 +227,7 @@ pub fn incentivize(
 
     let pair_info = query_pair_info(deps.as_ref(), &lp_token_asset)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info, &lp_token)?;
+    is_pool_registered(deps.querier, &config, &pair_info, &lp_token_asset)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
@@ -407,31 +407,36 @@ pub fn is_pool_registered(
     querier: QuerierWrapper,
     config: &Config,
     pair_info: &PairInfo,
-    lp_token_addr: &str,
+    lp_token: &AssetInfo,
 ) -> StdResult<()> {
-    querier
-        .query_wasm_smart::<PairInfo>(
-            &config.factory,
-            &factory::QueryMsg::Pair {
-                asset_infos: pair_info.asset_infos.to_vec(),
-            },
-        )
-        .map_err(|_| {
-            StdError::generic_err(format!(
-                "The pair is not registered: {}-{}",
-                pair_info.asset_infos[0], pair_info.asset_infos[1]
-            ))
-        })
-        .map(|resp| {
-            if resp.liquidity_token == lp_token_addr {
-                Ok(())
-            } else {
-                Err(StdError::generic_err(format!(
-                    "LP token {lp_token_addr} doesn't match LP token registered in factory {}",
-                    resp.liquidity_token
-                )))
-            }
-        })?
+    // Checking only possible malicious cw20 LP tokens as they might result in state bloat
+    if lp_token.is_native_token() {
+        Ok(())
+    } else {
+        querier
+            .query_wasm_smart::<PairInfo>(
+                &config.factory,
+                &factory::QueryMsg::Pair {
+                    asset_infos: pair_info.asset_infos.to_vec(),
+                },
+            )
+            .map_err(|_| {
+                StdError::generic_err(format!(
+                    "The pair is not registered: {}-{}",
+                    pair_info.asset_infos[0], pair_info.asset_infos[1]
+                ))
+            })
+            .map(|resp| {
+                if resp.liquidity_token == lp_token.to_string() {
+                    Ok(())
+                } else {
+                    Err(StdError::generic_err(format!(
+                        "LP token {lp_token} doesn't match LP token registered in factory {}",
+                        resp.liquidity_token
+                    )))
+                }
+            })?
+    }
 }
 
 pub fn claim_orphaned_rewards(
