@@ -6,11 +6,9 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 use itertools::Itertools;
-use proptest::prelude::*;
 use prost::Message;
-use sim::StableSwapModel;
 
-use astroport::asset::{native_asset, native_asset_info, Asset, AssetInfo};
+use astroport::asset::{Asset, AssetInfo};
 use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
 use astroport::observation::query_observation;
@@ -25,13 +23,12 @@ use astroport_circular_buffer::BufferManager;
 use astroport_test::convert::f64_to_dec;
 
 use crate::contract::{
-    assert_max_spread, execute, instantiate, query, query_pool, query_reverse_simulation,
-    query_share, query_simulation, reply,
+    assert_max_spread, execute, instantiate, query, query_pool, query_share, query_simulation,
+    reply,
 };
 use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::state::{CONFIG, OBSERVATIONS};
-use crate::utils::{compute_swap, select_pools};
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {
@@ -750,15 +747,8 @@ fn try_native_to_token() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let msg_transfer = res.messages.get(0).expect("no message");
 
-    let model: StableSwapModel = StableSwapModel::new(
-        100,
-        vec![collateral_pool_amount.into(), asset_pool_amount.into()],
-        2,
-    );
+    let expected_ret_amount = Uint128::new(1492406113);
 
-    let sim_result = model.sim_exchange(0, 1, offer_amount.into());
-
-    let expected_ret_amount = Uint128::new(sim_result);
     let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
@@ -919,15 +909,7 @@ fn try_token_to_native() {
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let msg_transfer = res.messages.get(0).expect("no message");
 
-    let model: StableSwapModel = StableSwapModel::new(
-        100,
-        vec![collateral_pool_amount.into(), asset_pool_amount.into()],
-        2,
-    );
-
-    let sim_result = model.sim_exchange(1, 0, offer_amount.into());
-
-    let expected_ret_amount = Uint128::new(sim_result);
+    let expected_ret_amount = Uint128::new(1505367355);
     let expected_spread_amount = offer_amount.saturating_sub(expected_ret_amount);
     let expected_commission_amount = expected_ret_amount.multiply_ratio(3u128, 1000u128); // 0.3%
     let expected_maker_fee_amount = expected_commission_amount.multiply_ratio(166u128, 1000u128);
@@ -1344,6 +1326,7 @@ fn mock_env_with_block_time(time: u64) -> Env {
     env
 }
 
+#[cfg(feature = "sim-tests")]
 proptest! {
     #[test]
     fn constant_product_swap_no_fee(
@@ -1429,6 +1412,104 @@ proptest! {
             balance_out,
             reverse_diff
         );
+    }
+}
+
+#[cfg(feature = "sim-tests")]
+mod python_sim {
+    use super::*;
+    use crate::contract::query_reverse_simulation;
+    use crate::utils::{compute_swap, select_pools};
+    use astroport::asset::{native_asset, native_asset_info};
+    use proptest::prelude::*;
+    use sim::StableSwapModel;
+
+    proptest! {
+        #[test]
+        fn constant_product_swap_no_fee(
+            balance_in in 1000..1_000_000_000_000_000_000u128,
+            balance_out in 1000..1_000_000_000_000_000_000u128,
+            amount_in in 1000..100_000_000_000u128,
+            amp in 1..150u64
+        ) {
+            prop_assume!(amount_in < balance_in && balance_out > balance_in);
+
+            let offer_asset = native_asset("uusd".to_string(), Uint128::from(amount_in));
+            let ask_asset = native_asset_info("uluna".to_string());
+
+            let msg = InstantiateMsg {
+                pair_type: PairType::Stable {},
+                factory_addr: String::from("factory"),
+                asset_infos: vec![offer_asset.info.clone(), ask_asset.clone()],
+                token_code_id: 10u64,
+                init_params: Some(to_json_binary(&StablePoolParams { amp, owner: None }).unwrap()),
+            };
+
+            let env = mock_env();
+            let info = mock_info("owner", &[]);
+            let mut deps = mock_dependencies(&[coin(balance_in, "uusd"), coin(balance_out, "uluna")]);
+
+            instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
+            let config = CONFIG.load(deps.as_ref().storage).unwrap();
+            let pools = config
+                .pair_info
+                .query_pools_decimal(&deps.as_ref().querier, &env.contract.address, &config.factory_addr)
+                .unwrap();
+            let (offer_pool, ask_pool) =
+            select_pools(Some(&offer_asset.info), None, &pools).unwrap();
+
+            let result = compute_swap(
+                deps.as_ref().storage,
+                &env,
+                &config,
+                &offer_asset.to_decimal_asset(offer_asset.info.decimals(&deps.as_ref().querier, &config.factory_addr).unwrap()).unwrap(),
+                &offer_pool,
+                &ask_pool,
+                &pools,
+            )
+            .unwrap();
+
+            let model: StableSwapModel = StableSwapModel::new(amp.into(), vec![balance_in, balance_out], 2);
+            let sim_result = model.sim_exchange(0, 1, amount_in);
+
+            let diff = (sim_result as i128 - result.return_amount.u128() as i128).abs();
+
+            assert!(
+                diff <= 20,
+                "result={}, sim_result={}, amp={}, amount_in={}, balance_in={}, balance_out={}, diff={}",
+                result.return_amount,
+                sim_result,
+                amp,
+                amount_in,
+                balance_in,
+                balance_out,
+                diff
+            );
+
+            let reverse_result = query_reverse_simulation(
+                deps.as_ref(),
+                env.clone(),
+                native_asset("uluna".to_string(), result.return_amount),
+                None,
+            )
+            .unwrap();
+
+            let amount_in_f = amount_in as f64;
+            let reverse_diff =
+                (reverse_result.offer_amount.u128() as f64 - amount_in_f) / amount_in_f * 100.;
+
+            assert!(
+                reverse_diff <= 0.5,
+                "result={}, sim_result={}, amp={}, amount_out={}, balance_in={}, balance_out={}, diff(%)={}",
+                reverse_result.offer_amount.u128(),
+                amount_in,
+                amp,
+                result.return_amount.u128(),
+                balance_in,
+                balance_out,
+                reverse_diff
+            );
+        }
     }
 }
 
