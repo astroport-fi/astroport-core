@@ -7,7 +7,7 @@ description = "The Astroport constant sum pair contract implementation. Handles 
 license = "GPL-3.0-only"
 repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
-metadata = { build_variants = ["injective", "sei"] }
+metadata = { build_variants = ["injective"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -15,7 +15,6 @@ crate-type = ["cdylib", "rlib"]
 [features]
 library = []
 injective = ["astroport/injective"]
-sei = ["astroport/sei"]
 
 [dependencies]
 astroport.workspace = true

@@ -101,7 +101,6 @@ fn proper_initialization() {
                 type_url: MsgCreateDenom::TYPE_URL.to_string(),
                 value: Binary(
                     MsgCreateDenom {
-                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
                         subdenom: LP_SUBDENOM.to_string()
                     }
@@ -250,9 +249,8 @@ fn provide_liquidity() {
                             denom: denom.to_string(),
                             amount: Uint128::from(1000_u128).to_string(),
                         }),
-                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
-                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        #[cfg(not(feature = "injective"))]
                         mint_to_address: String::from(MOCK_CONTRACT_ADDR),
                     }
                     .encode_to_vec()
@@ -275,9 +273,8 @@ fn provide_liquidity() {
                             denom: denom.to_string(),
                             amount: Uint128::from(299_814_698_523_989_456_628u128).to_string(),
                         }),
-                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
-                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        #[cfg(not(feature = "injective"))]
                         mint_to_address: String::from("addr0000"),
                     }
                     .encode_to_vec()
@@ -374,9 +371,8 @@ fn provide_liquidity() {
                             denom: denom.to_string(),
                             amount: Uint128::from(74_981_956_874_579_206461u128).to_string(),
                         }),
-                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
-                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        #[cfg(not(feature = "injective"))]
                         mint_to_address: String::from("addr0000"),
                     }
                     .encode_to_vec()
@@ -645,13 +641,12 @@ fn withdraw_liquidity() {
                 type_url: MsgBurn::TYPE_URL.to_string(),
                 value: Binary::from(
                     MsgBurn {
-                        #[cfg(not(feature = "sei"))]
                         sender: env.contract.address.to_string(),
                         amount: Some(astroport::token_factory::ProtoCoin {
                             denom: denom.to_string(),
                             amount: Uint128::from(100u128).to_string(),
                         }),
-                        #[cfg(not(any(feature = "injective", feature = "sei")))]
+                        #[cfg(not(feature = "injective"))]
                         burn_from_address: "".to_string()
                     }
                     .encode_to_vec()

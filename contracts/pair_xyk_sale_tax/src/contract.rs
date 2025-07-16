@@ -127,7 +127,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 let tracking = config.track_asset_balances;
                 let mut sub_msgs = vec![];
 
-                #[cfg(any(feature = "injective", feature = "sei"))]
+                #[cfg(feature = "injective")]
                 let tracking = false;
 
                 if tracking {
