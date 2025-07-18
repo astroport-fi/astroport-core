@@ -56,9 +56,9 @@ dependencies = [
 
 [[package]]
 name = "astro-token-converter"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
- "astroport 4.0.3",
+ "astroport 5.10.1",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -70,10 +70,10 @@ dependencies = [
 
 [[package]]
 name = "astro-token-converter-neutron"
-version = "1.0.1"
+version = "1.1.0"
 dependencies = [
  "astro-token-converter",
- "astroport 4.0.3",
+ "astroport 5.10.1",
  "cosmwasm-std",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
