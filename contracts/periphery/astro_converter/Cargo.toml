@@ -1,6 +1,6 @@
 [package]
 name = "astro-token-converter"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Chain agnostic ASTRO.cw20 to tokenfactory ASTRO converter"
@@ -15,7 +15,7 @@ crate-type = ["cdylib", "rlib"]
 library = []
 
 [dependencies]
-astroport = "4"
+astroport.workspace = true
 cosmwasm-std = { workspace = true, features = ["stargate"] }
 cosmwasm-schema.workspace = true
 cw-storage-plus.workspace = true

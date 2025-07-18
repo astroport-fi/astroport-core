@@ -60,3 +60,8 @@ pub enum QueryMsg {
     #[returns(Config)]
     Config {},
 }
+
+#[cw_serde]
+pub struct MigrateMsg {
+    pub clawback_receiver: String,
+}
