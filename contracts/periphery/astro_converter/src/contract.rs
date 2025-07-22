@@ -263,7 +263,7 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
                     let config = CONFIG.load(deps.storage)?;
                     let astro_balance = deps
                         .querier
-                        .query_balance(&env.contract.address, &config.new_astro_denom)?;
+                        .query_balance(env.contract.address, config.new_astro_denom)?;
                     let bank_msg = BankMsg::Send {
                         to_address: msg.clawback_receiver,
                         amount: vec![astro_balance],
