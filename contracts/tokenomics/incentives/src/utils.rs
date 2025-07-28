@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    QuerierWrapper, ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use itertools::Itertools;
 
@@ -225,9 +225,8 @@ pub fn incentivize(
         });
     }
 
-    let pair_info = query_pair_info(deps.as_ref(), &lp_token_asset)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info, &lp_token_asset)?;
+    is_pool_registered(deps.as_ref(), &config, &lp_token_asset)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
@@ -403,17 +402,13 @@ pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> 
 
 /// Checks if the pool with the following asset infos is registered in the factory contract and
 /// LP tokens address/denom matches the one registered in the factory.
-pub fn is_pool_registered(
-    querier: QuerierWrapper,
-    config: &Config,
-    pair_info: &PairInfo,
-    lp_token: &AssetInfo,
-) -> StdResult<()> {
+pub fn is_pool_registered(deps: Deps, config: &Config, lp_token: &AssetInfo) -> StdResult<()> {
     // Checking only possible malicious cw20 LP tokens as they might result in state bloat
     if lp_token.is_native_token() {
         Ok(())
     } else {
-        querier
+        let pair_info = query_pair_info(deps, &lp_token)?;
+        deps.querier
             .query_wasm_smart::<PairInfo>(
                 &config.factory,
                 &factory::QueryMsg::Pair {
