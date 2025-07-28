@@ -412,7 +412,7 @@ pub fn is_valid_pool(deps: Deps, config: &Config, lp_token: &AssetInfo) -> StdRe
         get_pair_from_denom(deps, denom).map(|_| ())
     } else {
         // Full check that cw20 LP token is registered in the factory
-        let pair_info = query_pair_info(deps, &lp_token)?;
+        let pair_info = query_pair_info(deps, lp_token)?;
         deps.querier
             .query_wasm_smart::<PairInfo>(
                 &config.factory,
