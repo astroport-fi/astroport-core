@@ -1,21 +1,21 @@
 use cosmwasm_std::{
-    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order,
-    QuerierWrapper, ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn,
+    Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use itertools::Itertools;
-
-use astroport::asset::{
-    determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo,
-};
-use astroport::factory::PairType;
-use astroport::incentives::{Config, IncentivesSchedule, InputSchedule, MAX_ORPHANED_REWARD_LIMIT};
-use astroport::{factory, pair, vesting};
 
 use crate::error::ContractError;
 use crate::reply::POST_TRANSFER_REPLY_ID;
 use crate::state::{
     Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, ORPHANED_REWARDS,
 };
+use astroport::asset::{
+    determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo,
+};
+use astroport::common::LP_SUBDENOM;
+use astroport::factory::PairType;
+use astroport::incentives::{Config, IncentivesSchedule, InputSchedule, MAX_ORPHANED_REWARD_LIMIT};
+use astroport::{factory, pair, vesting};
 
 /// Claim all rewards and compose [`Response`] object containing all attributes and messages.
 /// This function doesn't mutate the state but mutates in-memory objects.
@@ -225,9 +225,8 @@ pub fn incentivize(
         });
     }
 
-    let pair_info = query_pair_info(deps.as_ref(), &lp_token_asset)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info, &lp_token_asset)?;
+    is_valid_pool(deps.as_ref(), &config, &lp_token_asset)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
@@ -380,40 +379,41 @@ pub fn remove_reward_from_pool(
 }
 
 /// Queries pair info corresponding to given LP token.
-/// Handles both native and cw20 tokens. If the token is native it must follow the following format:
+/// Handles both native and cw20 tokens. If the token is native, it must follow the following format:
 /// factory/{lp_minter}/{token_name} where lp_minter is a valid bech32 address on the current chain.
 pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> {
     match lp_asset {
         AssetInfo::Token { contract_addr } => pair_info_by_pool(&deps.querier, contract_addr),
         AssetInfo::NativeToken { denom } => {
-            let parts = denom.split('/').collect_vec();
-            if denom.starts_with("factory") && parts.len() >= 3 {
-                let lp_minter = parts[1];
-                deps.api.addr_validate(lp_minter)?;
-                deps.querier
-                    .query_wasm_smart(lp_minter, &pair::QueryMsg::Pair {})
-            } else {
-                Err(StdError::generic_err(format!(
-                    "LP token {denom} doesn't follow token factory format: factory/{{lp_minter}}/{{token_name}}",
-                )))
-            }
+            let lp_minter = get_pair_from_denom(deps, denom)?;
+            deps.querier
+                .query_wasm_smart(lp_minter, &pair::QueryMsg::Pair {})
         }
+    }
+}
+
+pub fn get_pair_from_denom(deps: Deps, denom: &str) -> StdResult<Addr> {
+    let parts = denom.split('/').collect_vec();
+    if denom.starts_with("factory") && denom.ends_with(LP_SUBDENOM) {
+        let lp_minter = parts[1];
+        deps.api.addr_validate(lp_minter)
+    } else {
+        Err(StdError::generic_err(format!(
+            "LP token {denom} doesn't follow token factory format: factory/{{lp_minter}}/{{token_name}}",
+        )))
     }
 }
 
 /// Checks if the pool with the following asset infos is registered in the factory contract and
 /// LP tokens address/denom matches the one registered in the factory.
-pub fn is_pool_registered(
-    querier: QuerierWrapper,
-    config: &Config,
-    pair_info: &PairInfo,
-    lp_token: &AssetInfo,
-) -> StdResult<()> {
-    // Checking only possible malicious cw20 LP tokens as they might result in state bloat
-    if lp_token.is_native_token() {
-        Ok(())
+pub fn is_valid_pool(deps: Deps, config: &Config, lp_token: &AssetInfo) -> StdResult<()> {
+    if let AssetInfo::NativeToken { denom } = lp_token {
+        // Check if the native token at least follows Astroport LP token format
+        get_pair_from_denom(deps, denom).map(|_| ())
     } else {
-        querier
+        // Full check that cw20 LP token is registered in the factory
+        let pair_info = query_pair_info(deps, lp_token)?;
+        deps.querier
             .query_wasm_smart::<PairInfo>(
                 &config.factory,
                 &factory::QueryMsg::Pair {

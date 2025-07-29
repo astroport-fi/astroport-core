@@ -25,8 +25,7 @@ use crate::state::{
 };
 use crate::utils::{
     asset_info_key, claim_orphaned_rewards, claim_rewards, deactivate_blocked_pools,
-    deactivate_pool, incentivize_many, is_pool_registered, query_pair_info,
-    remove_reward_from_pool,
+    deactivate_pool, incentivize_many, is_valid_pool, query_pair_info, remove_reward_from_pool,
 };
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -183,9 +182,8 @@ fn deposit(
 ) -> Result<Response, ContractError> {
     let staker = addr_opt_validate(deps.api, &recipient)?.unwrap_or(sender);
 
-    let pair_info = query_pair_info(deps.as_ref(), &maybe_lp.info)?;
     let config = CONFIG.load(deps.storage)?;
-    is_pool_registered(deps.querier, &config, &pair_info, &maybe_lp.info)?;
+    is_valid_pool(deps.as_ref(), &config, &maybe_lp.info)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &maybe_lp.info)?.unwrap_or_default();
     let mut user_info = UserInfo::may_load_position(deps.storage, &staker, &maybe_lp.info)?
@@ -292,7 +290,7 @@ pub fn setup_pools(
             let maybe_lp = determine_asset_info(&lp_token, deps.api)?;
             let pair_info = query_pair_info(deps.as_ref(), &maybe_lp)?;
 
-            is_pool_registered(deps.querier, &config, &pair_info, &maybe_lp)?;
+            is_valid_pool(deps.as_ref(), &config, &maybe_lp)?;
 
             // check if assets in the blocked list
             for asset in &pair_info.asset_infos {
