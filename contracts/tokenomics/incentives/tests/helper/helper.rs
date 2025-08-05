@@ -20,7 +20,7 @@ use cosmwasm_std::{
     GovMsg, IbcMsg, IbcQuery, RecoverPubkeyError, StdError, StdResult, Storage, Timestamp, Uint128,
     VerificationError,
 };
-use cw20::MinterResponse;
+use cw20::{Cw20Coin, MinterResponse};
 use itertools::Itertools;
 
 use astroport_test::cw_multi_test::{
@@ -324,6 +324,7 @@ impl Helper {
                             is_disabled: false,
                             is_generator_disabled: false,
                             permissioned: false,
+                            whitelist: None,
                         },
                         PairConfig {
                             code_id: pair_stable_code,
@@ -333,6 +334,7 @@ impl Helper {
                             is_disabled: false,
                             is_generator_disabled: false,
                             permissioned: false,
+                            whitelist: None,
                         },
                     ],
                     token_code_id,
@@ -635,7 +637,12 @@ impl Helper {
             .unwrap()
     }
 
-    pub fn init_broken_cw20(&mut self, name: &str, decimals: Option<u8>) -> Addr {
+    pub fn init_broken_cw20(
+        &mut self,
+        name: &str,
+        minter: Option<String>,
+        initial_balances: Vec<Cw20Coin>,
+    ) -> Addr {
         let broken_cw20_code = self.app.store_code(broken_token_contract());
         self.app
             .instantiate_contract(
@@ -644,10 +651,10 @@ impl Helper {
                 &cw20_base::msg::InstantiateMsg {
                     name: name.to_string(),
                     symbol: name.to_string(),
-                    decimals: decimals.unwrap_or(6),
-                    initial_balances: vec![],
-                    mint: Some(MinterResponse {
-                        minter: self.owner.to_string(),
+                    decimals: 6,
+                    initial_balances,
+                    mint: minter.map(|m| MinterResponse {
+                        minter: m,
                         cap: None,
                     }),
                     marketing: None,

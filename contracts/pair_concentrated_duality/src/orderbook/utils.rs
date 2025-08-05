@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    Addr, Coin, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdError,
-    StdResult, Uint128,
+    Addr, CosmosMsg, Decimal256, Fraction, OverflowError, QuerierWrapper, StdResult, Uint128,
 };
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
@@ -16,7 +15,8 @@ use astroport_pcl_common::{
 
 use crate::error::ContractError;
 use crate::orderbook::consts::DUALITY_PRICE_ADJUSTMENT;
-use crate::orderbook::state::{OrderState, OrderbookState};
+use crate::orderbook::execute::CumulativeTradeUint;
+use crate::orderbook::state::OrderbookState;
 
 pub fn compute_offer_amount(
     ixs: &[Decimal256],
@@ -177,42 +177,6 @@ impl SpotOrdersFactory {
         Ok(true)
     }
 
-    pub fn total_exported_liquidity(&self) -> StdResult<Vec<Asset>> {
-        let mut liquidity = self
-            .orders
-            .iter()
-            .map(|order| {
-                let asset = if order.is_buy {
-                    Asset::native(
-                        &self.denoms[1],
-                        Uint128::try_from((order.amount * self.multiplier[1]).to_uint_floor())?,
-                    )
-                } else {
-                    Asset::native(
-                        &self.denoms[0],
-                        Uint128::try_from((order.amount * self.multiplier[0]).to_uint_floor())?,
-                    )
-                };
-
-                Ok(asset)
-            })
-            .collect::<StdResult<Vec<_>>>()?
-            .into_iter()
-            .into_group_map_by(|asset| asset.info.clone())
-            .into_iter()
-            .map(|(info, assets)| {
-                let sum = assets.iter().fold(Uint128::zero(), |acc, a| acc + a.amount);
-                info.with_balance(sum)
-            })
-            .collect_vec();
-
-        if liquidity[0].info.to_string() != self.denoms[0] {
-            liquidity.swap(0, 1);
-        }
-
-        Ok(liquidity)
-    }
-
     pub fn collect_spot_orders(self, sender: &Addr) -> Vec<CosmosMsg> {
         self.orders
             .into_iter()
@@ -370,56 +334,53 @@ impl Liquidity {
 }
 
 /// Checking whether there is a difference between the last and current balances.
-/// Return OrderState object which is the difference between last and current balances.
+/// Return CumulativeTradeUint object which is the difference between last and current total balances.
 pub fn fetch_autoexecuted_trade(
     last_balances: &[Asset],
     new_balances: &[Asset],
-) -> StdResult<OrderState> {
+    orders_number: u8,
+) -> Option<CumulativeTradeUint> {
     let mut new_balances = new_balances.to_vec();
     if last_balances[0].info != new_balances[0].info {
         new_balances.swap(0, 1);
     }
 
-    let trade = if last_balances[0].amount < new_balances[0].amount {
+    // Ignore false positive trades that might happen due to rounding errors on Duality
+    let tolerance = Uint128::from(orders_number * 2);
+    if last_balances[0].amount.abs_diff(new_balances[0].amount) <= tolerance
+        || last_balances[1].amount.abs_diff(new_balances[1].amount) <= tolerance
+    {
+        return None;
+    }
+
+    if last_balances[0].amount < new_balances[0].amount {
         // We sold asset 1 for asset 0
-        Ok(OrderState {
-            taker_coin_out: Coin {
-                denom: last_balances[0].info.to_string(),
-                amount: new_balances[0].amount - last_balances[0].amount,
-            },
-            maker_coin_out: Coin {
-                denom: last_balances[1].info.to_string(),
-                // auto-executed order guarantees that maker side is fully consumed
-                amount: Uint128::zero(),
-            },
+        Some(CumulativeTradeUint {
+            base_asset: last_balances[0]
+                .info
+                .with_balance(new_balances[0].amount - last_balances[0].amount),
+            quote_asset: last_balances[1]
+                .info
+                .with_balance(last_balances[1].amount - new_balances[1].amount),
         })
     } else if last_balances[1].amount < new_balances[1].amount {
         // We sold asset 0 for asset 1
-        Ok(OrderState {
-            taker_coin_out: Coin {
-                denom: last_balances[1].info.to_string(),
-                amount: new_balances[1].amount - last_balances[1].amount,
-            },
-            maker_coin_out: Coin {
-                denom: last_balances[0].info.to_string(),
-                // auto-executed order guarantees that maker side is fully consumed
-                amount: Uint128::zero(),
-            },
+        Some(CumulativeTradeUint {
+            base_asset: last_balances[1]
+                .info
+                .with_balance(new_balances[1].amount - last_balances[1].amount),
+            quote_asset: last_balances[0]
+                .info
+                .with_balance(last_balances[0].amount - new_balances[0].amount),
         })
     } else {
         // No trade happened
-        Err(StdError::generic_err(
-            "PCL pool lost its liquidity in orderbook",
-        ))
-    }?;
-
-    Ok(trade)
+        None
+    }
 }
 
 #[cfg(test)]
 mod unit_tests {
-    use cosmwasm_std::coin;
-
     use astroport::asset::PairInfo;
     use astroport::factory::PairType;
     use astroport_pcl_common::calc_d;
@@ -462,37 +423,46 @@ mod unit_tests {
             Asset::native("untrn", 1000_000000u128),
         ];
         let new_balances = vec![
-            Asset::native("untrn", 1000_000000u128),
+            Asset::native("untrn", 900_000000u128),
             Asset::native("astro", 1050_000000u128),
         ];
 
-        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances).unwrap();
+        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances, 0).unwrap();
         assert_eq!(
             trade,
-            OrderState {
-                maker_coin_out: coin(0, "untrn"),
-                taker_coin_out: coin(50_000000, "astro"),
+            CumulativeTradeUint {
+                base_asset: Asset::native("astro", 50_000000u128),
+                quote_asset: Asset::native("untrn", 100_000000u128),
             }
         );
 
         // Trade in opposite direction
         let new_balances = vec![
             Asset::native("untrn", 1050_000000u128),
-            Asset::native("astro", 1000_000000u128),
+            Asset::native("astro", 975_000000u128),
         ];
-        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances).unwrap();
+        let trade = fetch_autoexecuted_trade(&last_balances, &new_balances, 0).unwrap();
         assert_eq!(
             trade,
-            OrderState {
-                maker_coin_out: coin(0, "astro"),
-                taker_coin_out: coin(50_000000, "untrn"),
+            CumulativeTradeUint {
+                base_asset: Asset::native("untrn", 50_000000u128),
+                quote_asset: Asset::native("astro", 25_000000u128),
             }
         );
 
-        let err = fetch_autoexecuted_trade(&last_balances, &last_balances).unwrap_err();
         assert_eq!(
-            err,
-            StdError::generic_err("PCL pool lost its liquidity in orderbook")
+            fetch_autoexecuted_trade(&last_balances, &last_balances, 0),
+            None
+        );
+
+        // Checking that we're filtering out false positive trades
+        let new_balances = vec![
+            Asset::native("untrn", 1000_000010u128),
+            Asset::native("astro", 1000_00008u128),
+        ];
+        assert_eq!(
+            fetch_autoexecuted_trade(&last_balances, &new_balances, 5),
+            None
         );
     }
 

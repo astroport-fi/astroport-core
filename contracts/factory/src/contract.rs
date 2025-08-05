@@ -3,8 +3,8 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, ensure, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
+    attr, ensure, to_json_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo, Order,
+    Reply, ReplyOn, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw_utils::parse_instantiate_response_data;
@@ -13,8 +13,8 @@ use itertools::Itertools;
 use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
-    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, MigrateMsg, PairConfig,
-    PairType, PairsResponse, QueryMsg, TrackerConfig,
+    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
+    PairsResponse, QueryMsg, TrackerConfig,
 };
 use astroport::incentives::ExecuteMsg::DeactivatePool;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
@@ -272,6 +272,21 @@ pub fn execute_update_pair_config(
         return Err(ContractError::PairConfigInvalidFeeBps {});
     }
 
+    // Check if whitelist is valid
+    if let Some(whitelist) = &pair_config.whitelist {
+        let unique_whitelist: HashSet<String> = whitelist.iter().cloned().collect();
+        if unique_whitelist.len() != whitelist.len() {
+            return Err(ContractError::PairConfigDuplicateWhitelist {});
+        }
+
+        // Validate addresses in whitelist
+        for addr in unique_whitelist.iter() {
+            deps.api
+                .addr_validate(addr)
+                .map_err(|_| ContractError::PairConfigInvalidWhitelistAddress {})?;
+        }
+    }
+
     PAIR_CONFIGS.save(
         deps.storage,
         pair_config.pair_type.to_string(),
@@ -309,7 +324,10 @@ pub fn execute_create_pair(
         .load(deps.storage, pair_type.to_string())
         .map_err(|_| ContractError::PairConfigNotFound {})?;
 
-    if pair_config.permissioned && info.sender != config.owner {
+    if pair_config.permissioned
+        && info.sender != config.owner
+        && !is_whitelisted(&pair_config, &info.sender.to_string())
+    {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -348,6 +366,14 @@ pub fn execute_create_pair(
             attr("action", "create_pair"),
             attr("pair", asset_infos.iter().join("-")),
         ]))
+}
+
+fn is_whitelisted(pair_config: &PairConfig, sender: &String) -> bool {
+    if let Some(whitelist) = &pair_config.whitelist {
+        whitelist.contains(sender)
+    } else {
+        false
+    }
 }
 
 /// The entry point to the contract for processing replies from submessages.
@@ -567,44 +593,12 @@ pub fn query_tracker_config(deps: Deps) -> StdResult<TrackerConfig> {
 
 /// Manages the contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-factory" => match contract_version.version.as_ref() {
-            // pisco-1, phoenix-1, injective-1, pion-1, neutron-1, pacific-1: 1.5.1
-            // injective-888: 1.6.0
-            // atlantic-2: 1.3.1
-            "1.3.1" | "1.5.1" | "1.6.0" => {
-                migrate_pair_configs(deps.storage)?;
-                if let Some(tracker_config) = msg.tracker_config {
-                    TRACKER_CONFIG.save(
-                        deps.storage,
-                        &TrackerConfig {
-                            code_id: tracker_config.code_id,
-                            token_factory_addr: deps
-                                .api
-                                .addr_validate(&tracker_config.token_factory_addr)?
-                                .to_string(),
-                        },
-                    )?;
-                }
-            }
-            "1.7.0" => {
-                if let Some(tracker_config) = msg.tracker_config {
-                    TRACKER_CONFIG.save(
-                        deps.storage,
-                        &TrackerConfig {
-                            code_id: tracker_config.code_id,
-                            token_factory_addr: deps
-                                .api
-                                .addr_validate(&tracker_config.token_factory_addr)?
-                                .to_string(),
-                        },
-                    )?;
-                }
-            }
-            "1.8.0" | "1.8.1" => {}
+            "1.8.0" | "1.8.1" | "1.9.0" => migrate_pair_configs(deps.storage)?,
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

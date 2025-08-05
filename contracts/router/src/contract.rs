@@ -277,7 +277,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.1.2" | "1.2.0" => {}
+            "1.1.2" | "1.2.0" | "1.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -371,8 +371,8 @@ fn simulate_reverse_swap_operations(
                 let res: ReverseSimulationResponse = deps.querier.query_wasm_smart(
                     pair_info.contract_addr,
                     &PairQueryMsg::ReverseSimulation {
-                        offer_asset_info: Some(ask_asset_info.clone()),
-                        ask_asset: offer_asset_info.with_balance(step_amount),
+                        offer_asset_info: Some(offer_asset_info.clone()),
+                        ask_asset: ask_asset_info.with_balance(step_amount),
                     },
                 )?;
 

@@ -17,6 +17,7 @@ pub mod oracle;
 pub mod pair;
 pub mod pair_concentrated;
 pub mod pair_concentrated_inj;
+pub mod pair_concentrated_sale_tax;
 pub mod pair_xyk_sale_tax;
 pub mod querier;
 pub mod restricted_vector;

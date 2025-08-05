@@ -5,13 +5,14 @@ use cosmwasm_std::{
     CosmosMsg, CustomMsg, Deps, DepsMut, Env, IbcMsg, IbcTimeout, MessageInfo, QuerierWrapper,
     Response, StdError, StdResult,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw20::{Cw20ExecuteMsg, Cw20QueryMsg, Cw20ReceiveMsg};
 use cw_utils::{must_pay, nonpayable};
 
 use astroport::asset::{addr_opt_validate, validate_native_denom, AssetInfo};
 use astroport::astro_converter::{
-    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg, DEFAULT_TIMEOUT, TIMEOUT_LIMITS,
+    Config, Cw20HookMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, DEFAULT_TIMEOUT,
+    TIMEOUT_LIMITS,
 };
 
 use crate::error::ContractError;
@@ -247,6 +248,41 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
     }
+}
+
+/// Manages contract migration.
+#[cfg(not(tarpaulin_include))]
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    let response = match contract_version.contract.as_ref() {
+        CONTRACT_NAME | "astro-token-converter-neutron" => {
+            match contract_version.version.as_ref() {
+                "1.0.0" | "1.0.1" => {
+                    let config = CONFIG.load(deps.storage)?;
+                    let astro_balance = deps
+                        .querier
+                        .query_balance(env.contract.address, config.new_astro_denom)?;
+                    let bank_msg = BankMsg::Send {
+                        to_address: msg.clawback_receiver,
+                        amount: vec![astro_balance],
+                    };
+                    Ok(Response::new().add_message(bank_msg))
+                }
+                _ => Err(StdError::generic_err("Invalid contract version")),
+            }
+        }
+        _ => Err(StdError::generic_err("Invalid contract")),
+    }?;
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(response
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
 
 #[cfg(test)]

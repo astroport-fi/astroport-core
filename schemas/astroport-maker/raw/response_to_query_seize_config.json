@@ -1,10 +1,82 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+<<<<<<<< HEAD:schemas/astroport-maker/raw/response_to_query_seize_config.json
   "title": "SeizeConfig",
   "type": "object",
   "required": [
     "receiver",
     "seizable_assets"
+========
+  "title": "QueryMsg",
+  "description": "This structure describes the query functions available in the contract.",
+  "oneOf": [
+    {
+      "description": "Returns information about the maker configs that contains in the [`ConfigResponse`]",
+      "type": "object",
+      "required": [
+        "config"
+      ],
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the balance for each asset in the specified input parameters",
+      "type": "object",
+      "required": [
+        "balances"
+      ],
+      "properties": {
+        "balances": {
+          "type": "object",
+          "required": [
+            "assets"
+          ],
+          "properties": {
+            "assets": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "bridges"
+      ],
+      "properties": {
+        "bridges": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Returns the seize config",
+      "type": "object",
+      "required": [
+        "query_seize_config"
+      ],
+      "properties": {
+        "query_seize_config": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+>>>>>>>> origin/main:schemas/astroport-maker/raw/query.json
   ],
   "properties": {
     "receiver": {

@@ -1,11 +1,12 @@
 use std::str::FromStr;
 
-use astroport::asset::{native_asset_info, AssetInfo, AssetInfoExt};
+use astroport::asset::{native_asset_info, Asset, AssetInfo, AssetInfoExt};
 use astroport::incentives::{
     ExecuteMsg, IncentivizationFeeInfo, InputSchedule, ScheduleResponse, EPOCHS_START,
     EPOCH_LENGTH, MAX_REWARD_TOKENS,
 };
 use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
+use cw20::Cw20Coin;
 use itertools::Itertools;
 
 use astroport_incentives::error::ContractError;
@@ -1598,20 +1599,6 @@ fn test_blocked_pair_types() {
         .deactivate_pool_full_flow(&[tokens[0].clone(), tokens[1].clone()])
         .unwrap();
 
-    let err = helper
-        .setup_pools(vec![
-            (norm_pair1_info.liquidity_token.to_string(), 1),
-            (norm_pair2_info.liquidity_token.to_string(), 1),
-        ])
-        .unwrap_err();
-    assert_eq!(
-        err.root_cause().to_string(),
-        format!(
-            "Generic error: The pair is not registered: {}-{}",
-            &tokens[0], &tokens[1]
-        )
-    );
-
     helper.next_block(1000);
 
     let reward_info = helper.query_reward_info(norm_pair1_info.liquidity_token.as_str());
@@ -2477,7 +2464,8 @@ fn test_broken_cw20_incentives() {
             let reward_asset_info = if i == 1 {
                 AssetInfo::native(format!("reward{i}"))
             } else {
-                let reward_cw20 = helper.init_broken_cw20("reward", None);
+                let reward_cw20 =
+                    helper.init_broken_cw20("reward", Some(owner.to_string()), vec![]);
                 AssetInfo::cw20(reward_cw20)
             };
 
@@ -2672,4 +2660,31 @@ fn test_orphaned_rewards() {
         err.downcast::<ContractError>().unwrap(),
         ContractError::NoOrphanedRewards {}
     );
+}
+
+#[test]
+fn test_invalid_cw20_lp_token() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+
+    let user = TestAddr::new("user");
+
+    let asset_infos = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair_info = helper.create_pair(&asset_infos).unwrap();
+    let cw20_contract = helper.init_broken_cw20(
+        "uLP",
+        Some(pair_info.contract_addr.to_string()),
+        vec![Cw20Coin {
+            address: user.to_string(),
+            amount: 1000u128.into(),
+        }],
+    );
+
+    // Try to stake. Fails with error that factory doesn't have such LP token address
+    let cw20_lp_token = Asset::cw20_unchecked(cw20_contract, 1000u128);
+    let err = helper.stake(&user, cw20_lp_token).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: LP token wasm1_contract6 doesn't match LP token registered in factory factory/wasm1_contract5/astroport/share".to_string()
+    )
 }

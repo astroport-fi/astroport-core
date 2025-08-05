@@ -54,6 +54,8 @@ pub fn common_pcl_params() -> ConcentratedPoolParams {
         ma_half_time: 600,
         track_asset_balances: None,
         fee_share: None,
+        allowed_xcp_profit_drop: None,
+        xcp_profit_losses_threshold: None,
     }
 }
 
@@ -207,6 +209,7 @@ impl Helper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: app.store_code(pcl_duality_contract()),
@@ -216,6 +219,7 @@ impl Helper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
             ],
             token_code_id: 0,

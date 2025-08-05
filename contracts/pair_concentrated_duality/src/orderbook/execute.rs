@@ -139,52 +139,74 @@ pub fn process_cumulative_trades(
         events.push(Event::new(format!("cumulative_trade_{i}")).add_attributes(attrs))
     }
 
-    // Considering only base_asset in the end calculations
-    // as this is the only assets that left contract
     let trade = match &trades {
         [trade1, trade2] => match trade1.base_asset.amount.cmp(&trade2.quote_asset.amount) {
             // We received less trade1.base_asset than sold i.e. we sold trade1.base_asset
-            Ordering::Less => CumulativeTrade {
-                base_asset: trade2.base_asset.clone(),
-                quote_asset: trade1.base_asset.clone(),
-            },
+            Ordering::Less => Some(CumulativeTrade {
+                base_asset: trade1.quote_asset.info.with_dec_balance(
+                    trade2
+                        .base_asset
+                        .amount
+                        .saturating_sub(trade1.quote_asset.amount),
+                ),
+                quote_asset: trade1
+                    .base_asset
+                    .info
+                    .with_dec_balance(trade2.quote_asset.amount - trade1.base_asset.amount),
+            }),
             // We received more trade1.base_asset than sold i.e. we bought trade1.quote_asset
-            Ordering::Greater => CumulativeTrade {
-                base_asset: trade1.base_asset.clone(),
-                quote_asset: trade2.base_asset.clone(),
-            },
-            Ordering::Equal => unreachable!(),
+            Ordering::Greater => Some(CumulativeTrade {
+                base_asset: trade1
+                    .base_asset
+                    .info
+                    .with_dec_balance(trade1.base_asset.amount - trade2.quote_asset.amount),
+                quote_asset: trade1.quote_asset.info.with_dec_balance(
+                    trade1
+                        .quote_asset
+                        .amount
+                        .saturating_sub(trade2.base_asset.amount),
+                ),
+            }),
+            // Sell and buy sides eliminated each other. No need to repeg PCL
+            Ordering::Equal => None,
         },
-        [trade] => trade.clone(),
+        [trade] => Some(trade.clone()),
         _ => unreachable!("Must be at least 1 and at most 2 cumulative trades"),
     };
 
-    // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
-    // especially if token precisions are 18.
-    if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
-        let offer_ind = config
-            .pair_info
-            .asset_infos
-            .iter()
-            .position(|asset_info| asset_info == &trade.base_asset.info)
-            .unwrap();
-        let last_price = if offer_ind == 0 {
-            trade.base_asset.amount / trade.quote_asset.amount
-        } else {
-            trade.quote_asset.amount / trade.base_asset.amount
-        };
+    if let Some(trade) = trade {
+        // Skip very small trade sizes which could significantly mess up the price due to rounding errors,
+        // especially if token precisions are 18.
+        if trade.base_asset.amount >= MIN_TRADE_SIZE && trade.quote_asset.amount >= MIN_TRADE_SIZE {
+            let offer_ind = config
+                .pair_info
+                .asset_infos
+                .iter()
+                .position(|asset_info| asset_info == &trade.base_asset.info)
+                .unwrap();
+            let last_price = if offer_ind == 0 {
+                trade.base_asset.amount / trade.quote_asset.amount
+            } else {
+                trade.quote_asset.amount / trade.base_asset.amount
+            };
 
-        let total_share = query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
-            .to_decimal256(LP_TOKEN_PRECISION)?;
+            let total_share =
+                query_native_supply(&deps.querier, &config.pair_info.liquidity_token)?
+                    .to_decimal256(LP_TOKEN_PRECISION)?;
 
-        let ixs = [
-            *balances[0],
-            *balances[1] * config.pool_state.price_state.price_scale,
-        ];
+            let ixs = [
+                *balances[0],
+                *balances[1] * config.pool_state.price_state.price_scale,
+            ];
 
-        config
-            .pool_state
-            .update_price(&config.pool_params, env, total_share, &ixs, last_price)?;
+            config.pool_state.update_price(
+                &config.pool_params,
+                env,
+                total_share,
+                &ixs,
+                last_price,
+            )?;
+        }
     }
 
     Ok(Response::default()
@@ -235,15 +257,15 @@ pub fn sync_pool_with_orderbook(
 
         let xs = pools.iter().map(|a| a.amount).collect_vec();
         let cancel_msgs = ob_state.cancel_orders(&env.contract.address);
-        let (exported_liq, order_msgs) = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
+        let order_msgs = ob_state.deploy_orders(&env, &config, &xs, &precisions)?;
 
-        let next_contract_liquidity = pools
+        let next_contract_liquidity = xs
             .iter()
-            .zip(exported_liq.iter())
-            .map(|(pool_asset, ex_asset)| {
-                let prec = precisions.get_precision(&pool_asset.info).unwrap();
-                let amount = pool_asset.amount.to_uint(prec)?;
-                Ok(pool_asset.info.with_balance(amount - ex_asset.amount))
+            .zip(config.pair_info.asset_infos.iter())
+            .map(|(amount_dec, asset_info)| {
+                let prec = precisions.get_precision(asset_info).unwrap();
+                let amount = amount_dec.to_uint(prec)?;
+                Ok(asset_info.with_balance(amount))
             })
             .collect::<StdResult<Vec<_>>>()?;
         let submsgs = ob_state.flatten_msgs_and_add_callback(

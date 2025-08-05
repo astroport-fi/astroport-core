@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pcl-common"
-version = "2.1.1"
+version = "2.2.0"
 edition = "2021"
 description = "Common package contains math tools and utils for Astroport PCL pairs"
 license = "GPL-3.0-only"
@@ -8,10 +8,6 @@ repository = "https://github.com/astroport-fi/astroport"
 homepage = "https://astroport.fi"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[features]
-injective = ["astroport/injective"]
-sei = ["astroport/sei"]
 
 [dependencies]
 cosmwasm-std.workspace = true

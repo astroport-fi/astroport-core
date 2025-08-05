@@ -925,17 +925,19 @@ fn test_reverse_simulation() {
                         fee_gamma: f64_to_dec(0.00023),
                         repeg_profit_threshold: f64_to_dec(0.000002),
                         min_price_scale_delta: f64_to_dec(0.000146),
-                        price_scale: Decimal::one(),
+                        price_scale: Decimal::from_ratio(2u8, 1u8),
                         ma_half_time: 600,
                         track_asset_balances: None,
                         fee_share: None,
+                        allowed_xcp_profit_drop: None,
+                        xcp_profit_losses_threshold: None,
                     })
                     .unwrap(),
                 ),
             )
             .unwrap();
         mint_native(&mut app, a, liq, &pair).unwrap();
-        mint_native(&mut app, b, liq, &pair).unwrap();
+        mint_native(&mut app, b, liq / 2, &pair).unwrap();
     }
 
     let router_code = app.store_code(router_contract());

@@ -36,4 +36,10 @@ pub enum ContractError {
 
     #[error("Failed to parse or process reply message")]
     FailedToParseReply {},
+
+    #[error("Duplicated address in whitelist of pair config")]
+    PairConfigDuplicateWhitelist {},
+
+    #[error("Invalid whitelist address in pair config")]
+    PairConfigInvalidWhitelistAddress {},
 }

@@ -88,6 +88,7 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: pair_code_id,
@@ -97,6 +98,17 @@ impl FactoryHelper {
                     is_disabled: false,
                     is_generator_disabled: false,
                     permissioned: false,
+                    whitelist: None,
+                },
+                PairConfig {
+                    code_id: pcl_code_id,
+                    maker_fee_bps: 5000,
+                    total_fee_bps: 0u16, // Concentrated pair does not use this field,
+                    pair_type: PairType::Custom("concentrated".to_string()),
+                    is_disabled: false,
+                    is_generator_disabled: false,
+                    permissioned: false,
+                    whitelist: None,
                 },
                 PairConfig {
                     code_id: pcl_code_id,
