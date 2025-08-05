@@ -1,23 +1,23 @@
 [workspace]
 resolver = "2"
 members = [
-    "packages/*",
-    "contracts/factory",
-    "contracts/pair",
-    "contracts/pair_stable",
-    "contracts/pair_concentrated",
-    "contracts/pair_astro_converter",
-    "contracts/pair_transmuter",
-    "contracts/pair_concentrated_duality",
-    "contracts/pair_concentrated_sale_tax",
+    "packages/astroport",
+    #    "contracts/factory",
+    #    "contracts/pair",
+    #    "contracts/pair_stable",
+    #    "contracts/pair_concentrated",
+    #    "contracts/pair_astro_converter",
+    #    "contracts/pair_transmuter",
+    #    "contracts/pair_concentrated_duality",
+    #    "contracts/pair_concentrated_sale_tax",
     #  "contracts/pair_concentrated_inj", TODO: rewrite OB liquidity deployment
-    "contracts/pair_xastro",
-    "contracts/pair_supervault_adapter",
-    "contracts/pair_xyk_sale_tax",
-    "contracts/router",
-    "contracts/whitelist",
-    "contracts/tokenomics/*",
-    "contracts/periphery/*"
+    #    "contracts/pair_xastro",
+    #    "contracts/pair_supervault_adapter",
+    #    "contracts/pair_xyk_sale_tax",
+    #    "contracts/router",
+    #    "contracts/whitelist",
+    #    "contracts/tokenomics/*",
+    "contracts/periphery/astro_converter"
 ]
 
 [workspace.dependencies]
@@ -28,7 +28,7 @@ thiserror = "1.0"
 itertools = "0.12"
 cosmwasm-schema = "1.5"
 cw-utils = "1"
-astroport = { path = "./packages/astroport", version = "5.11.0" }
+astroport = { path = "./packages/astroport", version = "5.11.0-cw1.0" }
 
 [profile.release]
 opt-level = "z"
