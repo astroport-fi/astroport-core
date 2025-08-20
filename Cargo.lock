@@ -166,7 +166,6 @@ dependencies = [
  "prost 0.11.9",
  "test-case",
  "thiserror",
- "uint 0.9.5",
 ]
 
 [[package]]

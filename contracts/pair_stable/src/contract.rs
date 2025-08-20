@@ -19,7 +19,7 @@ use astroport::asset::{
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
-use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
@@ -32,7 +32,6 @@ use astroport::pair::{
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
-use astroport::DecimalCheckedOps;
 use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
@@ -590,7 +589,7 @@ pub fn swap(
         &config.factory_addr,
         config.pair_info.pair_type.clone(),
     )?;
-    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let commission_amount = return_amount * fee_info.total_fee_rate;
     let return_amount = return_amount.saturating_sub(commission_amount);
 
     // Check the max spread limit (if it was specified)
@@ -861,7 +860,7 @@ pub fn query_simulation(
         config.pair_info.pair_type.clone(),
     )?;
 
-    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let commission_amount = return_amount * fee_info.total_fee_rate;
     let return_amount = return_amount.saturating_sub(commission_amount);
 
     Ok(SimulationResponse {
@@ -946,11 +945,8 @@ pub fn query_reverse_simulation(
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount: offer_amount
-            .saturating_sub(before_commission.to_uint128_with_precision(offer_precision)?),
-        commission_amount: fee_info
-            .total_fee_rate
-            .checked_mul_uint128(before_commission.to_uint128_with_precision(ask_precision)?)?,
+        spread_amount: offer_amount.saturating_sub(before_commission.to_uint(offer_precision)?),
+        commission_amount: before_commission.to_uint(ask_precision)? * fee_info.total_fee_rate,
     })
 }
 
