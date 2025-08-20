@@ -194,7 +194,7 @@ pub fn provide_liquidity(
 
     let lp_tokens_balance = deps
         .querier
-        .query_balance(&env.contract.address, &config.vault_lp_denom)?;
+        .query_balance(env.contract.address, &config.vault_lp_denom)?;
 
     PROVIDE_TMP_DATA.save(
         deps.storage,
