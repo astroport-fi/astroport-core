@@ -111,6 +111,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
             let messages = refund_assets
                 .clone()
                 .into_iter()
+                .filter(|asset| !asset.amount.is_zero())
                 .map(|asset| asset.into_msg(&withdraw_data.receiver))
                 .collect::<StdResult<Vec<_>>>()?;
 
