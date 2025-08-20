@@ -28,6 +28,7 @@ pub struct ProvideTmpData {
     pub receiver: Addr,
     pub auto_stake: bool,
     pub min_lp_to_receive: Option<Uint128>,
+    pub lp_tokens_before: Uint128,
 }
 
 pub const PROVIDE_TMP_DATA: Item<ProvideTmpData> = Item::new("provide_tmp_data");
