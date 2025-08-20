@@ -6,7 +6,8 @@ use cosmwasm_std::{
 use itertools::Itertools;
 use neutron_std::types::neutron::dex::MsgPlaceLimitOrder;
 
-use astroport::asset::{Asset, AssetInfo, AssetInfoExt, Decimal256Ext, DecimalAsset};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt, DecimalAsset};
+use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport_pcl_common::state::Precisions;
 use astroport_pcl_common::{
     calc_d, calc_y,
@@ -88,8 +89,14 @@ impl SpotOrdersFactory {
         Self {
             orders: vec![],
             multiplier: [
-                Decimal256::from_integer(10u64.pow(asset_0_precision as u32)),
-                Decimal256::from_integer(10u64.pow(asset_1_precision as u32)),
+                10u64
+                    .pow(asset_0_precision as u32)
+                    .to_decimal256(asset_0_precision)
+                    .unwrap(),
+                10u64
+                    .pow(asset_1_precision as u32)
+                    .to_decimal256(asset_1_precision)
+                    .unwrap(),
             ],
             precision: [asset_0_precision, asset_1_precision],
             denoms,
@@ -141,7 +148,7 @@ impl SpotOrdersFactory {
         let d = calc_d(ixs, &amp_gamma)?;
 
         for i in 1..=orders_number {
-            let i_dec = Decimal256::from_integer(i);
+            let i_dec = i.to_decimal256(0u8)?;
 
             let asset_0_sell_amount = asset_0_trade_size * i_dec;
             let asset_1_sell_amount =
@@ -264,10 +271,14 @@ fn price_to_duality_notation(
     let prec_diff = quote_precision as i8 - base_precision as i8;
     let price = match prec_diff.cmp(&0) {
         Ordering::Less => {
-            price / Decimal256::from_integer(10u128.pow(prec_diff.unsigned_abs() as u32))
+            price
+                / 10u128
+                    .pow(prec_diff.unsigned_abs() as u32)
+                    .to_decimal256(0u8)
+                    .unwrap()
         }
         Ordering::Equal => price,
-        Ordering::Greater => price * Decimal256::from_integer(10u128.pow(prec_diff as u32)),
+        Ordering::Greater => price * 10u128.pow(prec_diff as u32).to_decimal256(0u8).unwrap(),
     }
     .atomics()
     .checked_mul(DUALITY_PRICE_ADJUSTMENT)?
@@ -566,7 +577,7 @@ mod unit_tests {
             compute_swap(&ixs, orderbook_result, 0, &pair_config, amp_gamma, d).unwrap();
 
         assert!(
-            pcl_result >= asset_0_trade_size * Decimal256::from_integer(5u8),
+            pcl_result >= asset_0_trade_size * 5u8.to_decimal256(0u8).unwrap(),
             "Orderbook trades at discount from PCL: {pcl_result} <= {orderbook_result}",
         );
 
@@ -577,7 +588,7 @@ mod unit_tests {
             compute_swap(&ixs, orderbook_result, 1, &pair_config, amp_gamma, d).unwrap();
 
         assert!(
-            pcl_result >= asset_1_trade_size * Decimal256::from_integer(5u8),
+            pcl_result >= asset_1_trade_size * 5u8.to_decimal256(0u8).unwrap(),
             "Orderbook trades at discount from PCL: {pcl_result} <= {orderbook_result}",
         );
     }

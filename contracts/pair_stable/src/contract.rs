@@ -15,7 +15,7 @@ use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
 use astroport::asset::{
-    addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, Decimal256Ext,
+    addr_opt_validate, check_swap_parameters, Asset, AssetInfo, AssetInfoExt, CoinsExt,
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
@@ -428,10 +428,7 @@ pub fn provide_liquidity(
         .into_iter()
         .map(|(info, amount)| {
             let precision = get_precision(deps.storage, &info)?;
-            Ok(DecimalAsset {
-                info,
-                amount: Decimal256::with_precision(amount, precision)?,
-            })
+            Ok(info.with_dec_balance(amount.to_decimal256(precision)?))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -544,10 +541,9 @@ pub fn swap(
                 pool.amount = pool.amount.checked_sub(offer_asset.amount)?;
             }
             let token_precision = get_precision(deps.storage, &pool.info)?;
-            Ok(DecimalAsset {
-                info: pool.info,
-                amount: Decimal256::with_precision(pool.amount, token_precision)?,
-            })
+            Ok(pool
+                .info
+                .with_dec_balance(pool.amount.to_decimal256(token_precision)?))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -562,7 +558,7 @@ pub fn swap(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         offer_asset.amount,
@@ -825,7 +821,7 @@ pub fn query_simulation(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         offer_asset.amount,
@@ -902,7 +898,7 @@ pub fn query_reverse_simulation(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         ask_asset.amount,
@@ -926,7 +922,7 @@ pub fn query_reverse_simulation(
         - Decimal256::new(fee_info.total_fee_rate.atomics().into()))
     .inv()
     .ok_or_else(|| StdError::generic_err("The pool must have less than 100% fee!"))?
-    .checked_mul(Decimal256::with_precision(ask_asset.amount, ask_precision)?)?;
+    .checked_mul(ask_asset.amount.to_decimal256(ask_precision)?)?;
 
     let xp = pools.into_iter().map(|pool| pool.amount).collect_vec();
     let new_offer_pool_amount = calc_y(
@@ -936,11 +932,8 @@ pub fn query_reverse_simulation(
         config.greatest_precision,
     )?;
 
-    let offer_amount = new_offer_pool_amount.checked_sub(
-        offer_pool
-            .amount
-            .to_uint128_with_precision(config.greatest_precision)?,
-    )?;
+    let offer_amount =
+        new_offer_pool_amount.checked_sub(offer_pool.amount.to_uint(config.greatest_precision)?)?;
     let offer_amount = adjust_precision(offer_amount, config.greatest_precision, offer_precision)?;
 
     Ok(ReverseSimulationResponse {
@@ -1200,7 +1193,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
 
     compute_d(amp, &pools)
         .map_err(|_| StdError::generic_err("Failed to calculate the D"))?
-        .to_uint128_with_precision(config.greatest_precision)
+        .to_uint(config.greatest_precision)
 }
 
 fn ensure_min_assets_to_receive(

@@ -9,7 +9,7 @@ use cosmwasm_std::{
     Addr, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Storage, Uint128,
 };
 
-use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{Asset, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::observation::{safe_sma_buffer_not_full, safe_sma_calculation};
 use astroport::observation::{Observation, PrecommitObservation};
 use astroport::pair::MIN_TRADE_SIZE;
@@ -231,8 +231,12 @@ pub(crate) fn get_assets_with_precision(
 
     // precisions.get_precision() also validates that the asset belongs to the pool
     Ok(vec![
-        Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
-        Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
+        assets[0]
+            .amount
+            .to_decimal256(precisions.get_precision(&assets[0].info)?)?,
+        assets[1]
+            .amount
+            .to_decimal256(precisions.get_precision(&assets[1].info)?)?,
     ])
 }
 
