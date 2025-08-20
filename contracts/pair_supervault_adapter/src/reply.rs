@@ -66,12 +66,14 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 
             let lp_tokens = deps
                 .querier
-                .query_balance(&env.contract.address, &config.vault_lp_denom)?;
+                .query_balance(&env.contract.address, &config.vault_lp_denom)?
+                .amount
+                - provide_data.lp_tokens_before;
 
             if let Some(min_lp_to_receive) = provide_data.min_lp_to_receive {
                 ensure!(
-                    lp_tokens.amount >= min_lp_to_receive,
-                    ContractError::ProvideSlippageViolation(lp_tokens.amount, min_lp_to_receive)
+                    lp_tokens >= min_lp_to_receive,
+                    ContractError::ProvideSlippageViolation(lp_tokens, min_lp_to_receive)
                 );
             }
 
@@ -80,7 +82,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 &config,
                 &env.contract.address,
                 &provide_data.receiver,
-                lp_tokens.amount,
+                lp_tokens,
                 provide_data.auto_stake,
             )?;
 
@@ -88,7 +90,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 attr("action", "provide_liquidity"),
                 attr("receiver", provide_data.receiver),
                 attr("assets", provide_data.assets.iter().join(", ")),
-                attr("share", lp_tokens.amount),
+                attr("share", lp_tokens),
             ]))
         }
         ReplyIds::PostWithdraw => {

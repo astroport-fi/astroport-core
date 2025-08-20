@@ -12,10 +12,10 @@ use astroport::pair::ExecuteMsg;
 use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, from_json, wasm_execute, Addr, Decimal, DepsMut, Env,
-    MessageInfo, Response, SubMsg, Uint128,
+    attr, coin, ensure, ensure_eq, entry_point, from_json, wasm_execute, Addr, Decimal, DepsMut,
+    Empty, Env, MessageInfo, Response, SubMsg, Uint128,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw_utils::{must_pay, one_coin};
 
 /// Contract name that is used for migration.
@@ -116,7 +116,15 @@ pub fn execute(
             receiver,
             min_lp_to_receive,
             ..
-        } => provide_liquidity(deps, info, assets, receiver, min_lp_to_receive, auto_stake),
+        } => provide_liquidity(
+            deps,
+            info,
+            env,
+            assets,
+            receiver,
+            min_lp_to_receive,
+            auto_stake,
+        ),
         ExecuteMsg::WithdrawLiquidity {
             min_assets_to_receive,
             ..
@@ -171,6 +179,7 @@ pub fn swap(
 pub fn provide_liquidity(
     deps: DepsMut,
     info: MessageInfo,
+    env: Env,
     assets: Vec<Asset>,
     receiver: Option<String>,
     min_lp_to_receive: Option<Uint128>,
@@ -183,6 +192,10 @@ pub fn provide_liquidity(
     let receiver = addr_opt_validate(deps.api, &receiver)?.unwrap_or_else(|| info.sender.clone());
     let auto_stake = auto_stake.unwrap_or(false);
 
+    let lp_tokens_balance = deps
+        .querier
+        .query_balance(&env.contract.address, &config.vault_lp_denom)?;
+
     PROVIDE_TMP_DATA.save(
         deps.storage,
         &ProvideTmpData {
@@ -190,6 +203,7 @@ pub fn provide_liquidity(
             receiver,
             auto_stake,
             min_lp_to_receive,
+            lp_tokens_before: lp_tokens_balance.amount,
         },
     )?;
 
@@ -235,4 +249,25 @@ pub fn withdraw_liquidity(
     let sv_withdraw_msg = SubMsg::reply_on_success(vault_msg, ReplyIds::PostWithdraw as u64);
 
     Ok(Response::new().add_submessages([burn_msg, sv_withdraw_msg]))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    match contract_version.contract.as_ref() {
+        CONTRACT_NAME => match contract_version.version.as_ref() {
+            "1.0.0" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }
