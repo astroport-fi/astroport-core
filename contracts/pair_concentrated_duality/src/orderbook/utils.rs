@@ -91,11 +91,11 @@ impl SpotOrdersFactory {
             multiplier: [
                 10u64
                     .pow(asset_0_precision as u32)
-                    .to_decimal256(asset_0_precision)
+                    .to_decimal256(0u8)
                     .unwrap(),
                 10u64
                     .pow(asset_1_precision as u32)
-                    .to_decimal256(asset_1_precision)
+                    .to_decimal256(0u8)
                     .unwrap(),
             ],
             precision: [asset_0_precision, asset_1_precision],
