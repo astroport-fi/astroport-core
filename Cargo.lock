@@ -77,7 +77,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-utils 1.0.3",
  "cw2 1.1.2",
- "neutron-sdk 0.9.0",
+ "neutron-sdk",
 ]
 
 [[package]]
@@ -746,8 +746,7 @@ dependencies = [
  "cosmwasm-std",
  "cw1-whitelist",
  "cw2 1.1.2",
- "neutron-sdk 0.8.0",
- "thiserror",
+ "neutron-sdk",
 ]
 
 [[package]]
@@ -2335,27 +2334,6 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.48.0",
-]
-
-[[package]]
-name = "neutron-sdk"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46f60e477bd71007d9ff78ae020ec1c6b3b47798578af6151429434d86472efc"
-dependencies = [
- "bech32 0.9.1",
- "cosmos-sdk-proto 0.20.0",
- "cosmwasm-schema",
- "cosmwasm-std",
- "prost 0.12.6",
- "prost-types 0.12.6",
- "protobuf 3.3.0",
- "schemars",
- "serde",
- "serde-json-wasm 1.0.1",
- "speedate",
- "tendermint-proto 0.34.1",
- "thiserror",
 ]
 
 [[package]]
