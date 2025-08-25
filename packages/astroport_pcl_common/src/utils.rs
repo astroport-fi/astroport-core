@@ -4,8 +4,8 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset};
-use astroport::cosmwasm_ext::AbsDiff;
+use astroport::asset::{Asset, AssetInfo, DecimalAsset};
+use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger};
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::querier::query_factory_config;
 use astroport::token_factory::tf_mint_msg;
@@ -57,7 +57,7 @@ pub fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), Pcl
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Incentives Contract on behalf of the recipient.
+///   be automatically staked in the Incentives Contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,
@@ -241,9 +241,7 @@ pub fn accumulate_prices(env: &Env, config: &mut Config, last_real_price: Decima
         // Price max value = 1e18 bc smallest value in Decimal is 1e-18.
         // Thus highest inverted price is 1/1e-18.
         // (price * twap) max value = 1e24 which fits into Uint128 thus we use unwrap here
-        let price: Uint128 = (price * TWAP_PRECISION_DEC)
-            .to_uint128_with_precision(0u8)
-            .unwrap();
+        let price: Uint128 = (price * TWAP_PRECISION_DEC).to_uint(0u8).unwrap();
         // time_elapsed * price does not need checked_mul.
         // price max value = 1e24, u128 max value = 340282366920938463463374607431768211455
         // overflow is possible if time_elapsed > 340282366920939 seconds ~ 10790283 years

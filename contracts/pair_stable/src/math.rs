@@ -1,6 +1,5 @@
+use astroport::cosmwasm_ext::DecimalToInteger;
 use cosmwasm_std::{Decimal256, StdError, StdResult, Uint128, Uint64};
-
-use astroport::asset::Decimal256Ext;
 
 /// The maximum number of calculation steps for Newton's method.
 const ITERATIONS: u8 = 64;
@@ -110,7 +109,7 @@ pub(crate) fn calc_y(
             .checked_div(y.checked_mul(N_COINS)?.checked_add(b)?.checked_sub(d)?)
             .map_err(|e| StdError::generic_err(e.to_string()))?;
         if y.abs_diff(y_prev) <= TOL {
-            return y.to_uint128_with_precision(target_precision);
+            return y.to_uint(target_precision);
         }
     }
 

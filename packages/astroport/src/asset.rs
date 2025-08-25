@@ -2,9 +2,9 @@ use std::fmt;
 
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    coin, coins, ensure, to_json_binary, wasm_execute, Addr, Api, BankMsg, Coin,
-    ConversionOverflowError, CosmosMsg, CustomMsg, CustomQuery, Decimal256, Fraction, MessageInfo,
-    QuerierWrapper, ReplyOn, StdError, StdResult, SubMsg, Uint128, Uint256, WasmMsg,
+    coin, coins, ensure, to_json_binary, wasm_execute, Addr, Api, BankMsg, Coin, CosmosMsg,
+    CustomMsg, CustomQuery, Decimal256, MessageInfo, QuerierWrapper, ReplyOn, StdError, StdResult,
+    SubMsg, Uint128, WasmMsg,
 };
 use cw20::{Cw20Coin, Cw20CoinVerified, Cw20ExecuteMsg, Cw20QueryMsg, Denom, MinterResponse};
 use cw_asset::{Asset as CwAsset, AssetInfo as CwAssetInfo};
@@ -12,7 +12,7 @@ use cw_storage_plus::{Key, KeyDeserialize, Prefixer, PrimaryKey};
 use cw_utils::must_pay;
 use itertools::Itertools;
 
-use crate::cosmwasm_ext::DecimalToInteger;
+use crate::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use crate::factory::PairType;
 use crate::pair::QueryMsg as PairQueryMsg;
 use crate::querier::{
@@ -272,7 +272,7 @@ impl Asset {
     pub fn to_decimal_asset(&self, precision: impl Into<u32>) -> StdResult<DecimalAsset> {
         Ok(DecimalAsset {
             info: self.info.clone(),
-            amount: Decimal256::with_precision(self.amount, precision.into())?,
+            amount: self.amount.to_decimal256(precision.into())?,
         })
     }
 
@@ -733,9 +733,9 @@ pub fn token_asset_info(contract_addr: Addr) -> AssetInfo {
 ///
 /// **NOTE**
 /// - this function relies on the fact that chain doesn't allow to mint native tokens in the form of bech32 addresses.
-/// For example, if it is allowed to mint native token `wasm1xxxxxxx` then [`AssetInfo`] will be determined incorrectly;
+///   For example, if it is allowed to mint native token `wasm1xxxxxxx` then [`AssetInfo`] will be determined incorrectly;
 /// - if you intend to test this functionality in cw-multi-test you must implement [`Api`] trait for your test App
-/// with conjunction with [AddressGenerator](https://docs.rs/cw-multi-test/0.17.0/cw_multi_test/trait.AddressGenerator.html)
+///   with conjunction with [AddressGenerator](https://docs.rs/cw-multi-test/0.17.0/cw_multi_test/trait.AddressGenerator.html)
 pub fn determine_asset_info(maybe_asset_info: &str, api: &dyn Api) -> StdResult<AssetInfo> {
     if api.addr_validate(maybe_asset_info).is_ok() {
         Ok(AssetInfo::Token {
@@ -800,79 +800,6 @@ impl AssetInfoExt for AssetInfo {
             info: self.clone(),
             amount: balance,
         }
-    }
-}
-
-/// Trait extension for Decimal256 to work with token precisions more accurately.
-pub trait Decimal256Ext {
-    fn to_uint256(&self) -> Uint256;
-
-    fn to_uint128_with_precision(&self, precision: impl Into<u32>) -> StdResult<Uint128>;
-
-    fn to_uint256_with_precision(&self, precision: impl Into<u32>) -> StdResult<Uint256>;
-
-    fn from_integer(i: impl Into<Uint256>) -> Self;
-
-    fn checked_multiply_ratio(
-        &self,
-        numerator: Decimal256,
-        denominator: Decimal256,
-    ) -> StdResult<Decimal256>;
-
-    fn with_precision(
-        value: impl Into<Uint256>,
-        precision: impl Into<u32>,
-    ) -> StdResult<Decimal256>;
-}
-
-impl Decimal256Ext for Decimal256 {
-    fn to_uint256(&self) -> Uint256 {
-        self.numerator() / self.denominator()
-    }
-
-    fn to_uint128_with_precision(&self, precision: impl Into<u32>) -> StdResult<Uint128> {
-        let value = self.atomics();
-        let precision = precision.into();
-
-        value
-            .checked_div(10u128.pow(self.decimal_places() - precision).into())?
-            .try_into()
-            .map_err(|o: ConversionOverflowError| {
-                StdError::generic_err(format!("Error converting {}", o.value))
-            })
-    }
-
-    fn to_uint256_with_precision(&self, precision: impl Into<u32>) -> StdResult<Uint256> {
-        let value = self.atomics();
-        let precision = precision.into();
-
-        value
-            .checked_div(10u128.pow(self.decimal_places() - precision).into())
-            .map_err(|_| StdError::generic_err("DivideByZeroError"))
-    }
-
-    fn from_integer(i: impl Into<Uint256>) -> Self {
-        Decimal256::from_ratio(i.into(), 1u8)
-    }
-
-    fn checked_multiply_ratio(
-        &self,
-        numerator: Decimal256,
-        denominator: Decimal256,
-    ) -> StdResult<Decimal256> {
-        Ok(Decimal256::new(
-            self.atomics()
-                .checked_multiply_ratio(numerator.atomics(), denominator.atomics())
-                .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?,
-        ))
-    }
-
-    fn with_precision(
-        value: impl Into<Uint256>,
-        precision: impl Into<u32>,
-    ) -> StdResult<Decimal256> {
-        Decimal256::from_atomics(value, precision.into())
-            .map_err(|_| StdError::generic_err("Decimal256 range exceeded"))
     }
 }
 

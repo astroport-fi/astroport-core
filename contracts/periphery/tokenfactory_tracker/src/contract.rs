@@ -86,9 +86,10 @@ pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractE
 /// - if from == module_address -> mint
 /// - if to == module_address -> burn
 /// - other scenarios are simple transfers between addresses
+///
 /// Possible errors:
 /// - serialization/deserialization errors.
-/// It should never happen if both BALANCES and TOTAL_SUPPLY_HISTORY storage keys and data layout are not changed.
+///   It should never happen if both BALANCES and TOTAL_SUPPLY_HISTORY storage keys and data layout are not changed.
 pub fn track_balances(
     deps: DepsMut,
     tracking_unit: u64,

@@ -1,10 +1,6 @@
 use std::ops;
 
-use crate::asset::Decimal256Ext;
-use cosmwasm_std::{
-    ConversionOverflowError, Decimal, Decimal256, Fraction, StdError, StdResult, Uint128, Uint256,
-    Uint64,
-};
+use cosmwasm_std::{Decimal, Decimal256, Fraction, StdError, StdResult, Uint128, Uint256, Uint64};
 
 pub trait AbsDiff
 where
@@ -34,21 +30,26 @@ where
     }
 
     fn to_decimal256(self, precision: impl Into<u32>) -> StdResult<Decimal256> {
-        Decimal256::with_precision(self, precision)
+        Decimal256::from_atomics(self, precision.into())
+            .map_err(|_| StdError::generic_err("Decimal256 range exceeded"))
     }
 }
 
+impl IntegerToDecimal for u8 {}
 impl IntegerToDecimal for u64 {}
+impl IntegerToDecimal for u128 {}
 impl IntegerToDecimal for Uint128 {}
 
 pub trait DecimalToInteger<T> {
-    fn to_uint(self, precision: impl Into<u32>) -> Result<T, ConversionOverflowError>;
+    fn to_uint(self, precision: impl Into<u32>) -> StdResult<T>;
 }
 
 impl DecimalToInteger<Uint128> for Decimal256 {
-    fn to_uint(self, precision: impl Into<u32>) -> Result<Uint128, ConversionOverflowError> {
+    fn to_uint(self, precision: impl Into<u32>) -> StdResult<Uint128> {
         let multiplier = Uint256::from(10u8).pow(precision.into());
-        (multiplier * self.numerator() / self.denominator()).try_into()
+        (multiplier * self.numerator() / self.denominator())
+            .try_into()
+            .map_err(|err| StdError::generic_err(format!("{err}")))
     }
 }
 

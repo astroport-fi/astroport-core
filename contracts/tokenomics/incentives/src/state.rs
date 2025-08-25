@@ -608,7 +608,7 @@ impl UserInfo {
     /// - get all finished rewards from FINISHED_REWARDS_INDEXES which were deregistered after last claim time
     /// - merge them with rewards_to_remove
     /// - iterate over all user indexes and find differences. If user doesn't have index for deregistered reward then
-    /// they never claimed it and their index defaults to 0.
+    ///   they never claimed it and their index defaults to 0.
     pub fn claim_finished_rewards(
         &self,
         storage: &dyn Storage,

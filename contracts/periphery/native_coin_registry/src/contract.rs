@@ -145,7 +145,7 @@ pub fn update_decimals(
 ///
 /// * **native_coins** is a vector with the assets with respective decimals we are adding to the registry.
 /// * **maybe_send_msg** is an optional BankMsg to send funds back to the sender.
-/// It also serves as a flag to differentiate between permissioned and permissionless endpoints.
+///   It also serves as a flag to differentiate between permissioned and permissionless endpoints.
 pub fn inner_add(
     storage: &mut dyn Storage,
     native_coins: Vec<(String, u8)>,

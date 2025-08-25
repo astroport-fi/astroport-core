@@ -1,5 +1,5 @@
 use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
-use cosmwasm_std::{OverflowError, StdError};
+use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError};
 use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
@@ -14,6 +14,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     ParseReplyError(#[from] ParseReplyError),
+
+    #[error("{0}")]
+    ConversionOverflowError(#[from] ConversionOverflowError),
 
     #[error("Unauthorized")]
     Unauthorized {},

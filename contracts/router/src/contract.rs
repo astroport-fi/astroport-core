@@ -49,7 +49,7 @@ pub fn instantiate(
 ///
 /// ## Variants
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::ExecuteSwapOperations {
 ///             operations,
@@ -298,7 +298,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 /// * **offer_amount** amount of offer assets being swapped.
 ///
 /// * **operations** is a vector that contains objects of type [`SwapOperation`].
-/// These are all the swap operations for which we perform a simulation.
+///   These are all the swap operations for which we perform a simulation.
 fn simulate_swap_operations(
     deps: Deps,
     offer_amount: Uint128,

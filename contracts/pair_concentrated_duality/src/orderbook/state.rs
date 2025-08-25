@@ -15,7 +15,7 @@ use neutron_std::types::neutron::dex::{
     QueryAllLimitOrderTrancheUserByAddressRequest,
 };
 
-use astroport::asset::{Asset, Decimal256Ext};
+use astroport::asset::Asset;
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::pair_concentrated_duality::UpdateDualityOrderbook;
 use astroport::pair_concentrated_duality::{OrderbookConfig, ReplyIds};
@@ -447,7 +447,7 @@ impl OrderbookState {
         }
 
         let liquidity_percent_to_deploy =
-            Decimal256::from(self.liquidity_percent) / Decimal256::from_integer(2u128);
+            Decimal256::from(self.liquidity_percent) / 2u8.to_decimal256(0u8)?;
 
         let asset_0_liquidity = balances[0] * liquidity_percent_to_deploy;
         let asset_1_liquidity = balances[1] * liquidity_percent_to_deploy;
@@ -463,8 +463,8 @@ impl OrderbookState {
             .min_asset_1_order_size
             .to_decimal256(asset_1_precision)?;
 
-        let asset_0_trade_size = asset_0_liquidity / Decimal256::from_integer(self.orders_number);
-        let asset_1_trade_size = asset_1_liquidity / Decimal256::from_integer(self.orders_number);
+        let asset_0_trade_size = asset_0_liquidity / self.orders_number.to_decimal256(0u8)?;
+        let asset_1_trade_size = asset_1_liquidity / self.orders_number.to_decimal256(0u8)?;
 
         if asset_0_trade_size < min_asset_0_order_size
             || asset_1_trade_size < min_asset_1_order_size

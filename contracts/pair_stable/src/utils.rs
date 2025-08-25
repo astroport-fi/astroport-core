@@ -5,12 +5,13 @@ use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::token_factory::tf_mint_msg;
 use cosmwasm_std::{
     coin, wasm_execute, Addr, Api, CosmosMsg, CustomMsg, CustomQuery, Decimal, Decimal256, Deps,
-    Env, QuerierWrapper, StdResult, Storage, Uint128, Uint64,
+    Env, QuerierWrapper, StdError, StdResult, Storage, Uint128, Uint64,
 };
 
 use itertools::Itertools;
 
-use astroport::asset::{Asset, AssetInfo, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{Asset, AssetInfo, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::observation::{
     safe_sma_buffer_not_full, safe_sma_calculation, Observation, PrecommitObservation,
 };
@@ -168,7 +169,7 @@ pub(crate) fn adjust_precision(
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Incentives contract on behalf of the recipient.
+///   be automatically staked in the Incentives contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,
@@ -269,10 +270,8 @@ pub(crate) fn compute_swap(
         token_precision,
     )?;
 
-    let return_amount = ask_pool.amount.to_uint128_with_precision(token_precision)? - new_ask_pool;
-    let offer_asset_amount = offer_asset
-        .amount
-        .to_uint128_with_precision(token_precision)?;
+    let return_amount = ask_pool.amount.to_uint(token_precision)? - new_ask_pool;
+    let offer_asset_amount = offer_asset.amount.to_uint(token_precision)?;
 
     // We consider swap rate 1:1 in stable swap thus any difference is considered as spread.
     let spread_amount = offer_asset_amount.saturating_sub(return_amount);
@@ -412,6 +411,18 @@ pub(crate) fn determine_base_quote_amount(
     Ok((base_amount, quote_amount))
 }
 
+pub fn dec_checked_multiply_ratio(
+    lhs: Decimal256,
+    numerator: Decimal256,
+    denominator: Decimal256,
+) -> StdResult<Decimal256> {
+    Ok(Decimal256::new(
+        lhs.atomics()
+            .checked_multiply_ratio(numerator.atomics(), denominator.atomics())
+            .map_err(|_| StdError::generic_err("CheckedMultiplyRatioError"))?,
+    ))
+}
+
 pub(crate) fn calculate_shares(
     deps: Deps,
     env: &Env,
@@ -428,7 +439,7 @@ pub(crate) fn calculate_shares(
             let coin_precision = get_precision(deps.storage, &asset.info)?;
             Ok((
                 asset.to_decimal_asset(coin_precision)?,
-                Decimal256::with_precision(pool, coin_precision)?,
+                pool.to_decimal256(coin_precision)?,
             ))
         })
         .collect::<StdResult<Vec<(DecimalAsset, Decimal256)>>>()?;
@@ -442,7 +453,7 @@ pub(crate) fn calculate_shares(
 
     let share = if total_share.is_zero() {
         let share = deposit_d
-            .to_uint128_with_precision(config.greatest_precision)?
+            .to_uint(config.greatest_precision)?
             .checked_sub(MINIMUM_LIQUIDITY_AMOUNT)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
@@ -460,9 +471,12 @@ pub(crate) fn calculate_shares(
             .collect_vec();
         let init_d = compute_d(amp, &old_balances)?;
 
-        let share = Decimal256::with_precision(total_share, config.greatest_precision)?
-            .checked_multiply_ratio(deposit_d.saturating_sub(init_d), init_d)?
-            .to_uint128_with_precision(config.greatest_precision)?;
+        let share = dec_checked_multiply_ratio(
+            total_share.to_decimal256(config.greatest_precision)?,
+            deposit_d.saturating_sub(init_d),
+            init_d,
+        )?
+        .to_uint(config.greatest_precision)?;
 
         if share.is_zero() {
             return Err(ContractError::LiquidityAmountTooSmall {});

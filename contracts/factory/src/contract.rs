@@ -487,7 +487,7 @@ pub fn update_tracker_config(
 /// * **QueryMsg::Pair { asset_infos }** Returns a [`PairInfo`] object with information about a specific Astroport pair.
 ///
 /// * **QueryMsg::Pairs { start_after, limit }** Returns an array that contains items of type [`PairInfo`].
-/// This returns information about multiple Astroport pairs
+///   This returns information about multiple Astroport pairs
 ///
 /// * **QueryMsg::FeeInfo { pair_type }** Returns the fee structure (total and maker fees) for a specific pair type.
 ///
@@ -551,7 +551,7 @@ pub fn query_pair(deps: Deps, asset_infos: Vec<AssetInfo>) -> StdResult<PairInfo
 
 /// Returns a vector with pair data that contains items of type [`PairInfo`]. Querying starts at `start_after` and returns `limit` pairs.
 /// * **start_after** is a field which accepts a vector with items of type [`AssetInfo`].
-/// This is the pair from which we start a query.
+///   This is the pair from which we start a query.
 ///
 /// * **limit** sets the number of pairs to be retrieved.
 pub fn query_pairs(

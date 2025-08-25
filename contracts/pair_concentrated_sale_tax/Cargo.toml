@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-concentrated-sale-tax"
-version = "4.2.0"
+version = "4.2.1"
 authors = ["Astroport"]
 edition = "2021"
 description = "The Astroport concentrated liquidity pair"

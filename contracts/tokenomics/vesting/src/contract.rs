@@ -53,13 +53,13 @@ pub fn instantiate(
 /// * **ExecuteMsg::Claim { recipient, amount }** Claims vested tokens and transfers them to the vesting recipient.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes it
-/// depending on the received template.
+///   depending on the received template.
 ///
 /// * **ExecuteMsg::RegisterVestingAccounts { vesting_accounts }** Registers vesting accounts
-/// using the provided vector of [`VestingAccount`] structures.
+///   using the provided vector of [`VestingAccount`] structures.
 ///
 /// * **ExecuteMsg::WithdrawFromActiveSchedule { account, recipient, withdraw_amount }**
-/// Withdraws tokens from the only one active vesting schedule of the specified account.
+///   Withdraws tokens from the only one active vesting schedule of the specified account.
 ///
 /// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
 ///
@@ -286,10 +286,10 @@ pub fn claim(
 /// Returns the computed amount if the operation is successful.
 ///
 /// * **current_time** timestamp from which to start querying for vesting schedules.
-/// Schedules that started later than current_time will be omitted.
+///   Schedules that started later than current_time will be omitted.
 ///
 /// * **vesting_info** vesting schedules for which to compute the amount of tokens
-/// that are vested and can be claimed by the recipient.
+///   that are vested and can be claimed by the recipient.
 fn compute_available_amount(current_time: u64, vesting_info: &VestingInfo) -> StdResult<Uint128> {
     let mut available_amount: Uint128 = Uint128::zero();
     for sch in &vesting_info.schedules {
@@ -341,7 +341,7 @@ fn calc_schedule_unlocked_amount(
 /// * **account** whose schedule to withdraw from.
 ///
 /// * **receiver** who will receive the withdrawn amount.
-/// **info.sender** is used if it is not specified.
+/// * **info.sender** is used if it is not specified.
 ///
 /// * **amount** amount to withdraw from the only one active schedule.
 ///

@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use astroport::asset::{Asset, Decimal256Ext, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{Asset, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::pair::MIN_TRADE_SIZE;
 use astroport::querier::query_native_supply;
@@ -79,8 +79,12 @@ pub(crate) fn get_assets_with_precision(
 
     // precisions.get_precision() also validates that the asset belongs to the pool
     Ok(vec![
-        Decimal256::with_precision(assets[0].amount, precisions.get_precision(&assets[0].info)?)?,
-        Decimal256::with_precision(assets[1].amount, precisions.get_precision(&assets[1].info)?)?,
+        assets[0]
+            .amount
+            .to_decimal256(precisions.get_precision(&assets[0].info)?)?,
+        assets[1]
+            .amount
+            .to_decimal256(precisions.get_precision(&assets[1].info)?)?,
     ])
 }
 
