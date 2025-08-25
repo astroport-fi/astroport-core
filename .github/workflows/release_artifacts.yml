@@ -10,8 +10,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v4
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Restore cached cargo artifacts
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
@@ -19,8 +22,15 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/registry/cache
             ~/.cargo/registry/index
-            "$GITHUB_WORKSPACE/artifacts"
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Restore cached artifacts
+        uses: actions/cache@v4
+        with:
+          path: "$GITHUB_WORKSPACE/artifacts"
+          key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build Artifacts
         run: |

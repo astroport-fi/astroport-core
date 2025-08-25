@@ -22,8 +22,8 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - uses: actions/cache@v4
-        if: always()
+      - name: Restore cached cargo artifacts
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin
@@ -31,10 +31,15 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/registry/cache
             ~/.cargo/registry/index
-            "$GITHUB_WORKSPACE/artifacts"
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
+
+      - name: Restore cached artifacts
+        uses: actions/cache@v4
+        with:
+          path: "$GITHUB_WORKSPACE/artifacts"
+          key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build Artifacts
         run: |
@@ -61,8 +66,8 @@ jobs:
       - name: Restore cached artifacts
         uses: actions/cache/restore@v4
         with:
-          path: artifacts
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          path: "$GITHUB_WORKSPACE/artifacts"
+          key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
           fail-on-cache-miss: true
       - name: Install cosmwasm-check
         # Uses --debug for compilation speed
