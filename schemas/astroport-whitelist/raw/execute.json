@@ -483,6 +483,31 @@
         }
       ]
     },
+    "DenomUnit": {
+      "description": "Replicates the cosmos-sdk bank module DenomUnit type",
+      "type": "object",
+      "required": [
+        "aliases",
+        "denom",
+        "exponent"
+      ],
+      "properties": {
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "denom": {
+          "type": "string"
+        },
+        "exponent": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      }
+    },
     "DistributionMsg": {
       "description": "The message types of the distribution module.\n\nSee https://github.com/cosmos/cosmos-sdk/blob/v0.42.4/proto/cosmos/distribution/v1beta1/tx.proto",
       "oneOf": [
@@ -1210,6 +1235,99 @@
                   "type": "string"
                 },
                 "denom": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "TokenFactoryMessage Contracts can force specified `amount` of an existing factory denom that they are admin of to a `transfer_to_address` from a `transfer_from_address`.",
+          "type": "object",
+          "required": [
+            "force_transfer"
+          ],
+          "properties": {
+            "force_transfer": {
+              "type": "object",
+              "required": [
+                "amount",
+                "denom",
+                "transfer_from_address",
+                "transfer_to_address"
+              ],
+              "properties": {
+                "amount": {
+                  "$ref": "#/definitions/Uint128"
+                },
+                "denom": {
+                  "type": "string"
+                },
+                "transfer_from_address": {
+                  "type": "string"
+                },
+                "transfer_to_address": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "TokenFactoryMessage Contracts can set a metadata for of an existing factory denom that they are admin of.",
+          "type": "object",
+          "required": [
+            "set_denom_metadata"
+          ],
+          "properties": {
+            "set_denom_metadata": {
+              "type": "object",
+              "required": [
+                "base",
+                "denom_units",
+                "description",
+                "display",
+                "name",
+                "symbol",
+                "uri",
+                "uri_hash"
+              ],
+              "properties": {
+                "base": {
+                  "description": "*base** represents the base denom (should be the DenomUnit with exponent = 0).",
+                  "type": "string"
+                },
+                "denom_units": {
+                  "description": "*denom_units** represents the list of DenomUnit's for a given coin",
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/definitions/DenomUnit"
+                  }
+                },
+                "description": {
+                  "description": "*description** description of a token",
+                  "type": "string"
+                },
+                "display": {
+                  "description": "**display** indicates the suggested denom that should be displayed in clients.",
+                  "type": "string"
+                },
+                "name": {
+                  "description": "*name** defines the name of the token (eg: Cosmos Atom)",
+                  "type": "string"
+                },
+                "symbol": {
+                  "description": "**symbol** is the token symbol usually shown on exchanges (eg: ATOM). This can be the same as the display.",
+                  "type": "string"
+                },
+                "uri": {
+                  "description": "*uri** to a document (on or off-chain) that contains additional information. Optional.",
+                  "type": "string"
+                },
+                "uri_hash": {
+                  "description": "**uri_hash** is a sha256 hash of a document pointed by URI. It's used to verify that the document didn't change. Optional.",
                   "type": "string"
                 }
               }
