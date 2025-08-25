@@ -29,7 +29,7 @@ jobs:
       - name: Restore cached artifacts
         uses: actions/cache@v4
         with:
-          path: "$GITHUB_WORKSPACE/artifacts"
+          path: artifacts
           key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build Artifacts
