@@ -60,7 +60,14 @@ jobs:
     name: Cosmwasm check
     needs: check-artifacts-size
     steps:
-      # We need this only to get Cargo.lock
+      - name: Install Rust for compiling cosmwasm-check
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+
+      - name: Install cosmwasm-check
+        run: cargo install --version 1.5.11 cosmwasm-check
+
       - name: Checkout sources
         uses: actions/checkout@v3
       - name: Restore cached artifacts
@@ -69,9 +76,7 @@ jobs:
           path: artifacts
           key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
           fail-on-cache-miss: true
-      - name: Install cosmwasm-check
-        # Uses --debug for compilation speed
-        run: cargo install --debug --version 1.5.11 cosmwasm-check
+
       - name: Cosmwasm check
         run: |
           cosmwasm-check $GITHUB_WORKSPACE/artifacts/*.wasm --available-capabilities staking,cosmwasm_1_1,neutron,iterator,stargate
