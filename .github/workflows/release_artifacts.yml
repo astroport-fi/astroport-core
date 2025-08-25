@@ -11,12 +11,23 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v3
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git/checkouts
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            "$GITHUB_WORKSPACE/artifacts"
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Build Artifacts
         run: |
           $GITHUB_WORKSPACE/scripts/build_release.sh
           tar -zcvf cosmwasm-artifacts.tar.gz artifacts
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: cosmwasm-artifacts.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}
