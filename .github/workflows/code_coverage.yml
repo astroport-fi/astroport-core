@@ -34,6 +34,8 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/registry/index
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
 
       - name: Install stable toolchain
         uses: actions-rs/toolchain@v1
