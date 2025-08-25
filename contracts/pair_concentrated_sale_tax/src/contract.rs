@@ -271,7 +271,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 /// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::ProvideLiquidity {
 ///             assets,
@@ -424,13 +424,13 @@ fn receive_cw20(
 /// * **assets** is an array with assets available in the pool.
 ///
 /// * **slippage_tolerance** is an optional parameter which is used to specify how much
-/// the pool price can move until the provide liquidity transaction goes through.
+///   the pool price can move until the provide liquidity transaction goes through.
 ///
 /// * **auto_stake** is an optional parameter which determines whether the LP tokens minted after
-/// liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
+///   liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
 ///
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
-/// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
+///   If no custom receiver is specified, the pair will mint LP tokens for the function caller.
 ///
 /// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 #[allow(clippy::too_many_arguments)]

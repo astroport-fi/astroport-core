@@ -161,10 +161,10 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// ## Variants
 /// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates the contract configuration with the specified
-/// input parameters.
+///   input parameters.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::ProvideLiquidity {
 ///             assets,
@@ -328,12 +328,12 @@ pub fn receive_cw20(
 /// * **assets** vector with assets available in the pool.
 ///
 /// * **auto_stake** determines whether the resulting LP tokens are automatically staked in
-/// the Incentives contract to receive token incentives.
+///   the Incentives contract to receive token incentives.
 ///
 /// * **receiver** address that receives LP tokens. If this address isn't specified, the function will default to the caller.
 ///
 /// * **min_lp_to_receive** is an optional parameter which specifies the minimum amount of LP tokens to receive.
-/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
+///   NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -717,22 +717,22 @@ pub fn calculate_maker_fee(
 /// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
 ///
 /// * **QueryMsg::Pool {}** Returns information about the amount of assets in the pair contract as
-/// well as the amount of LP tokens issued using an object of type [`PoolResponse`].
+///   well as the amount of LP tokens issued using an object of type [`PoolResponse`].
 ///
 /// * **QueryMsg::Share { amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
 /// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
-/// a [`ReverseSimulationResponse`] object.
+///   a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
-/// pool using a [`CumulativePricesResponse`] object.
+///   pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
 /// * **QueryMsg::SimulateWithdraw { lp_amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 /// * **QueryMsg::SimulateProvide { msg }** Simulates the liquidity provision in the pair contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -869,10 +869,10 @@ pub fn query_simulation(
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 ///
 /// * **ask_asset** is the asset to swap to as well as the desired amount of ask
-/// assets to receive from the swap.
+///   assets to receive from the swap.
 ///
 /// * **offer_asset_info** is optional field which specifies the asset to swap from.
-/// May be omitted only in case the pool length is 2.
+///   May be omitted only in case the pool length is 2.
 pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,

@@ -57,7 +57,7 @@ pub fn check_cw20_in_pool(config: &Config, cw20_sender: &Addr) -> Result<(), Pcl
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Incentives Contract on behalf of the recipient.
+///   be automatically staked in the Incentives Contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,

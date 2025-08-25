@@ -201,7 +201,7 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
 /// * **ExecuteMsg::UpdateConfig { params: Binary }** Not supported.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::ProvideLiquidity {
 ///             assets,
@@ -337,16 +337,16 @@ pub fn receive_cw20(
 /// * **assets** is an array with assets available in the pool.
 ///
 /// * **slippage_tolerance** is an optional parameter which is used to specify how much
-/// the pool price can move until the provide liquidity transaction goes through.
+///   the pool price can move until the provide liquidity transaction goes through.
 ///
 /// * **auto_stake** is an optional parameter which determines whether the LP tokens minted after
-/// liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
+///   liquidity provision are automatically staked in the Incentives contract on behalf of the LP token receiver.
 ///
 /// * **receiver** is an optional parameter which defines the receiver of the LP tokens.
-/// If no custom receiver is specified, the pair will mint LP tokens for the function caller.
+///   If no custom receiver is specified, the pair will mint LP tokens for the function caller.
 ///
 /// * **min_lp_to_receive** is an optional parameter which specifies the minimum amount of LP tokens to receive.
-/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
+///   NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 #[allow(clippy::too_many_arguments)]
 pub fn provide_liquidity(
     deps: DepsMut,
@@ -462,7 +462,7 @@ pub fn provide_liquidity(
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Incentives contract on behalf of the recipient.
+///   be automatically staked in the Incentives contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,
@@ -905,25 +905,25 @@ pub fn calculate_maker_fee(
 /// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
 ///
 /// * **QueryMsg::Pool {}** Returns information about the amount of assets in the pair contract as
-/// well as the amount of LP tokens issued using an object of type [`PoolResponse`].
+///   well as the amount of LP tokens issued using an object of type [`PoolResponse`].
 ///
 /// * **QueryMsg::Share { amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
-/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation  using
-/// a [`ReverseSimulationResponse`] object.
+/// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
+///   a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
-/// pool using a [`CumulativePricesResponse`] object.
+///   pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
 ///
 /// * **QueryMsg::AssetBalanceAt { asset_info, block_height }** Returns the balance of the specified asset that was in the pool
-/// just preceeding the moment of the specified block height creation.
+///   just preceeding the moment of the specified block height creation.
 /// * **QueryMsg::SimulateWithdraw { lp_amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 /// * **QueryMsg::SimulateProvide { msg }** Simulates the liquidity provision in the pair contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -1026,7 +1026,7 @@ pub fn query_simulation(deps: Deps, offer_asset: Asset) -> StdResult<SimulationR
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 ///
 /// * **ask_asset** is the asset to swap to as well as the desired amount of ask
-/// assets to receive from the swap.
+///   assets to receive from the swap.
 pub fn query_reverse_simulation(
     deps: Deps,
     ask_asset: Asset,
@@ -1132,7 +1132,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 /// * **assets** is an array with assets available in the pool.
 ///
 /// * **slippage_tolerance** is an optional parameter which is used to specify how much
-/// the pool price can move until the provide liquidity transaction goes through.
+///   the pool price can move until the provide liquidity transaction goes through.
 ///
 fn query_simulate_provide(
     deps: Deps,
@@ -1260,7 +1260,7 @@ pub fn compute_offer_amount(
 /// * **total_share** is the total amount of LP tokens currently minted
 ///
 /// * **slippage_tolerance** is an optional parameter which is used to specify how much
-/// the pool price can move until the provide liquidity transaction goes through.
+///   the pool price can move until the provide liquidity transaction goes through.
 pub fn calculate_shares(
     deposits: &[Uint128; 2],
     pools: &[Asset],

@@ -582,33 +582,33 @@ pub fn execute_send_from(
 ///
 /// ## Queries
 /// * **Balance { address: String }** Returns the current balance of the given address, 0 if unset.
-/// Uses a [`BalanceResponse`] object.
+///   Uses a [`BalanceResponse`] object.
 ///
 /// * **BalanceAt { address, block }** Returns the balance of the given address at the given block
-/// using a [`BalanceResponse`] object.
+///   using a [`BalanceResponse`] object.
 ///
 /// * **TotalSupplyAt { block }** Returns the total supply at the given block.
 ///
 /// * **TokenInfo {}** Returns the token metadata - name, decimals, supply, etc
-/// using a [`cw20::TokenInfoResponse`] object.
+///   using a [`cw20::TokenInfoResponse`] object.
 ///
 /// * **Minter {}** Returns the address that can mint tokens and the hard cap on the total amount of tokens using
-/// a [`cw20::MinterResponse`] object.
+///   a [`cw20::MinterResponse`] object.
 ///
 /// * **QueryMsg::Allowance { owner, spender }** Returns how much the spender can use from the owner account, 0 if unset.
-/// Uses a [`cw20::AllowanceResponse`] object.
+///   Uses a [`cw20::AllowanceResponse`] object.
 ///
 /// * **QueryMsg::AllAllowances { owner, start_after, limit }** Returns all allowances this owner has approved
-/// using a [`cw20::AllAllowancesResponse`] object.
+///   using a [`cw20::AllAllowancesResponse`] object.
 ///
 /// * **QueryMsg::AllAccounts { start_after, limit }** Returns all accounts that have a balance
-/// using a [`cw20::AllAccountsResponse`] object.
+///   using a [`cw20::AllAccountsResponse`] object.
 ///
 /// * **QueryMsg::MarketingInfo {}** Returns the token metadata
-/// using a [`cw20::MarketingInfoResponse`] object.
+///   using a [`cw20::MarketingInfoResponse`] object.
 ///
 /// * **QueryMsg::DownloadLogo {}** Downloads the embedded logo data (if stored on-chain)
-/// and returns the result using a [`cw20::DownloadLogoResponse`] object.
+///   and returns the result using a [`cw20::DownloadLogoResponse`] object.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

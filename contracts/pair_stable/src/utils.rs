@@ -169,7 +169,7 @@ pub(crate) fn adjust_precision(
 /// * **coin** denom and amount of LP tokens that will be minted for the recipient.
 ///
 /// * **auto_stake** determines whether the newly minted LP tokens will
-/// be automatically staked in the Incentives contract on behalf of the recipient.
+///   be automatically staked in the Incentives contract on behalf of the recipient.
 pub fn mint_liquidity_token_message<T, C>(
     querier: QuerierWrapper<C>,
     config: &Config,

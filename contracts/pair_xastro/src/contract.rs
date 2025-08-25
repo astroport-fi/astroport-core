@@ -75,7 +75,7 @@ pub fn instantiate(
 ///
 /// ## Variants
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::Swap {
 ///             offer_asset,
