@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    ensure, entry_point, to_json_binary, Binary, Deps, Env, StdResult, Storage, Uint128,
+    ensure, entry_point, to_json_binary, Binary, Deps, Env, StdError, StdResult, Storage, Uint128,
 };
 
 use astroport::asset::{Asset, AssetInfoExt};
@@ -28,6 +28,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
                 }
             );
 
+            let converter_balance = deps
+                .querier
+                .query_balance(&config.converter_contract, config.to.to_string())?;
+
+            ensure!(
+                converter_balance.amount >= offer_asset.amount,
+                StdError::generic_err("Insufficient ASTRO liquidity in the converter contract")
+            );
+
             Ok(to_json_binary(&SimulationResponse {
                 return_amount: offer_asset.amount,
                 spread_amount: Uint128::zero(),
@@ -46,6 +55,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
                     old: config.from.to_string(),
                     new: config.to.to_string()
                 }
+            );
+
+            let converter_balance = deps
+                .querier
+                .query_balance(&config.converter_contract, config.to.to_string())?;
+
+            ensure!(
+                converter_balance.amount >= ask_asset.amount,
+                StdError::generic_err("Insufficient ASTRO liquidity in the converter contract")
             );
 
             Ok(to_json_binary(&ReverseSimulationResponse {

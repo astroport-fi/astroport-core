@@ -1,6 +1,6 @@
 [package]
 name = "astroport-pair-converter"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport old cw20 ASTRO -> new tf ASTRO converter virtual pair"
@@ -33,7 +33,6 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1", "stargate"] }
 cw-storage-plus.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
-cw-utils.workspace = true
 serde = { version = "1.0.193", features = ["derive"] }
 
 [dev-dependencies]
