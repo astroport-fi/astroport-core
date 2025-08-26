@@ -10,13 +10,34 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Restore cached cargo artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git/checkouts
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Restore cached artifacts
+        uses: actions/cache@v4
+        with:
+          path: artifacts
+          key: ${{ runner.os }}-artifacts-${{ hashFiles('**/Cargo.lock') }}
+
       - name: Build Artifacts
         run: |
           $GITHUB_WORKSPACE/scripts/build_release.sh
           tar -zcvf cosmwasm-artifacts.tar.gz artifacts
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: cosmwasm-artifacts.tar.gz
           token: ${{ secrets.GITHUB_TOKEN }}

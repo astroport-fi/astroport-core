@@ -161,7 +161,7 @@ pub fn instantiate(
 ///
 /// ## Variants
 /// * **ExecuteMsg::Collect { assets }** Swaps collected fee tokens to ASTRO
-/// and distributes the ASTRO between xASTRO and vxASTRO stakers.
+///   and distributes the ASTRO between xASTRO and vxASTRO stakers.
 ///
 /// * **ExecuteMsg::UpdateConfig {
 ///             factory_contract,
@@ -961,10 +961,10 @@ fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Respons
 /// * **QueryMsg::Config {}** Returns the Maker contract configuration using a [`ConfigResponse`] object.
 ///
 /// * **QueryMsg::Balances { assets }** Returns the balances of certain fee tokens accrued by the Maker
-/// using a [`ConfigResponse`] object.
+///   using a [`ConfigResponse`] object.
 ///
 /// * **QueryMsg::Bridges {}** Returns the bridges used for swapping fee tokens
-/// using a vector of [`(String, String)`] denoting Asset -> Bridge connections.
+///   using a vector of [`(String, String)`] denoting Asset -> Bridge connections.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

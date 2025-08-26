@@ -15,11 +15,11 @@ use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
 use astroport::asset::{
-    addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, Decimal256Ext,
+    addr_opt_validate, check_swap_parameters, Asset, AssetInfo, AssetInfoExt, CoinsExt,
     DecimalAsset, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
-use astroport::cosmwasm_ext::IntegerToDecimal;
+use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::observation::{query_observation, PrecommitObservation, OBSERVATIONS_SIZE};
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, FeeShareConfig, InstantiateMsg, StablePoolParams,
@@ -32,7 +32,6 @@ use astroport::pair::{
 };
 use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::token_factory::{tf_burn_msg, tf_create_denom_msg, MsgCreateDenomResponse};
-use astroport::DecimalCheckedOps;
 use astroport_circular_buffer::BufferManager;
 
 use crate::error::ContractError;
@@ -162,10 +161,10 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
 ///
 /// ## Variants
 /// * **ExecuteMsg::UpdateConfig { params: Binary }** Updates the contract configuration with the specified
-/// input parameters.
+///   input parameters.
 ///
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
-/// it depending on the received template.
+///   it depending on the received template.
 ///
 /// * **ExecuteMsg::ProvideLiquidity {
 ///             assets,
@@ -329,12 +328,12 @@ pub fn receive_cw20(
 /// * **assets** vector with assets available in the pool.
 ///
 /// * **auto_stake** determines whether the resulting LP tokens are automatically staked in
-/// the Incentives contract to receive token incentives.
+///   the Incentives contract to receive token incentives.
 ///
 /// * **receiver** address that receives LP tokens. If this address isn't specified, the function will default to the caller.
 ///
 /// * **min_lp_to_receive** is an optional parameter which specifies the minimum amount of LP tokens to receive.
-/// NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
+///   NOTE - the address that wants to provide liquidity should approve the pair contract to pull its relevant tokens.
 pub fn provide_liquidity(
     deps: DepsMut,
     env: Env,
@@ -429,10 +428,7 @@ pub fn provide_liquidity(
         .into_iter()
         .map(|(info, amount)| {
             let precision = get_precision(deps.storage, &info)?;
-            Ok(DecimalAsset {
-                info,
-                amount: Decimal256::with_precision(amount, precision)?,
-            })
+            Ok(info.with_dec_balance(amount.to_decimal256(precision)?))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -545,10 +541,9 @@ pub fn swap(
                 pool.amount = pool.amount.checked_sub(offer_asset.amount)?;
             }
             let token_precision = get_precision(deps.storage, &pool.info)?;
-            Ok(DecimalAsset {
-                info: pool.info,
-                amount: Decimal256::with_precision(pool.amount, token_precision)?,
-            })
+            Ok(pool
+                .info
+                .with_dec_balance(pool.amount.to_decimal256(token_precision)?))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -563,7 +558,7 @@ pub fn swap(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         offer_asset.amount,
@@ -590,7 +585,7 @@ pub fn swap(
         &config.factory_addr,
         config.pair_info.pair_type.clone(),
     )?;
-    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let commission_amount = return_amount * fee_info.total_fee_rate;
     let return_amount = return_amount.saturating_sub(commission_amount);
 
     // Check the max spread limit (if it was specified)
@@ -722,22 +717,22 @@ pub fn calculate_maker_fee(
 /// * **QueryMsg::Pair {}** Returns information about the pair in an object of type [`PairInfo`].
 ///
 /// * **QueryMsg::Pool {}** Returns information about the amount of assets in the pair contract as
-/// well as the amount of LP tokens issued using an object of type [`PoolResponse`].
+///   well as the amount of LP tokens issued using an object of type [`PoolResponse`].
 ///
 /// * **QueryMsg::Share { amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 ///
 /// * **QueryMsg::Simulation { offer_asset }** Returns the result of a swap simulation using a [`SimulationResponse`] object.
 ///
 /// * **QueryMsg::ReverseSimulation { ask_asset }** Returns the result of a reverse swap simulation using
-/// a [`ReverseSimulationResponse`] object.
+///   a [`ReverseSimulationResponse`] object.
 ///
 /// * **QueryMsg::CumulativePrices {}** Returns information about cumulative prices for the assets in the
-/// pool using a [`CumulativePricesResponse`] object.
+///   pool using a [`CumulativePricesResponse`] object.
 ///
 /// * **QueryMsg::Config {}** Returns the configuration for the pair contract using a [`ConfigResponse`] object.
 /// * **QueryMsg::SimulateWithdraw { lp_amount }** Returns the amount of assets that could be withdrawn from the pool
-/// using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
+///   using a specific amount of LP tokens. The result is returned in a vector that contains objects of type [`Asset`].
 /// * **QueryMsg::SimulateProvide { msg }** Simulates the liquidity provision in the pair contract.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -826,7 +821,7 @@ pub fn query_simulation(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         offer_asset.amount,
@@ -861,7 +856,7 @@ pub fn query_simulation(
         config.pair_info.pair_type.clone(),
     )?;
 
-    let commission_amount = fee_info.total_fee_rate.checked_mul_uint128(return_amount)?;
+    let commission_amount = return_amount * fee_info.total_fee_rate;
     let return_amount = return_amount.saturating_sub(commission_amount);
 
     Ok(SimulationResponse {
@@ -874,10 +869,10 @@ pub fn query_simulation(
 /// Returns information about a reverse swap simulation in a [`ReverseSimulationResponse`] object.
 ///
 /// * **ask_asset** is the asset to swap to as well as the desired amount of ask
-/// assets to receive from the swap.
+///   assets to receive from the swap.
 ///
 /// * **offer_asset_info** is optional field which specifies the asset to swap from.
-/// May be omitted only in case the pool length is 2.
+///   May be omitted only in case the pool length is 2.
 pub fn query_reverse_simulation(
     deps: Deps,
     env: Env,
@@ -903,7 +898,7 @@ pub fn query_reverse_simulation(
             .iter()
             .map(|pool| {
                 pool.amount
-                    .to_uint128_with_precision(get_precision(deps.storage, &pool.info)?)
+                    .to_uint(get_precision(deps.storage, &pool.info)?)
             })
             .collect::<StdResult<Vec<Uint128>>>()?,
         ask_asset.amount,
@@ -927,7 +922,7 @@ pub fn query_reverse_simulation(
         - Decimal256::new(fee_info.total_fee_rate.atomics().into()))
     .inv()
     .ok_or_else(|| StdError::generic_err("The pool must have less than 100% fee!"))?
-    .checked_mul(Decimal256::with_precision(ask_asset.amount, ask_precision)?)?;
+    .checked_mul(ask_asset.amount.to_decimal256(ask_precision)?)?;
 
     let xp = pools.into_iter().map(|pool| pool.amount).collect_vec();
     let new_offer_pool_amount = calc_y(
@@ -937,20 +932,14 @@ pub fn query_reverse_simulation(
         config.greatest_precision,
     )?;
 
-    let offer_amount = new_offer_pool_amount.checked_sub(
-        offer_pool
-            .amount
-            .to_uint128_with_precision(config.greatest_precision)?,
-    )?;
+    let offer_amount =
+        new_offer_pool_amount.checked_sub(offer_pool.amount.to_uint(config.greatest_precision)?)?;
     let offer_amount = adjust_precision(offer_amount, config.greatest_precision, offer_precision)?;
 
     Ok(ReverseSimulationResponse {
         offer_amount,
-        spread_amount: offer_amount
-            .saturating_sub(before_commission.to_uint128_with_precision(offer_precision)?),
-        commission_amount: fee_info
-            .total_fee_rate
-            .checked_mul_uint128(before_commission.to_uint128_with_precision(ask_precision)?)?,
+        spread_amount: offer_amount.saturating_sub(before_commission.to_uint(offer_precision)?),
+        commission_amount: before_commission.to_uint(ask_precision)? * fee_info.total_fee_rate,
     })
 }
 
@@ -1204,7 +1193,7 @@ fn query_compute_d(deps: Deps, env: Env) -> StdResult<Uint128> {
 
     compute_d(amp, &pools)
         .map_err(|_| StdError::generic_err("Failed to calculate the D"))?
-        .to_uint128_with_precision(config.greatest_precision)
+        .to_uint(config.greatest_precision)
 }
 
 fn ensure_min_assets_to_receive(

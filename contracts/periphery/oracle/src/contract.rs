@@ -125,7 +125,7 @@ pub fn update(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
 ///
 /// ## Queries
 /// * **QueryMsg::Consult { token, amount }** Validates assets and calculates a new average
-/// amount with updated precision
+///   amount with updated precision
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

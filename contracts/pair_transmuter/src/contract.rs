@@ -267,7 +267,7 @@ pub fn provide_liquidity(
 /// * **offer_asset** proposed asset for swapping.
 ///
 /// * **ask_asset_info** is the asset to be received after the swap operation.
-/// Must be set if the pool contains more than 2 assets.
+///   Must be set if the pool contains more than 2 assets.
 ///
 /// * **to** sets the recipient of the swap operation.
 pub fn swap(

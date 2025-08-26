@@ -22,7 +22,7 @@ jobs:
 
       - name: Checkout sources
         uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         if: always()
         with:
           path: |
@@ -31,7 +31,6 @@ jobs:
             ~/.cargo/git/db
             ~/.cargo/registry/cache
             ~/.cargo/registry/index
-            target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
@@ -40,9 +39,21 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.81.0
           override: true
           components: rustfmt, clippy
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings -A unexpected_cfgs
 
       - name: Run tests
         uses: actions-rs/cargo@v1
@@ -51,18 +62,6 @@ jobs:
           args: --features tests-tube --no-fail-fast --locked
         env:
           RUST_BACKTRACE: 1
-
-      - name: Run cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings
-
-      - name: Run cargo fmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
 
       - name: Generate and check schemas
         run: |
