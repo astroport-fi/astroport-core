@@ -4,7 +4,7 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coins, ensure, from_json, to_json_binary, wasm_execute, Addr, DepsMut, Empty, Env,
-    MessageInfo, Response,
+    MessageInfo, Response, StdError,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
@@ -170,11 +170,9 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             let config = migrate_config(deps.storage, converter_addr, &converter_config)?;
             sanity_checks(&config, &converter_config)?;
         }
+        (CONTRACT_NAME, "1.0.0") => {}
         _ => {
-            return Err(ContractError::MigrationError {
-                expected: "astroport-pair:1.0.1|1.1.0|1.3.0|1.3.3".to_string(),
-                current: format!("{}:{}", contract_version.contract, contract_version.version),
-            })
+            return Err(StdError::generic_err("Failed to migrate").into());
         }
     }
 

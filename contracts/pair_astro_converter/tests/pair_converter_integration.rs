@@ -278,6 +278,41 @@ fn test_queries() {
         err,
         StdError::generic_err("Querier contract error: This pair swaps from old ASTRO (contract0) to new ASTRO only (ibc/tf_astro)")
     );
+
+    let converter = helper.query_config().unwrap().converter_contract;
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&converter, test_coins[1].denom().unwrap())
+        .unwrap();
+
+    // Burn all tf ASTRO from the converter contract to test insufficient liquidity case
+    helper
+        .app
+        .send_tokens(converter, Addr::unchecked("null"), &[astro_bal])
+        .unwrap();
+
+    let err = helper
+        .simulate_swap(
+            &helper.assets[&test_coins[0]].with_balance(1_000000u128),
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err,
+        StdError::generic_err("Querier contract error: Generic error: Insufficient ASTRO liquidity in the converter contract")
+    );
+
+    let err = helper
+        .simulate_reverse_swap(
+            &helper.assets[&test_coins[1]].with_balance(1_000000u128),
+            None,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err,
+        StdError::generic_err("Querier contract error: Generic error: Insufficient ASTRO liquidity in the converter contract")
+    );
 }
 
 #[test]

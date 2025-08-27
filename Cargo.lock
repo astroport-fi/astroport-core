@@ -469,7 +469,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-converter"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
@@ -480,7 +480,6 @@ dependencies = [
  "cosmwasm-std",
  "cw-multi-test 0.20.1",
  "cw-storage-plus 1.2.0",
- "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
