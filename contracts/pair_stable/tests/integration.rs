@@ -150,9 +150,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         token_code_id: token_contract_code_id,
         generator_address: None,
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
-        tracker_config: None,
     };
 
     let factory_addr = router
@@ -665,9 +663,7 @@ fn provide_lp_for_single_token() {
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = app
@@ -1006,9 +1002,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = app
@@ -1323,9 +1317,7 @@ fn update_pair_config() {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = router
@@ -1572,9 +1564,7 @@ fn enable_disable_fee_sharing() {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = router
@@ -1873,9 +1863,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
         token_code_id: token_contract_code_id,
         generator_address: None,
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = router
@@ -1915,7 +1903,6 @@ fn provide_liquidity_with_autostaking_to_generator() {
                 token_code_id: None,
                 fee_address: None,
                 generator_address: Some(generator_instance.to_string()),
-                whitelist_code_id: None,
                 coin_registry_address: None,
             },
             &[],
@@ -2363,9 +2350,7 @@ fn test_fee_share(
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = app

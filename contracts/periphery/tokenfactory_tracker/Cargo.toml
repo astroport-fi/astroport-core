@@ -15,6 +15,9 @@ tests-tube = ["test-tube", "neutron-test-tube"]
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[lints]
+workspace = true
+
 [dependencies]
 cw2.workspace = true
 cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }

@@ -79,7 +79,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         params: None,
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
-        tracker_addr: None,
     })
 }
 

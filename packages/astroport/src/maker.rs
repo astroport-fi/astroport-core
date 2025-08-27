@@ -1,5 +1,4 @@
 use crate::asset::{Asset, AssetInfo};
-use crate::factory::UpdateAddr;
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Decimal, Uint128, Uint64};
 use std::ops::RangeInclusive;
@@ -84,6 +83,15 @@ pub struct UpdateDevFundConfig {
     /// If 'set' is None then dev fund config will be removed,
     /// otherwise it will be updated with the new parameters
     pub set: Option<DevFundConfig>,
+}
+
+/// This is an enum used for setting and removing a contract address.
+#[cw_serde]
+pub enum UpdateAddr {
+    /// Sets a new contract address.
+    Set(String),
+    /// Removes a contract address.
+    Remove {},
 }
 
 /// This structure describes the functions that can be executed in this contract.

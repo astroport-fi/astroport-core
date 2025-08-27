@@ -97,7 +97,6 @@ impl WasmMockQuerier {
                                 token_code_id: 0,
                                 fee_address: Some(Addr::unchecked("fee_address")),
                                 generator_address: None,
-                                whitelist_code_id: 0,
                                 coin_registry_address: Addr::unchecked("coin_registry"),
                             })
                             .into(),
@@ -164,7 +163,6 @@ impl WasmMockQuerier {
                                 token_code_id: 0,
                                 fee_address: Some(Addr::unchecked("fee_address")),
                                 generator_address: None,
-                                whitelist_code_id: 0,
                                 coin_registry_address: Addr::unchecked("coin_registry"),
                             })
                             .into(),

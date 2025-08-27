@@ -2,24 +2,22 @@ use cosmwasm_std::{
     attr, from_json, to_json_binary, Addr, Reply, ReplyOn, SubMsg, SubMsgResponse, SubMsgResult,
     WasmMsg,
 };
+use prost::Message;
 
+use astroport::asset::{AssetInfo, PairInfo};
+use astroport::factory::{
+    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, PairsResponse, QueryMsg,
+};
+use astroport::pair::InstantiateMsg as PairInstantiateMsg;
+use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
+
+use crate::contract::reply;
 use crate::mock_querier::mock_dependencies;
 use crate::state::CONFIG;
 use crate::{
     contract::{execute, instantiate, query},
     error::ContractError,
 };
-
-use astroport::asset::{AssetInfo, PairInfo};
-use astroport::factory::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, PairConfig, PairType, PairsResponse, QueryMsg,
-};
-
-use crate::contract::reply;
-use astroport::pair::InstantiateMsg as PairInstantiateMsg;
-use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-
-use prost::Message;
 
 #[derive(Clone, PartialEq, Message)]
 struct MsgInstantiateContractResponse {
@@ -68,9 +66,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -94,9 +90,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -134,9 +128,7 @@ fn proper_initialization() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -173,9 +165,7 @@ fn update_config() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -191,7 +181,6 @@ fn update_config() {
         token_code_id: Some(200u64),
         fee_address: Some(String::from("new_fee_addr")),
         generator_address: Some(String::from("new_generator_addr")),
-        whitelist_code_id: None,
         coin_registry_address: None,
     };
 
@@ -202,14 +191,14 @@ fn update_config() {
     let query_res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config_res: ConfigResponse = from_json(&query_res).unwrap();
     assert_eq!(200u64, config_res.token_code_id);
-    assert_eq!(owner, config_res.owner);
+    assert_eq!(owner, config_res.owner.as_str());
     assert_eq!(
         String::from("new_fee_addr"),
-        config_res.fee_address.unwrap()
+        config_res.fee_address.unwrap().as_str()
     );
     assert_eq!(
         String::from("new_generator_addr"),
-        config_res.generator_address.unwrap()
+        config_res.generator_address.unwrap().as_str()
     );
 
     // Unauthorized err
@@ -219,7 +208,6 @@ fn update_config() {
         token_code_id: None,
         fee_address: None,
         generator_address: None,
-        whitelist_code_id: None,
         coin_registry_address: None,
     };
 
@@ -238,9 +226,7 @@ fn update_owner() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -303,8 +289,8 @@ fn update_owner() {
 
     // Let's query the state
     let config: ConfigResponse =
-        from_json(&query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
-    assert_eq!(new_owner, config.owner);
+        from_json(query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap()).unwrap();
+    assert_eq!(new_owner, config.owner.as_str());
 }
 
 #[test]
@@ -328,9 +314,7 @@ fn update_pair_config() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -447,9 +431,7 @@ fn create_pair() {
         fee_address: None,
         owner: "owner0000".to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -549,9 +531,7 @@ fn register() {
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let env = mock_env();
@@ -613,26 +593,24 @@ fn register() {
     let query_res = query(
         deps.as_ref(),
         env.clone(),
-        QueryMsg::Pair {
+        QueryMsg::PairsByAssetInfos {
             asset_infos: asset_infos.clone(),
+            start_after: None,
+            limit: None,
         },
     )
     .unwrap();
 
-    let pair_res: PairInfo = from_json(&query_res).unwrap();
+    let pair_res: Vec<PairInfo> = from_json(&query_res).unwrap();
     assert_eq!(
         pair_res,
-        PairInfo {
+        [PairInfo {
             liquidity_token: "liquidity0000".to_owned(),
             contract_addr: Addr::unchecked("pair0000"),
             asset_infos: asset_infos.clone(),
             pair_type: PairType::Xyk {},
-        }
+        }]
     );
-
-    // Check pair was registered
-    let res = reply(deps.as_mut(), mock_env(), reply_msg).unwrap_err();
-    assert_eq!(res, ContractError::PairWasRegistered {});
 
     // Store one more item to test query pairs
     let asset_infos_2 = vec![
@@ -730,53 +708,6 @@ fn register() {
     );
 
     let query_msg = QueryMsg::Pairs {
-        start_after: Some(asset_infos.clone()),
-        limit: None,
-    };
-
-    let res = query(deps.as_ref(), env.clone(), query_msg).unwrap();
-    let pairs_res: PairsResponse = from_json(&res).unwrap();
-    assert_eq!(
-        pairs_res.pairs,
-        vec![PairInfo {
-            liquidity_token: "liquidity0001".to_owned(),
-            contract_addr: Addr::unchecked("pair0001"),
-            asset_infos: asset_infos_2.clone(),
-            pair_type: PairType::Xyk {},
-        }]
-    );
-
-    // Deregister from wrong acc
-    let env = mock_env();
-    let info = mock_info("wrong_addr0000", &[]);
-    let res = execute(
-        deps.as_mut(),
-        env.clone(),
-        info,
-        ExecuteMsg::Deregister {
-            asset_infos: asset_infos_2.clone(),
-        },
-    )
-    .unwrap_err();
-
-    assert_eq!(res, ContractError::Unauthorized {});
-
-    // Proper deregister
-    let env = mock_env();
-    let info = mock_info(owner, &[]);
-    let res = execute(
-        deps.as_mut(),
-        env.clone(),
-        info,
-        ExecuteMsg::Deregister {
-            asset_infos: asset_infos_2.clone(),
-        },
-    )
-    .unwrap();
-
-    assert_eq!(res.attributes[0], attr("action", "deregister"));
-
-    let query_msg = QueryMsg::Pairs {
         start_after: None,
         limit: None,
     };
@@ -785,11 +716,19 @@ fn register() {
     let pairs_res: PairsResponse = from_json(&res).unwrap();
     assert_eq!(
         pairs_res.pairs,
-        vec![PairInfo {
-            liquidity_token: "liquidity0000".to_owned(),
-            contract_addr: Addr::unchecked("pair0000"),
-            asset_infos: asset_infos.clone(),
-            pair_type: PairType::Xyk {},
-        },]
+        vec![
+            PairInfo {
+                asset_infos,
+                contract_addr: Addr::unchecked("pair0000"),
+                liquidity_token: "liquidity0000".to_owned(),
+                pair_type: PairType::Xyk {},
+            },
+            PairInfo {
+                liquidity_token: "liquidity0001".to_owned(),
+                contract_addr: Addr::unchecked("pair0001"),
+                asset_infos: asset_infos_2,
+                pair_type: PairType::Xyk {},
+            }
+        ]
     );
 }

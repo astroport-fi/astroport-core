@@ -1,7 +1,5 @@
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
-use astroport_pcl_common::utils::{
-    assert_slippage_tolerance, calc_provide_fee, check_assets, check_pair_registered,
-};
+use astroport_pcl_common::utils::{assert_slippage_tolerance, calc_provide_fee, check_assets};
 use astroport_pcl_common::{calc_d, get_xcp};
 use cosmwasm_std::{
     Addr, Decimal, Decimal256, Deps, Env, QuerierWrapper, StdError, StdResult, Storage, Uint128,
@@ -121,14 +119,6 @@ pub(crate) fn get_assets_with_precision(
     pools: Vec<DecimalAsset>,
     precisions: &Precisions,
 ) -> Result<Vec<Decimal256>, ContractError> {
-    if !check_pair_registered(
-        deps.querier,
-        &config.factory_addr,
-        &config.pair_info.asset_infos,
-    )? {
-        return Err(ContractError::PairIsNotRegistered {});
-    }
-
     match assets.len() {
         0 => {
             return Err(StdError::generic_err("Nothing to provide").into());

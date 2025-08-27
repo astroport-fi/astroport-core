@@ -341,9 +341,7 @@ impl Helper {
                     fee_address: None,
                     generator_address: None,
                     owner: owner.to_string(),
-                    whitelist_code_id: 0,
                     coin_registry_address: coin_registry_address.to_string(),
-                    tracker_config: None,
                 },
                 &[],
                 "Astroport Factory",
@@ -385,7 +383,6 @@ impl Helper {
                 token_code_id: None,
                 fee_address: None,
                 generator_address: Some(generator.to_string()),
-                whitelist_code_id: None,
                 coin_registry_address: None,
             },
             &[],
@@ -488,20 +485,6 @@ impl Helper {
             self.generator.clone(),
             &ExecuteMsg::DeactivatePool {
                 lp_token: lp_token.to_string(),
-            },
-            &[],
-        )
-    }
-
-    pub fn deactivate_pool_full_flow(
-        &mut self,
-        asset_infos: &[AssetInfo],
-    ) -> AnyResult<AppResponse> {
-        self.app.execute_contract(
-            self.owner.clone(),
-            self.factory.clone(),
-            &factory::ExecuteMsg::Deregister {
-                asset_infos: asset_infos.to_vec(),
             },
             &[],
         )

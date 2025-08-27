@@ -10,12 +10,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Pair was already created")]
-    PairWasCreated {},
-
-    #[error("Pair was already registered")]
-    PairWasRegistered {},
-
     #[error("Duplicate of pair configs")]
     PairConfigDuplicate {},
 

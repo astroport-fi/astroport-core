@@ -11,10 +11,9 @@ use cw2::{get_contract_version, set_contract_version};
 
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::UpdateAddr;
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
-    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig,
+    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig, UpdateAddr,
     UpdateDevFundConfig,
 };
 use astroport::pair::MAX_ALLOWED_SLIPPAGE;

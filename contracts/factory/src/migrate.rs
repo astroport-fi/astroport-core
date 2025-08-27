@@ -1,25 +1,25 @@
+#![cfg(not(tarpaulin_include))]
+
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Empty, Env, Response};
-use cw2::{get_contract_version, set_contract_version};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
-
 use crate::error::ContractError;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
+    let contract_version = cw2::get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "astroport-staking" => match contract_version.version.as_ref() {
-            "2.0.0" | "2.1.0" => {}
+        CONTRACT_NAME => match contract_version.version.as_ref() {
+            "1.10.0" => todo!("Implement carefull migration from old state"),
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
-    }
+    };
 
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    cw2::set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     Ok(Response::new()
         .add_attribute("previous_contract_name", &contract_version.contract)

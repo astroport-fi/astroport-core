@@ -1,8 +1,9 @@
-use crate::asset::{AssetInfo, PairInfo};
+use std::fmt::{Display, Formatter, Result};
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
 use cosmwasm_std::{Addr, Binary};
-use std::fmt::{Display, Formatter, Result};
+
+use crate::asset::{AssetInfo, PairInfo};
 
 const MAX_TOTAL_FEE_BPS: u16 = 10_000;
 const MAX_MAKER_FEE_BPS: u16 = 10_000;
@@ -18,8 +19,6 @@ pub struct Config {
     pub generator_address: Option<Addr>,
     /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party incentives staking rewards
-    pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins with their precision
     pub coin_registry_address: Addr,
 }
@@ -104,12 +103,8 @@ pub struct InstantiateMsg {
     pub generator_address: Option<String>,
     /// Address of owner that is allowed to change factory contract parameters
     pub owner: String,
-    /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-    pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins and their accuracy
     pub coin_registry_address: String,
-    /// Config for the tracking contract
-    pub tracker_config: Option<TrackerConfig>,
 }
 
 /// This structure describes the execute messages of the contract.
@@ -123,16 +118,8 @@ pub enum ExecuteMsg {
         fee_address: Option<String>,
         /// Contract address where Lp tokens can be auto_staked after someone provides liquidity in an incentivized Astroport pool
         generator_address: Option<String>,
-        /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-        whitelist_code_id: Option<u64>,
         /// The address of the contract that contains the coins and their accuracy
         coin_registry_address: Option<String>,
-    },
-    UpdateTrackerConfig {
-        /// Tracking contract code id
-        tracker_code_id: u64,
-        /// Token factory module address
-        token_factory_addr: Option<String>,
     },
     /// UpdatePairConfig updates the config for a pair type.
     UpdatePairConfig {
@@ -147,11 +134,6 @@ pub enum ExecuteMsg {
         asset_infos: Vec<AssetInfo>,
         /// Optional binary serialised parameters for custom pool types
         init_params: Option<Binary>,
-    },
-    /// Deregister removes a previously created pair.
-    Deregister {
-        /// The assets for which we deregister a pool
-        asset_infos: Vec<AssetInfo>,
     },
     /// ProposeNewOwner creates a proposal to change contract ownership.
     /// The validity period for the proposal is set in the `expires_in` variable.
@@ -175,17 +157,36 @@ pub enum QueryMsg {
     #[returns(ConfigResponse)]
     Config {},
     /// Pair returns information about a specific pair according to the specified assets.
+    /// Gets the first pool from the list
+    /// WARNING: this endpoint is left only for backward compatability.
+    /// Consider using `QueryMsg::PairsByAssetInfos` and selecting a pool address based on your needs.
     #[returns(PairInfo)]
     Pair {
         /// The assets for which we return a pair
         asset_infos: Vec<AssetInfo>,
     },
+    /// PairsByAssetInfos returns a list of pairs for the specified assets.
+    #[returns(Vec<PairInfo>)]
+    PairsByAssetInfos {
+        /// The assets for which we return a pair
+        asset_infos: Vec<AssetInfo>,
+        /// The pair address to start reading from. Optional
+        start_after: Option<String>,
+        /// The number of pairs to read and return. Optional
+        limit: Option<u32>,
+    },
+    /// PairByLpToken returns a pair info for the specified liquidity token.
+    #[returns(PairInfo)]
+    PairByLpToken {
+        /// The liquidity token address for which we return a pair
+        lp_token: String,
+    },
     /// Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.
     #[returns(PairsResponse)]
     Pairs {
-        /// The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.
-        start_after: Option<Vec<AssetInfo>>,
-        /// The number of pairs to read and return. It is an [`Option`] type.
+        /// The pair address to start reading from. Optional
+        start_after: Option<String>,
+        /// The number of pairs to read and return. Optional
         limit: Option<u32>,
     },
     /// FeeInfo returns fee parameters for a specific pair. The response is returned using a [`FeeInfoResponse`] structure
@@ -197,8 +198,6 @@ pub enum QueryMsg {
     /// Returns a vector that contains blacklisted pair types
     #[returns(Vec<PairType>)]
     BlacklistedPairTypes {},
-    #[returns(TrackerConfig)]
-    TrackerConfig {},
 }
 
 /// A custom struct for each query response that returns general contract settings/configs.
@@ -214,8 +213,6 @@ pub struct ConfigResponse {
     pub fee_address: Option<Addr>,
     /// Address of contract used to auto_stake LP tokens for Astroport pairs that are incentivized
     pub generator_address: Option<Addr>,
-    /// CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens
-    pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins and their accuracy
     pub coin_registry_address: Addr,
 }
@@ -236,21 +233,4 @@ pub struct FeeInfoResponse {
     pub total_fee_bps: u16,
     /// Amount of fees (in bps) sent to the Maker contract
     pub maker_fee_bps: u16,
-}
-
-/// This is an enum used for setting and removing a contract address.
-#[cw_serde]
-pub enum UpdateAddr {
-    /// Sets a new contract address.
-    Set(String),
-    /// Removes a contract address.
-    Remove {},
-}
-
-#[cw_serde]
-pub struct TrackerConfig {
-    /// Tracking contract code id
-    pub code_id: u64,
-    /// Token factory module address
-    pub token_factory_addr: String,
 }

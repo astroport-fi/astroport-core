@@ -20,6 +20,9 @@ exclude = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[lints]
+workspace = true
+
 [features]
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
@@ -49,4 +52,3 @@ proptest = "1.0"
 anyhow = "1.0"
 derivative = "2.2"
 astroport-native-coin-registry = { path = "../periphery/native_coin_registry" }
-astroport-tokenfactory-tracker = { path = "../periphery/tokenfactory_tracker" }

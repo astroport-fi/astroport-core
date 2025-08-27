@@ -192,6 +192,7 @@ pub enum ExecuteMsg {
         #[serde(default)]
         remove: Vec<AssetInfo>,
     },
+    /// Deprecated.
     /// Only factory can set the allocation points to zero for the specified pool.
     /// Initiated from deregistration context in factory.
     DeactivatePool { lp_token: String },

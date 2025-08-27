@@ -1,27 +1,25 @@
-#![cfg(not(tarpaulin_include))]
-
-mod factory_helper;
-
-use cosmwasm_std::{attr, Addr, StdError};
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
+use cosmwasm_std::{attr, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
-    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType, QueryMsg,
-    TrackerConfig,
+    ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
+    PairsResponse, QueryMsg,
 };
+use astroport_factory::error::ContractError;
+use astroport_test::modules::stargate::{MockStargate, StargateApp as App};
 
 use crate::factory_helper::{instantiate_token, FactoryHelper};
-use astroport_factory::error::ContractError;
-use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
-use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
-fn mock_app() -> TestApp {
+mod factory_helper;
+
+fn mock_app() -> App {
     AppBuilder::new_custom()
         .with_stargate(MockStargate::default())
         .build(|_, _, _| {})
 }
 
-fn store_factory_code(app: &mut TestApp) -> u64 {
+fn store_factory_code(app: &mut App) -> u64 {
     let factory_contract = Box::new(
         ContractWrapper::new_with_empty(
             astroport_factory::contract::execute,
@@ -59,20 +57,11 @@ fn proper_initialization() {
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
     };
 
     let factory_instance = app
-        .instantiate_contract(
-            factory_code_id,
-            Addr::unchecked(owner.clone()),
-            &msg,
-            &[],
-            "factory",
-            None,
-        )
+        .instantiate_contract(factory_code_id, owner.clone(), &msg, &[], "factory", None)
         .unwrap();
 
     let msg = QueryMsg::Config {};
@@ -101,7 +90,6 @@ fn update_config() {
             Some("fee".to_string()),
             Some("generator".to_string()),
             None,
-            None,
         )
         .unwrap();
 
@@ -122,7 +110,6 @@ fn update_config() {
         .update_config(
             &mut app,
             &Addr::unchecked("not_owner"),
-            None,
             None,
             None,
             None,
@@ -165,40 +152,10 @@ fn test_create_pair() {
         .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
         .unwrap();
 
-    let err = helper
-        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
-        .unwrap_err();
-    assert_eq!(err.root_cause().to_string(), "Pair was already created");
-
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
     assert_eq!(
         res.events[1].attributes[2],
         attr("pair", format!("{}-{}", token1.as_str(), token2.as_str()))
-    );
-
-    let res: PairInfo = app
-        .wrap()
-        .query_wasm_smart(
-            helper.factory.clone(),
-            &QueryMsg::Pair {
-                asset_infos: vec![
-                    AssetInfo::Token {
-                        contract_addr: token1.clone(),
-                    },
-                    AssetInfo::Token {
-                        contract_addr: token2.clone(),
-                    },
-                ],
-            },
-        )
-        .unwrap();
-
-    // In multitest, contract names are counted in the order in which contracts are created
-    assert_eq!("contract1", helper.factory.to_string());
-    assert_eq!("contract4", res.contract_addr.to_string());
-    assert_eq!(
-        "factory/contract4/astroport/share",
-        res.liquidity_token.to_string()
     );
 
     // Create disabled pair type
@@ -547,87 +504,72 @@ fn test_create_permissioned_pair_whitelist() {
 }
 
 #[test]
-fn tracker_config() {
+fn test_indexed_queries() {
     let mut app = mock_app();
     let owner = Addr::unchecked("owner");
     let mut helper = FactoryHelper::init(&mut app, &owner);
 
-    // Should return an error since tracker config is not set
-    let err = helper.query_tracker_config(&mut app).unwrap_err();
+    let token1 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenX", None);
+    let token2 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenY", None);
+    let token3 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenZ", None);
 
-    assert_eq!(
-        err,
-        StdError::generic_err("Querier contract error: Generic error: Tracker config is not set in the factory. It can't be provided")
-    );
+    // Create several pool for the same pair of assets
+    for pair_type in [
+        PairType::Xyk {},
+        PairType::Xyk {},
+        PairType::Custom("yet_another_xyk".to_string()),
+    ] {
+        helper
+            .create_pair(&mut app, &owner, pair_type, [&token1, &token2], None)
+            .unwrap();
+    }
 
-    // should return an error since the sender is not the owner
-    let err = helper
-        .update_tracker_config(&mut app, &Addr::unchecked("not_owner"), 64, None)
-        .unwrap_err()
-        .downcast::<ContractError>()
-        .unwrap();
-
-    assert_eq!(err, ContractError::Unauthorized {});
-
-    // should return an error if trying to update code_id and token_factory_add is not provided
-
-    let err = helper
-        .update_tracker_config(&mut app, &owner, 64, None)
-        .unwrap_err()
-        .downcast::<ContractError>()
-        .unwrap();
-
-    assert_eq!(
-        err,
-        ContractError::Std(StdError::generic_err("token_factory_addr is required"))
-    );
-
-    // should success if the sender is the owner and the token_factory_addr is provided
     helper
-        .update_tracker_config(&mut app, &owner, 64, Some("token_factory_addr".to_string()))
+        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token3], None)
         .unwrap();
 
-    // should return the tracker config
-    let tracker_config = helper.query_tracker_config(&mut app).unwrap();
-    assert_eq!(tracker_config.token_factory_addr, "token_factory_addr");
-    assert_eq!(tracker_config.code_id, 64);
-
-    // Query tracker config should work since the beggining if the tracker config is set when the contract is instantiated
-    let init_msg = astroport::factory::InstantiateMsg {
-        fee_address: None,
-        pair_configs: vec![PairConfig {
-            code_id: 0,
-            maker_fee_bps: 3333,
-            total_fee_bps: 30u16,
-            pair_type: PairType::Xyk {},
-            is_disabled: false,
-            is_generator_disabled: false,
-            permissioned: false,
-            whitelist: None,
-        }],
-        token_code_id: 0,
-        generator_address: None,
-        owner: owner.to_string(),
-        whitelist_code_id: 0,
-        coin_registry_address: "registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: 64,
-            token_factory_addr: "token_factory_addr".to_string(),
-        }),
-    };
-
-    let factory = app
-        .instantiate_contract(3, owner.clone(), &init_msg, &[], "factory", None)
-        .unwrap();
-
-    let tracker_config = app
+    // Query all pairs
+    let pairs_resp: PairsResponse = app
         .wrap()
-        .query_wasm_smart::<astroport::factory::TrackerConfig>(
-            factory.clone(),
-            &astroport::factory::QueryMsg::TrackerConfig {},
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::Pairs {
+                start_after: None,
+                limit: None,
+            },
         )
         .unwrap();
+    assert_eq!(pairs_resp.pairs.len(), 4);
 
-    assert_eq!(tracker_config.token_factory_addr, "token_factory_addr");
-    assert_eq!(tracker_config.code_id, 64);
+    let duplicated_asset_infos = vec![
+        AssetInfo::cw20(token1.clone()),
+        AssetInfo::cw20(token2.clone()),
+    ];
+    let pairs: Vec<PairInfo> = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::PairsByAssetInfos {
+                asset_infos: duplicated_asset_infos.clone(),
+                start_after: None,
+                limit: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(pairs.len(), 3);
+
+    for pair in pairs.iter() {
+        assert_eq!(pair.asset_infos, duplicated_asset_infos);
+    }
+
+    let pair: PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::PairByLpToken {
+                lp_token: pairs[0].liquidity_token.clone(),
+            },
+        )
+        .unwrap();
+    assert_eq!(pair, pairs[0]);
 }
