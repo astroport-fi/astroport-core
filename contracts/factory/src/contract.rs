@@ -21,9 +21,7 @@ use astroport::pair;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
 use crate::error::ContractError;
-use crate::state::{
-    check_asset_infos, pair_key, CONFIG, DEFAULT_LIMIT, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
-};
+use crate::state::{pair_key, CONFIG, DEFAULT_LIMIT, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "astroport-factory";
@@ -282,8 +280,6 @@ pub fn execute_create_pair(
     asset_infos: Vec<AssetInfo>,
     init_params: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    check_asset_infos(deps.api, &asset_infos)?;
-
     let config = CONFIG.load(deps.storage)?;
 
     // Get pair type from config

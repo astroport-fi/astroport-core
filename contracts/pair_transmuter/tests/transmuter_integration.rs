@@ -59,9 +59,8 @@ fn test_instantiate() {
     )
     .unwrap_err();
     assert_eq!(
-        err.downcast::<astroport_factory::error::ContractError>()
-            .unwrap(),
-        astroport_factory::error::ContractError::DoublingAssets {}
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::DoublingAssets {}
     );
 
     Helper::new(

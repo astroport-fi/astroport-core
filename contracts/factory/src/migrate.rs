@@ -13,7 +13,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
-            "1.10.0" => todo!("Implement carefull migration from old state"),
+            "1.10.0" => todo!("Implement careful migration from old state"),
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

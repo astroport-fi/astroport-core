@@ -1,12 +1,10 @@
-use cosmwasm_std::{Addr, Api};
+use cosmwasm_std::Addr;
 use cw_storage_plus::{index_list, IndexedMap, Item, Map, MultiIndex, UniqueIndex};
 use itertools::Itertools;
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
 use astroport::factory::{Config, PairConfig};
-
-use crate::error::ContractError;
 
 /// Saves factory settings
 pub const CONFIG: Item<Config> = Item::new("config");
@@ -45,20 +43,6 @@ pub const PAIR_CONFIGS: Map<String, PairConfig> = Map::new("pair_configs");
 /// ## Pagination settings
 /// The default limit for reading pairs from [`PAIRS`]
 pub const DEFAULT_LIMIT: u32 = 10;
-
-pub(crate) fn check_asset_infos(
-    api: &dyn Api,
-    asset_infos: &[AssetInfo],
-) -> Result<(), ContractError> {
-    if !asset_infos.iter().all_unique() {
-        return Err(ContractError::DoublingAssets {});
-    }
-
-    asset_infos
-        .iter()
-        .try_for_each(|asset_info| asset_info.check(api))
-        .map_err(Into::into)
-}
 
 /// Stores the latest contract ownership transfer proposal
 pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_proposal");
