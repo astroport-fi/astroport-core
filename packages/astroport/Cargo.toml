@@ -14,7 +14,7 @@ homepage = "https://astroport.fi"
 # for quicker tests, cargo test --lib
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
-injective = ["injective-math", "thiserror"]
+injective = []
 duality = []
 
 [dependencies]
@@ -28,10 +28,6 @@ cw-utils.workspace = true
 cw-asset = "3.0.0"
 prost = "0.11.5"
 cosmos-sdk-proto = { version = "0.19.0", default-features = false }
-
-# optional
-injective-math = { version = "0.1", optional = true }
-thiserror = { workspace = true, optional = true }
 
 [dev-dependencies]
 test-case = "3.1.0"
