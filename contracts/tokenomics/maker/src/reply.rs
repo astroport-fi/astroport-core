@@ -1,30 +1,38 @@
-use crate::state::CONFIG;
-use astroport::asset::AssetInfoExt;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{attr, DepsMut, Env, Reply, Response, StdError, StdResult};
+use cosmwasm_std::{attr, wasm_execute, DepsMut, Empty, Env, Reply, Response, SubMsg};
 
-pub const PROCESS_DEV_FUND_REPLY_ID: u64 = 1;
+use crate::error::ContractError;
+use crate::state::CONFIG;
+
+pub const POST_COLLECT_REPLY_ID: u64 = 1;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> StdResult<Response> {
+pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
     match msg.id {
-        PROCESS_DEV_FUND_REPLY_ID => {
+        POST_COLLECT_REPLY_ID => {
             let config = CONFIG.load(deps.storage)?;
-            let dev_fund_conf = config.dev_fund_conf.expect("Dev fund config must be set");
+            let astro_balance = deps
+                .querier
+                .query_balance(env.contract.address, &config.astro_denom)?;
 
-            let amount = dev_fund_conf
-                .asset_info
-                .query_pool(&deps.querier, env.contract.address)?;
-            let dev_fee = dev_fund_conf.asset_info.with_balance(amount);
+            let mut response = Response::new().add_attributes([
+                attr("action", "post_collect_reply"),
+                attr("astro", astro_balance.to_string()),
+            ]);
 
-            Ok(Response::new()
-                .add_attributes([
-                    attr("action", "process_dev_fund"),
-                    attr("amount", dev_fee.to_string()),
-                ])
-                .add_message(dev_fee.into_msg(&dev_fund_conf.address)?))
+            let transfer_msg = wasm_execute(
+                config.collector,
+                // Satellite type parameter is only needed for CheckMessages endpoint which is not used in Maker contract.
+                // So it's safe to pass Empty as CustomMsg
+                &astro_satellite_package::ExecuteMsg::<Empty>::TransferAstro {},
+                vec![astro_balance],
+            )?;
+
+            response.messages.push(SubMsg::new(transfer_msg));
+
+            Ok(response)
         }
-        _ => Err(StdError::generic_err("Invalid reply id")),
+        _ => Err(ContractError::InvalidReplyId {}),
     }
 }

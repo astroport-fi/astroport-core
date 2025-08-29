@@ -1,12 +1,8 @@
-extern crate core;
-extern crate cosmwasm_std;
-
-pub mod contract;
 pub mod error;
+pub mod execute;
+pub mod instantiate;
+pub mod migrate;
+pub mod query;
+pub mod reply;
 pub mod state;
 pub mod utils;
-
-mod migration;
-pub mod reply;
-#[cfg(test)]
-mod testing;

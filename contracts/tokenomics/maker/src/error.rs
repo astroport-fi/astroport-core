@@ -1,64 +1,61 @@
-use astroport::asset::AssetInfo;
-use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
+use astroport::maker::{PoolRoute, MAX_ALLOWED_SPREAD, MAX_SWAPS_DEPTH};
+use cosmwasm_std::{CheckedMultiplyRatioError, OverflowError, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
-/// This enum describes maker contract errors
 #[derive(Error, Debug, PartialEq)]
 pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    OverflowError(#[from] OverflowError),
+
+    #[error("{0}")]
+    PaymentError(#[from] PaymentError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatioError(#[from] CheckedMultiplyRatioError),
+
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Invalid bridge {0} to {1}")]
-    InvalidBridge(AssetInfo, AssetInfo),
-
-    #[error("Invalid bridge. Pool {0} to {1} not found")]
-    InvalidBridgeNoPool(String, String),
-
-    #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
-    InvalidBridgeDestination(String),
-
-    #[error("Max bridge length of {0} was reached")]
-    MaxBridgeDepth(u64),
-
-    #[error("Cannot swap {0}. No swap destinations")]
-    CannotSwap(AssetInfo),
-
-    #[error("Incorrect governance percent of its share")]
-    IncorrectGovernancePercent {},
-
-    #[error("Governance percent must be 100% when staking contract is not set")]
-    GovernancePercentMustBe100 {},
-
-    #[error("Incorrect max spread")]
-    IncorrectMaxSpread {},
-
-    #[error("Cannot collect. Remove duplicate asset")]
-    DuplicatedAsset {},
-
-    #[error("Rewards collecting is already enabled")]
-    RewardsAlreadyEnabled {},
-
-    #[error("An error occurred during migration")]
-    MigrationError {},
-
-    #[error("Collect cooldown is not expired. Next collect is possible at {next_collect_ts}")]
-    Cooldown { next_collect_ts: u64 },
+    #[error("Max spread too high. Max allowed: {MAX_ALLOWED_SPREAD}")]
+    MaxSpreadTooHigh {},
 
     #[error("Incorrect cooldown. Min: {min}, Max: {max}")]
     IncorrectCooldown { min: u64, max: u64 },
-}
 
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
-}
+    #[error("Empty routes")]
+    EmptyRoutes {},
 
-impl From<DivideByZeroError> for ContractError {
-    fn from(err: DivideByZeroError) -> Self {
-        StdError::from(err).into()
-    }
+    #[error("Pool {pool_addr} doesn't have asset {asset}")]
+    InvalidPoolDenom { pool_addr: u64, asset: String },
+
+    #[error("Message contains duplicated routes")]
+    DuplicatedRoutes {},
+
+    #[error("Route cannot start with ASTRO. Error in route: {route:?}")]
+    AstroInRoute { route: PoolRoute },
+
+    #[error("No registered route for {asset}")]
+    RouteNotFound { asset: String },
+
+    #[error("Collect cooldown has not elapsed. Next collect is possible at {next_collect_ts}")]
+    Cooldown { next_collect_ts: u64 },
+
+    #[error("Failed to build route for {asset} with the max multi-hop depth {MAX_SWAPS_DEPTH}. Route taken: {route_taken}")]
+    FailedToBuildRoute { asset: String, route_taken: String },
+
+    #[error("Invalid reply id")]
+    InvalidReplyId {},
+
+    #[error("Empty collectable assets vector")]
+    EmptyAssets {},
+
+    #[error("Nothing to collect")]
+    NothingToCollect {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
