@@ -1,6 +1,7 @@
+use crate::asset;
 use crate::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128, Uint64};
+use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
 use std::ops::RangeInclusive;
 
 /// Validation limit for max spread. From 0 to 50%.
@@ -20,6 +21,8 @@ pub struct DevFundConfig {
     pub share: Decimal,
     /// Asset that devs want ASTRO to be swapped to
     pub asset_info: AssetInfo,
+    /// Pair address to swap ASTRO to dev's reserve asset
+    pub pool_addr: Addr,
 }
 
 /// This structure stores the main parameters for the Maker contract.
@@ -27,6 +30,8 @@ pub struct DevFundConfig {
 pub struct Config {
     /// Address that's allowed to set contract parameters
     pub owner: Addr,
+    /// The factory contract address
+    pub factory_contract: Addr,
     /// The dev fund configuration
     pub dev_fund_conf: Option<DevFundConfig>,
     /// ASTRO denom
@@ -45,6 +50,8 @@ pub struct Config {
 pub struct InstantiateMsg {
     /// The contract's owner, who can update config
     pub owner: String,
+    /// The factory contract address
+    pub factory_contract: String,
     /// ASTRO denom
     pub astro_denom: String,
     /// Address which receives all swapped Astro.
@@ -95,9 +102,16 @@ pub enum ExecuteMsg {
         /// Dev tax configuration
         dev_fund_config: Option<Box<UpdateDevFundConfig>>,
     },
-    /// Configure specific pool ids for swapping asset_in to asset_out.
+    /// Configure specific pool addresses for swapping asset_in to asset_out.
     /// If a route already exists, it will be overwritten.
     SetPoolRoutes(Vec<PoolRoute>),
+    /// Self-call endpoint used to swap the whole asset_in balance.
+    /// No one by Maker contract can call this endpoint.
+    AutoSwap {
+        asset_in: AssetInfo,
+        asset_out: AssetInfo,
+        pool_addr: Addr,
+    },
     /// Creates a request to change the contract's ownership
     ProposeNewOwner {
         /// The newly proposed owner
@@ -136,9 +150,11 @@ pub enum QueryMsg {
     /// Returns the seize config
     #[returns(SeizeConfig)]
     QuerySeizeConfig {},
-    /// Get route for swapping an input denom into an output denom
+    /// Get a route for swapping an input asset into an output denom.
+    /// Asset type (either native or cw20)
+    /// will be determined automatically using [`asset::determine_asset_info`]
     #[returns(Vec<SwapRouteResponse>)]
-    Route { denom_in: String, denom_out: String },
+    Route { asset_in: String, asset_out: String },
     /// List all maker routes
     #[returns(Vec<PoolRoute>)]
     Routes {
@@ -147,7 +163,7 @@ pub enum QueryMsg {
     },
     /// Return current spot price swapping In for Out
     #[returns(Uint128)]
-    EstimateExactInSwap { coin_in: Coin },
+    EstimateExactInSwap { asset_in: Asset },
 }
 
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.
@@ -168,7 +184,7 @@ pub struct SeizeConfig {
 }
 
 #[cw_serde]
-pub struct SwapRouteResponse {
-    pub pool_id: u64,
-    pub token_out_denom: String,
+pub struct RouteStep {
+    pub asset_out: AssetInfo,
+    pub pool_addr: Addr,
 }

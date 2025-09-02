@@ -1,10 +1,9 @@
+use astroport::asset::determine_asset_info;
+use astroport::maker::{PoolRoute, QueryMsg, RouteStep, DEFAULT_PAGINATION_LIMIT};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{to_json_binary, Binary, Coin, Deps, Env, Order, StdResult, Storage, Uint128};
 use cw_storage_plus::Bound;
-use itertools::Itertools;
-
-use astroport::maker::{PoolRoute, QueryMsg, SwapRouteResponse, DEFAULT_PAGINATION_LIMIT};
 
 use crate::error::ContractError;
 use crate::state::{CONFIG, ROUTES, SEIZE_CONFIG};
@@ -15,14 +14,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     let result = match msg {
         QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::Route {
-            denom_in,
-            denom_out,
-        } => to_json_binary(&query_route(deps.storage, &denom_in, &denom_out)?),
+            asset_in,
+            asset_out,
+        } => to_json_binary(&query_route(deps, &asset_in, &asset_out)?),
         QueryMsg::Routes { start_after, limit } => {
             to_json_binary(&query_routes(deps.storage, start_after, limit)?)
         }
-        QueryMsg::EstimateExactInSwap { coin_in } => {
-            to_json_binary(&estimate_exact_swap_in(deps, coin_in)?)
+        QueryMsg::EstimateExactInSwap { asset_in } => {
+            to_json_binary(&estimate_exact_swap_in(deps, asset_in)?)
         }
         QueryMsg::QuerySeizeConfig {} => to_json_binary(&SEIZE_CONFIG.load(deps.storage)?),
     }?;
@@ -31,21 +30,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
 }
 
 pub fn query_route(
-    storage: &dyn Storage,
+    deps: Deps,
     denom_in: &str,
     denom_out: &str,
-) -> Result<Vec<SwapRouteResponse>, ContractError> {
-    let routes = RoutesBuilder::default()
-        .build_routes(storage, denom_in, denom_out)?
-        .routes
-        .into_iter()
-        .map(|route| SwapRouteResponse {
-            pool_id: route.pool_id,
-            token_out_denom: route.token_out_denom.to_string(),
-        })
-        .collect_vec();
+) -> Result<Vec<RouteStep>, ContractError> {
+    let asset_in = determine_asset_info(denom_in, deps.api)?;
+    let asset_out = determine_asset_info(denom_out, deps.api)?;
 
-    Ok(routes)
+    RoutesBuilder::default().build_routes(deps.storage, &asset_in, &asset_out)
 }
 
 pub fn query_routes(

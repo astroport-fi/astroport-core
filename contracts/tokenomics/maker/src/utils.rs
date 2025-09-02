@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 
-use astroport::asset::AssetInfo;
-use astroport::maker::{COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
-use cosmwasm_std::{ensure_eq, StdError, StdResult, Storage};
-use itertools::Itertools;
-
 use crate::error::ContractError;
 use crate::state::{RouteStep, ROUTES};
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::common::LP_SUBDENOM;
+use astroport::factory::QueryMsg;
+use astroport::maker::{COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
+use astroport::pair;
+use astroport::pair::Cw20HookMsg;
+use cosmwasm_std::{
+    coins, ensure, ensure_eq, to_json_binary, wasm_execute, Addr, Decimal, QuerierWrapper,
+    StdError, StdResult, Storage, WasmMsg,
+};
 
 /// Validate cooldown value is within the allowed range
 pub fn validate_cooldown(maybe_cooldown: Option<u64>) -> Result<(), ContractError> {
@@ -27,18 +32,13 @@ pub struct RoutesBuilder {
     pub routes_cache: HashMap<AssetInfo, RouteStep>,
 }
 
-pub struct BuiltRoutes {
-    pub routes: Vec<RouteStep>,
-    pub route_taken: String,
-}
-
 impl RoutesBuilder {
     pub fn build_routes(
         &mut self,
         storage: &dyn Storage,
         asset_in: &AssetInfo,
         astro_denom: &str,
-    ) -> Result<BuiltRoutes, ContractError> {
+    ) -> Result<Vec<RouteStep>, ContractError> {
         let mut prev_asset = asset_in.clone();
         let mut routes = vec![];
         let astro = AssetInfo::native(astro_denom);
@@ -71,19 +71,10 @@ impl RoutesBuilder {
             astro,
             ContractError::FailedToBuildRoute {
                 asset: asset_in.to_string(),
-                route_taken,
             }
         );
 
-        let route_display = routes.iter().map(|r| r.asset_out.to_string()).collect_vec();
-        let route_taken = [vec![asset_in.to_string()], route_display]
-            .concat()
-            .join(" -> ");
-
-        Ok(BuiltRoutes {
-            routes,
-            route_taken,
-        })
+        Ok(routes)
     }
 }
 
@@ -115,4 +106,69 @@ pub fn from_key_to_asset_info(bytes: Vec<u8>) -> StdResult<AssetInfo> {
             "Failed to deserialize asset info key",
         )),
     }
+}
+
+pub fn build_swap_msg(
+    asset_in: &Asset,
+    to: &AssetInfo,
+    max_spread: Decimal,
+    pool_addr: &Addr,
+) -> StdResult<WasmMsg> {
+    match &asset_in.info {
+        AssetInfo::Token { contract_addr } => wasm_execute(
+            contract_addr.to_string(),
+            &cw20::Cw20ExecuteMsg::Send {
+                contract: pool_addr.to_string(),
+                amount: asset_in.amount,
+                msg: to_json_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: Some(to.clone()),
+                    belief_price: None,
+                    max_spread: Some(max_spread),
+                    to: None,
+                })?,
+            },
+            vec![],
+        ),
+        AssetInfo::NativeToken { denom } => wasm_execute(
+            pool_addr,
+            &pair::ExecuteMsg::Swap {
+                offer_asset: asset_in.clone(),
+                ask_asset_info: Some(to.clone()),
+                belief_price: None,
+                max_spread: Some(max_spread),
+                to: None,
+            },
+            coins(asset_in.amount.u128(), denom),
+        ),
+    }
+}
+
+/// Validates that pair was registered using official Astroport factory.
+/// Ensures expected asset infos are in the pair.
+/// Returns PairInfo in case it needs further analysis.
+pub fn check_pair(
+    querier: QuerierWrapper,
+    factory: impl Into<String>,
+    pool_addr: impl Into<String>,
+    asset_infos: &[AssetInfo],
+) -> Result<PairInfo, ContractError> {
+    let pool_addr = pool_addr.into();
+    let pair_info = querier.query_wasm_smart::<PairInfo>(
+        factory,
+        &QueryMsg::PairByLpToken {
+            lp_token: format!("factory/{pool_addr}/{LP_SUBDENOM}"),
+        },
+    )?;
+
+    for asset_info in asset_infos {
+        ensure!(
+            pair_info.asset_infos.contains(asset_info),
+            ContractError::InvalidPoolAsset {
+                pool_addr: pool_addr.into(),
+                asset: asset_info.to_string()
+            }
+        );
+    }
+
+    Ok(pair_info)
 }

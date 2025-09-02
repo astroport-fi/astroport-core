@@ -251,8 +251,8 @@ impl Helper {
             .query_wasm_smart(
                 &self.maker,
                 &maker::QueryMsg::Route {
-                    denom_in: denom_in.to_string(),
-                    denom_out: denom_out.to_string(),
+                    asset_in: denom_in.to_string(),
+                    asset_out: denom_out.to_string(),
                 },
             )
             .unwrap()

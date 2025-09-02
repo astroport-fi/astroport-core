@@ -35,6 +35,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
+            factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
             astro_denom: msg.astro_denom,
             max_spread: msg.max_spread,
             collect_cooldown: None,

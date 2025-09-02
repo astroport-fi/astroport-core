@@ -4,7 +4,7 @@ use astroport_test::cw_multi_test::Executor;
 use cosmwasm_std::{coin, Addr, Uint128};
 use itertools::Itertools;
 
-use astroport::maker::{AssetWithLimit, PoolRoute, SwapRouteResponse, MAX_SWAPS_DEPTH};
+use astroport::maker::{AssetWithLimit, PoolRoute, MAX_SWAPS_DEPTH};
 use astroport_maker::error::ContractError;
 
 use crate::common::helper::{Helper, ASTRO_DENOM};
@@ -39,7 +39,7 @@ fn check_set_routes() {
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::InvalidPoolDenom {
+        ContractError::InvalidPoolAsset {
             pool_addr: astro_pool_id,
             denom: "ucoin".to_string()
         }
@@ -53,7 +53,7 @@ fn check_set_routes() {
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::InvalidPoolDenom {
+        ContractError::InvalidPoolAsset {
             pool_addr: pool_1,
             denom: "rand".to_string()
         }
@@ -441,7 +441,7 @@ fn test_collect() {
         .query_wasm_smart(
             &helper.maker,
             &astroport::maker::QueryMsg::EstimateExactInSwap {
-                coin_in: coin(1_000000u128, "uusd"),
+                asset_in: coin(1_000000u128, "uusd"),
             },
         )
         .unwrap();

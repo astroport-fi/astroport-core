@@ -1,8 +1,7 @@
 use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
-use astroport::maker::{Config, SeizeConfig};
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::Addr;
+use astroport::maker::{Config, RouteStep, SeizeConfig};
+use cosmwasm_std::Uint128;
 use cw_storage_plus::{Item, Map};
 
 /// Config is the general settings of the contract.
@@ -17,9 +16,5 @@ pub const SEIZE_CONFIG: Item<SeizeConfig> = Item::new("seize_config");
 /// Key: (asset_in) binary representing [`AssetInfo`] converted with [`crate::utils::asset_info_key`],
 /// Value: RouteStep object {asset_out, pool_addr}
 pub const ROUTES: Map<&[u8], RouteStep> = Map::new("routes");
-
-#[cw_serde]
-pub struct RouteStep {
-    pub asset_out: AssetInfo,
-    pub pool_addr: Addr,
-}
+/// Temporary storage for pre reply dev fund asset amount. Used for a fair dev fund cut distribution.
+pub const TMP_REPLY_DATA: Item<Uint128> = Item::new("pre_reply_dev_fund_amount");

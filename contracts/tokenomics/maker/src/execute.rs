@@ -1,23 +1,21 @@
-use astroport::asset::{validate_native_denom, AssetInfo, AssetInfoExt};
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-#[cfg(not(feature = "library"))]
-use cosmwasm_std::entry_point;
-use cosmwasm_std::{
-    attr, coin, ensure, ensure_eq, to_json_string, Decimal, DepsMut, Env, MessageInfo, Response,
-    StdError, StdResult, SubMsg,
-};
-use cw_utils::nonpayable;
-use itertools::Itertools;
-use std::collections::HashSet;
-
-use astroport::maker::{
-    AssetWithLimit, ExecuteMsg, PoolRoute, UpdateDevFundConfig, MAX_ALLOWED_SPREAD,
-};
-
 use crate::error::ContractError;
 use crate::reply::POST_COLLECT_REPLY_ID;
 use crate::state::{RouteStep, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG};
-use crate::utils::{asset_info_key, validate_cooldown, RoutesBuilder};
+use crate::utils::{asset_info_key, build_swap_msg, check_pair, validate_cooldown, RoutesBuilder};
+use astroport::asset::{validate_native_denom, AssetInfo, AssetInfoExt};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::maker::{
+    AssetWithLimit, ExecuteMsg, PoolRoute, UpdateDevFundConfig, MAX_ALLOWED_SPREAD,
+};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{
+    attr, ensure, ensure_eq, to_json_string, wasm_execute, Addr, Decimal, DepsMut, Env,
+    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg,
+};
+use cw_utils::nonpayable;
+use itertools::Itertools;
+use std::collections::{HashMap, HashSet};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
@@ -46,6 +44,11 @@ pub fn execute(
             collect_cooldown,
             dev_fund_config,
         ),
+        ExecuteMsg::AutoSwap {
+            asset_in,
+            asset_out,
+            pool_addr,
+        } => auto_swap(deps, env, info, asset_in, asset_out, pool_addr),
         ExecuteMsg::SetPoolRoutes(routes) => set_pool_routes(deps, info, routes),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config = CONFIG.load(deps.storage)?;
@@ -98,6 +101,11 @@ pub fn execute(
     }
 }
 
+pub struct RawRoute {
+    pub start: AssetInfo,
+    pub route: Vec<RouteStep>,
+}
+
 pub fn collect(
     deps: DepsMut,
     env: Env,
@@ -117,51 +125,115 @@ pub fn collect(
         _ => Ok(env.block.time.seconds()),
     })?;
 
-    let mut messages = vec![];
     let mut attrs = vec![attr("action", "collect")];
 
     let mut routes_builder = RoutesBuilder::default();
+    let mut raw_routes = vec![];
+    let mut collect_assets_map: HashMap<_, _> = Default::default();
     for asset in assets {
-        let balance = asset
-            .info
-            .query_pool(&deps.querier, &env.contract.address)
-            .map(|balance| {
-                asset
-                    .limit
-                    .map(|limit| asset.info.with_balance(limit.min(balance)))
-                    .unwrap_or_else(|| asset.info.with_balance(balance))
-            })?;
+        collect_assets_map.insert(asset.info.clone(), asset.limit);
 
-        // Skip silently if the balance is zero.
-        // This allows our bot to operate normally without manual adjustments.
-        if balance.amount.is_zero() {
-            continue;
-        }
-
-        attrs.push(attr("collected_asset", &balance.to_string()));
-
-        let built_routes =
-            routes_builder.build_routes(deps.storage, &balance.info, &cfg.astro_denom)?;
-
-        attrs.push(attr("route_taken", built_routes.route_taken));
-
-        let swap_msg = MsgSwapExactAmountIn {
-            sender: env.contract.address.to_string(),
-            routes: built_routes.routes,
-            token_in: Some(coin(balance.amount.u128(), balance.denom.clone()).into()),
-            token_out_min_amount: min_out_amount.to_string(),
-        };
-        messages.push(SubMsg::new(swap_msg));
+        raw_routes.push(RawRoute {
+            route: routes_builder.build_routes(deps.storage, &asset.info, &cfg.astro_denom)?,
+            start: asset.info,
+        });
     }
+
+    // Optimize full routes
+    let mut nodes_map: HashMap<AssetInfo, HashMap<AssetInfo, u8>> = Default::default();
+    for route in raw_routes {
+        let mut current_asset = route.start.clone();
+        for step in route.route {
+            let entry = nodes_map
+                .entry(current_asset.clone())
+                .or_default()
+                .entry(step.asset_out.clone())
+                .or_insert(0);
+            *entry += 1;
+
+            current_asset = step.asset_out;
+        }
+    }
+
+    let mut messages = nodes_map
+        .into_iter()
+        .flat_map(|(from, to_map)| {
+            to_map
+                .into_iter()
+                .map(move |(to, count)| (from.clone(), to, count))
+        })
+        .sorted_by(|(_, _, c1), (_, _, c2)| c1.cmp(c2))
+        .map(|(from, to, count)| {
+            let step = routes_builder.routes_cache.get(&from).unwrap();
+            if count == 1 {
+                // Leaves can start swapping right away
+                let maybe_limit = collect_assets_map.get(&from).cloned().unwrap();
+                let balance =
+                    from.query_pool(&deps.querier, &env.contract.address)
+                        .map(|balance| {
+                            maybe_limit
+                                .map(|limit| from.with_balance(limit.min(balance)))
+                                .unwrap_or_else(|| from.with_balance(balance))
+                        })?;
+
+                attrs.push(attr("collected_asset", &balance.to_string()));
+
+                build_swap_msg(&balance, &step.asset_out, cfg.max_spread, &step.pool_addr)
+            } else {
+                // Edges must be processed during consecutive self-calls
+                wasm_execute(
+                    &env.contract.address,
+                    &ExecuteMsg::AutoSwap {
+                        asset_in: from,
+                        asset_out: to,
+                        pool_addr: step.pool_addr.clone(),
+                    },
+                    vec![],
+                )
+            }
+            .map(SubMsg::new)
+        })
+        .collect::<StdResult<Vec<SubMsg>>>()?;
 
     messages
         .last_mut()
-        .map(|msg| SubMsg::reply_on_success(msg, POST_COLLECT_REPLY_ID))
+        .map(|msg| {
+            msg.reply_on = ReplyOn::Success;
+            msg.id = POST_COLLECT_REPLY_ID;
+        })
         .ok_or(ContractError::NothingToCollect {})?;
 
     Ok(Response::new()
         .add_submessages(messages)
         .add_attributes(attrs))
+}
+
+pub fn auto_swap(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    asset_in: AssetInfo,
+    asset_out: AssetInfo,
+    pool_addr: Addr,
+) -> Result<Response, ContractError> {
+    ensure_eq!(
+        info.sender,
+        env.contract.address,
+        ContractError::Unauthorized {}
+    );
+
+    let config = CONFIG.load(deps.storage)?;
+
+    let balance = asset_in.query_pool(&deps.querier, &env.contract.address)?;
+
+    let swap_msg = build_swap_msg(
+        &asset_in.with_balance(balance),
+        &asset_out,
+        config.max_spread,
+        &pool_addr,
+    )?;
+
+    Ok(Response::new().add_message(swap_msg))
 }
 
 pub fn update_config(
@@ -217,12 +289,16 @@ pub fn update_config(
                 StdError::generic_err("Dev fund share must be > 0 and <= 1")
             );
             // Ensure we can swap ASTRO into dev fund asset
-            get_pool(
-                &deps.querier,
+            check_pair(
+                deps.querier,
                 &config.factory_contract,
-                &config.astro_token,
-                &dev_fund_conf.asset_info,
+                &dev_fund_conf.pool_addr,
+                &[
+                    dev_fund_conf.asset_info.clone(),
+                    AssetInfo::native(&config.astro_denom),
+                ],
             )?;
+
             attrs.push(attr(
                 "new_dev_fund_settings",
                 to_json_string(dev_fund_conf)?,
@@ -261,38 +337,21 @@ pub fn set_pool_routes(
             }
         );
 
-        // Sanity checks via osmosis pool manager
-        let pm_quierier = PoolmanagerQuerier::new(&deps.querier);
-        let pool_denoms = pm_quierier
-            .total_pool_liquidity(route.pool_id)?
-            .liquidity
-            .into_iter()
-            .map(|coin| coin.denom)
-            .collect_vec();
-
-        ensure!(
-            pool_denoms.contains(&route.denom_in),
-            ContractError::InvalidPoolDenom {
-                pool_addr: route.pool_addr.clone(),
-                asset: route.asset_in.to_string()
-            }
-        );
-        ensure!(
-            pool_denoms.contains(&route.denom_out),
-            ContractError::InvalidPoolDenom {
-                pool_addr: route.pool_addr.clone(),
-                asset: route.asset_in.to_string()
-            }
-        );
+        let pair_info = check_pair(
+            deps.querier,
+            &config.factory_contract,
+            &route.pool_addr,
+            &[route.asset_in.clone(), route.asset_out.clone()],
+        )?;
 
         let route_key = asset_info_key(&route.asset_in);
         if ROUTES.has(deps.storage, &route_key) {
-            attrs.push(attr("updated_route", &route.asset_in));
+            attrs.push(attr("updated_route", route.asset_in.to_string()));
         }
 
         let route_step = RouteStep {
             asset_out: route.asset_out.clone(),
-            pool_addr: route.pool_addr.clone(),
+            pool_addr: pair_info.contract_addr.clone(),
         };
 
         // If route exists then this iteration updates the route.
@@ -394,14 +453,15 @@ mod unit_tests {
             max_spread: Default::default(),
             collect_cooldown: Some(60),
             dev_fund_conf: None,
+            factory_contract: Addr::unchecked("factory"),
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
         LAST_COLLECT_TS
             .save(deps.as_mut().storage, &env.block.time.seconds())
             .unwrap();
-        let assets = vec![CoinWithLimit {
-            denom: "uusd".to_string(),
-            amount: None,
+        let assets = vec![AssetWithLimit {
+            info: AssetInfo::native("uusd"),
+            limit: None,
         }];
         let err = collect(deps.as_mut(), env.clone(), assets.clone()).unwrap_err();
         assert_eq!(
@@ -429,6 +489,7 @@ mod unit_tests {
             max_spread: Default::default(),
             collect_cooldown: Some(60),
             dev_fund_conf: None,
+            factory_contract: Addr::unchecked("factory"),
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
@@ -523,13 +584,14 @@ mod unit_tests {
             max_spread: Default::default(),
             collect_cooldown: Some(60),
             dev_fund_conf: None,
+            factory_contract: Addr::unchecked("factory"),
         };
         CONFIG.save(deps.as_mut().storage, &config).unwrap();
 
         let routes = vec![PoolRoute {
-            denom_in: "uatom".to_string(),
-            denom_out: "utest".to_string(),
-            pool_id: 1,
+            asset_in: AssetInfo::native("uatom"),
+            asset_out: AssetInfo::native("utest"),
+            pool_addr: "kek".to_string(),
         }];
         let err =
             set_pool_routes(deps.as_mut(), mock_info("random", &[]), routes.clone()).unwrap_err();
@@ -537,16 +599,18 @@ mod unit_tests {
 
         let routes = vec![
             PoolRoute {
-                denom_in: "uatom".to_string(),
-                denom_out: "utest".to_string(),
-                pool_id: 1,
+                // This will be the duplicated route
+                asset_in: AssetInfo::native("uatom"),
+                asset_out: AssetInfo::native("utest"),
+                pool_addr: "pool1".to_string(),
             },
             PoolRoute {
-                denom_in: "uatom".to_string(),
-                denom_out: "ucoin".to_string(),
-                pool_id: 2,
+                asset_in: AssetInfo::native("uatom"), // Duplicated asset_in
+                asset_out: AssetInfo::native("ucoin"),
+                pool_addr: "pool2".to_string(),
             },
         ];
+        // The error should be DuplicatedRoutes because asset_in "uatom" is repeated.
         let err = set_pool_routes(
             deps.as_mut(),
             mock_info(config.owner.as_str(), &[]),
@@ -556,9 +620,9 @@ mod unit_tests {
         assert_eq!(err, ContractError::DuplicatedRoutes {});
 
         let wrong_route = PoolRoute {
-            denom_in: "astro".to_string(),
-            denom_out: "utest".to_string(),
-            pool_id: 1,
+            asset_in: AssetInfo::native("astro"), // This is the asset_in that should cause AstroInRoute error
+            asset_out: AssetInfo::native("utest"),
+            pool_addr: "pool_astro".to_string(),
         };
         let routes = vec![wrong_route.clone()];
         let err = set_pool_routes(
