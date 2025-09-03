@@ -143,9 +143,9 @@ pub fn build_swap_msg(
     }
 }
 
-/// Validates that pair was registered using official Astroport factory.
+/// Validates that pair was registered using the official Astroport factory.
 /// Ensures expected asset infos are in the pair.
-/// Returns PairInfo in case it needs further analysis.
+/// Returns PairInfo in case it needs to process further.
 pub fn check_pair(
     querier: QuerierWrapper,
     factory: impl Into<String>,
@@ -164,7 +164,7 @@ pub fn check_pair(
         ensure!(
             pair_info.asset_infos.contains(asset_info),
             ContractError::InvalidPoolAsset {
-                pool_addr: pool_addr.into(),
+                pool_addr,
                 asset: asset_info.to_string()
             }
         );

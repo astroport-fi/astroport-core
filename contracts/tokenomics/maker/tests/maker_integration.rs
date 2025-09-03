@@ -460,7 +460,7 @@ fn test_collect() {
             },
         )
         .unwrap();
-    assert_eq!(estimated_astro_out.u128(), 996006);
+    assert_eq!(estimated_astro_out.u128(), 996690);
 }
 
 #[test]

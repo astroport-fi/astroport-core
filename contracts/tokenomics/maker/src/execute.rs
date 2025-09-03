@@ -15,6 +15,7 @@ use cosmwasm_std::{
 };
 use cw_utils::nonpayable;
 use itertools::Itertools;
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -162,53 +163,72 @@ pub fn collect(
                 .into_iter()
                 .map(move |(to, count)| (from.clone(), to, count))
         })
-        .sorted_by(|(_, _, c1), (_, _, c2)| c1.cmp(c2))
+        .sorted_by(|(from1, _, c1), (from2, _, c2)| {
+            // Custom ordering applied to differentiate leaves,
+            // and intermediate steps passed 1 time.
+            let cmp = c1.cmp(c2);
+            match cmp {
+                Ordering::Equal if *c1 == 1 => {
+                    let is_from1_leaf = collect_assets_map.contains_key(from1);
+                    let is_from2_leaf = collect_assets_map.contains_key(from2);
+                    if is_from1_leaf && !is_from2_leaf {
+                        Ordering::Less
+                    } else if !is_from1_leaf && is_from2_leaf {
+                        Ordering::Greater
+                    } else {
+                        Ordering::Equal
+                    }
+                }
+                _ => cmp,
+            }
+        })
         .filter_map(|(from, to, count)| {
             let step = routes_builder.routes_cache.get(&from).unwrap();
-            if count == 1 {
-                // Leaves can start swapping right away
-                let maybe_limit = collect_assets_map.get(&from).cloned().unwrap();
+            match (count, collect_assets_map.get(&from)) {
+                (1, Some(maybe_limit)) => {
+                    // Leaves can start swapping right away
+                    match from.query_pool(&deps.querier, &env.contract.address) {
+                        Ok(balance) => {
+                            let balance = maybe_limit
+                                .map(|limit| from.with_balance(limit.min(balance)))
+                                .unwrap_or_else(|| from.with_balance(balance));
 
-                match from.query_pool(&deps.querier, &env.contract.address) {
-                    Ok(balance) => {
-                        let balance = maybe_limit
-                            .map(|limit| from.with_balance(limit.min(balance)))
-                            .unwrap_or_else(|| from.with_balance(balance));
+                            // Skip silently if the balance is zero.
+                            // This allows our bot to operate normally without manual adjustments.
+                            if balance.amount.is_zero() {
+                                return None;
+                            }
 
-                        // Skip silently if the balance is zero.
-                        // This allows our bot to operate normally without manual adjustments.
-                        if balance.amount.is_zero() {
-                            return None;
-                        }
+                            attrs.push(attr("collected_asset", balance.to_string()));
 
-                        attrs.push(attr("collected_asset", balance.to_string()));
-
-                        Some(
-                            build_swap_msg(
-                                &balance,
-                                &step.asset_out,
-                                cfg.max_spread,
-                                &step.pool_addr,
+                            Some(
+                                build_swap_msg(
+                                    &balance,
+                                    &step.asset_out,
+                                    cfg.max_spread,
+                                    &step.pool_addr,
+                                )
+                                .map(SubMsg::new),
                             )
-                            .map(SubMsg::new),
-                        )
+                        }
+                        Err(e) => Some(Err(e)), // Preserve the error
                     }
-                    Err(e) => Some(Err(e)), // Preserve the error
                 }
-            } else {
-                // Edges must be processed during consecutive self-calls
-                Some(
-                    wasm_execute(
-                        &env.contract.address,
-                        &ExecuteMsg::AutoSwap {
-                            asset_in: from,
-                            asset_out: to,
-                            pool_addr: step.pool_addr.clone(),
-                        },
-                        vec![],
+                _ => {
+                    // Edges must be processed during consecutive self-calls
+                    Some(
+                        wasm_execute(
+                            &env.contract.address,
+                            &ExecuteMsg::AutoSwap {
+                                asset_in: from,
+                                asset_out: to,
+                                pool_addr: step.pool_addr.clone(),
+                            },
+                            vec![],
+                        )
+                        .map(SubMsg::new),
                     )
-                    .map(SubMsg::new),
-                )
+                }
             }
         })
         .collect::<StdResult<Vec<_>>>()?;
