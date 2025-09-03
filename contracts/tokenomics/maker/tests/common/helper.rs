@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::error::Error;
-use std::fmt::Display;
 use std::str::FromStr;
 
 use anyhow::Result as AnyResult;
@@ -13,13 +12,12 @@ use astroport_test::cw_multi_test::{
     no_init, AppResponse, BankSudo, BasicAppBuilder, Contract, ContractWrapper, Executor,
 };
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response,
-    StdResult,
+    Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
 use derivative::Derivative;
 use itertools::Itertools;
 
-use astroport::maker::{AssetWithLimit, PoolRoute, SwapRouteResponse};
+use astroport::maker::{AssetWithLimit, PoolRoute, RouteStep};
 use astroport_test::modules::stargate::{MockStargate, StargateApp};
 
 fn pair_contract() -> Box<dyn Contract<Empty>> {
@@ -99,7 +97,6 @@ pub struct Helper {
     #[derivative(Debug = "ignore")]
     pub app: StargateApp,
     pub owner: Addr,
-    pub coin_registry: Addr,
     pub factory: Addr,
     pub maker: Addr,
     pub satellite: Addr,
@@ -115,33 +112,8 @@ impl Helper {
         let factory_code_id = app.store_code(factory_contract());
         let satellite_code_id = app.store_code(mock_satellite_contract());
 
-        let satellite = app.instantiate_contract(
-            satellite_code_id,
-            owner.clone(),
-            &Empty {},
-            &[],
-            "Satellite",
-            None,
-        )?;
-
-        let maker_code_id = app.store_code(maker_contract());
-        let maker = app.instantiate_contract(
-            maker_code_id,
-            owner.clone(),
-            &maker::InstantiateMsg {
-                owner: owner.to_string(),
-                astro_denom: ASTRO_DENOM.to_string(),
-                collector: satellite.to_string(),
-                max_spread: Decimal::percent(10),
-                collect_cooldown: None,
-            },
-            &[],
-            "Maker",
-            None,
-        )?;
-
         let init_msg = factory::InstantiateMsg {
-            fee_address: Some(maker.to_string()),
+            fee_address: None,
             pair_configs: vec![PairConfig {
                 code_id: pair_code_id,
                 maker_fee_bps: 3333,
@@ -167,10 +139,47 @@ impl Helper {
             None,
         )?;
 
+        let satellite = app.instantiate_contract(
+            satellite_code_id,
+            owner.clone(),
+            &Empty {},
+            &[],
+            "Satellite",
+            None,
+        )?;
+
+        let maker_code_id = app.store_code(maker_contract());
+        let maker = app.instantiate_contract(
+            maker_code_id,
+            owner.clone(),
+            &maker::InstantiateMsg {
+                owner: owner.to_string(),
+                factory_contract: "factory".to_string(),
+                astro_denom: ASTRO_DENOM.to_string(),
+                collector: satellite.to_string(),
+                max_spread: Decimal::percent(10),
+                collect_cooldown: None,
+            },
+            &[],
+            "Maker",
+            None,
+        )?;
+
+        app.execute_contract(
+            owner.clone(),
+            factory.clone(),
+            &factory::ExecuteMsg::UpdateConfig {
+                token_code_id: None,
+                fee_address: Some(maker.to_string()),
+                generator_address: None,
+                coin_registry_address: None,
+            },
+            &[],
+        )?;
+
         Ok(Self {
             app,
             owner: owner.clone(),
-            coin_registry,
             factory,
             maker,
             satellite,
@@ -178,27 +187,11 @@ impl Helper {
     }
 
     pub fn create_and_seed_pair(&mut self, initial_liquidity: [Coin; 2]) -> AnyResult<PairInfo> {
-        let native_coins = initial_liquidity
+        let asset_infos = initial_liquidity
             .iter()
-            .cloned()
-            .map(|x| (x.denom.clone(), 6))
-            .collect::<Vec<_>>();
-        let asset_infos = native_coins
-            .iter()
-            .map(|(denom, _)| AssetInfo::native(denom))
+            .map(|coin| AssetInfo::native(&coin.denom))
             .collect_vec();
 
-        self.app
-            .execute_contract(
-                self.owner.clone(),
-                self.coin_registry.clone(),
-                &astroport::native_coin_registry::ExecuteMsg::Add { native_coins },
-                &[],
-            )
-            .unwrap();
-
-        let price_scale =
-            Decimal::from_ratio(initial_liquidity[0].amount, initial_liquidity[1].amount);
         let owner = self.owner.clone();
 
         let pair_info = self
@@ -209,7 +202,7 @@ impl Helper {
                 &factory::ExecuteMsg::CreatePair {
                     pair_type: PairType::Xyk {},
                     asset_infos: asset_infos.clone(),
-                    init_params: Some(to_json_binary(&common_pcl_params(price_scale)).unwrap()),
+                    init_params: None,
                 },
                 &[],
             )
@@ -245,14 +238,13 @@ impl Helper {
         )
     }
 
-    pub fn query_route(&self, denom_in: &str, denom_out: &str) -> Vec<SwapRouteResponse> {
+    pub fn query_route(&self, denom_in: &str) -> Vec<RouteStep> {
         self.app
             .wrap()
             .query_wasm_smart(
                 &self.maker,
                 &maker::QueryMsg::Route {
                     asset_in: denom_in.to_string(),
-                    asset_out: denom_out.to_string(),
                 },
             )
             .unwrap()

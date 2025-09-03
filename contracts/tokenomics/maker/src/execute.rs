@@ -1,11 +1,11 @@
 use crate::error::ContractError;
 use crate::reply::POST_COLLECT_REPLY_ID;
-use crate::state::{RouteStep, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG};
+use crate::state::{CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG};
 use crate::utils::{asset_info_key, build_swap_msg, check_pair, validate_cooldown, RoutesBuilder};
 use astroport::asset::{validate_native_denom, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::maker::{
-    AssetWithLimit, ExecuteMsg, PoolRoute, UpdateDevFundConfig, MAX_ALLOWED_SPREAD,
+    AssetWithLimit, ExecuteMsg, PoolRoute, RouteStep, UpdateDevFundConfig, MAX_ALLOWED_SPREAD,
 };
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;

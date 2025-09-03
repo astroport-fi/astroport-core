@@ -65,14 +65,6 @@ pub struct InstantiateMsg {
 }
 
 #[cw_serde]
-#[derive(Eq, Hash)]
-pub struct PoolRoute {
-    pub asset_in: AssetInfo,
-    pub asset_out: AssetInfo,
-    pub pool_addr: String,
-}
-
-#[cw_serde]
 pub struct UpdateDevFundConfig {
     /// If 'set' is None then dev fund config will be removed,
     /// otherwise it will be updated with the new parameters
@@ -150,12 +142,14 @@ pub enum QueryMsg {
     /// Returns the seize config
     #[returns(SeizeConfig)]
     QuerySeizeConfig {},
-    /// Get a route for swapping an input asset into an output denom.
+    /// Get a route for swapping an input asset into astro.
     /// Asset type (either native or cw20)
     /// will be determined automatically using [`asset::determine_asset_info`]
-    #[returns(Vec<SwapRouteResponse>)]
-    Route { asset_in: String, asset_out: String },
-    /// List all maker routes
+    #[returns(Vec<RouteStep>)]
+    Route { asset_in: String },
+    /// List all maker routes.
+    /// Asset type (either native or cw20)
+    /// will be determined automatically using [`asset::determine_asset_info`]
     #[returns(Vec<PoolRoute>)]
     Routes {
         start_after: Option<String>,
@@ -163,7 +157,7 @@ pub enum QueryMsg {
     },
     /// Return current spot price swapping In for Out
     #[returns(Uint128)]
-    EstimateExactInSwap { asset_in: Asset },
+    EstimateSwap { asset_in: Asset },
 }
 
 /// This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.
@@ -187,4 +181,12 @@ pub struct SeizeConfig {
 pub struct RouteStep {
     pub asset_out: AssetInfo,
     pub pool_addr: Addr,
+}
+
+#[cw_serde]
+#[derive(Eq, Hash)]
+pub struct PoolRoute {
+    pub asset_in: AssetInfo,
+    pub asset_out: AssetInfo,
+    pub pool_addr: String,
 }

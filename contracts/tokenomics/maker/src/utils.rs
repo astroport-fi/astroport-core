@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use crate::error::ContractError;
-use crate::state::{RouteStep, ROUTES};
+use crate::state::ROUTES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::common::LP_SUBDENOM;
 use astroport::factory::QueryMsg;
-use astroport::maker::{COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
+use astroport::maker::{RouteStep, COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
 use astroport::pair;
 use astroport::pair::Cw20HookMsg;
 use cosmwasm_std::{

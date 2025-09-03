@@ -75,7 +75,7 @@ fn check_set_routes() {
         ])
         .unwrap();
 
-    let route = helper.query_route("ucoin", ASTRO_DENOM);
+    let route = helper.query_route("ucoin");
     assert_eq!(
         route,
         vec![
@@ -108,7 +108,7 @@ fn check_set_routes() {
         }])
         .unwrap();
 
-    let route = helper.query_route("utest", ASTRO_DENOM);
+    let route = helper.query_route("utest");
     assert_eq!(
         route,
         vec![
@@ -142,7 +142,7 @@ fn check_set_routes() {
         }])
         .unwrap();
 
-    let route = helper.query_route("utest", ASTRO_DENOM);
+    let route = helper.query_route("utest");
     assert_eq!(
         route,
         vec![
@@ -440,7 +440,7 @@ fn test_collect() {
         .wrap()
         .query_wasm_smart(
             &helper.maker,
-            &astroport::maker::QueryMsg::EstimateExactInSwap {
+            &astroport::maker::QueryMsg::EstimateSwap {
                 asset_in: coin(1_000000u128, "uusd"),
             },
         )

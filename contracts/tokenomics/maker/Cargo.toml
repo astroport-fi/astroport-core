@@ -27,6 +27,7 @@ thiserror.workspace = true
 cosmwasm-schema.workspace = true
 astro-satellite-package = "1"
 cw-utils = "1"
+itertools.workspace = true
 
 [dev-dependencies]
 cw20-base = "1"
