@@ -9,8 +9,11 @@ use astroport::factory::{PairConfig, PairType};
 use astroport::pair_concentrated::ConcentratedPoolParams;
 use astroport::{factory, maker, pair};
 use astroport_test::cw_multi_test::{
-    no_init, AppResponse, BankSudo, BasicAppBuilder, Contract, ContractWrapper, Executor,
+    no_init, App, AppResponse, BankKeeper, BankSudo, BasicAppBuilder, Contract, ContractWrapper,
+    DistributionKeeper, Executor, FailingModule, GovFailingModule, IbcFailingModule,
+    MockAddressGenerator, MockApiBech32, StakeKeeper, WasmKeeper,
 };
+use cosmwasm_std::testing::MockStorage;
 use cosmwasm_std::{
     Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
@@ -18,7 +21,7 @@ use derivative::Derivative;
 use itertools::Itertools;
 
 use astroport::maker::{AssetWithLimit, PoolRoute, RouteStep};
-use astroport_test::modules::stargate::{MockStargate, StargateApp};
+use astroport_test::modules::stargate::MockStargate;
 
 fn pair_contract() -> Box<dyn Contract<Empty>> {
     Box::new(
@@ -91,11 +94,24 @@ fn common_pcl_params(price_scale: Decimal) -> ConcentratedPoolParams {
 
 pub const ASTRO_DENOM: &str = "astro";
 
+pub type CustomApp<ExecC = Empty, QueryC = Empty> = App<
+    BankKeeper,
+    MockApiBech32,
+    MockStorage,
+    FailingModule<ExecC, QueryC, Empty>,
+    WasmKeeper<ExecC, QueryC>,
+    StakeKeeper,
+    DistributionKeeper,
+    IbcFailingModule,
+    GovFailingModule,
+    MockStargate,
+>;
+
 #[derive(Derivative)]
 #[derivative(Debug)]
 pub struct Helper {
     #[derivative(Debug = "ignore")]
-    pub app: StargateApp,
+    pub app: CustomApp,
     pub owner: Addr,
     pub factory: Addr,
     pub maker: Addr,
@@ -103,10 +119,14 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn new(owner: &Addr) -> AnyResult<Self> {
+    pub fn new() -> AnyResult<Self> {
         let mut app = BasicAppBuilder::new()
+            .with_api(MockApiBech32::new("wasm"))
             .with_stargate(MockStargate::default())
+            .with_wasm(WasmKeeper::new().with_address_generator(MockAddressGenerator))
             .build(no_init);
+
+        let owner = app.api().addr_make("owner");
 
         let pair_code_id = app.store_code(pair_contract());
         let factory_code_id = app.store_code(factory_contract());
@@ -127,43 +147,49 @@ impl Helper {
             token_code_id: 0,
             generator_address: None,
             owner: owner.to_string(),
-            coin_registry_address: "registry".to_string(),
+            coin_registry_address: app.api().addr_make("registry").to_string(),
         };
 
-        let factory = app.instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "Factory",
-            None,
-        )?;
+        let factory = app
+            .instantiate_contract(
+                factory_code_id,
+                owner.clone(),
+                &init_msg,
+                &[],
+                "Factory",
+                None,
+            )
+            .unwrap();
 
-        let satellite = app.instantiate_contract(
-            satellite_code_id,
-            owner.clone(),
-            &Empty {},
-            &[],
-            "Satellite",
-            None,
-        )?;
+        let satellite = app
+            .instantiate_contract(
+                satellite_code_id,
+                owner.clone(),
+                &Empty {},
+                &[],
+                "Satellite",
+                None,
+            )
+            .unwrap();
 
         let maker_code_id = app.store_code(maker_contract());
-        let maker = app.instantiate_contract(
-            maker_code_id,
-            owner.clone(),
-            &maker::InstantiateMsg {
-                owner: owner.to_string(),
-                factory_contract: "factory".to_string(),
-                astro_denom: ASTRO_DENOM.to_string(),
-                collector: satellite.to_string(),
-                max_spread: Decimal::percent(10),
-                collect_cooldown: None,
-            },
-            &[],
-            "Maker",
-            None,
-        )?;
+        let maker = app
+            .instantiate_contract(
+                maker_code_id,
+                owner.clone(),
+                &maker::InstantiateMsg {
+                    owner: owner.to_string(),
+                    factory_contract: factory.to_string(),
+                    astro_denom: ASTRO_DENOM.to_string(),
+                    collector: satellite.to_string(),
+                    max_spread: Decimal::percent(10),
+                    collect_cooldown: None,
+                },
+                &[],
+                "Maker",
+                None,
+            )
+            .unwrap();
 
         app.execute_contract(
             owner.clone(),
@@ -175,11 +201,12 @@ impl Helper {
                 coin_registry_address: None,
             },
             &[],
-        )?;
+        )
+        .unwrap();
 
         Ok(Self {
             app,
-            owner: owner.clone(),
+            owner,
             factory,
             maker,
             satellite,
@@ -238,16 +265,13 @@ impl Helper {
         )
     }
 
-    pub fn query_route(&self, denom_in: &str) -> Vec<RouteStep> {
-        self.app
-            .wrap()
-            .query_wasm_smart(
-                &self.maker,
-                &maker::QueryMsg::Route {
-                    asset_in: denom_in.to_string(),
-                },
-            )
-            .unwrap()
+    pub fn query_route(&self, denom_in: &str) -> StdResult<Vec<RouteStep>> {
+        self.app.wrap().query_wasm_smart(
+            &self.maker,
+            &maker::QueryMsg::Route {
+                asset_in: denom_in.to_string(),
+            },
+        )
     }
 
     pub fn query_pair_info(&self, asset_infos: &[AssetInfo]) -> PairInfo {

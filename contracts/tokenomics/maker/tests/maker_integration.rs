@@ -15,8 +15,7 @@ mod common;
 
 #[test]
 fn check_set_routes() {
-    let owner = Addr::unchecked("owner");
-    let mut helper = Helper::new(&owner).unwrap();
+    let mut helper = Helper::new().unwrap();
 
     let astro_pair = helper
         .create_and_seed_pair([
@@ -32,7 +31,7 @@ fn check_set_routes() {
         ])
         .unwrap();
 
-    // Set wrong pool id
+    // Set wrong pool addr
     let err = helper
         .set_pool_routes(vec![PoolRoute {
             asset_in: AssetInfo::native("ucoin"),
@@ -78,7 +77,7 @@ fn check_set_routes() {
         ])
         .unwrap();
 
-    let route = helper.query_route("ucoin");
+    let route = helper.query_route("ucoin").unwrap();
     assert_eq!(
         route,
         vec![
@@ -111,7 +110,7 @@ fn check_set_routes() {
         }])
         .unwrap();
 
-    let route = helper.query_route("utest");
+    let route = helper.query_route("utest").unwrap();
     assert_eq!(
         route,
         vec![
@@ -145,7 +144,7 @@ fn check_set_routes() {
         }])
         .unwrap();
 
-    let route = helper.query_route("utest");
+    let route = helper.query_route("utest").unwrap();
     assert_eq!(
         route,
         vec![
@@ -236,8 +235,7 @@ fn check_set_routes() {
 
 #[test]
 fn test_collect() {
-    let owner = Addr::unchecked("owner");
-    let mut helper = Helper::new(&owner).unwrap();
+    let mut helper = Helper::new().unwrap();
 
     let astro_pair = helper
         .create_and_seed_pair([
@@ -280,7 +278,7 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.satellite, ASTRO_DENOM)
         .unwrap();
-    assert_eq!(astro_bal.amount.u128(), 996006);
+    assert_eq!(astro_bal.amount.u128(), 997799);
 
     let pool_1 = helper
         .create_and_seed_pair([
@@ -380,7 +378,7 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.satellite, ASTRO_DENOM)
         .unwrap();
-    assert_eq!(astro_bal.amount.u128(), 3966128);
+    assert_eq!(astro_bal.amount.u128(), 3982402);
 
     // Check collect with limit
     helper.give_me_money(
@@ -467,14 +465,13 @@ fn test_collect() {
 
 #[test]
 fn update_owner() {
-    let owner = Addr::unchecked("owner");
-    let mut helper = Helper::new(&owner).unwrap();
+    let mut helper = Helper::new().unwrap();
 
-    let new_owner = String::from("new_owner");
+    let new_owner = helper.app.api().addr_make("new_owner");
 
     // New owner
     let msg = ExecuteMsg::ProposeNewOwner {
-        owner: new_owner.clone(),
+        owner: new_owner.to_string(),
         expires_in: 100, // seconds
     };
 
@@ -508,19 +505,14 @@ fn update_owner() {
     // Propose new owner
     helper
         .app
-        .execute_contract(
-            Addr::unchecked(&helper.owner),
-            helper.maker.clone(),
-            &msg,
-            &[],
-        )
+        .execute_contract(helper.owner.clone(), helper.maker.clone(), &msg, &[])
         .unwrap();
 
     // Claim from invalid addr
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("invalid_addr"),
+            helper.app.api().addr_make("invalid_addr"),
             helper.maker.clone(),
             &ExecuteMsg::ClaimOwnership {},
             &[],
@@ -532,7 +524,7 @@ fn update_owner() {
     let err = helper
         .app
         .execute_contract(
-            Addr::unchecked("invalid_addr"),
+            helper.app.api().addr_make("invalid_addr"),
             helper.maker.clone(),
             &ExecuteMsg::DropOwnershipProposal {},
             &[],
@@ -553,12 +545,7 @@ fn update_owner() {
     // Propose new owner
     helper
         .app
-        .execute_contract(
-            Addr::unchecked(&helper.owner),
-            helper.maker.clone(),
-            &msg,
-            &[],
-        )
+        .execute_contract(helper.owner.clone(), helper.maker.clone(), &msg, &[])
         .unwrap();
 
     // Claim ownership
