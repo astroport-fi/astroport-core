@@ -6,7 +6,7 @@ use astroport::maker::{PoolRoute, QueryMsg, RouteStep, DEFAULT_PAGINATION_LIMIT}
 use astroport::pair;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{to_json_binary, Binary, Deps, Env, Order, StdResult, Uint128};
 use cw_storage_plus::Bound;
 
 #[cfg_attr(not(feature = "library"), entry_point)]

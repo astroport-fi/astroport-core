@@ -1,7 +1,6 @@
-use crate::asset;
 use crate::asset::{Asset, AssetInfo};
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Coin, Decimal, Uint128};
+use cosmwasm_std::{Addr, Decimal, Uint128};
 use std::ops::RangeInclusive;
 
 /// Validation limit for max spread. From 0 to 50%.

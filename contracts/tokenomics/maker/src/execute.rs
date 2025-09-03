@@ -163,37 +163,55 @@ pub fn collect(
                 .map(move |(to, count)| (from.clone(), to, count))
         })
         .sorted_by(|(_, _, c1), (_, _, c2)| c1.cmp(c2))
-        .map(|(from, to, count)| {
+        .filter_map(|(from, to, count)| {
             let step = routes_builder.routes_cache.get(&from).unwrap();
             if count == 1 {
                 // Leaves can start swapping right away
                 let maybe_limit = collect_assets_map.get(&from).cloned().unwrap();
-                let balance =
-                    from.query_pool(&deps.querier, &env.contract.address)
-                        .map(|balance| {
-                            maybe_limit
-                                .map(|limit| from.with_balance(limit.min(balance)))
-                                .unwrap_or_else(|| from.with_balance(balance))
-                        })?;
 
-                attrs.push(attr("collected_asset", &balance.to_string()));
+                match from.query_pool(&deps.querier, &env.contract.address) {
+                    Ok(balance) => {
+                        let balance = maybe_limit
+                            .map(|limit| from.with_balance(limit.min(balance)))
+                            .unwrap_or_else(|| from.with_balance(balance));
 
-                build_swap_msg(&balance, &step.asset_out, cfg.max_spread, &step.pool_addr)
+                        // Skip silently if the balance is zero.
+                        // This allows our bot to operate normally without manual adjustments.
+                        if balance.amount.is_zero() {
+                            return None;
+                        }
+
+                        attrs.push(attr("collected_asset", balance.to_string()));
+
+                        Some(
+                            build_swap_msg(
+                                &balance,
+                                &step.asset_out,
+                                cfg.max_spread,
+                                &step.pool_addr,
+                            )
+                            .map(SubMsg::new),
+                        )
+                    }
+                    Err(e) => Some(Err(e)), // Preserve the error
+                }
             } else {
                 // Edges must be processed during consecutive self-calls
-                wasm_execute(
-                    &env.contract.address,
-                    &ExecuteMsg::AutoSwap {
-                        asset_in: from,
-                        asset_out: to,
-                        pool_addr: step.pool_addr.clone(),
-                    },
-                    vec![],
+                Some(
+                    wasm_execute(
+                        &env.contract.address,
+                        &ExecuteMsg::AutoSwap {
+                            asset_in: from,
+                            asset_out: to,
+                            pool_addr: step.pool_addr.clone(),
+                        },
+                        vec![],
+                    )
+                    .map(SubMsg::new),
                 )
             }
-            .map(SubMsg::new)
         })
-        .collect::<StdResult<Vec<SubMsg>>>()?;
+        .collect::<StdResult<Vec<_>>>()?;
 
     messages
         .last_mut()
@@ -475,6 +493,31 @@ mod unit_tests {
             .block
             .time
             .plus_seconds(config.collect_cooldown.unwrap());
+        let err = collect(deps.as_mut(), env.clone(), assets.clone()).unwrap_err();
+        assert_eq!(
+            err,
+            ContractError::RouteNotFound {
+                asset: "uusd".to_string()
+            }
+        );
+
+        // Increasing block time even tho in real env prev tx reverts the state,
+        // in unit tests it doesn't
+        env.block.time = env
+            .block
+            .time
+            .plus_seconds(config.collect_cooldown.unwrap());
+        // Add route uusd -> astro
+        let route_key = asset_info_key(&AssetInfo::native("uusd"));
+        let route_step = RouteStep {
+            asset_out: AssetInfo::native(&config.astro_denom),
+            pool_addr: Addr::unchecked("pair"),
+        };
+        // If route exists then this iteration updates the route.
+        ROUTES
+            .save(deps.as_mut().storage, &route_key, &route_step)
+            .unwrap();
+
         let err = collect(deps.as_mut(), env.clone(), assets).unwrap_err();
         assert_eq!(err, ContractError::NothingToCollect {});
     }

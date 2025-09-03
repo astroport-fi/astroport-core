@@ -1,4 +1,3 @@
-use astroport::asset::AssetInfo;
 use astroport::common::OwnershipProposal;
 use astroport::maker::{Config, RouteStep, SeizeConfig};
 use cosmwasm_std::Uint128;

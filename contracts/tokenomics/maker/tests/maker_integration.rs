@@ -1,15 +1,18 @@
-use astroport::asset::Asset;
-use astroport::pair::ExecuteMsg;
+#![cfg(not(tarpaulin_include))]
+
+use astroport::asset::{AssetInfo, AssetInfoExt};
+use astroport::maker::{
+    AssetWithLimit, Config, ExecuteMsg, PoolRoute, QueryMsg, RouteStep, MAX_SWAPS_DEPTH,
+};
+use astroport_maker::error::ContractError;
 use astroport_test::cw_multi_test::Executor;
 use cosmwasm_std::{coin, Addr, Uint128};
 use itertools::Itertools;
 
-use astroport::maker::{AssetWithLimit, PoolRoute, MAX_SWAPS_DEPTH};
-use astroport_maker::error::ContractError;
-
 use crate::common::helper::{Helper, ASTRO_DENOM};
 
 mod common;
+
 #[test]
 fn check_set_routes() {
     let owner = Addr::unchecked("owner");
@@ -32,30 +35,30 @@ fn check_set_routes() {
     // Set wrong pool id
     let err = helper
         .set_pool_routes(vec![PoolRoute {
-            asset_in: "ucoin".to_string(),
-            asset_out: "uusd".to_string(),
+            asset_in: AssetInfo::native("ucoin"),
+            asset_out: AssetInfo::native("uusd"),
             pool_addr: astro_pair.contract_addr.to_string(),
         }])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::InvalidPoolAsset {
-            pool_addr: astro_pool_id,
-            denom: "ucoin".to_string()
+            pool_addr: astro_pair.contract_addr.to_string(),
+            asset: "ucoin".to_string()
         }
     );
     let err = helper
         .set_pool_routes(vec![PoolRoute {
-            denom_in: "ucoin".to_string(),
-            denom_out: "rand".to_string(),
-            pool_id: pool_1,
+            asset_in: AssetInfo::native("ucoin"),
+            asset_out: AssetInfo::native("rand"),
+            pool_addr: pool_1.contract_addr.to_string(),
         }])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::InvalidPoolAsset {
-            pool_addr: pool_1,
-            denom: "rand".to_string()
+            pool_addr: pool_1.contract_addr.to_string(),
+            asset: "rand".to_string()
         }
     );
 
@@ -63,14 +66,14 @@ fn check_set_routes() {
     helper
         .set_pool_routes(vec![
             PoolRoute {
-                denom_in: "ucoin".to_string(),
-                denom_out: "uusd".to_string(),
-                pool_id: pool_1,
+                asset_in: AssetInfo::native("ucoin"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_1.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "uusd".to_string(),
-                denom_out: ASTRO_DENOM.to_string(),
-                pool_id: astro_pool_id,
+                asset_in: AssetInfo::native("uusd"),
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.to_string(),
             },
         ])
         .unwrap();
@@ -79,18 +82,18 @@ fn check_set_routes() {
     assert_eq!(
         route,
         vec![
-            SwapRouteResponse {
-                pool_id: pool_1,
-                token_out_denom: "uusd".to_string(),
+            RouteStep {
+                pool_addr: pool_1.contract_addr.clone(),
+                asset_out: AssetInfo::native("uusd"),
             },
-            SwapRouteResponse {
-                token_out_denom: ASTRO_DENOM.to_string(),
-                pool_id: astro_pool_id,
+            RouteStep {
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
     );
 
-    let (_, pool_2) = helper
+    let pool_2 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "utest"),
             coin(1_000_000_000000, "uusd"),
@@ -102,9 +105,9 @@ fn check_set_routes() {
     // ucoin -> uusd -> astro
     helper
         .set_pool_routes(vec![PoolRoute {
-            denom_in: "utest".to_string(),
-            denom_out: "uusd".to_string(),
-            pool_id: pool_2,
+            asset_in: AssetInfo::native("utest"),
+            asset_out: AssetInfo::native("uusd"),
+            pool_addr: pool_2.contract_addr.to_string(),
         }])
         .unwrap();
 
@@ -112,18 +115,18 @@ fn check_set_routes() {
     assert_eq!(
         route,
         vec![
-            SwapRouteResponse {
-                pool_id: pool_2,
-                token_out_denom: "uusd".to_string(),
+            RouteStep {
+                pool_addr: pool_2.contract_addr.clone(),
+                asset_out: AssetInfo::native("uusd"),
             },
-            SwapRouteResponse {
-                token_out_denom: ASTRO_DENOM.to_string(),
-                pool_id: astro_pool_id,
+            RouteStep {
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
     );
 
-    let (_, pool_3) = helper
+    let pool_3 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "utest"),
             coin(1_000_000_000000, "ucoin"),
@@ -136,9 +139,9 @@ fn check_set_routes() {
     // ucoin -> uusd -> astro
     helper
         .set_pool_routes(vec![PoolRoute {
-            denom_in: "utest".to_string(),
-            denom_out: "ucoin".to_string(),
-            pool_id: pool_3,
+            asset_in: AssetInfo::native("utest"),
+            asset_out: AssetInfo::native("ucoin"),
+            pool_addr: pool_3.contract_addr.to_string(),
         }])
         .unwrap();
 
@@ -146,43 +149,43 @@ fn check_set_routes() {
     assert_eq!(
         route,
         vec![
-            SwapRouteResponse {
-                pool_id: pool_3,
-                token_out_denom: "ucoin".to_string(),
+            RouteStep {
+                pool_addr: pool_3.contract_addr.clone(),
+                asset_out: AssetInfo::native("ucoin"),
             },
-            SwapRouteResponse {
-                pool_id: pool_1,
-                token_out_denom: "uusd".to_string(),
+            RouteStep {
+                pool_addr: pool_1.contract_addr.clone(),
+                asset_out: AssetInfo::native("uusd"),
             },
-            SwapRouteResponse {
-                token_out_denom: ASTRO_DENOM.to_string(),
-                pool_id: astro_pool_id,
+            RouteStep {
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
     );
 
-    let (_, pool_4) = helper
+    let pool_4 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "utest"),
-            coin(1_000_000_000000, "uatomn"),
+            coin(1_000_000_000000, "uatom"),
         ])
         .unwrap();
 
     // Trying to set route which doesn't lead to ASTRO
-    //  utest -> uatomn
+    //  utest -> uatom
     //    x
     // ucoin -> uusd -> astro
     let err = helper
         .set_pool_routes(vec![PoolRoute {
-            denom_in: "utest".to_string(),
-            denom_out: "uatomn".to_string(),
-            pool_id: pool_4,
+            asset_in: AssetInfo::native("utest"),
+            asset_out: AssetInfo::native("uatom"),
+            pool_addr: pool_4.contract_addr.to_string(),
         }])
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
         ContractError::RouteNotFound {
-            asset: "uatomn".to_string(),
+            asset: "uatom".to_string(),
         }
     );
 
@@ -193,23 +196,23 @@ fn check_set_routes() {
         .map(|(i, j)| {
             let coin_a = format!("coin{i}");
             let coin_b = format!("coin{j}");
-            let (_, pool_id) = helper
+            let pool_addr = helper
                 .create_and_seed_pair([
                     coin(1_000_000_000000, &coin_a),
                     coin(1_000_000_000000, &coin_b),
                 ])
                 .unwrap();
             PoolRoute {
-                denom_in: coin_a,
-                denom_out: coin_b,
-                pool_id,
+                asset_in: AssetInfo::native(coin_a),
+                asset_out: AssetInfo::native(coin_b),
+                pool_addr: pool_addr.contract_addr.to_string(),
             }
         })
         .collect_vec();
 
     let last_coin = format!("coin{MAX_SWAPS_DEPTH}");
 
-    let (_, pool_id) = helper
+    let pool_addr = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, &last_coin),
             coin(1_000_000_000000, ASTRO_DENOM),
@@ -217,9 +220,9 @@ fn check_set_routes() {
         .unwrap();
 
     routes.push(PoolRoute {
-        denom_in: last_coin,
-        denom_out: ASTRO_DENOM.to_string(),
-        pool_id,
+        asset_in: AssetInfo::native(last_coin),
+        asset_out: AssetInfo::native(ASTRO_DENOM),
+        pool_addr: pool_addr.contract_addr.to_string(),
     });
 
     let err = helper.set_pool_routes(routes).unwrap_err();
@@ -227,7 +230,6 @@ fn check_set_routes() {
         err.downcast::<ContractError>().unwrap(),
         ContractError::FailedToBuildRoute {
             asset: "coin0".to_string(),
-            route_taken: "coin0 -> coin1 -> coin2 -> coin3 -> coin4 -> coin5".to_string()
         }
     );
 }
@@ -237,7 +239,7 @@ fn test_collect() {
     let owner = Addr::unchecked("owner");
     let mut helper = Helper::new(&owner).unwrap();
 
-    let (_, astro_pool_id) = helper
+    let astro_pair = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "uusd"),
             coin(1_000_000_000000, ASTRO_DENOM),
@@ -246,20 +248,23 @@ fn test_collect() {
 
     helper
         .set_pool_routes(vec![PoolRoute {
-            denom_in: "uusd".to_string(),
-            denom_out: ASTRO_DENOM.to_string(),
-            pool_id: astro_pool_id,
+            asset_in: AssetInfo::native("uusd"),
+            asset_out: AssetInfo::native(ASTRO_DENOM),
+            pool_addr: astro_pair.contract_addr.to_string(),
         }])
         .unwrap();
 
     // mock received fees
     let maker = helper.maker.clone();
-    helper.give_me_money(&[Asset::native("uusd", 1_000000u64)], &maker);
+    helper.give_me_money(
+        &[AssetInfo::native("uusd").with_balance(1_000000u64)],
+        &maker,
+    );
 
     helper
         .collect(vec![AssetWithLimit {
-            denom: "uusd".to_string(),
-            amount: None,
+            info: AssetInfo::native("uusd"),
+            limit: None,
         }])
         .unwrap();
 
@@ -275,21 +280,21 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.satellite, ASTRO_DENOM)
         .unwrap();
-    assert_eq!(astro_bal.amount.u128(), 998_048);
+    assert_eq!(astro_bal.amount.u128(), 996006);
 
-    let (_, pool_1) = helper
+    let pool_1 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "coin_a"),
             coin(1_000_000_000000, "uusd"),
         ])
         .unwrap();
-    let (_, pool_2) = helper
+    let pool_2 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "coin_a"),
             coin(1_000_000_000000, "coin_b"),
         ])
         .unwrap();
-    let (_, pool_3) = helper
+    let pool_3 = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "coin_c"),
             coin(1_000_000_000000, "uusd"),
@@ -303,40 +308,49 @@ fn test_collect() {
     helper
         .set_pool_routes(vec![
             PoolRoute {
-                denom_in: "coin_a".to_string(),
-                denom_out: "uusd".to_string(),
-                pool_id: pool_1,
+                asset_in: AssetInfo::native("coin_a"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_1.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "coin_b".to_string(),
-                denom_out: "coin_a".to_string(),
-                pool_id: pool_2,
+                asset_in: AssetInfo::native("coin_b"),
+                asset_out: AssetInfo::native("coin_a"),
+                pool_addr: pool_2.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "coin_c".to_string(),
-                denom_out: "uusd".to_string(),
-                pool_id: pool_3,
+                asset_in: AssetInfo::native("coin_c"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_3.contract_addr.to_string(),
             },
         ])
         .unwrap();
 
-    helper.give_me_money(&[Asset::native("coin_a", 1_000000u64)], &maker);
-    helper.give_me_money(&[Asset::native("coin_b", 1_000000u64)], &maker);
-    helper.give_me_money(&[Asset::native("coin_c", 1_000000u64)], &maker);
+    helper.give_me_money(
+        &[AssetInfo::native("coin_a").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("coin_b").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("coin_c").with_balance(1_000000u64)],
+        &maker,
+    );
 
     helper
         .collect(vec![
             AssetWithLimit {
-                denom: "coin_a".to_string(),
-                amount: None,
+                info: AssetInfo::native("coin_a"),
+                limit: None,
             },
             AssetWithLimit {
-                denom: "coin_b".to_string(),
-                amount: None,
+                info: AssetInfo::native("coin_b"),
+                limit: None,
             },
             AssetWithLimit {
-                denom: "coin_c".to_string(),
-                amount: None,
+                info: AssetInfo::native("coin_c"),
+                limit: None,
             },
         ])
         .unwrap();
@@ -346,7 +360,7 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.maker, "coin_a")
         .unwrap();
-    assert_eq!(coin_a_bal.amount.u128(), 649); // tiny fee left after swaps
+    assert_eq!(coin_a_bal.amount.u128(), 0);
     let coin_b_bal = helper
         .app
         .wrap()
@@ -366,14 +380,17 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.satellite, ASTRO_DENOM)
         .unwrap();
-    assert_eq!(astro_bal.amount.u128(), 3_981818);
+    assert_eq!(astro_bal.amount.u128(), 3966128);
 
     // Check collect with limit
-    helper.give_me_money(&[Asset::native("coin_c", 1_000000u64)], &maker);
+    helper.give_me_money(
+        &[AssetInfo::native("coin_c").with_balance(1_000000u64)],
+        &maker,
+    );
     helper
         .collect(vec![AssetWithLimit {
-            denom: "coin_c".to_string(),
-            amount: Some(500u128.into()),
+            info: AssetInfo::native("coin_c"),
+            limit: Some(500u128.into()),
         }])
         .unwrap();
     let coin_c_bal = helper
@@ -381,13 +398,13 @@ fn test_collect() {
         .wrap()
         .query_balance(&helper.maker, "coin_c")
         .unwrap();
-    assert_eq!(coin_c_bal.amount.u128(), 999_500);
+    assert_eq!(coin_c_bal.amount.u128(), 999500);
 
     // Try to set limit higher than balance
     helper
         .collect(vec![AssetWithLimit {
-            denom: "coin_c".to_string(),
-            amount: Some(1_000_000u128.into()),
+            info: AssetInfo::native("coin_c"),
+            limit: Some(1_000_000u128.into()),
         }])
         .unwrap();
     let coin_c_bal = helper
@@ -403,7 +420,7 @@ fn test_collect() {
         .wrap()
         .query_wasm_smart(
             &helper.maker,
-            &astroport::maker::QueryMsg::Routes {
+            &QueryMsg::Routes {
                 start_after: None,
                 limit: Some(100),
             },
@@ -413,24 +430,24 @@ fn test_collect() {
         routes,
         vec![
             PoolRoute {
-                denom_in: "coin_a".to_string(),
-                denom_out: "uusd".to_string(),
-                pool_id: pool_1
+                asset_in: AssetInfo::native("coin_a"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_1.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "coin_b".to_string(),
-                denom_out: "coin_a".to_string(),
-                pool_id: pool_2
+                asset_in: AssetInfo::native("coin_b"),
+                asset_out: AssetInfo::native("coin_a"),
+                pool_addr: pool_2.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "coin_c".to_string(),
-                denom_out: "uusd".to_string(),
-                pool_id: pool_3
+                asset_in: AssetInfo::native("coin_c"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_3.contract_addr.to_string(),
             },
             PoolRoute {
-                denom_in: "uusd".to_string(),
-                denom_out: "astro".to_string(),
-                pool_id: astro_pool_id
+                asset_in: AssetInfo::native("uusd"),
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.to_string(),
             }
         ]
     );
@@ -440,12 +457,12 @@ fn test_collect() {
         .wrap()
         .query_wasm_smart(
             &helper.maker,
-            &astroport::maker::QueryMsg::EstimateSwap {
-                asset_in: coin(1_000000u128, "uusd"),
+            &QueryMsg::EstimateSwap {
+                asset_in: AssetInfo::native("uusd").with_balance(1_000000u64),
             },
         )
         .unwrap();
-    assert_eq!(estimated_astro_out.u128(), 1000002);
+    assert_eq!(estimated_astro_out.u128(), 996006);
 }
 
 #[test]
@@ -555,10 +572,10 @@ fn update_owner() {
         )
         .unwrap();
 
-    let config: astroport::maker::Config = helper
+    let config: Config = helper
         .app
         .wrap()
-        .query_wasm_smart(&helper.maker, &astroport::maker::QueryMsg::Config {})
+        .query_wasm_smart(&helper.maker, &QueryMsg::Config {})
         .unwrap();
     assert_eq!(config.owner.to_string(), new_owner)
 }
