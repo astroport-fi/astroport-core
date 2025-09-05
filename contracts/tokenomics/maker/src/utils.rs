@@ -172,3 +172,47 @@ pub fn check_pair(
 
     Ok(pair_info)
 }
+
+#[cfg(test)]
+mod unit_tests {
+    use astroport::asset::AssetInfo;
+
+    use super::*;
+
+    #[test]
+    fn test_asset_info_binary_key() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let key = asset_info_key(&asset_info);
+            assert_eq!(from_key_to_asset_info(key).unwrap(), asset_info);
+        }
+    }
+
+    #[test]
+    fn test_deserialize_asset_info_from_malformed_data() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let mut key = asset_info_key(&asset_info);
+            key[0] = 2;
+
+            assert_eq!(
+                from_key_to_asset_info(key).unwrap_err(),
+                StdError::generic_err("Failed to deserialize asset info key")
+            );
+        }
+
+        let key = vec![0, u8::MAX];
+        assert_eq!(
+            from_key_to_asset_info(key).unwrap_err().to_string(),
+            "Cannot decode UTF8 bytes into string: invalid utf-8 sequence of 1 bytes from index 0"
+        );
+    }
+}
