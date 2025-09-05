@@ -1,3 +1,4 @@
+#![cfg(not(tarpaulin_include))]
 use crate::error::ContractError;
 use crate::instantiate::{CONTRACT_NAME, CONTRACT_VERSION};
 #[cfg(not(feature = "library"))]
