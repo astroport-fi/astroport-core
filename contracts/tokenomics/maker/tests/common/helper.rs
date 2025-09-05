@@ -20,7 +20,10 @@ use cosmwasm_std::{
 use derivative::Derivative;
 use itertools::Itertools;
 
-use astroport::maker::{AssetWithLimit, PoolRoute, RouteStep};
+use astroport::maker::{
+    AssetWithLimit, Config, ExecuteMsg, PoolRoute, QueryMsg, RouteStep, SeizeConfig,
+    UpdateDevFundConfig,
+};
 use astroport_test::modules::stargate::MockStargate;
 
 fn pair_contract() -> Box<dyn Contract<Empty>> {
@@ -357,6 +360,46 @@ impl Helper {
                 .into(),
             )
             .unwrap();
+    }
+
+    pub fn seize(&mut self, sender: &Addr, assets: Vec<AssetWithLimit>) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.maker.clone(),
+            &ExecuteMsg::Seize { assets },
+            &[],
+        )
+    }
+
+    pub fn query_seize_config(&self) -> StdResult<SeizeConfig> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.maker, &QueryMsg::QuerySeizeConfig {})
+    }
+
+    pub fn set_dev_fund_config(
+        &mut self,
+        sender: &Addr,
+        dev_fund_config: UpdateDevFundConfig,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            self.maker.clone(),
+            &ExecuteMsg::UpdateConfig {
+                astro_denom: None,
+                max_spread: None,
+                collect_cooldown: None,
+                dev_fund_config: Some(Box::new(dev_fund_config)),
+                collector: None,
+            },
+            &[],
+        )
+    }
+
+    pub fn query_config(&self) -> StdResult<Config> {
+        self.app
+            .wrap()
+            .query_wasm_smart(&self.maker, &QueryMsg::Config {})
     }
 }
 

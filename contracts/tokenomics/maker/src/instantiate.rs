@@ -1,12 +1,12 @@
 use astroport::asset::validate_native_denom;
-use astroport::maker::{Config, InstantiateMsg, MAX_ALLOWED_SPREAD};
+use astroport::maker::{Config, InstantiateMsg, SeizeConfig, MAX_ALLOWED_SPREAD};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{ensure, DepsMut, Env, MessageInfo, Response};
+use cosmwasm_std::{ensure, Addr, DepsMut, Env, MessageInfo, Response};
 use cw2::set_contract_version;
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, LAST_COLLECT_TS};
+use crate::state::{CONFIG, LAST_COLLECT_TS, SEIZE_CONFIG};
 use crate::utils::validate_cooldown;
 
 /// Contract name for cw2 info
@@ -41,6 +41,16 @@ pub fn instantiate(
             collect_cooldown: None,
             collector: deps.api.addr_validate(&msg.collector)?,
             dev_fund_conf: None,
+        },
+    )?;
+
+    SEIZE_CONFIG.save(
+        deps.storage,
+        &SeizeConfig {
+            // set to invalid address initially
+            // governance must update this explicitly
+            receiver: Addr::unchecked(""),
+            seizable_assets: vec![],
         },
     )?;
 

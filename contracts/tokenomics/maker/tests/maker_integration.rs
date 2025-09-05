@@ -1,12 +1,13 @@
 #![cfg(not(tarpaulin_include))]
 
-use astroport::asset::{AssetInfo, AssetInfoExt};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::maker::{
-    AssetWithLimit, Config, ExecuteMsg, PoolRoute, QueryMsg, RouteStep, MAX_SWAPS_DEPTH,
+    AssetWithLimit, Config, DevFundConfig, ExecuteMsg, PoolRoute, QueryMsg, RouteStep, SeizeConfig,
+    UpdateDevFundConfig, MAX_SWAPS_DEPTH,
 };
 use astroport_maker::error::ContractError;
 use astroport_test::cw_multi_test::Executor;
-use cosmwasm_std::{coin, Addr, Uint128};
+use cosmwasm_std::{coin, Addr, Decimal, Uint128};
 use itertools::Itertools;
 
 use crate::common::helper::{Helper, ASTRO_DENOM};
@@ -14,7 +15,7 @@ use crate::common::helper::{Helper, ASTRO_DENOM};
 mod common;
 
 #[test]
-fn check_set_routes() {
+fn test_set_routes() {
     let mut helper = Helper::new().unwrap();
 
     let astro_pair = helper
@@ -565,4 +566,434 @@ fn update_owner() {
         .query_wasm_smart(&helper.maker, &QueryMsg::Config {})
         .unwrap();
     assert_eq!(config.owner.to_string(), new_owner)
+}
+
+#[test]
+fn test_seize() {
+    let mut helper = Helper::new().unwrap();
+    let owner = helper.owner.clone();
+    let maker = helper.maker.clone();
+
+    // try to seize an empty vector
+    let err = helper.seize(&owner, vec![]).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: assets vector is empty"
+    );
+
+    let seize_assets = vec![AssetWithLimit {
+        info: AssetInfo::native("uusdc"),
+        limit: None,
+    }];
+
+    // Try to seize before config is set
+    let err = helper.seize(&owner, seize_assets.clone()).unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: No seizable assets found"
+    );
+
+    // Unauthorized check
+    let rand_user = helper.app.api().addr_make("rand_user");
+    let err = helper
+        .app
+        .execute_contract(
+            rand_user,
+            maker.clone(),
+            &ExecuteMsg::UpdateSeizeConfig {
+                receiver: None,
+                seizable_assets: vec![],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(ContractError::Unauthorized {}, err.downcast().unwrap());
+
+    let receiver = helper.app.api().addr_make("receiver");
+
+    let usdc = "uusdc";
+    let luna = "uluna";
+
+    // Set valid config
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            maker.clone(),
+            &ExecuteMsg::UpdateSeizeConfig {
+                receiver: Some(receiver.to_string()),
+                seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)],
+            },
+            &[],
+        )
+        .unwrap();
+
+    // Assert that the config is set
+    assert_eq!(
+        helper.query_seize_config().unwrap(),
+        SeizeConfig {
+            receiver: receiver.clone(),
+            seizable_assets: vec![AssetInfo::native(usdc), AssetInfo::native(luna)]
+        }
+    );
+
+    // Try to seize non-seizable asset
+    let err = helper
+        .seize(
+            &owner,
+            vec![AssetWithLimit {
+                info: AssetInfo::native("utest"),
+                limit: None,
+            }],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Input vector contains assets that are not seizable"
+    );
+
+    // Try to seize asset with empty balance
+    // This does nothing and doesn't throw an error
+    helper
+        .seize(
+            &owner,
+            vec![AssetWithLimit {
+                info: AssetInfo::native(luna),
+                limit: None,
+            }],
+        )
+        .unwrap();
+
+    helper.give_me_money(
+        &[
+            Asset::native(usdc, 1000_000000u128),
+            Asset::native(luna, 3000_000000u128),
+        ],
+        &maker,
+    );
+
+    // Seize 100 USDC
+    helper
+        .seize(
+            &owner,
+            vec![AssetWithLimit {
+                info: AssetInfo::native(usdc),
+                limit: Some(100_000000u128.into()),
+            }],
+        )
+        .unwrap();
+
+    // Check balances
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        900_000000
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        100_000000
+    );
+
+    // Seize all
+    helper
+        .seize(
+            &owner,
+            vec![
+                AssetWithLimit {
+                    info: AssetInfo::native(usdc),
+                    // seizing more than available doesn't throw an error
+                    limit: Some(10000_000000u128.into()),
+                },
+                AssetWithLimit {
+                    info: AssetInfo::native(luna),
+                    limit: Some(3000_000000u128.into()),
+                },
+            ],
+        )
+        .unwrap();
+
+    // Check balances
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&receiver, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        1000_000000
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&receiver, luna)
+            .unwrap()
+            .amount
+            .u128(),
+        3000_000000
+    );
+}
+
+#[test]
+fn test_dev_fund_fee() {
+    let mut helper = Helper::new().unwrap();
+    let owner = helper.owner.clone();
+    let maker = helper.maker.clone();
+    let fee_collector = helper.query_config().unwrap().collector;
+    let usdc = "uusdc";
+    let astro_token = "astro";
+
+    let mut dev_fund_conf = DevFundConfig {
+        address: "".to_string(),
+        share: Default::default(),
+        asset_info: AssetInfo::native(usdc),
+        pool_addr: Addr::unchecked(""),
+    };
+
+    let err = helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Generic error: Invalid input");
+
+    dev_fund_conf.address = helper.app.api().addr_make("devs").to_string();
+
+    let err = helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Dev fund share must be > 0 and <= 1"
+    );
+
+    dev_fund_conf.share = Decimal::percent(50);
+
+    let err = helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Querier contract error: Generic error: Pair not found"
+    );
+
+    // Create ASTRO<>USDC pool
+    let pair_info = helper
+        .create_and_seed_pair([
+            coin(100_000_000000, usdc),
+            coin(100_000_000000, astro_token),
+        ])
+        .unwrap();
+    dev_fund_conf.pool_addr = pair_info.contract_addr.clone();
+
+    let err = helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::RouteNotFound {
+            asset: usdc.to_string()
+        },
+        err.downcast().unwrap()
+    );
+
+    // Set usdc <> astro route
+    helper
+        .set_pool_routes(vec![PoolRoute {
+            asset_in: AssetInfo::native(usdc),
+            asset_out: AssetInfo::native(astro_token),
+            pool_addr: pair_info.contract_addr.to_string(),
+        }])
+        .unwrap();
+
+    helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap();
+
+    // Emulate usdc income to the Maker contract
+    helper.give_me_money(&[Asset::native(usdc, 1000_000000u128)], &maker);
+
+    helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::native(usdc),
+            limit: None,
+        }])
+        .unwrap();
+
+    // Check balances
+    // ASTRO
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&fee_collector, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        493_960341
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&dev_fund_conf.address, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    // USDC
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&dev_fund_conf.address, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        500_273461
+    );
+
+    // Disable dev funds
+    helper
+        .set_dev_fund_config(&owner, UpdateDevFundConfig { set: None })
+        .unwrap();
+
+    // Emulate usdc income to the Maker contract
+    helper.give_me_money(&[Asset::native(usdc, 1000_000000u128)], &maker);
+
+    helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::native(usdc),
+            limit: None,
+        }])
+        .unwrap();
+
+    // Check balances
+    // ASTRO
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&fee_collector, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        1472_161157
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&dev_fund_conf.address, astro_token)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    // USDC
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&maker, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        0
+    );
+    assert_eq!(
+        helper
+            .app
+            .wrap()
+            .query_balance(&dev_fund_conf.address, usdc)
+            .unwrap()
+            .amount
+            .u128(),
+        500_273461
+    );
 }

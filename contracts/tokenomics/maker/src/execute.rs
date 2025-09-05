@@ -337,6 +337,14 @@ pub fn update_config(
                 ],
             )?;
 
+            // Ensure route to swap dev fund asset is registered in maker
+            let mut routes_builder = RoutesBuilder::default();
+            routes_builder.build_routes(
+                deps.storage,
+                &dev_fund_conf.asset_info,
+                &config.astro_denom,
+            )?;
+
             attrs.push(attr(
                 "new_dev_fund_settings",
                 to_json_string(dev_fund_conf)?,
