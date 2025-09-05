@@ -947,6 +947,31 @@ fn test_dev_fund_fee() {
         "Generic error: Querier contract error: Generic error: Pair not found"
     );
 
+    // Create a random pool and try to set it in the dev fund config
+    let faulty_pair_info = helper
+        .create_and_seed_pair([
+            coin(100_000_000000, "foo"),
+            coin(100_000_000000, astro_token),
+        ])
+        .unwrap();
+    dev_fund_conf.pool_addr = faulty_pair_info.contract_addr.clone();
+
+    let err = helper
+        .set_dev_fund_config(
+            &owner,
+            UpdateDevFundConfig {
+                set: Some(dev_fund_conf.clone()),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::InvalidPoolAsset {
+            pool_addr: faulty_pair_info.contract_addr.to_string(),
+            asset: usdc.to_string()
+        },
+        err.downcast().unwrap()
+    );
+
     // Create ASTRO<>USDC pool
     let pair_info = helper
         .create_and_seed_pair([
