@@ -2,7 +2,7 @@ use crate::error::ContractError;
 use crate::reply::POST_COLLECT_REPLY_ID;
 use crate::state::{CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG};
 use crate::utils::{asset_info_key, build_swap_msg, check_pair, validate_cooldown, RoutesBuilder};
-use astroport::asset::{validate_native_denom, AssetInfo, AssetInfoExt};
+use astroport::asset::{validate_native_denom, Asset, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::maker::{
     AssetWithLimit, ExecuteMsg, PoolRoute, RouteStep, UpdateDevFundConfig, MAX_ALLOWED_SPREAD,
@@ -11,7 +11,7 @@ use astroport::maker::{
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, ensure, ensure_eq, to_json_string, wasm_execute, Addr, Decimal, DepsMut, Env,
-    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg,
+    MessageInfo, ReplyOn, Response, StdError, StdResult, SubMsg, Uint128,
 };
 use cw_utils::nonpayable;
 use itertools::Itertools;
@@ -103,8 +103,13 @@ pub fn execute(
 }
 
 pub struct RawRoute {
-    pub start: AssetInfo,
+    pub start: Asset,
     pub route: Vec<RouteStep>,
+}
+
+pub enum SwapType {
+    Direct { amount_in: Uint128, pool_addr: Addr },
+    Auto { pool_addr: Addr },
 }
 
 pub fn collect(
@@ -129,30 +134,48 @@ pub fn collect(
     let mut attrs = vec![attr("action", "collect")];
 
     let mut routes_builder = RoutesBuilder::default();
-    let mut raw_routes = vec![];
-    let mut collect_assets_map: HashMap<_, _> = Default::default();
+    let mut nodes_map: HashMap<AssetInfo, HashMap<AssetInfo, SwapType>> = Default::default();
+
     for asset in assets {
-        collect_assets_map.insert(asset.info.clone(), asset.limit);
+        let balance = asset
+            .info
+            .query_pool(&deps.querier, &env.contract.address)?;
 
-        raw_routes.push(RawRoute {
-            route: routes_builder.build_routes(deps.storage, &asset.info, &cfg.astro_denom)?,
-            start: asset.info,
-        });
-    }
+        // Skip silently if the balance is zero.
+        // This allows our bot to operate normally without manual adjustments.
+        if balance.is_zero() {
+            continue;
+        }
 
-    // Optimize full routes
-    let mut nodes_map: HashMap<AssetInfo, HashMap<AssetInfo, u8>> = Default::default();
-    for route in raw_routes {
-        let mut current_asset = route.start.clone();
-        for step in route.route {
-            let entry = nodes_map
-                .entry(current_asset.clone())
-                .or_default()
-                .entry(step.asset_out.clone())
-                .or_insert(0);
-            *entry += 1;
+        let route = routes_builder.build_routes(deps.storage, &asset.info, &cfg.astro_denom)?;
 
-            current_asset = step.asset_out;
+        let amount_in = asset
+            .limit
+            .map(|limit| limit.min(balance))
+            .unwrap_or(balance);
+
+        // We treat all input assets as collect graph leaves initially.
+        // For leaves, we need to know the initial balance
+        nodes_map
+            .entry(asset.info.clone())
+            .or_default()
+            .entry(route[0].asset_out.clone())
+            .or_insert(SwapType::Direct {
+                amount_in,
+                pool_addr: route[0].pool_addr.clone(),
+            });
+
+        let mut current_asset = route[0].asset_out.clone();
+        for step in &route[1..] {
+            // Intermediate nodes become 'auto' regardless of whether they were 'direct' initially
+            nodes_map.entry(current_asset.clone()).or_default().insert(
+                step.asset_out.clone(),
+                SwapType::Auto {
+                    pool_addr: step.pool_addr.clone(),
+                },
+            );
+
+            current_asset = step.asset_out.clone();
         }
     }
 
@@ -163,73 +186,34 @@ pub fn collect(
                 .into_iter()
                 .map(move |(to, count)| (from.clone(), to, count))
         })
-        .sorted_by(|(from1, _, c1), (from2, _, c2)| {
-            // Custom ordering applied to differentiate leaves,
-            // and intermediate steps passed 1 time.
-            let cmp = c1.cmp(c2);
-            match cmp {
-                Ordering::Equal if *c1 == 1 => {
-                    let is_from1_leaf = collect_assets_map.contains_key(from1);
-                    let is_from2_leaf = collect_assets_map.contains_key(from2);
-                    if is_from1_leaf && !is_from2_leaf {
-                        Ordering::Less
-                    } else if !is_from1_leaf && is_from2_leaf {
-                        Ordering::Greater
-                    } else {
-                        Ordering::Equal
-                    }
-                }
-                _ => cmp,
-            }
+        .sorted_by(|(_, _, swp1), (_, _, swp2)| match (swp1, swp2) {
+            (SwapType::Auto { .. }, SwapType::Auto { .. })
+            | (SwapType::Direct { .. }, SwapType::Direct { .. }) => Ordering::Equal,
+            (SwapType::Auto { .. }, SwapType::Direct { .. }) => Ordering::Greater,
+            (SwapType::Direct { .. }, SwapType::Auto { .. }) => Ordering::Less,
         })
-        .filter_map(|(from, to, count)| {
-            let step = routes_builder.routes_cache.get(&from).unwrap();
-            match (count, collect_assets_map.get(&from)) {
-                (1, Some(maybe_limit)) => {
-                    // Leaves can start swapping right away
-                    match from.query_pool(&deps.querier, &env.contract.address) {
-                        Ok(balance) => {
-                            let balance = maybe_limit
-                                .map(|limit| from.with_balance(limit.min(balance)))
-                                .unwrap_or_else(|| from.with_balance(balance));
+        .map(|(from, to, swap_type)| {
+            match swap_type {
+                SwapType::Direct {
+                    amount_in,
+                    pool_addr,
+                } => {
+                    let asset_in = from.with_balance(amount_in);
+                    attrs.push(attr("collected_asset", asset_in.to_string()));
 
-                            // Skip silently if the balance is zero.
-                            // This allows our bot to operate normally without manual adjustments.
-                            if balance.amount.is_zero() {
-                                return None;
-                            }
-
-                            attrs.push(attr("collected_asset", balance.to_string()));
-
-                            Some(
-                                build_swap_msg(
-                                    &balance,
-                                    &step.asset_out,
-                                    cfg.max_spread,
-                                    &step.pool_addr,
-                                )
-                                .map(SubMsg::new),
-                            )
-                        }
-                        Err(e) => Some(Err(e)), // Preserve the error
-                    }
+                    build_swap_msg(&asset_in, &to, cfg.max_spread, &pool_addr)
                 }
-                _ => {
-                    // Edges must be processed during consecutive self-calls
-                    Some(
-                        wasm_execute(
-                            &env.contract.address,
-                            &ExecuteMsg::AutoSwap {
-                                asset_in: from,
-                                asset_out: to,
-                                pool_addr: step.pool_addr.clone(),
-                            },
-                            vec![],
-                        )
-                        .map(SubMsg::new),
-                    )
-                }
+                SwapType::Auto { pool_addr } => wasm_execute(
+                    &env.contract.address,
+                    &ExecuteMsg::AutoSwap {
+                        asset_in: from,
+                        asset_out: to,
+                        pool_addr: pool_addr.clone(),
+                    },
+                    vec![],
+                ),
             }
+            .map(SubMsg::new)
         })
         .collect::<StdResult<Vec<_>>>()?;
 
@@ -475,7 +459,9 @@ fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Respons
 
 #[cfg(test)]
 mod unit_tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info,
+    };
     use cosmwasm_std::{coins, Addr};
     use cw_utils::PaymentError;
 
@@ -485,7 +471,7 @@ mod unit_tests {
 
     #[test]
     fn collect_basic_tests() {
-        let mut deps = mock_dependencies();
+        let mut deps = mock_dependencies_with_balance(&coins(1, "uusd"));
 
         let assets = vec![];
         let err = collect(deps.as_mut(), mock_env(), assets).unwrap_err();
@@ -546,8 +532,7 @@ mod unit_tests {
             .save(deps.as_mut().storage, &route_key, &route_step)
             .unwrap();
 
-        let err = collect(deps.as_mut(), env.clone(), assets).unwrap_err();
-        assert_eq!(err, ContractError::NothingToCollect {});
+        collect(deps.as_mut(), env.clone(), assets.clone()).unwrap();
     }
 
     #[test]

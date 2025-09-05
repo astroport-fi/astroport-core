@@ -544,13 +544,14 @@ fn test_collect_with_cw20() {
         ])
         .unwrap();
 
-    // TODO: Collecting with empty balance doesn't cause any error
-    // helper
-    //     .collect(vec![AssetWithLimit {
-    //         info: AssetInfo::cw20_unchecked(&xyz_token),
-    //         limit: None,
-    //     }])
-    //     .unwrap();
+    // Collecting with an empty balance ends up in nothing to collect error
+    let err = helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::cw20_unchecked(&xyz_token),
+            limit: None,
+        }])
+        .unwrap_err();
+    assert_eq!(ContractError::NothingToCollect {}, err.downcast().unwrap());
 
     // mock received XYZ fees
     helper.mint_cw20(&xyz_token, &maker, 1_000000).unwrap();
