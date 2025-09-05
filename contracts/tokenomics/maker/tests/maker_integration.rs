@@ -1,16 +1,18 @@
 #![cfg(not(tarpaulin_include))]
 
+use crate::common::helper::{f64_to_dec, Helper, ASTRO_DENOM};
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
+use astroport::factory::PairType;
 use astroport::maker::{
     AssetWithLimit, Config, DevFundConfig, ExecuteMsg, PoolRoute, QueryMsg, RouteStep, SeizeConfig,
     UpdateDevFundConfig, MAX_SWAPS_DEPTH,
 };
+use astroport::{factory, pair};
 use astroport_maker::error::ContractError;
 use astroport_test::cw_multi_test::Executor;
-use cosmwasm_std::{coin, Addr, Decimal, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Decimal, Uint128};
+use cw20::BalanceResponse;
 use itertools::Itertools;
-
-use crate::common::helper::{Helper, ASTRO_DENOM};
 
 mod common;
 
@@ -462,6 +464,128 @@ fn test_collect() {
         )
         .unwrap();
     assert_eq!(estimated_astro_out.u128(), 996690);
+}
+
+#[test]
+fn test_collect_with_cw20() {
+    let mut helper = Helper::new().unwrap();
+    let owner = helper.owner.clone();
+    let maker = helper.maker.clone();
+
+    // Creating pairs and setting routes with the following scheme
+    // xyz (cw20) -> uusdc -> astro
+
+    let xyz_token = helper.init_cw20("XYZ").unwrap();
+
+    let asset_infos = vec![
+        AssetInfo::cw20_unchecked(&xyz_token),
+        AssetInfo::native("uusdc"),
+    ];
+    let xyz_pair_info = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            helper.factory.clone(),
+            &factory::ExecuteMsg::CreatePair {
+                pair_type: PairType::Xyk {},
+                asset_infos: asset_infos.clone(),
+                init_params: None,
+            },
+            &[],
+        )
+        .map(|_| helper.query_pair_info(&asset_infos))
+        .unwrap();
+
+    helper.give_me_money(&[Asset::native("uusdc", 100_000000u128)], &owner);
+
+    helper.mint_cw20(&xyz_token, &owner, 100_000000).unwrap();
+    helper
+        .set_allowance_cw20(&xyz_token, &owner, &xyz_pair_info.contract_addr, 100_000000)
+        .unwrap();
+
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            xyz_pair_info.contract_addr.clone(),
+            &pair::ExecuteMsg::ProvideLiquidity {
+                assets: vec![
+                    Asset::native("uusdc", 100_000000u128),
+                    Asset::cw20_unchecked(&xyz_token, 100_000000u128),
+                ],
+                slippage_tolerance: Some(f64_to_dec(0.5)),
+                auto_stake: None,
+                receiver: None,
+                min_lp_to_receive: None,
+            },
+            &coins(100_000000, "uusdc"),
+        )
+        .unwrap();
+
+    let astro_pair = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "uusdc"),
+            coin(1_000_000_000000, ASTRO_DENOM),
+        ])
+        .unwrap();
+
+    helper
+        .set_pool_routes(vec![
+            PoolRoute {
+                asset_in: AssetInfo::cw20_unchecked(&xyz_token),
+                asset_out: AssetInfo::native("uusdc"),
+                pool_addr: xyz_pair_info.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("uusdc"),
+                asset_out: AssetInfo::native(ASTRO_DENOM),
+                pool_addr: astro_pair.contract_addr.to_string(),
+            },
+        ])
+        .unwrap();
+
+    // TODO: Collecting with empty balance doesn't cause any error
+    // helper
+    //     .collect(vec![AssetWithLimit {
+    //         info: AssetInfo::cw20_unchecked(&xyz_token),
+    //         limit: None,
+    //     }])
+    //     .unwrap();
+
+    // mock received XYZ fees
+    helper.mint_cw20(&xyz_token, &maker, 1_000000).unwrap();
+
+    helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::cw20_unchecked(&xyz_token),
+            limit: None,
+        }])
+        .unwrap();
+
+    let uusd_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "uusdc")
+        .unwrap();
+    assert_eq!(uusd_bal.amount.u128(), 0);
+    let xyz_bal: BalanceResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &xyz_token,
+            &cw20_base::msg::QueryMsg::Balance {
+                address: maker.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(xyz_bal.balance.u128(), 0);
+
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 985745);
 }
 
 #[test]

@@ -17,6 +17,7 @@ use cosmwasm_std::testing::MockStorage;
 use cosmwasm_std::{
     Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
 };
+use cw20::MinterResponse;
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -57,6 +58,14 @@ fn maker_contract() -> Box<dyn Contract<Empty>> {
         )
         .with_reply_empty(astroport_maker::reply::reply),
     )
+}
+
+fn cw20_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(ContractWrapper::new_with_empty(
+        cw20_base::contract::execute,
+        cw20_base::contract::instantiate,
+        cw20_base::contract::query,
+    ))
 }
 
 fn mock_satellite_contract() -> Box<dyn Contract<Empty>> {
@@ -119,6 +128,7 @@ pub struct Helper {
     pub factory: Addr,
     pub maker: Addr,
     pub satellite: Addr,
+    pub cw20_code_id: u64,
 }
 
 impl Helper {
@@ -207,12 +217,15 @@ impl Helper {
         )
         .unwrap();
 
+        let cw20_code_id = app.store_code(cw20_contract());
+
         Ok(Self {
             app,
             owner,
             factory,
             maker,
             satellite,
+            cw20_code_id,
         })
     }
 
@@ -400,6 +413,63 @@ impl Helper {
         self.app
             .wrap()
             .query_wasm_smart(&self.maker, &QueryMsg::Config {})
+    }
+
+    pub fn init_cw20(&mut self, ticker: &str) -> AnyResult<Addr> {
+        self.app.instantiate_contract(
+            self.cw20_code_id,
+            self.owner.clone(),
+            &cw20_base::msg::InstantiateMsg {
+                name: ticker.to_string(),
+                symbol: ticker.to_string(),
+                decimals: 6,
+                initial_balances: vec![],
+                mint: Some(MinterResponse {
+                    minter: self.owner.to_string(),
+                    cap: None,
+                }),
+                marketing: None,
+            },
+            &[],
+            "label",
+            None,
+        )
+    }
+
+    pub fn mint_cw20(
+        &mut self,
+        token_addr: &Addr,
+        recipient: &Addr,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            self.owner.clone(),
+            token_addr.clone(),
+            &cw20::Cw20ExecuteMsg::Mint {
+                recipient: recipient.to_string(),
+                amount: amount.into(),
+            },
+            &[],
+        )
+    }
+
+    pub fn set_allowance_cw20(
+        &mut self,
+        token_addr: &Addr,
+        sender: &Addr,
+        spender: &Addr,
+        amount: u128,
+    ) -> AnyResult<AppResponse> {
+        self.app.execute_contract(
+            sender.clone(),
+            token_addr.clone(),
+            &cw20::Cw20ExecuteMsg::IncreaseAllowance {
+                spender: spender.to_string(),
+                amount: amount.into(),
+                expires: None,
+            },
+            &[],
+        )
     }
 }
 
