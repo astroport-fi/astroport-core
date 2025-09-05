@@ -453,17 +453,69 @@ fn test_collect() {
         ]
     );
 
+    let asset_in = AssetInfo::native("uusd").with_balance(1_000000u64);
     let estimated_astro_out: Uint128 = helper
         .app
         .wrap()
         .query_wasm_smart(
             &helper.maker,
             &QueryMsg::EstimateSwap {
-                asset_in: AssetInfo::native("uusd").with_balance(1_000000u64),
+                asset_in: asset_in.clone(),
             },
         )
         .unwrap();
     assert_eq!(estimated_astro_out.u128(), 996690);
+
+    let astro_bal_before = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .unwrap();
+
+    helper.give_me_money(&[asset_in], &maker);
+
+    // Checking that duplicated routes as well as routes with empty assets don't cause any issues
+    helper
+        .collect(vec![
+            AssetWithLimit {
+                info: AssetInfo::native("uusd"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("coin_a"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("uusd"),
+                limit: None,
+            }, // <-- duplicated
+            AssetWithLimit {
+                info: AssetInfo::native("coin_b"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("uusd"),
+                limit: None,
+            }, // <-- duplicated
+            AssetWithLimit {
+                info: AssetInfo::native("coin_c"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("uusd"),
+                limit: None,
+            }, // <-- duplicated
+        ])
+        .unwrap();
+
+    let received_amount = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .unwrap()
+        .amount
+        - astro_bal_before.amount;
+    assert_eq!(received_amount, estimated_astro_out);
 }
 
 #[test]
