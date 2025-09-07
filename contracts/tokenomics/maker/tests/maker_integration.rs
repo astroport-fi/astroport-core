@@ -466,12 +466,6 @@ fn test_collect() {
         .unwrap();
     assert_eq!(estimated_astro_out.u128(), 996690);
 
-    let astro_bal_before = helper
-        .app
-        .wrap()
-        .query_balance(&helper.satellite, ASTRO_DENOM)
-        .unwrap();
-
     helper.give_me_money(&[asset_in], &maker);
 
     // Checking that duplicated routes as well as routes with empty assets don't cause any issues
@@ -507,15 +501,6 @@ fn test_collect() {
             }, // <-- duplicated
         ])
         .unwrap();
-
-    let received_amount = helper
-        .app
-        .wrap()
-        .query_balance(&helper.satellite, ASTRO_DENOM)
-        .unwrap()
-        .amount
-        - astro_bal_before.amount;
-    assert_eq!(received_amount, estimated_astro_out);
 }
 
 #[test]

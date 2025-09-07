@@ -15,7 +15,7 @@ use cosmwasm_std::{
 };
 use cw_utils::nonpayable;
 use itertools::Itertools;
-use std::cmp::Ordering;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -109,7 +109,7 @@ pub struct RawRoute {
 
 pub enum SwapType {
     Direct { amount_in: Uint128, pool_addr: Addr },
-    Auto { pool_addr: Addr },
+    Auto { pool_addr: Addr, count: u8 },
 }
 
 pub fn collect(
@@ -167,31 +167,55 @@ pub fn collect(
 
         let mut current_asset = route[0].asset_out.clone();
         for step in &route[1..] {
-            // Intermediate nodes become 'auto' regardless of whether they were 'direct' initially
-            nodes_map.entry(current_asset.clone()).or_default().insert(
-                step.asset_out.clone(),
-                SwapType::Auto {
-                    pool_addr: step.pool_addr.clone(),
+            match nodes_map
+                .entry(current_asset.clone())
+                .or_default()
+                .entry(step.asset_out.clone())
+            {
+                Entry::Occupied(mut entry) => match entry.get_mut() {
+                    entry @ SwapType::Direct { .. } => {
+                        *entry = SwapType::Auto {
+                            pool_addr: step.pool_addr.clone(),
+                            count: 1,
+                        }
+                    }
+                    SwapType::Auto { count, .. } => {
+                        *count += 1;
+                    }
                 },
-            );
+                Entry::Vacant(entry) => {
+                    entry.insert(SwapType::Auto {
+                        pool_addr: step.pool_addr.clone(),
+                        count: 1,
+                    });
+                }
+            }
 
             current_asset = step.asset_out.clone();
         }
     }
 
-    let mut messages = nodes_map
+    let (direct, mut auto): (Vec<_>, Vec<_>) = nodes_map
         .into_iter()
         .flat_map(|(from, to_map)| {
             to_map
                 .into_iter()
-                .map(move |(to, count)| (from.clone(), to, count))
+                .map(move |(to, swap_type)| (from.clone(), to, swap_type))
         })
-        .sorted_by(|(_, _, swp1), (_, _, swp2)| match (swp1, swp2) {
-            (SwapType::Auto { .. }, SwapType::Auto { .. })
-            | (SwapType::Direct { .. }, SwapType::Direct { .. }) => Ordering::Equal,
-            (SwapType::Auto { .. }, SwapType::Direct { .. }) => Ordering::Greater,
-            (SwapType::Direct { .. }, SwapType::Auto { .. }) => Ordering::Less,
-        })
+        .partition(|(_, _, swap_type)| matches!(swap_type, SwapType::Direct { .. }));
+
+    auto.sort_by(
+        |(_, _, swp_type1), (_, _, swp_type2)| match (swp_type1, swp_type2) {
+            (SwapType::Auto { count: count1, .. }, SwapType::Auto { count: count2, .. }) => {
+                count1.cmp(count2)
+            }
+            _ => unreachable!(),
+        },
+    );
+
+    let mut messages = direct
+        .into_iter()
+        .chain(auto)
         .map(|(from, to, swap_type)| {
             match swap_type {
                 SwapType::Direct {
@@ -203,7 +227,7 @@ pub fn collect(
 
                     build_swap_msg(&asset_in, &to, cfg.max_spread, &pool_addr)
                 }
-                SwapType::Auto { pool_addr } => wasm_execute(
+                SwapType::Auto { pool_addr, .. } => wasm_execute(
                     &env.contract.address,
                     &ExecuteMsg::AutoSwap {
                         asset_in: from,
@@ -590,9 +614,9 @@ mod unit_tests {
         )
         .unwrap_err();
         assert_eq!(
-            err,
-            ContractError::Std(StdError::generic_err("Invalid input: human address too short for this mock implementation (must be >= 3)."))
-        );
+                err,
+                ContractError::Std(StdError::generic_err("Invalid input: human address too short for this mock implementation (must be >= 3)."))
+            );
 
         let err = update_config(
             deps.as_mut(),
