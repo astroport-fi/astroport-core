@@ -374,7 +374,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated"
-version = "4.2.1"
+version = "4.2.2"
 dependencies = [
  "anyhow",
  "astroport 5.12.0",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-duality"
-version = "4.3.2"
+version = "4.3.3"
 dependencies = [
  "anyhow",
  "astroport 5.12.0",
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-pair-concentrated-sale-tax"
-version = "4.2.1"
+version = "4.2.2"
 dependencies = [
  "anyhow",
  "astroport 5.12.0",

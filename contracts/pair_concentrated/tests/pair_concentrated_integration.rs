@@ -1695,6 +1695,55 @@ fn check_correct_fee_share() {
 }
 
 #[test]
+fn test_lsd_corner_case() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![TestCoin::native("uusd"), TestCoin::native("uluna")];
+
+    let params = ConcentratedPoolParams {
+        amp: f64_to_dec(500.0),
+        gamma: f64_to_dec(0.01),
+        mid_fee: f64_to_dec(0.0003),
+        out_fee: f64_to_dec(0.0045),
+        fee_gamma: f64_to_dec(0.3),
+        repeg_profit_threshold: f64_to_dec(0.00000001),
+        min_price_scale_delta: f64_to_dec(0.0000055),
+        price_scale: f64_to_dec(1.5915113196549202),
+        ..common_pcl_params()
+    };
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
+
+    helper.app.next_block(61200);
+
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10000u128),
+        helper.assets[&test_coins[1]].with_balance(10000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(240);
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(20000u128),
+        helper.assets[&test_coins[1]].with_balance(20000u128),
+    ];
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    helper.app.next_block(6000);
+    helper.withdraw_liquidity(&owner, 19519, vec![]).unwrap();
+
+    assert!(
+        helper
+            .query_config()
+            .unwrap()
+            .pool_state
+            .price_state
+            .xcp_profit_real
+            >= Decimal256::one()
+    );
+}
+
+#[test]
 fn check_small_trades() {
     let owner = Addr::unchecked("owner");
 

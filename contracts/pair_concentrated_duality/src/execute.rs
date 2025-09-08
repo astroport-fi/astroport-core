@@ -23,7 +23,6 @@ use astroport_pcl_common::utils::{
     accumulate_prices, assert_max_spread, before_swap_check, calc_last_prices, compute_swap,
     get_share_in_assets, mint_liquidity_token_message,
 };
-use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
 use crate::instantiate::LP_TOKEN_PRECISION;
@@ -398,14 +397,6 @@ fn withdraw_liquidity(
         order_msgs,
     );
     ob_state.save(deps.storage)?;
-
-    // decrease XCP
-    xs[1] *= config.pool_state.price_state.price_scale;
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
-    let d = calc_d(&xs, &amp_gamma)?;
-    config.pool_state.price_state.xcp_profit_real =
-        get_xcp(d, config.pool_state.price_state.price_scale)
-            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
     CONFIG.save(deps.storage, &config)?;
 

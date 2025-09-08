@@ -43,7 +43,6 @@ use astroport_pcl_common::utils::{
     accumulate_prices, assert_max_spread, before_swap_check, calc_last_prices, check_asset_infos,
     check_cw20_in_pool, compute_swap, get_share_in_assets, mint_liquidity_token_message,
 };
-use astroport_pcl_common::{calc_d, get_xcp};
 
 use crate::error::ContractError;
 use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
@@ -561,7 +560,7 @@ fn withdraw_liquidity(
     info: MessageInfo,
     assets: Vec<Asset>,
 ) -> Result<Response, ContractError> {
-    let mut config = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
     let Coin { amount, denom } = one_coin(&info)?;
 
@@ -588,18 +587,6 @@ fn withdraw_liquidity(
     } else {
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
-
-    // decrease XCP
-    let mut xs = pools.iter().map(|a| a.amount).collect_vec();
-
-    xs[0] -= refund_assets[0].amount;
-    xs[1] -= refund_assets[1].amount;
-    xs[1] *= config.pool_state.price_state.price_scale;
-    let amp_gamma = config.pool_state.get_amp_gamma(&env);
-    let d = calc_d(&xs, &amp_gamma)?;
-    config.pool_state.price_state.xcp_profit_real =
-        get_xcp(d, config.pool_state.price_state.price_scale)
-            / (total_share - amount).to_decimal256(LP_TOKEN_PRECISION)?;
 
     let refund_assets = refund_assets
         .into_iter()
@@ -638,8 +625,6 @@ fn withdraw_liquidity(
             )?;
         }
     }
-
-    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_messages(messages).add_attributes(vec![
         attr("action", "withdraw_liquidity"),
