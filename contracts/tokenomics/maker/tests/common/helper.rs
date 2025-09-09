@@ -15,7 +15,8 @@ use astroport_test::cw_multi_test::{
 };
 use cosmwasm_std::testing::MockStorage;
 use cosmwasm_std::{
-    Addr, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response, StdResult,
+    Addr, BankMsg, Binary, Coin, Decimal, Deps, DepsMut, Empty, Env, MessageInfo, Response,
+    StdResult,
 };
 use cw20::MinterResponse;
 use derivative::Derivative;
@@ -68,15 +69,26 @@ fn cw20_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
+pub const MOCK_IBC_ESCROW: &str = "wasm1u8asrdfc9gheq2qh0nvlpflvpem3q4t5maqllcfdds9grfzuttjqxsl0yn";
+
 fn mock_satellite_contract() -> Box<dyn Contract<Empty>> {
     let instantiate = |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
         Ok(Default::default())
     };
     let execute = |_: DepsMut,
                    _: Env,
-                   _: MessageInfo,
-                   _: astro_satellite_package::ExecuteMsg|
-     -> StdResult<Response> { Ok(Default::default()) };
+                   info: MessageInfo,
+                   msg: astro_satellite_package::ExecuteMsg|
+     -> StdResult<Response> {
+        match msg {
+            astro_satellite_package::ExecuteMsg::TransferAstro {} => Ok(Response::new()
+                .add_message(BankMsg::Send {
+                    to_address: MOCK_IBC_ESCROW.to_string(),
+                    amount: info.funds,
+                })),
+            _ => unimplemented!(),
+        }
+    };
     let empty_query = |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { unimplemented!() };
 
     Box::new(ContractWrapper::new_with_empty(
@@ -104,8 +116,6 @@ fn common_pcl_params(price_scale: Decimal) -> ConcentratedPoolParams {
     }
 }
 
-pub const ASTRO_DENOM: &str = "astro";
-
 pub type CustomApp<ExecC = Empty, QueryC = Empty> = App<
     BankKeeper,
     MockApiBech32,
@@ -124,6 +134,7 @@ pub type CustomApp<ExecC = Empty, QueryC = Empty> = App<
 pub struct Helper {
     #[derivative(Debug = "ignore")]
     pub app: CustomApp,
+    pub astro_denom: String,
     pub owner: Addr,
     pub factory: Addr,
     pub maker: Addr,
@@ -132,7 +143,7 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn new() -> AnyResult<Self> {
+    pub fn new(astro_denom: &str) -> AnyResult<Self> {
         let mut app = BasicAppBuilder::new()
             .with_api(MockApiBech32::new("wasm"))
             .with_stargate(MockStargate::default())
@@ -193,7 +204,7 @@ impl Helper {
                 &maker::InstantiateMsg {
                     owner: owner.to_string(),
                     factory_contract: factory.to_string(),
-                    astro_denom: ASTRO_DENOM.to_string(),
+                    astro_denom: astro_denom.to_string(),
                     collector: satellite.to_string(),
                     max_spread: Decimal::percent(10),
                     collect_cooldown: None,
@@ -221,6 +232,7 @@ impl Helper {
 
         Ok(Self {
             app,
+            astro_denom: astro_denom.to_string(),
             owner,
             factory,
             maker,

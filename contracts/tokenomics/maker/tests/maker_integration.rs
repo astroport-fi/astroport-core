@@ -1,6 +1,6 @@
 #![cfg(not(tarpaulin_include))]
 
-use crate::common::helper::{f64_to_dec, Helper, ASTRO_DENOM};
+use crate::common::helper::{f64_to_dec, Helper, MOCK_IBC_ESCROW};
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::factory::PairType;
 use astroport::maker::{
@@ -18,12 +18,13 @@ mod common;
 
 #[test]
 fn test_set_routes() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
 
     let astro_pair = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "uusd"),
-            coin(1_000_000_000000, ASTRO_DENOM),
+            coin(1_000_000_000000, astro),
         ])
         .unwrap();
 
@@ -74,7 +75,7 @@ fn test_set_routes() {
             },
             PoolRoute {
                 asset_in: AssetInfo::native("uusd"),
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.to_string(),
             },
         ])
@@ -89,7 +90,7 @@ fn test_set_routes() {
                 asset_out: AssetInfo::native("uusd"),
             },
             RouteStep {
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
@@ -122,7 +123,7 @@ fn test_set_routes() {
                 asset_out: AssetInfo::native("uusd"),
             },
             RouteStep {
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
@@ -160,7 +161,7 @@ fn test_set_routes() {
                 asset_out: AssetInfo::native("uusd"),
             },
             RouteStep {
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.clone(),
             }
         ]
@@ -217,13 +218,13 @@ fn test_set_routes() {
     let pool_addr = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, &last_coin),
-            coin(1_000_000_000000, ASTRO_DENOM),
+            coin(1_000_000_000000, astro),
         ])
         .unwrap();
 
     routes.push(PoolRoute {
         asset_in: AssetInfo::native(last_coin),
-        asset_out: AssetInfo::native(ASTRO_DENOM),
+        asset_out: AssetInfo::native(astro),
         pool_addr: pool_addr.contract_addr.to_string(),
     });
 
@@ -238,19 +239,20 @@ fn test_set_routes() {
 
 #[test]
 fn test_collect() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
 
     let astro_pair = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "uusd"),
-            coin(1_000_000_000000, ASTRO_DENOM),
+            coin(1_000_000_000000, astro),
         ])
         .unwrap();
 
     helper
         .set_pool_routes(vec![PoolRoute {
             asset_in: AssetInfo::native("uusd"),
-            asset_out: AssetInfo::native(ASTRO_DENOM),
+            asset_out: AssetInfo::native(astro),
             pool_addr: astro_pair.contract_addr.to_string(),
         }])
         .unwrap();
@@ -279,7 +281,7 @@ fn test_collect() {
     let astro_bal = helper
         .app
         .wrap()
-        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .query_balance(&helper.satellite, astro)
         .unwrap();
     assert_eq!(astro_bal.amount.u128(), 997799);
 
@@ -379,7 +381,7 @@ fn test_collect() {
     let astro_bal = helper
         .app
         .wrap()
-        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .query_balance(&helper.satellite, astro)
         .unwrap();
     assert_eq!(astro_bal.amount.u128(), 3982402);
 
@@ -447,7 +449,7 @@ fn test_collect() {
             },
             PoolRoute {
                 asset_in: AssetInfo::native("uusd"),
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.to_string(),
             }
         ]
@@ -505,7 +507,8 @@ fn test_collect() {
 
 #[test]
 fn test_collect_with_cw20() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
     let owner = helper.owner.clone();
     let maker = helper.maker.clone();
 
@@ -562,7 +565,7 @@ fn test_collect_with_cw20() {
     let astro_pair = helper
         .create_and_seed_pair([
             coin(1_000_000_000000, "uusdc"),
-            coin(1_000_000_000000, ASTRO_DENOM),
+            coin(1_000_000_000000, astro),
         ])
         .unwrap();
 
@@ -575,7 +578,7 @@ fn test_collect_with_cw20() {
             },
             PoolRoute {
                 asset_in: AssetInfo::native("uusdc"),
-                asset_out: AssetInfo::native(ASTRO_DENOM),
+                asset_out: AssetInfo::native(astro),
                 pool_addr: astro_pair.contract_addr.to_string(),
             },
         ])
@@ -621,14 +624,73 @@ fn test_collect_with_cw20() {
     let astro_bal = helper
         .app
         .wrap()
-        .query_balance(&helper.satellite, ASTRO_DENOM)
+        .query_balance(&helper.satellite, astro)
         .unwrap();
     assert_eq!(astro_bal.amount.u128(), 985745);
 }
 
 #[test]
+fn test_collect_outpost() {
+    let astro = "ibc/astro";
+    let mut helper = Helper::new(astro).unwrap();
+
+    let astro_pair = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "uusd"),
+            coin(1_000_000_000000, astro),
+        ])
+        .unwrap();
+
+    helper
+        .set_pool_routes(vec![PoolRoute {
+            asset_in: AssetInfo::native("uusd"),
+            asset_out: AssetInfo::native(astro),
+            pool_addr: astro_pair.contract_addr.to_string(),
+        }])
+        .unwrap();
+
+    // mock received fees
+    let maker = helper.maker.clone();
+    helper.give_me_money(
+        &[AssetInfo::native("uusd").with_balance(1_000000u64)],
+        &maker,
+    );
+
+    helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::native("uusd"),
+            limit: None,
+        }])
+        .unwrap();
+
+    let uusd_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "uusd")
+        .unwrap();
+    assert_eq!(uusd_bal.amount.u128(), 0);
+
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, astro)
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 0);
+
+    // Confirming that maker contract called TransferAstro endpoint and
+    // sent all astro to a mocked ibc escrow account
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(MOCK_IBC_ESCROW, astro)
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 997799);
+}
+
+#[test]
 fn update_owner() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
 
     let new_owner = helper.app.api().addr_make("new_owner");
 
@@ -732,7 +794,8 @@ fn update_owner() {
 
 #[test]
 fn test_seize() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
     let owner = helper.owner.clone();
     let maker = helper.maker.clone();
 
@@ -930,12 +993,12 @@ fn test_seize() {
 
 #[test]
 fn test_dev_fund_fee() {
-    let mut helper = Helper::new().unwrap();
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
     let owner = helper.owner.clone();
     let maker = helper.maker.clone();
     let fee_collector = helper.query_config().unwrap().collector;
     let usdc = "uusdc";
-    let astro_token = "astro";
 
     let mut dev_fund_conf = DevFundConfig {
         address: "".to_string(),
@@ -986,10 +1049,7 @@ fn test_dev_fund_fee() {
 
     // Create a random pool and try to set it in the dev fund config
     let faulty_pair_info = helper
-        .create_and_seed_pair([
-            coin(100_000_000000, "foo"),
-            coin(100_000_000000, astro_token),
-        ])
+        .create_and_seed_pair([coin(100_000_000000, "foo"), coin(100_000_000000, astro)])
         .unwrap();
     dev_fund_conf.pool_addr = faulty_pair_info.contract_addr.clone();
 
@@ -1011,10 +1071,7 @@ fn test_dev_fund_fee() {
 
     // Create ASTRO<>USDC pool
     let pair_info = helper
-        .create_and_seed_pair([
-            coin(100_000_000000, usdc),
-            coin(100_000_000000, astro_token),
-        ])
+        .create_and_seed_pair([coin(100_000_000000, usdc), coin(100_000_000000, astro)])
         .unwrap();
     dev_fund_conf.pool_addr = pair_info.contract_addr.clone();
 
@@ -1037,7 +1094,7 @@ fn test_dev_fund_fee() {
     helper
         .set_pool_routes(vec![PoolRoute {
             asset_in: AssetInfo::native(usdc),
-            asset_out: AssetInfo::native(astro_token),
+            asset_out: AssetInfo::native(astro),
             pool_addr: pair_info.contract_addr.to_string(),
         }])
         .unwrap();
@@ -1067,7 +1124,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&maker, astro_token)
+            .query_balance(&maker, astro)
             .unwrap()
             .amount
             .u128(),
@@ -1077,7 +1134,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&fee_collector, astro_token)
+            .query_balance(&fee_collector, astro)
             .unwrap()
             .amount
             .u128(),
@@ -1087,7 +1144,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&dev_fund_conf.address, astro_token)
+            .query_balance(&dev_fund_conf.address, astro)
             .unwrap()
             .amount
             .u128(),
@@ -1136,7 +1193,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&maker, astro_token)
+            .query_balance(&maker, astro)
             .unwrap()
             .amount
             .u128(),
@@ -1146,7 +1203,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&fee_collector, astro_token)
+            .query_balance(&fee_collector, astro)
             .unwrap()
             .amount
             .u128(),
@@ -1156,7 +1213,7 @@ fn test_dev_fund_fee() {
         helper
             .app
             .wrap()
-            .query_balance(&dev_fund_conf.address, astro_token)
+            .query_balance(&dev_fund_conf.address, astro)
             .unwrap()
             .amount
             .u128(),
