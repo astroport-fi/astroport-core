@@ -24,8 +24,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
     Ok(result)
 }
 
-pub fn get_route(deps: Deps, denom_in: &str) -> Result<Vec<RouteStep>, ContractError> {
-    let asset_in = determine_asset_info(denom_in, deps.api)?;
+pub fn get_route(deps: Deps, asset_in: &str) -> Result<Vec<RouteStep>, ContractError> {
+    let asset_in = determine_asset_info(asset_in, deps.api)?;
     let config = CONFIG.load(deps.storage)?;
 
     RoutesBuilder::default().build_routes(deps.storage, &asset_in, &config.astro_denom)
