@@ -135,6 +135,8 @@ pub fn collect(
 
     let mut routes_builder = RoutesBuilder::default();
     let mut nodes_map: HashMap<AssetInfo, HashMap<AssetInfo, SwapType>> = Default::default();
+    // Flag defines whether this msg should just send astro without any swapping or no
+    let mut just_astro = false;
 
     for asset in assets {
         let balance = asset
@@ -147,12 +149,20 @@ pub fn collect(
             continue;
         }
 
-        let route = routes_builder.build_routes(deps.storage, &asset.info, &cfg.astro_denom)?;
-
         let amount_in = asset
             .limit
             .map(|limit| limit.min(balance))
             .unwrap_or(balance);
+
+        if asset.info == AssetInfo::native(&cfg.astro_denom) {
+            if !amount_in.is_zero() {
+                just_astro = true;
+            }
+            // Astro doesn't need to be swapped
+            continue;
+        }
+
+        let route = routes_builder.build_routes(deps.storage, &asset.info, &cfg.astro_denom)?;
 
         // We treat all input assets as collect graph leaves initially.
         // For leaves, we need to know the initial balance
@@ -173,14 +183,15 @@ pub fn collect(
                 .entry(step.asset_out.clone())
             {
                 Entry::Occupied(mut entry) => match entry.get_mut() {
-                    entry @ SwapType::Direct { .. } => {
+                    SwapType::Auto { count, .. } => {
+                        *count += 1;
+                    }
+                    // SwapType::Direct { .. }
+                    entry => {
                         *entry = SwapType::Auto {
                             pool_addr: step.pool_addr.clone(),
                             count: 1,
                         }
-                    }
-                    SwapType::Auto { count, .. } => {
-                        *count += 1;
                     }
                 },
                 Entry::Vacant(entry) => {
@@ -241,13 +252,30 @@ pub fn collect(
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    messages
-        .last_mut()
-        .map(|msg| {
-            msg.reply_on = ReplyOn::Success;
-            msg.id = POST_COLLECT_REPLY_ID;
-        })
-        .ok_or(ContractError::NothingToCollect {})?;
+    if messages.is_empty() {
+        if just_astro {
+            messages.push(SubMsg::reply_on_success(
+                wasm_execute(
+                    &env.contract.address,
+                    // Reusing the same autoswap endpoint with invalid data.
+                    // Empty asset_in and pool_addr serve as a marker to call reply endpoint directly
+                    &ExecuteMsg::AutoSwap {
+                        asset_in: AssetInfo::native(""),
+                        asset_out: AssetInfo::native(&cfg.astro_denom),
+                        pool_addr: Addr::unchecked(""),
+                    },
+                    vec![],
+                )?,
+                POST_COLLECT_REPLY_ID,
+            ))
+        } else {
+            return Err(ContractError::NothingToCollect {});
+        }
+    } else {
+        let msg = messages.last_mut().unwrap();
+        msg.reply_on = ReplyOn::Success;
+        msg.id = POST_COLLECT_REPLY_ID;
+    }
 
     Ok(Response::new()
         .add_submessages(messages)
@@ -270,16 +298,24 @@ pub fn auto_swap(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let balance = asset_in.query_pool(&deps.querier, &env.contract.address)?;
+    // Passing by this endpoint and moving to the reply endpoint where all astro token logic lives
+    if asset_in == AssetInfo::native("")
+        && pool_addr.as_str().is_empty()
+        && asset_out == AssetInfo::native(&config.astro_denom)
+    {
+        Ok(Response::new())
+    } else {
+        let balance = asset_in.query_pool(&deps.querier, &env.contract.address)?;
 
-    let swap_msg = build_swap_msg(
-        &asset_in.with_balance(balance),
-        &asset_out,
-        config.max_spread,
-        &pool_addr,
-    )?;
+        let swap_msg = build_swap_msg(
+            &asset_in.with_balance(balance),
+            &asset_out,
+            config.max_spread,
+            &pool_addr,
+        )?;
 
-    Ok(Response::new().add_message(swap_msg))
+        Ok(Response::new().add_message(swap_msg))
+    }
 }
 
 pub fn update_config(

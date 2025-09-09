@@ -506,6 +506,214 @@ fn test_collect() {
 }
 
 #[test]
+fn test_collect_2() {
+    let astro = "astro";
+    let mut helper = Helper::new(astro).unwrap();
+    let maker = helper.maker.clone();
+
+    let astro_pair = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "uusd"),
+            coin(1_000_000_000000, astro),
+        ])
+        .unwrap();
+    let pool_1 = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "coin_b"),
+            coin(1_000_000_000000, "uusd"),
+        ])
+        .unwrap();
+    let pool_2 = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "coin_e"),
+            coin(1_000_000_000000, "uusd"),
+        ])
+        .unwrap();
+    let pool_3 = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "coin_c"),
+            coin(1_000_000_000000, "coin_b"),
+        ])
+        .unwrap();
+    let pool_4 = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "coin_b"),
+            coin(1_000_000_000000, "coin_d"),
+        ])
+        .unwrap();
+    let pool_5 = helper
+        .create_and_seed_pair([
+            coin(1_000_000_000000, "coin_a"),
+            coin(1_000_000_000000, "coin_b"),
+        ])
+        .unwrap();
+
+    // Set routes
+    //           coin_c   coin_e
+    //              |       |
+    // coin_a -> coin_b -> uusd -> astro
+    //              |
+    //           coin_d
+    helper
+        .set_pool_routes(vec![
+            PoolRoute {
+                asset_in: AssetInfo::native("uusd"),
+                asset_out: AssetInfo::native(astro),
+                pool_addr: astro_pair.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("coin_b"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_1.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("coin_e"),
+                asset_out: AssetInfo::native("uusd"),
+                pool_addr: pool_2.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("coin_a"),
+                asset_out: AssetInfo::native("coin_b"),
+                pool_addr: pool_5.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("coin_d"),
+                asset_out: AssetInfo::native("coin_b"),
+                pool_addr: pool_4.contract_addr.to_string(),
+            },
+            PoolRoute {
+                asset_in: AssetInfo::native("coin_c"),
+                asset_out: AssetInfo::native("coin_b"),
+                pool_addr: pool_3.contract_addr.to_string(),
+            },
+        ])
+        .unwrap();
+
+    // Imitating all maker fees except coin_d
+    helper.give_me_money(
+        &[AssetInfo::native("coin_a").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("coin_b").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("coin_c").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("coin_e").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native("uusd").with_balance(1_000000u64)],
+        &maker,
+    );
+    helper.give_me_money(
+        &[AssetInfo::native(astro).with_balance(1_000000u64)],
+        &maker,
+    );
+
+    // Triggering collect on all available tokens
+    helper
+        .collect(vec![
+            AssetWithLimit {
+                info: AssetInfo::native("coin_a"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("coin_b"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("coin_c"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("coin_d"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("coin_e"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native("uusd"),
+                limit: None,
+            },
+            AssetWithLimit {
+                info: AssetInfo::native(astro),
+                limit: None,
+            },
+        ])
+        .unwrap();
+
+    let coin_a_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "coin_a")
+        .unwrap();
+    assert_eq!(coin_a_bal.amount.u128(), 0);
+    let coin_b_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "coin_b")
+        .unwrap();
+    assert_eq!(coin_b_bal.amount.u128(), 0);
+    let coin_c_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "coin_c")
+        .unwrap();
+    assert_eq!(coin_c_bal.amount.u128(), 0);
+    let coin_c_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "coin_e")
+        .unwrap();
+    assert_eq!(coin_c_bal.amount.u128(), 0);
+    let coin_c_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, "uusd")
+        .unwrap();
+    assert_eq!(coin_c_bal.amount.u128(), 0);
+    let coin_c_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.maker, astro)
+        .unwrap();
+    assert_eq!(coin_c_bal.amount.u128(), 0);
+
+    // Satellite has received fees converted to astro
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, astro)
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 5_975800);
+
+    // Collecting only astro
+    helper.give_me_money(
+        &[AssetInfo::native(astro).with_balance(1_000000u64)],
+        &maker,
+    );
+    helper
+        .collect(vec![AssetWithLimit {
+            info: AssetInfo::native(astro),
+            limit: None,
+        }])
+        .unwrap();
+    let astro_bal = helper
+        .app
+        .wrap()
+        .query_balance(&helper.satellite, astro)
+        .unwrap();
+    assert_eq!(astro_bal.amount.u128(), 6_975800);
+}
+
+#[test]
 fn test_collect_with_cw20() {
     let astro = "astro";
     let mut helper = Helper::new(astro).unwrap();
