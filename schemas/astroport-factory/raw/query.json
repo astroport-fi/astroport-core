@@ -18,7 +18,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Pair returns information about a specific pair according to the specified assets.",
+      "description": "Pair returns information about a specific pair according to the specified assets. Gets the first pool from the list WARNING: this endpoint is left only for backward compatability. Consider using `QueryMsg::PairsByAssetInfos` and selecting a pool address based on your needs.",
       "type": "object",
       "required": [
         "pair"
@@ -44,6 +44,71 @@
       "additionalProperties": false
     },
     {
+      "description": "PairsByAssetInfos returns a list of pairs for the specified assets.",
+      "type": "object",
+      "required": [
+        "pairs_by_asset_infos"
+      ],
+      "properties": {
+        "pairs_by_asset_infos": {
+          "type": "object",
+          "required": [
+            "asset_infos"
+          ],
+          "properties": {
+            "asset_infos": {
+              "description": "The assets for which we return a pair",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              }
+            },
+            "limit": {
+              "description": "The number of pairs to read and return. Optional",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "minimum": 0.0
+            },
+            "start_after": {
+              "description": "The pair address to start reading from. Optional",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "PairByLpToken returns a pair info for the specified liquidity token.",
+      "type": "object",
+      "required": [
+        "pair_by_lp_token"
+      ],
+      "properties": {
+        "pair_by_lp_token": {
+          "type": "object",
+          "required": [
+            "lp_token"
+          ],
+          "properties": {
+            "lp_token": {
+              "description": "The liquidity token address for which we return a pair",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.",
       "type": "object",
       "required": [
@@ -54,7 +119,7 @@
           "type": "object",
           "properties": {
             "limit": {
-              "description": "The number of pairs to read and return. It is an [`Option`] type.",
+              "description": "The number of pairs to read and return. Optional",
               "type": [
                 "integer",
                 "null"
@@ -63,14 +128,11 @@
               "minimum": 0.0
             },
             "start_after": {
-              "description": "The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.",
+              "description": "The pair address to start reading from. Optional",
               "type": [
-                "array",
+                "string",
                 "null"
-              ],
-              "items": {
-                "$ref": "#/definitions/AssetInfo"
-              }
+              ]
             }
           },
           "additionalProperties": false
@@ -113,19 +175,6 @@
       ],
       "properties": {
         "blacklisted_pair_types": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "type": "object",
-      "required": [
-        "tracker_config"
-      ],
-      "properties": {
-        "tracker_config": {
           "type": "object",
           "additionalProperties": false
         }
