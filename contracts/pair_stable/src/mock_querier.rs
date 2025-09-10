@@ -164,6 +164,7 @@ impl WasmMockQuerier {
                                 fee_address: Some(Addr::unchecked("fee_address")),
                                 generator_address: None,
                                 coin_registry_address: Addr::unchecked("coin_registry"),
+                                creation_fee: None,
                             })
                             .into(),
                         )

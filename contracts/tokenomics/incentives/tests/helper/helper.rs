@@ -342,6 +342,7 @@ impl Helper {
                     generator_address: None,
                     owner: owner.to_string(),
                     coin_registry_address: coin_registry_address.to_string(),
+                    creation_fee: None,
                 },
                 &[],
                 "Astroport Factory",
@@ -384,6 +385,7 @@ impl Helper {
                 fee_address: None,
                 generator_address: Some(generator.to_string()),
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )

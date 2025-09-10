@@ -131,6 +131,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -205,6 +206,7 @@ fn instantiate_standard_xyk_pair(mut router: &mut TestApp, owner: &Addr, version
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -676,6 +678,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -1054,6 +1057,7 @@ fn asset_balances_tracking_works_correctly() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -1370,6 +1374,7 @@ fn update_pair_config() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1456,6 +1461,7 @@ fn update_tax_configs() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1669,6 +1675,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
         generator_address: None,
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1709,6 +1716,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
                 fee_address: None,
                 generator_address: Some(generator_instance.to_string()),
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )

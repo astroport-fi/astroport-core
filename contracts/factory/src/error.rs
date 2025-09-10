@@ -36,4 +36,7 @@ pub enum ContractError {
 
     #[error("Invalid whitelist address in pair config")]
     PairConfigInvalidWhitelistAddress {},
+
+    #[error("Pair creation fee expected: {fee}")]
+    CreationFeeExpected { fee: String },
 }

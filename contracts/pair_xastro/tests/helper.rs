@@ -135,6 +135,7 @@ impl Helper {
             generator_address: None,
             owner: owner.to_string(),
             coin_registry_address: "coin_registry".to_string(),
+            creation_fee: None,
         };
 
         let factory = app.instantiate_contract(
