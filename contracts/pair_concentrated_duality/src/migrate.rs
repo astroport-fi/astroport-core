@@ -55,7 +55,7 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<Response>
             );
 
             match stored_info.version.as_str() {
-                "4.3.0" => {
+                "4.3.0" | "4.3.1" | "4.3.2" => {
                     let mut ob_state = OrderbookState::load(deps.storage)?;
                     ensure!(
                         !ob_state.enabled,

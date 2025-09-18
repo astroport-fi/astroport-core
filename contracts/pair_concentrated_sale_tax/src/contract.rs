@@ -14,10 +14,8 @@ use cw_utils::{
 };
 use itertools::Itertools;
 
-use astroport::asset::AssetInfoExt;
-use astroport::asset::{
-    addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, PairInfo, MINIMUM_LIQUIDITY_AMOUNT,
-};
+use astroport::asset::{addr_opt_validate, token_asset, Asset, AssetInfo, CoinsExt, PairInfo};
+use astroport::asset::{AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT_PCL};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
 use astroport::observation::{PrecommitObservation, OBSERVATIONS_SIZE};
@@ -507,7 +505,7 @@ pub fn provide_liquidity(
             &config,
             &env.contract.address,
             &env.contract.address,
-            MINIMUM_LIQUIDITY_AMOUNT,
+            MINIMUM_LIQUIDITY_AMOUNT_PCL,
             false,
         )?);
     }
@@ -972,7 +970,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "4.0.0" | "4.0.1" | "4.1.0" | "4.1.1" => {}
+            "4.0.0" | "4.0.1" | "4.1.0" | "4.1.1" | "4.2.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

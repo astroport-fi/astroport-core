@@ -3,7 +3,7 @@ use cosmwasm_std::{
 };
 use itertools::Itertools;
 
-use astroport::asset::{Asset, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{Asset, DecimalAsset, MINIMUM_LIQUIDITY_AMOUNT_PCL};
 use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger, IntegerToDecimal};
 use astroport::pair::MIN_TRADE_SIZE;
 use astroport::querier::query_native_supply;
@@ -114,7 +114,7 @@ pub(crate) fn calculate_shares(
     let share = if total_share.is_zero() {
         let xcp = get_xcp(new_d, config.pool_state.price_state.price_scale);
         let mint_amount = xcp
-            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT.to_decimal256(LP_TOKEN_PRECISION)?)
+            .checked_sub(MINIMUM_LIQUIDITY_AMOUNT_PCL.to_decimal256(LP_TOKEN_PRECISION)?)
             .map_err(|_| ContractError::MinimumLiquidityAmountError {})?;
 
         // share cannot become zero after minimum liquidity subtraction

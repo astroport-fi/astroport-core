@@ -2,7 +2,7 @@ use cosmwasm_std::{ConversionOverflowError, OverflowError, StdError, Uint128};
 use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
-use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT;
+use astroport::asset::MINIMUM_LIQUIDITY_AMOUNT_PCL;
 use astroport::pair::MAX_FEE_SHARE_BPS;
 use astroport_pcl_common::error::PclError;
 
@@ -50,7 +50,7 @@ pub enum ContractError {
     #[error("Initial provide can not be one-sided")]
     InvalidZeroAmount {},
 
-    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT_PCL)]
     MinimumLiquidityAmountError {},
 
     #[error(
