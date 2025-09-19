@@ -3,7 +3,7 @@ use thiserror::Error;
 
 use cw_utils::{ParseReplyError, PaymentError};
 
-use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT, pair::MAX_FEE_SHARE_BPS};
+use astroport::{asset::MINIMUM_LIQUIDITY_AMOUNT_PCL, pair::MAX_FEE_SHARE_BPS};
 use astroport_circular_buffer::error::BufferError;
 use astroport_pcl_common::error::PclError;
 
@@ -43,7 +43,7 @@ pub enum ContractError {
     #[error("Initial provide can not be one-sided")]
     InvalidZeroAmount {},
 
-    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT)]
+    #[error("Initial liquidity must be more than {}", MINIMUM_LIQUIDITY_AMOUNT_PCL)]
     MinimumLiquidityAmountError {},
 
     #[error("Failed to parse or process reply message")]

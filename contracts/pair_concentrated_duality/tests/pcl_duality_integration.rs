@@ -6,7 +6,7 @@ use cosmwasm_std::{Addr, Decimal, Decimal256, StdError, Uint128};
 use cw2::set_contract_version;
 use itertools::{max, Itertools};
 
-use astroport::asset::{native_asset_info, Asset, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{native_asset_info, Asset, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT_PCL};
 use astroport::cosmwasm_ext::IntegerToDecimal;
 use astroport::factory::PairType;
 use astroport::pair::{QueryMsg, MAX_FEE_SHARE_BPS};
@@ -208,8 +208,8 @@ fn provide_and_withdraw() {
         .provide_liquidity(
             &user1,
             &[
-                helper.assets[&test_coins[0]].with_balance(1000u128),
-                helper.assets[&test_coins[1]].with_balance(500u128),
+                helper.assets[&test_coins[0]].with_balance(10u128),
+                helper.assets[&test_coins[1]].with_balance(5u128),
             ],
         )
         .unwrap_err();
@@ -222,7 +222,7 @@ fn provide_and_withdraw() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        70710_677118,
+        70710_678108,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -233,8 +233,8 @@ fn provide_and_withdraw() {
             .query_share(helper.native_balance(&helper.lp_token, &user1))
             .unwrap(),
         vec![
-            helper.assets[&test_coins[0]].with_balance(99999998584u128),
-            helper.assets[&test_coins[1]].with_balance(49999999292u128)
+            helper.assets[&test_coins[0]].with_balance(99999999984u128),
+            helper.assets[&test_coins[1]].with_balance(49999999992u128)
         ]
     );
 
@@ -246,7 +246,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&assets, &user2);
     helper.provide_liquidity(&user2, &assets).unwrap();
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128(),
         helper.native_balance(&helper.lp_token, &user2)
     );
 
@@ -259,7 +259,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&assets, &user3);
     helper.provide_liquidity(&user3, &assets).unwrap();
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128(),
         helper.native_balance(&helper.lp_token, &user3)
     );
 
@@ -306,7 +306,7 @@ fn provide_and_withdraw() {
         .unwrap();
 
     assert_eq!(
-        70710_677118 - 7071_067711,
+        70710_678108 - 7071_067711,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
@@ -318,7 +318,7 @@ fn provide_and_withdraw() {
         .unwrap();
 
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128() - 35355_339059,
         helper.native_balance(&helper.lp_token, &user2)
     );
     assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
@@ -447,7 +447,7 @@ fn check_imbalanced_provide() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        100285_256937,
+        100285_257927,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -466,7 +466,7 @@ fn check_imbalanced_provide() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        100285_256937,
+        100285_257927,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -520,6 +520,28 @@ fn provide_with_different_precision() {
             "Withdrawn amount of coin1 assert failed for {user}"
         );
     }
+}
+
+#[test]
+fn check_double_btc_pool() {
+    let owner = Addr::unchecked("owner");
+
+    let test_coins = vec![
+        TestCoin::native_precise("yoBTC", 8),
+        TestCoin::native_precise("eyBTC", 8),
+    ];
+
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params(), false).unwrap();
+
+    // Provide 0.0001 BTC of each
+    let assets = vec![
+        helper.assets[&test_coins[0]].with_balance(10000u128),
+        helper.assets[&test_coins[1]].with_balance(10000u128),
+    ];
+    helper.give_me_money(&assets, &owner);
+    helper.provide_liquidity(&owner, &assets).unwrap();
+
+    assert_eq!(helper.native_balance(&helper.lp_token, &owner), 90);
 }
 
 #[test]

@@ -9,7 +9,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 use astroport::asset::{
-    addr_opt_validate, Asset, AssetInfo, AssetInfoExt, CoinsExt, MINIMUM_LIQUIDITY_AMOUNT,
+    addr_opt_validate, Asset, AssetInfo, AssetInfoExt, CoinsExt, MINIMUM_LIQUIDITY_AMOUNT_PCL,
 };
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::cosmwasm_ext::{DecimalToInteger, IntegerToDecimal};
@@ -229,7 +229,7 @@ pub fn provide_liquidity(
             &config,
             &env.contract.address,
             &env.contract.address,
-            MINIMUM_LIQUIDITY_AMOUNT,
+            MINIMUM_LIQUIDITY_AMOUNT_PCL,
             false,
         )?);
     }

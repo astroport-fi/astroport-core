@@ -23,8 +23,10 @@ use crate::querier::{
 pub const UUSD_DENOM: &str = "uusd";
 /// LUNA token denomination
 pub const ULUNA_DENOM: &str = "uluna";
-/// Minimum initial LP share
+/// Minimum initial LP share (for XYK and stableswap pools)
 pub const MINIMUM_LIQUIDITY_AMOUNT: Uint128 = Uint128::new(1_000);
+/// Minimum initial LP share (for PCL pools)
+pub const MINIMUM_LIQUIDITY_AMOUNT_PCL: Uint128 = Uint128::new(10);
 /// Maximum denom length
 pub const DENOM_MAX_LENGTH: usize = 128;
 

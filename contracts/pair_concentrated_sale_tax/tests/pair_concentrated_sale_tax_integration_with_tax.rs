@@ -9,7 +9,7 @@ use helper::common_pcl_params;
 use itertools::{max, Itertools};
 
 use astroport::asset::{
-    native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT,
+    native_asset_info, Asset, AssetInfo, AssetInfoExt, MINIMUM_LIQUIDITY_AMOUNT_PCL,
 };
 use astroport::cosmwasm_ext::{AbsDiff, IntegerToDecimal};
 use astroport::observation::OracleObservation;
@@ -337,8 +337,8 @@ fn provide_and_withdraw() {
         .provide_liquidity(
             &user1,
             &[
-                helper.assets[&test_coins[0]].with_balance(1000u128),
-                helper.assets[&test_coins[1]].with_balance(500u128),
+                helper.assets[&test_coins[0]].with_balance(10u128),
+                helper.assets[&test_coins[1]].with_balance(5u128),
             ],
         )
         .unwrap_err();
@@ -351,7 +351,7 @@ fn provide_and_withdraw() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        70710_677118,
+        70710_678108,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -362,8 +362,8 @@ fn provide_and_withdraw() {
             .query_share(helper.native_balance(&helper.lp_token, &user1))
             .unwrap(),
         vec![
-            helper.assets[&test_coins[0]].with_balance(99999998584u128),
-            helper.assets[&test_coins[1]].with_balance(49999999292u128)
+            helper.assets[&test_coins[0]].with_balance(99999999984u128),
+            helper.assets[&test_coins[1]].with_balance(49999999992u128)
         ]
     );
 
@@ -375,7 +375,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&assets, &user2);
     helper.provide_liquidity(&user2, &assets).unwrap();
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128(),
         helper.native_balance(&helper.lp_token, &user2)
     );
 
@@ -388,7 +388,7 @@ fn provide_and_withdraw() {
     helper.give_me_money(&assets, &user3);
     helper.provide_liquidity(&user3, &assets).unwrap();
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128(),
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128(),
         helper.native_balance(&helper.lp_token, &user3)
     );
 
@@ -435,7 +435,7 @@ fn provide_and_withdraw() {
         .unwrap();
 
     assert_eq!(
-        70710_677118 - 7071_067711,
+        70710_678108 - 7071_067711,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(9382_010960, helper.coin_balance(&test_coins[0], &user1));
@@ -447,7 +447,7 @@ fn provide_and_withdraw() {
         .unwrap();
 
     assert_eq!(
-        70710_677118 + MINIMUM_LIQUIDITY_AMOUNT.u128() - 35355_339059,
+        70710_678108 + MINIMUM_LIQUIDITY_AMOUNT_PCL.u128() - 35355_339059,
         helper.native_balance(&helper.lp_token, &user2)
     );
     assert_eq!(46910_055478, helper.coin_balance(&test_coins[0], &user2));
@@ -483,7 +483,7 @@ fn check_imbalanced_provide() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        200495_366531,
+        200495_367521,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -505,7 +505,7 @@ fn check_imbalanced_provide() {
     helper.provide_liquidity(&user1, &assets).unwrap();
 
     assert_eq!(
-        200495_366531,
+        200495_367521,
         helper.native_balance(&helper.lp_token, &user1)
     );
     assert_eq!(0, helper.coin_balance(&test_coins[0], &user1));
@@ -1269,10 +1269,7 @@ fn asset_balances_tracking_with_in_params() {
         )
         .unwrap();
 
-    assert_eq!(
-        helper.native_balance(&helper.lp_token, &owner),
-        999_498998u128
-    );
+    assert_eq!(helper.native_balance(&helper.lp_token, &owner), 999_499988);
 
     // Check that asset balances changed after providing liquidity
     helper.app.update_block(|b| b.height += 1);
@@ -1396,7 +1393,7 @@ fn provides_and_swaps_and_withdraw() {
         .query_wasm_smart(helper.pair_addr.to_string(), &QueryMsg::Pool {})
         .unwrap();
 
-    assert_eq!(res.total_share.u128(), 1000u128);
+    assert_eq!(res.total_share.u128(), 10);
 }
 
 #[test]
@@ -1424,7 +1421,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
         .unwrap();
 
     let amount = helper.query_incentives_deposit(helper.lp_token.to_string(), &owner);
-    assert_eq!(amount, Uint128::new(99003));
+    assert_eq!(amount.u128(), 99993);
 }
 
 #[test]
@@ -2097,7 +2094,7 @@ fn test_tracker_contract() {
         .query_balance(owner.clone(), helper.lp_token.clone())
         .unwrap();
 
-    let total_supply = owner_lp_funds.amount + MINIMUM_LIQUIDITY_AMOUNT;
+    let total_supply = owner_lp_funds.amount + MINIMUM_LIQUIDITY_AMOUNT_PCL;
 
     // Set Alice's balances
     helper
