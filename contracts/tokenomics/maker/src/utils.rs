@@ -153,6 +153,7 @@ pub fn check_pair(
     asset_infos: &[AssetInfo],
 ) -> Result<PairInfo, ContractError> {
     let pool_addr = pool_addr.into();
+    // TODO: will fail if cw20 LP token
     let pair_info = querier.query_wasm_smart::<PairInfo>(
         factory,
         &QueryMsg::PairByLpToken {
