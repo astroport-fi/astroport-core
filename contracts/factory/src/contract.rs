@@ -3,15 +3,15 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Reply, Response,
-    StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
+    attr, to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
+    Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
 use cw_utils::parse_instantiate_response_data;
 use itertools::Itertools;
 
-use astroport::asset::{addr_opt_validate, AssetInfo, PairInfo};
+use astroport::asset::{addr_opt_validate, validate_native_denom, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
     Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
@@ -42,17 +42,22 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    let mut config = Config {
-        owner: deps.api.addr_validate(&msg.owner)?,
-        token_code_id: msg.token_code_id,
-        fee_address: None,
-        generator_address: None,
-        coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
-    };
+    msg.creation_fee
+        .as_ref()
+        .map(|fee| validate_native_denom(&fee.denom))
+        .transpose()?;
 
-    config.generator_address = addr_opt_validate(deps.api, &msg.generator_address)?;
-
-    config.fee_address = addr_opt_validate(deps.api, &msg.fee_address)?;
+    CONFIG.save(
+        deps.storage,
+        &Config {
+            owner: deps.api.addr_validate(&msg.owner)?,
+            token_code_id: msg.token_code_id,
+            fee_address: addr_opt_validate(deps.api, &msg.fee_address)?,
+            generator_address: addr_opt_validate(deps.api, &msg.generator_address)?,
+            coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
+            creation_fee: msg.creation_fee,
+        },
+    )?;
 
     let config_set: HashSet<String> = msg
         .pair_configs
@@ -71,20 +76,8 @@ pub fn instantiate(
         }
         PAIR_CONFIGS.save(deps.storage, pc.pair_type.to_string(), pc)?;
     }
-    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new())
-}
-
-/// Data structure used to update general contract parameters.
-pub struct UpdateConfig {
-    /// This is the CW20 token contract code identifier
-    token_code_id: Option<u64>,
-    /// Contract address to send governance fees to (the Maker)
-    fee_address: Option<String>,
-    /// Generator contract address
-    generator_address: Option<String>,
-    coin_registry_address: Option<String>,
 }
 
 /// Exposes all the execute functions available in the contract.
@@ -127,15 +120,15 @@ pub fn execute(
             fee_address,
             generator_address,
             coin_registry_address,
+            creation_fee,
         } => execute_update_config(
             deps,
             info,
-            UpdateConfig {
-                token_code_id,
-                fee_address,
-                generator_address,
-                coin_registry_address,
-            },
+            token_code_id,
+            fee_address,
+            generator_address,
+            coin_registry_address,
+            creation_fee,
         ),
         ExecuteMsg::UpdatePairConfig { config } => execute_update_pair_config(deps, info, config),
         ExecuteMsg::CreatePair {
@@ -186,7 +179,11 @@ pub fn execute(
 pub fn execute_update_config(
     deps: DepsMut,
     info: MessageInfo,
-    param: UpdateConfig,
+    token_code_id: Option<u64>,
+    fee_address: Option<String>,
+    generator_address: Option<String>,
+    coin_registry_address: Option<String>,
+    creation_fee: Option<Coin>,
 ) -> Result<Response, ContractError> {
     let mut config = CONFIG.load(deps.storage)?;
 
@@ -195,22 +192,27 @@ pub fn execute_update_config(
         return Err(ContractError::Unauthorized {});
     }
 
-    if let Some(fee_address) = param.fee_address {
+    if let Some(fee_address) = fee_address {
         // Validate address format
         config.fee_address = Some(deps.api.addr_validate(&fee_address)?);
     }
 
-    if let Some(generator_address) = param.generator_address {
+    if let Some(generator_address) = generator_address {
         // Validate the address format
         config.generator_address = Some(deps.api.addr_validate(&generator_address)?);
     }
 
-    if let Some(token_code_id) = param.token_code_id {
+    if let Some(token_code_id) = token_code_id {
         config.token_code_id = token_code_id;
     }
 
-    if let Some(coin_registry_address) = param.coin_registry_address {
+    if let Some(coin_registry_address) = coin_registry_address {
         config.coin_registry_address = deps.api.addr_validate(&coin_registry_address)?;
+    }
+
+    if let Some(creation_fee) = creation_fee {
+        validate_native_denom(&creation_fee.denom)?;
+        config.creation_fee = Some(creation_fee);
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -299,7 +301,35 @@ pub fn execute_create_pair(
         return Err(ContractError::PairConfigDisabled {});
     }
 
-    let sub_msg = SubMsg::reply_on_success(
+    let mut funds = info.funds;
+    let mut msgs = vec![];
+
+    if let (Some(creation_fee), Some(fee_address)) = (config.creation_fee, config.fee_address) {
+        let pos = funds
+            .iter()
+            .position(|coin| coin.denom == creation_fee.denom);
+
+        match pos {
+            Some(ind) if funds[ind].amount > creation_fee.amount => {
+                funds[ind].amount -= creation_fee.amount
+            }
+            Some(ind) if funds[ind].amount == creation_fee.amount => {
+                funds.remove(ind);
+            }
+            _ => {
+                return Err(ContractError::CreationFeeExpected {
+                    fee: creation_fee.to_string(),
+                })
+            }
+        }
+
+        msgs.push(SubMsg::new(BankMsg::Send {
+            to_address: fee_address.to_string(),
+            amount: vec![creation_fee],
+        }))
+    }
+
+    msgs.push(SubMsg::reply_on_success(
         WasmMsg::Instantiate {
             admin: Some(config.owner.to_string()),
             code_id: pair_config.code_id,
@@ -310,13 +340,14 @@ pub fn execute_create_pair(
                 factory_addr: env.contract.address.to_string(),
                 init_params,
             })?,
-            funds: vec![],
+            // Pass executor funds to pair contract to cover possible LP token creation fees
+            funds,
             label: "Astroport pair".to_string(),
         },
         INSTANTIATE_PAIR_REPLY_ID,
-    );
+    ));
 
-    Ok(Response::new().add_submessage(sub_msg).add_attributes(vec![
+    Ok(Response::new().add_submessages(msgs).add_attributes(vec![
         attr("action", "create_pair"),
         attr("pair", asset_infos.iter().join("-")),
     ]))
@@ -378,6 +409,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_json_binary(&query_pair(deps, asset_infos)?),
+        QueryMsg::PairByAddr { pair_addr } => {
+            to_json_binary(&PAIRS.load(deps.storage, &Addr::unchecked(pair_addr))?)
+        }
         QueryMsg::PairsByAssetInfos {
             asset_infos,
             start_after,

@@ -382,6 +382,7 @@ impl PoolState {
             if block_time >= self.future_time {
                 if xcp_profit_real < price_state.xcp_profit_real {
                     let losses = price_state.xcp_profit_real - xcp_profit_real;
+                    dbg!(losses);
                     if losses > Decimal256::from(pool_params.allowed_xcp_profit_drop) {
                         return Err(StdError::generic_err(
                             "XCP profit real value dropped. This action makes loss",

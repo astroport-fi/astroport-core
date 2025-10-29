@@ -1,7 +1,7 @@
 use std::fmt::{Display, Formatter, Result};
 
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary};
+use cosmwasm_std::{Addr, Binary, Coin};
 
 use crate::asset::{AssetInfo, PairInfo};
 
@@ -19,6 +19,8 @@ pub struct Config {
     pub generator_address: Option<Addr>,
     /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
+    /// Pair creation fee. Prevents over-spamming with useless pairs.
+    pub creation_fee: Option<Coin>,
     /// The address of the contract that contains the coins with their precision
     pub coin_registry_address: Addr,
 }
@@ -105,6 +107,8 @@ pub struct InstantiateMsg {
     pub owner: String,
     /// The address of the contract that contains the coins and their accuracy
     pub coin_registry_address: String,
+    /// Pair creation fee. Prevents over-spamming with useless pairs.
+    pub creation_fee: Option<Coin>,
 }
 
 /// This structure describes the execute messages of the contract.
@@ -120,6 +124,8 @@ pub enum ExecuteMsg {
         generator_address: Option<String>,
         /// The address of the contract that contains the coins and their accuracy
         coin_registry_address: Option<String>,
+        /// Pair creation fee. Prevents over-spamming with useless pairs.
+        creation_fee: Option<Coin>,
     },
     /// UpdatePairConfig updates the config for a pair type.
     UpdatePairConfig {
@@ -164,6 +170,12 @@ pub enum QueryMsg {
     Pair {
         /// The assets for which we return a pair
         asset_infos: Vec<AssetInfo>,
+    },
+    /// PairByAddr returns pair info for the specified pair address (if exists).
+    #[returns(PairInfo)]
+    PairByAddr {
+        /// The pair address for which we return a [`PairInfo`]
+        pair_addr: String,
     },
     /// PairsByAssetInfos returns a list of pairs for the specified assets.
     #[returns(Vec<PairInfo>)]

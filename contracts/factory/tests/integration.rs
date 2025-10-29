@@ -1,5 +1,5 @@
-use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
-use cosmwasm_std::{attr, Addr};
+use astroport_test::cw_multi_test::{AppBuilder, BankSudo, ContractWrapper, Executor};
+use cosmwasm_std::{attr, coin, Addr};
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::factory::{
@@ -58,6 +58,7 @@ fn proper_initialization() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: Some(coin(1_000000, "astro")),
     };
 
     let factory_instance = app
@@ -90,6 +91,7 @@ fn update_config() {
             Some("fee".to_string()),
             Some("generator".to_string()),
             None,
+            None,
         )
         .unwrap();
 
@@ -110,6 +112,7 @@ fn update_config() {
         .update_config(
             &mut app,
             &Addr::unchecked("not_owner"),
+            None,
             None,
             None,
             None,
@@ -141,7 +144,14 @@ fn test_create_pair() {
     );
 
     let err = helper
-        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token1], None)
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [&token1, &token1],
+            None,
+            &[],
+        )
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
@@ -149,7 +159,14 @@ fn test_create_pair() {
     );
 
     let res = helper
-        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token2], None)
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [&token1, &token2],
+            None,
+            &[],
+        )
         .unwrap();
 
     assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
@@ -193,6 +210,145 @@ fn test_create_pair() {
             PairType::Custom("Custom".to_string()),
             [&token1, &token3],
             None,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err.root_cause().to_string(), "Pair config disabled");
+
+    // Query fee info
+    let fee_info: FeeInfoResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::FeeInfo {
+                pair_type: PairType::Custom("Custom".to_string()),
+            },
+        )
+        .unwrap();
+    assert_eq!(100, fee_info.total_fee_bps);
+    assert_eq!(40, fee_info.maker_fee_bps);
+
+    // query blacklisted pairs
+    let pair_types: Vec<PairType> = app
+        .wrap()
+        .query_wasm_smart(&helper.factory, &QueryMsg::BlacklistedPairTypes {})
+        .unwrap();
+    assert_eq!(pair_types, vec![PairType::Custom("Custom".to_string())]);
+}
+
+#[test]
+fn test_create_pair_with_fee() {
+    let mut app = mock_app();
+    let owner = Addr::unchecked("owner");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let token1 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenX", None);
+    let token2 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenY", None);
+
+    let creation_fee = coin(1_000000, "astro");
+    let fee_receiver = "maker".to_string();
+
+    // Update config
+    helper
+        .update_config(
+            &mut app,
+            &owner,
+            None,
+            Some(fee_receiver.clone()),
+            None,
+            None,
+            Some(creation_fee.clone()),
+        )
+        .unwrap();
+
+    let err = helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [&token1, &token2],
+            None,
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        ContractError::CreationFeeExpected {
+            fee: creation_fee.to_string()
+        },
+        err.downcast().unwrap(),
+    );
+
+    app.sudo(
+        BankSudo::Mint {
+            to_address: owner.to_string(),
+            amount: vec![creation_fee.clone()],
+        }
+        .into(),
+    )
+    .unwrap();
+
+    let res = helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [&token1, &token2],
+            None,
+            &[creation_fee.clone()],
+        )
+        .unwrap();
+
+    // Assert fee address received fees
+    assert_eq!(
+        app.wrap()
+            .query_balance(fee_receiver, &creation_fee.denom)
+            .unwrap()
+            .amount,
+        creation_fee.amount
+    );
+
+    assert_eq!(res.events[1].attributes[1], attr("action", "create_pair"));
+    assert_eq!(
+        res.events[1].attributes[2],
+        attr("pair", format!("{}-{}", token1.as_str(), token2.as_str()))
+    );
+
+    // Create disabled pair type
+    app.execute_contract(
+        owner.clone(),
+        helper.factory.clone(),
+        &ExecuteMsg::UpdatePairConfig {
+            config: PairConfig {
+                code_id: 0,
+                pair_type: PairType::Custom("Custom".to_string()),
+                total_fee_bps: 100,
+                maker_fee_bps: 40,
+                is_disabled: true,
+                is_generator_disabled: false,
+                permissioned: false,
+                whitelist: None,
+            },
+        },
+        &[],
+    )
+    .unwrap();
+
+    let token3 = instantiate_token(
+        &mut app,
+        helper.cw20_token_code_id,
+        &owner,
+        "tokenY",
+        Some(18),
+    );
+
+    let err = helper
+        .create_pair(
+            &mut app,
+            &Addr::unchecked("someone"),
+            PairType::Custom("Custom".to_string()),
+            [&token1, &token3],
+            None,
+            &[],
         )
         .unwrap_err();
     assert_eq!(err.root_cause().to_string(), "Pair config disabled");
@@ -341,6 +497,7 @@ fn test_create_permissioned_pair() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap_err();
     assert_eq!(
@@ -355,6 +512,7 @@ fn test_create_permissioned_pair() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap();
 }
@@ -387,6 +545,7 @@ fn test_create_permissioned_pair_whitelist() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap_err();
     assert_eq!(
@@ -402,6 +561,7 @@ fn test_create_permissioned_pair_whitelist() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap_err();
     assert_eq!(
@@ -473,6 +633,7 @@ fn test_create_permissioned_pair_whitelist() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap_err();
     assert_eq!(
@@ -488,6 +649,7 @@ fn test_create_permissioned_pair_whitelist() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token2],
             None,
+            &[],
         )
         .unwrap();
 
@@ -499,6 +661,7 @@ fn test_create_permissioned_pair_whitelist() {
             PairType::Custom("transmuter".to_string()),
             [&token1, &token3],
             None,
+            &[],
         )
         .unwrap();
 }
@@ -513,19 +676,26 @@ fn test_indexed_queries() {
     let token2 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenY", None);
     let token3 = instantiate_token(&mut app, helper.cw20_token_code_id, &owner, "tokenZ", None);
 
-    // Create several pool for the same pair of assets
+    // Create several pools for the same pair of assets
     for pair_type in [
         PairType::Xyk {},
         PairType::Xyk {},
         PairType::Custom("yet_another_xyk".to_string()),
     ] {
         helper
-            .create_pair(&mut app, &owner, pair_type, [&token1, &token2], None)
+            .create_pair(&mut app, &owner, pair_type, [&token1, &token2], None, &[])
             .unwrap();
     }
 
     helper
-        .create_pair(&mut app, &owner, PairType::Xyk {}, [&token1, &token3], None)
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [&token1, &token3],
+            None,
+            &[],
+        )
         .unwrap();
 
     // Query all pairs
@@ -572,4 +742,26 @@ fn test_indexed_queries() {
         )
         .unwrap();
     assert_eq!(pair, pairs[0]);
+
+    let pair: PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::PairByAddr {
+                pair_addr: pair.contract_addr.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(pair, pairs[0]);
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<PairInfo>(
+            &helper.factory,
+            &QueryMsg::PairByAddr {
+                pair_addr: "non_existent_pair".to_string(),
+            },
+        )
+        .unwrap_err();
+    assert_eq!("Generic error: Querier contract error: type: astroport::asset::PairInfo; key: [00, 01, 70, 6E, 6F, 6E, 5F, 65, 78, 69, 73, 74, 65, 6E, 74, 5F, 70, 61, 69, 72] not found", err.to_string())
 }

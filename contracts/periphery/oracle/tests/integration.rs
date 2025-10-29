@@ -174,6 +174,7 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router

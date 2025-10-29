@@ -213,6 +213,7 @@ fn instantiate_contracts(
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
