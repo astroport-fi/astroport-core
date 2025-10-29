@@ -1252,7 +1252,7 @@ fn test_dev_fund_fee() {
         .unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: Querier contract error: Generic error: Pair not found"
+        "Generic error: Querier contract error: type: astroport::asset::PairInfo; key: [00, 01, 70] not found"
     );
 
     // Create a random pool and try to set it in the dev fund config

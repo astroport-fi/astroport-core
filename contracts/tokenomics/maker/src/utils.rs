@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::error::ContractError;
 use crate::state::ROUTES;
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::common::LP_SUBDENOM;
 use astroport::factory::QueryMsg;
 use astroport::maker::{RouteStep, COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
 use astroport::pair;
@@ -153,11 +152,10 @@ pub fn check_pair(
     asset_infos: &[AssetInfo],
 ) -> Result<PairInfo, ContractError> {
     let pool_addr = pool_addr.into();
-    // TODO: will fail if cw20 LP token
     let pair_info = querier.query_wasm_smart::<PairInfo>(
         factory,
-        &QueryMsg::PairByLpToken {
-            lp_token: format!("factory/{pool_addr}/{LP_SUBDENOM}"),
+        &QueryMsg::PairByAddr {
+            pair_addr: pool_addr.clone(),
         },
     )?;
 
