@@ -44,6 +44,29 @@
       "additionalProperties": false
     },
     {
+      "description": "PairByAddr returns pair info for the specified pair address (if exists).",
+      "type": "object",
+      "required": [
+        "pair_by_addr"
+      ],
+      "properties": {
+        "pair_by_addr": {
+          "type": "object",
+          "required": [
+            "pair_addr"
+          ],
+          "properties": {
+            "pair_addr": {
+              "description": "The pair address for which we return a [`PairInfo`]",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "PairsByAssetInfos returns a list of pairs for the specified assets.",
       "type": "object",
       "required": [
