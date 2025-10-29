@@ -282,22 +282,24 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "astro-satellite-package",
  "astroport 5.12.0",
  "astroport-factory 2.0.0",
- "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.2.0",
- "astroport-pair-stable",
  "astroport-test",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
+ "derivative",
+ "itertools 0.12.1",
+ "serde",
  "thiserror",
 ]
 

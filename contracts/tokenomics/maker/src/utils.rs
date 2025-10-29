@@ -1,263 +1,16 @@
-use cosmwasm_std::{
-    coins, to_json_binary, wasm_execute, Addr, Binary, CosmosMsg, Decimal, Deps, Empty, Env,
-    QuerierWrapper, StdError, StdResult, SubMsg, Uint128, WasmMsg,
-};
-use cw20::Cw20ExecuteMsg;
-
-use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::maker::{
-    Config, ExecuteMsg, SecondReceiverConfig, SecondReceiverParams, COOLDOWN_LIMITS,
-    MAX_SECOND_RECEIVER_CUT,
-};
-use astroport::pair::Cw20HookMsg;
-use astroport::querier::query_pair_info;
+use std::collections::HashMap;
 
 use crate::error::ContractError;
-use crate::state::BRIDGES;
-
-/// The default bridge depth for a fee token
-pub const BRIDGES_INITIAL_DEPTH: u64 = 0;
-/// Maximum amount of bridges to use in a multi-hop swap
-pub const BRIDGES_MAX_DEPTH: u64 = 2;
-/// Swap execution depth limit
-pub const BRIDGES_EXECUTION_MAX_DEPTH: u64 = 5;
-
-/// The function checks from<>to pool exists and creates swap message.
-///
-/// * **from** asset we want to swap.
-///
-/// * **to** asset we want to swap to.
-///
-/// * **amount_in** amount of tokens to swap.
-pub fn try_build_swap_msg(
-    querier: &QuerierWrapper,
-    cfg: &Config,
-    from: &AssetInfo,
-    to: &AssetInfo,
-    amount_in: Uint128,
-) -> Result<SubMsg, ContractError> {
-    let pool = get_pool(querier, &cfg.factory_contract, from, to)?;
-    let msg = build_swap_msg(cfg.max_spread, &pool, from, Some(to), amount_in)?;
-    Ok(msg)
-}
-
-/// This function creates swap message.
-///
-/// * **max_spread** max allowed spread.
-///
-/// * **pool** pool's information.
-///
-/// * **from**  asset we want to swap.
-///
-/// * **to** asset we want to swap to.
-///
-/// * **amount_in** amount of tokens to swap.
-pub fn build_swap_msg(
-    max_spread: Decimal,
-    pool: &PairInfo,
-    from: &AssetInfo,
-    to: Option<&AssetInfo>,
-    amount_in: Uint128,
-) -> Result<SubMsg, ContractError> {
-    if from.is_native_token() {
-        let offer_asset = Asset {
-            info: from.clone(),
-            amount: amount_in,
-        };
-
-        Ok(SubMsg::new(WasmMsg::Execute {
-            contract_addr: pool.contract_addr.to_string(),
-            msg: to_json_binary(&astroport::pair::ExecuteMsg::Swap {
-                offer_asset: offer_asset.clone(),
-                ask_asset_info: to.cloned(),
-                belief_price: None,
-                max_spread: Some(max_spread),
-                to: None,
-            })?,
-            funds: vec![offer_asset.as_coin()?],
-        }))
-    } else {
-        Ok(SubMsg::new(WasmMsg::Execute {
-            contract_addr: from.to_string(),
-            msg: to_json_binary(&cw20::Cw20ExecuteMsg::Send {
-                contract: pool.contract_addr.to_string(),
-                amount: amount_in,
-                msg: to_json_binary(&Cw20HookMsg::Swap {
-                    ask_asset_info: to.cloned(),
-                    belief_price: None,
-                    max_spread: Some(max_spread),
-                    to: None,
-                })?,
-            })?,
-            funds: vec![],
-        }))
-    }
-}
-
-/// This function builds distribute messages. It swap all assets through bridges if needed.
-///
-/// * **bridge_assets** array with assets we want to swap and then to distribute.
-///
-/// * **depth** current depth of the swap. It is intended to prevent dead loops in recursive calls.
-pub fn build_distribute_msg(
-    env: Env,
-    bridge_assets: Vec<AssetInfo>,
-    depth: u64,
-) -> StdResult<SubMsg> {
-    let msg = if !bridge_assets.is_empty() {
-        // Swap bridge assets
-        SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_json_binary(&ExecuteMsg::SwapBridgeAssets {
-                assets: bridge_assets,
-                depth,
-            })?,
-            funds: vec![],
-        })
-    } else {
-        // Update balances and distribute rewards
-        SubMsg::new(WasmMsg::Execute {
-            contract_addr: env.contract.address.to_string(),
-            msg: to_json_binary(&ExecuteMsg::DistributeAstro {})?,
-            funds: vec![],
-        })
-    };
-
-    Ok(msg)
-}
-
-/// This function checks that there is a direct pool to swap to $ASTRO.
-/// Otherwise it looks for an intermediate token to swap to $ASTRO.
-///
-/// * **factory_contract** address of the factory contract.
-///
-/// * **from_token** asset we want to swap.
-///
-/// * **bridge_token** asset we want to swap through.
-///
-/// * **astro_token** represents $ASTRO.
-///
-/// * **depth** current recursion depth of the validation.
-///
-/// * **amount** is an amount of from_token.
-pub fn validate_bridge(
-    deps: Deps,
-    factory_contract: &Addr,
-    from_token: &AssetInfo,
-    bridge_token: &AssetInfo,
-    astro_token: &AssetInfo,
-    depth: u64,
-) -> Result<PairInfo, ContractError> {
-    // Check if the bridge pool exists
-    let bridge_pool = get_pool(&deps.querier, factory_contract, from_token, bridge_token)?;
-
-    // If bridge token is astro itself we don't need to check further
-    if bridge_token != astro_token {
-        // Check if the bridge token - ASTRO pool exists
-        let astro_pool = get_pool(&deps.querier, factory_contract, bridge_token, astro_token);
-        if astro_pool.is_err() {
-            if depth >= BRIDGES_MAX_DEPTH {
-                return Err(ContractError::MaxBridgeDepth(depth));
-            }
-
-            // Check if next level of bridge exists
-            let next_bridge_token = BRIDGES
-                .load(deps.storage, bridge_token.to_string())
-                .map_err(|_| ContractError::InvalidBridgeDestination(from_token.to_string()))?;
-
-            validate_bridge(
-                deps,
-                factory_contract,
-                bridge_token,
-                &next_bridge_token,
-                astro_token,
-                depth + 1,
-            )?;
-        }
-    }
-
-    Ok(bridge_pool)
-}
-
-/// This function checks that there is a pool to swap between `from` and `to`. In case of success
-/// returns [`PairInfo`] of selected pool.
-///
-/// * **factory_contract** address of the factory contract.
-///
-/// * **from** source asset.
-///
-/// * **to** destination asset.
-pub fn get_pool(
-    querier: &QuerierWrapper,
-    factory_contract: &Addr,
-    from: &AssetInfo,
-    to: &AssetInfo,
-) -> Result<PairInfo, ContractError> {
-    query_pair_info(
-        querier,
-        factory_contract.clone(),
-        &[from.clone(), to.clone()],
-    )
-    .map_err(|_| ContractError::InvalidBridgeNoPool(from.to_string(), to.to_string()))
-}
-
-/// For native tokens of type [`AssetInfo`] uses method [`astro_satellite_package::ExecuteMsg::TransferAstro`]
-/// to send a token amount to a recipient.
-///
-/// For a token of type [`AssetInfo`] we use the default method [`Cw20ExecuteMsg::Send`]
-pub fn build_send_msg(
-    asset: &Asset,
-    recipient: impl Into<String>,
-    msg: Option<Binary>,
-) -> StdResult<CosmosMsg> {
-    let recipient = recipient.into();
-
-    match &asset.info {
-        AssetInfo::Token { contract_addr } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: contract_addr.to_string(),
-            msg: to_json_binary(&Cw20ExecuteMsg::Send {
-                contract: recipient,
-                amount: asset.amount,
-                msg: msg.unwrap_or_default(),
-            })?,
-            funds: vec![],
-        })),
-        AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(wasm_execute(
-            recipient,
-            // Satellite type parameter is only needed for CheckMessages endpoint which is not used in Maker contract.
-            // So it's safe to pass Empty as CustomMsg
-            &astro_satellite_package::ExecuteMsg::<Empty>::TransferAstro {},
-            coins(asset.amount.u128(), denom),
-        )?)),
-    }
-}
-
-/// Updates the parameters that describe the second receiver of fees
-pub fn update_second_receiver_cfg(
-    deps: Deps,
-    cfg: &mut Config,
-    params: &Option<SecondReceiverParams>,
-) -> StdResult<()> {
-    if let Some(params) = params {
-        if params.second_receiver_cut > MAX_SECOND_RECEIVER_CUT
-            || params.second_receiver_cut.is_zero()
-        {
-            return Err(StdError::generic_err(format!(
-                "Incorrect second receiver percent of its share. Should be in range: 0 < {} <= {}",
-                params.second_receiver_cut, MAX_SECOND_RECEIVER_CUT
-            )));
-        };
-
-        cfg.second_receiver_cfg = Some(SecondReceiverConfig {
-            second_fee_receiver: deps
-                .api
-                .addr_validate(params.second_fee_receiver.as_str())?,
-            second_receiver_cut: params.second_receiver_cut,
-        });
-    }
-
-    Ok(())
-}
+use crate::state::ROUTES;
+use astroport::asset::{Asset, AssetInfo, PairInfo};
+use astroport::factory::QueryMsg;
+use astroport::maker::{RouteStep, COOLDOWN_LIMITS, MAX_SWAPS_DEPTH};
+use astroport::pair;
+use astroport::pair::Cw20HookMsg;
+use cosmwasm_std::{
+    coins, ensure, ensure_eq, to_json_binary, wasm_execute, Addr, Decimal, QuerierWrapper,
+    StdError, StdResult, Storage, WasmMsg,
+};
 
 /// Validate cooldown value is within the allowed range
 pub fn validate_cooldown(maybe_cooldown: Option<u64>) -> Result<(), ContractError> {
@@ -271,4 +24,194 @@ pub fn validate_cooldown(maybe_cooldown: Option<u64>) -> Result<(), ContractErro
     }
 
     Ok(())
+}
+
+#[derive(Default)]
+pub struct RoutesBuilder {
+    pub routes_cache: HashMap<AssetInfo, RouteStep>,
+}
+
+impl RoutesBuilder {
+    pub fn build_routes(
+        &mut self,
+        storage: &dyn Storage,
+        asset_in: &AssetInfo,
+        astro_denom: &str,
+    ) -> Result<Vec<RouteStep>, ContractError> {
+        let mut prev_asset = asset_in.clone();
+        let mut routes = vec![];
+        let astro = AssetInfo::native(astro_denom);
+
+        for _ in 0..MAX_SWAPS_DEPTH {
+            if prev_asset == astro {
+                break;
+            }
+
+            let step = if let Some(found) = self.routes_cache.get(&prev_asset).cloned() {
+                found
+            } else {
+                let step = ROUTES
+                    .may_load(storage, &asset_info_key(&prev_asset))?
+                    .ok_or(ContractError::RouteNotFound {
+                        asset: prev_asset.to_string(),
+                    })?;
+                self.routes_cache.insert(prev_asset, step.clone());
+
+                step
+            };
+
+            prev_asset = step.asset_out.clone();
+
+            routes.push(step);
+        }
+
+        ensure_eq!(
+            prev_asset,
+            astro,
+            ContractError::FailedToBuildRoute {
+                asset: asset_in.to_string(),
+            }
+        );
+
+        Ok(routes)
+    }
+}
+
+pub fn asset_info_key(asset_info: &AssetInfo) -> Vec<u8> {
+    let mut bytes = vec![];
+    match asset_info {
+        AssetInfo::NativeToken { denom } => {
+            bytes.push(0);
+            bytes.extend_from_slice(denom.as_bytes());
+        }
+        AssetInfo::Token { contract_addr } => {
+            bytes.push(1);
+            bytes.extend_from_slice(contract_addr.as_bytes());
+        }
+    }
+
+    bytes
+}
+
+pub fn from_key_to_asset_info(bytes: Vec<u8>) -> StdResult<AssetInfo> {
+    match bytes[0] {
+        0 => String::from_utf8(bytes[1..].to_vec())
+            .map_err(StdError::invalid_utf8)
+            .map(AssetInfo::native),
+        1 => String::from_utf8(bytes[1..].to_vec())
+            .map_err(StdError::invalid_utf8)
+            .map(AssetInfo::cw20_unchecked),
+        _ => Err(StdError::generic_err(
+            "Failed to deserialize asset info key",
+        )),
+    }
+}
+
+pub fn build_swap_msg(
+    asset_in: &Asset,
+    to: &AssetInfo,
+    max_spread: Decimal,
+    pool_addr: &Addr,
+) -> StdResult<WasmMsg> {
+    match &asset_in.info {
+        AssetInfo::Token { contract_addr } => wasm_execute(
+            contract_addr.to_string(),
+            &cw20::Cw20ExecuteMsg::Send {
+                contract: pool_addr.to_string(),
+                amount: asset_in.amount,
+                msg: to_json_binary(&Cw20HookMsg::Swap {
+                    ask_asset_info: Some(to.clone()),
+                    belief_price: None,
+                    max_spread: Some(max_spread),
+                    to: None,
+                })?,
+            },
+            vec![],
+        ),
+        AssetInfo::NativeToken { denom } => wasm_execute(
+            pool_addr,
+            &pair::ExecuteMsg::Swap {
+                offer_asset: asset_in.clone(),
+                ask_asset_info: Some(to.clone()),
+                belief_price: None,
+                max_spread: Some(max_spread),
+                to: None,
+            },
+            coins(asset_in.amount.u128(), denom),
+        ),
+    }
+}
+
+/// Validates that pair was registered using the official Astroport factory.
+/// Ensures expected asset infos are in the pair.
+/// Returns PairInfo in case it needs to process further.
+pub fn check_pair(
+    querier: QuerierWrapper,
+    factory: impl Into<String>,
+    pool_addr: impl Into<String>,
+    asset_infos: &[AssetInfo],
+) -> Result<PairInfo, ContractError> {
+    let pool_addr = pool_addr.into();
+    let pair_info = querier.query_wasm_smart::<PairInfo>(
+        factory,
+        &QueryMsg::PairByAddr {
+            pair_addr: pool_addr.clone(),
+        },
+    )?;
+
+    for asset_info in asset_infos {
+        ensure!(
+            pair_info.asset_infos.contains(asset_info),
+            ContractError::InvalidPoolAsset {
+                pool_addr,
+                asset: asset_info.to_string()
+            }
+        );
+    }
+
+    Ok(pair_info)
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use astroport::asset::AssetInfo;
+
+    use super::*;
+
+    #[test]
+    fn test_asset_info_binary_key() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let key = asset_info_key(&asset_info);
+            assert_eq!(from_key_to_asset_info(key).unwrap(), asset_info);
+        }
+    }
+
+    #[test]
+    fn test_deserialize_asset_info_from_malformed_data() {
+        let asset_infos = vec![
+            AssetInfo::native("uusd"),
+            AssetInfo::cw20_unchecked("wasm1contractxxx"),
+        ];
+
+        for asset_info in asset_infos {
+            let mut key = asset_info_key(&asset_info);
+            key[0] = 2;
+
+            assert_eq!(
+                from_key_to_asset_info(key).unwrap_err(),
+                StdError::generic_err("Failed to deserialize asset info key")
+            );
+        }
+
+        let key = vec![0, u8::MAX];
+        assert_eq!(
+            from_key_to_asset_info(key).unwrap_err().to_string(),
+            "Cannot decode UTF8 bytes into string: invalid utf-8 sequence of 1 bytes from index 0"
+        );
+    }
 }
