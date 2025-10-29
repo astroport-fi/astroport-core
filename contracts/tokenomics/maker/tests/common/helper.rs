@@ -172,6 +172,7 @@ impl Helper {
             generator_address: None,
             owner: owner.to_string(),
             coin_registry_address: app.api().addr_make("registry").to_string(),
+            creation_fee: None,
         };
 
         let factory = app
@@ -223,6 +224,7 @@ impl Helper {
                 fee_address: Some(maker.to_string()),
                 generator_address: None,
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )
