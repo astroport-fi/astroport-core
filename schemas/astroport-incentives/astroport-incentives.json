@@ -533,7 +533,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Only factory can set the allocation points to zero for the specified pool. Initiated from deregistration context in factory.",
+        "description": "Deprecated. Only factory can set the allocation points to zero for the specified pool. Initiated from deregistration context in factory.",
         "type": "object",
         "required": [
           "deactivate_pool"

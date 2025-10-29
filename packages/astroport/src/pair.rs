@@ -173,8 +173,6 @@ pub struct ConfigResponse {
     pub owner: Addr,
     /// The factory contract address
     pub factory_addr: Addr,
-    /// Tracker contract address
-    pub tracker_addr: Option<Addr>,
 }
 
 /// Holds the configuration for fee sharing
@@ -219,30 +217,16 @@ pub struct CumulativePricesResponse {
     pub cumulative_prices: Vec<(AssetInfo, AssetInfo, Uint128)>,
 }
 
-/// This structure describes a migration message.
-/// We currently take no arguments for migrations.
-#[cw_serde]
-pub struct MigrateMsg {}
-
 /// This structure holds XYK pool parameters.
-#[cw_serde]
-pub struct XYKPoolParams {
-    /// Whether asset balances are tracked over blocks or not.
-    /// They will not be tracked if the parameter is ignored.
-    /// It can not be disabled later once enabled.
-    pub track_asset_balances: Option<bool>,
-}
+pub type XYKPoolParams = Empty;
 
 /// This structure stores a XYK pool's configuration.
 #[cw_serde]
 pub struct XYKPoolConfig {
-    /// Whether asset balances are tracked over blocks or not.
-    pub track_asset_balances: bool,
-    // The config for swap fee sharing
+    /// The config for swap fee sharing
     pub fee_share: Option<FeeShareConfig>,
 }
 
-/// This enum stores the option available to enable asset balances tracking over blocks.
 #[cw_serde]
 pub enum XYKPoolUpdateParams {
     /// Enables the sharing of swap fees with an external party.
@@ -295,7 +279,6 @@ pub enum StablePoolUpdateParams {
 #[cw_serde]
 pub enum ReplyIds {
     CreateDenom = 1,
-    InstantiateTrackingContract = 2,
 }
 
 impl TryFrom<u64> for ReplyIds {
@@ -304,7 +287,6 @@ impl TryFrom<u64> for ReplyIds {
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         match value {
             1 => Ok(ReplyIds::CreateDenom),
-            2 => Ok(ReplyIds::InstantiateTrackingContract),
             _ => Err(StdError::ParseErr {
                 target_type: "ReplyIds".to_string(),
                 msg: "Failed to parse reply".to_string(),

@@ -9,7 +9,6 @@ use astroport::cosmwasm_ext::{AbsDiff, DecimalToInteger};
 use astroport::incentives::ExecuteMsg as IncentiveExecuteMsg;
 use astroport::querier::query_factory_config;
 use astroport::token_factory::tf_mint_msg;
-use astroport_factory::state::pair_key;
 
 use crate::consts::{
     DEFAULT_SLIPPAGE, MAX_ALLOWED_SLIPPAGE, N, OFFER_PERCENT, TWAP_PRECISION_DEC, TWO,
@@ -383,20 +382,6 @@ pub fn assert_slippage_tolerance(
     }
 
     Ok(slippage)
-}
-
-/// Checks whether the pair is registered in the factory or not.
-pub fn check_pair_registered<C>(
-    querier: QuerierWrapper<C>,
-    factory: &Addr,
-    asset_infos: &[AssetInfo],
-) -> StdResult<bool>
-where
-    C: CustomQuery,
-{
-    astroport_factory::state::PAIRS
-        .query(&querier, factory.clone(), &pair_key(asset_infos))
-        .map(|inner| inner.is_some())
 }
 
 #[cfg(test)]

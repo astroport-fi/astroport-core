@@ -13,9 +13,7 @@ use cosmwasm_std::{
 };
 use cw2::set_contract_version;
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
-use cw_utils::{
-    one_coin, parse_reply_instantiate_data, MsgInstantiateContractResponse, PaymentError,
-};
+use cw_utils::{one_coin, PaymentError};
 
 use astroport::asset::{
     addr_opt_validate, check_swap_parameters, Asset, AssetInfo, CoinsExt, PairInfo,
@@ -32,13 +30,10 @@ use astroport::pair::{
 use astroport::pair_xyk_sale_tax::{
     MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigChecked,
 };
-use astroport::querier::{
-    query_factory_config, query_fee_info, query_native_supply, query_tracker_config,
-};
+use astroport::querier::{query_factory_config, query_fee_info, query_native_supply};
 use astroport::token_factory::{
-    tf_before_send_hook_msg, tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
+    tf_burn_msg, tf_create_denom_msg, tf_mint_msg, MsgCreateDenomResponse,
 };
-use astroport::tokenfactory_tracker;
 use astroport_pair::state::{Config as XykConfig, CONFIG as XYK_CONFIG};
 
 use crate::error::ContractError;
@@ -117,43 +112,11 @@ pub fn instantiate(
 
 /// The entry point to the contract for processing replies from submessages.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractError> {
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
     match ReplyIds::try_from(msg.id)? {
         ReplyIds::CreateDenom => {
             if let SubMsgResult::Ok(SubMsgResponse { data: Some(b), .. }) = msg.result {
                 let MsgCreateDenomResponse { new_token_denom } = b.try_into()?;
-                let config = CONFIG.load(deps.storage)?;
-
-                let tracking = config.track_asset_balances;
-                let mut sub_msgs = vec![];
-
-                #[cfg(feature = "injective")]
-                let tracking = false;
-
-                if tracking {
-                    let factory_config =
-                        query_factory_config(&deps.querier, config.factory_addr.clone())?;
-                    let tracker_config = query_tracker_config(&deps.querier, config.factory_addr)?;
-                    // Instantiate tracking contract
-                    let sub_msg: Vec<SubMsg> = vec![SubMsg::reply_on_success(
-                        WasmMsg::Instantiate {
-                            admin: Some(factory_config.owner.to_string()),
-                            code_id: tracker_config.code_id,
-                            msg: to_json_binary(&tokenfactory_tracker::InstantiateMsg {
-                                tokenfactory_module_address: tracker_config
-                                    .token_factory_addr
-                                    .to_string(),
-                                tracked_denom: new_token_denom.clone(),
-                                track_over_seconds: false,
-                            })?,
-                            funds: vec![],
-                            label: format!("{new_token_denom} tracking contract"),
-                        },
-                        ReplyIds::InstantiateTrackingContract as u64,
-                    )];
-
-                    sub_msgs.extend(sub_msg);
-                }
 
                 CONFIG.update(deps.storage, |mut config| {
                     if !config.pair_info.liquidity_token.is_empty() {
@@ -164,32 +127,10 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                     Ok(config)
                 })?;
 
-                Ok(Response::new()
-                    .add_submessages(sub_msgs)
-                    .add_attribute("lp_denom", new_token_denom))
+                Ok(Response::new().add_attribute("lp_denom", new_token_denom))
             } else {
                 Err(ContractError::FailedToParseReply {})
             }
-        }
-        ReplyIds::InstantiateTrackingContract => {
-            let MsgInstantiateContractResponse {
-                contract_address, ..
-            } = parse_reply_instantiate_data(msg)?;
-
-            let config = CONFIG.update::<_, StdError>(deps.storage, |mut c| {
-                c.tracker_addr = Some(deps.api.addr_validate(&contract_address)?);
-                Ok(c)
-            })?;
-
-            let set_hook_msg = tf_before_send_hook_msg(
-                env.contract.address,
-                config.pair_info.liquidity_token,
-                contract_address.clone(),
-            );
-
-            Ok(Response::new()
-                .add_message(set_hook_msg)
-                .add_attribute("tracker_contract", contract_address))
         }
     }
 }
@@ -1081,7 +1022,6 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         })?),
         owner: factory_config.owner,
         factory_addr: config.factory_addr,
-        tracker_addr: config.tracker_addr,
     })
 }
 

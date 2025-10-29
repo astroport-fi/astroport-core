@@ -1,16 +1,13 @@
 #![cfg(not(tarpaulin_include))]
 
-use cosmwasm_std::{
-    attr, coin, to_json_binary, Addr, Coin, Decimal, DepsMut, Empty, Env, MessageInfo, Response,
-    StdResult, Uint128, Uint64,
-};
+use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, Uint128};
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg, MinterResponse};
 
-use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo, MINIMUM_LIQUIDITY_AMOUNT};
+use astroport::asset::{native_asset_info, Asset, AssetInfo, PairInfo};
 use astroport::common::LP_SUBDENOM;
 use astroport::factory::{
     ExecuteMsg as FactoryExecuteMsg, InstantiateMsg as FactoryInstantiateMsg, PairConfig, PairType,
-    QueryMsg as FactoryQueryMsg, TrackerConfig,
+    QueryMsg as FactoryQueryMsg,
 };
 use astroport::pair::{
     ConfigResponse, CumulativePricesResponse, Cw20HookMsg, ExecuteMsg, FeeShareConfig,
@@ -18,11 +15,8 @@ use astroport::pair::{
     MAX_FEE_SHARE_BPS, TWAP_PRECISION,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
-use astroport::tokenfactory_tracker::{
-    ConfigResponse as TrackerConfigResponse, QueryMsg as TrackerQueryMsg,
-};
 use astroport_pair::error::ContractError;
-use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor, TOKEN_FACTORY_MODULE};
+use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 
 const OWNER: &str = "owner";
@@ -79,20 +73,6 @@ fn store_generator_code(app: &mut TestApp) -> u64 {
     app.store_code(generator_contract)
 }
 
-fn store_tracker_contract(app: &mut TestApp) -> u64 {
-    let tracker_contract = Box::new(
-        ContractWrapper::new_with_empty(
-            |_: DepsMut, _: Env, _: MessageInfo, _: Empty| -> StdResult<Response> {
-                unimplemented!()
-            },
-            astroport_tokenfactory_tracker::contract::instantiate,
-            astroport_tokenfactory_tracker::query::query,
-        )
-        .with_sudo_empty(astroport_tokenfactory_tracker::contract::sudo),
-    );
-    app.store_code(tracker_contract)
-}
-
 fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
     let token_contract_code_id = store_token_code(&mut router);
 
@@ -114,9 +94,8 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -475,16 +454,9 @@ fn test_provide_and_withdraw_liquidity() {
         config.clone(),
         ConfigResponse {
             block_time_last: router.block_info().time.seconds(),
-            params: Some(
-                to_json_binary(&XYKPoolConfig {
-                    track_asset_balances: false,
-                    fee_share: None,
-                })
-                .unwrap()
-            ),
+            params: Some(to_json_binary(&XYKPoolConfig { fee_share: None }).unwrap()),
             owner,
             factory_addr: config.factory_addr,
-            tracker_addr: config.tracker_addr,
         }
     )
 }
@@ -630,9 +602,8 @@ fn test_compatibility_of_tokens_with_different_precision() {
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -987,241 +958,6 @@ fn wrong_number_of_assets() {
 }
 
 #[test]
-fn asset_balances_tracking_works_correctly() {
-    let owner = Addr::unchecked("owner");
-    let mut app = mock_app(
-        owner.clone(),
-        vec![
-            Coin {
-                denom: "uluna".to_owned(),
-                amount: Uint128::new(10000_000000),
-            },
-            Coin {
-                denom: "uusd".to_owned(),
-                amount: Uint128::new(10000_000000),
-            },
-        ],
-    );
-    let token_code_id = store_token_code(&mut app);
-    let pair_code_id = store_pair_code(&mut app);
-    let factory_code_id = store_factory_code(&mut app);
-
-    let init_msg = FactoryInstantiateMsg {
-        fee_address: None,
-        pair_configs: vec![PairConfig {
-            code_id: pair_code_id,
-            maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
-            total_fee_bps: 0,
-            is_disabled: false,
-            is_generator_disabled: false,
-            permissioned: false,
-            whitelist: None,
-        }],
-        token_code_id,
-        generator_address: Some(String::from("generator")),
-        owner: owner.to_string(),
-        whitelist_code_id: 234u64,
-        coin_registry_address: "coin_registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: store_tracker_contract(&mut app),
-            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
-        }),
-    };
-
-    let factory_instance = app
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "FACTORY",
-            None,
-        )
-        .unwrap();
-
-    // Instantiate new pair with asset balances tracking starting from instantiation
-    let msg = FactoryExecuteMsg::CreatePair {
-        asset_infos: vec![
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-        ],
-        pair_type: PairType::Xyk {},
-        init_params: Some(
-            to_json_binary(&XYKPoolParams {
-                track_asset_balances: Some(true),
-            })
-            .unwrap(),
-        ),
-    };
-
-    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = FactoryQueryMsg::Pair {
-        asset_infos: vec![
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-        ],
-    };
-
-    let res: PairInfo = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
-        .unwrap();
-
-    let pair_instance = res.contract_addr;
-    let lp_token_address = res.liquidity_token;
-
-    // Provide liquidity
-    let (msg, send_funds) = provide_liquidity_msg(
-        Uint128::new(999_000000),
-        Uint128::new(1000_000000),
-        None,
-        None,
-        None,
-    );
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
-        .unwrap();
-
-    let owner_lp_balance = app
-        .wrap()
-        .query_balance(owner.to_string(), &lp_token_address)
-        .unwrap();
-    assert_eq!(owner_lp_balance.amount, Uint128::new(999498874));
-
-    // Check that asset balances changed after providing liqudity
-    app.update_block(|b| b.height += 1);
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uluna".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(1000_000000));
-
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uusd".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(999_000000));
-
-    // Swap
-
-    let msg = ExecuteMsg::Swap {
-        offer_asset: Asset {
-            info: AssetInfo::NativeToken {
-                denom: "uusd".to_owned(),
-            },
-            amount: Uint128::new(1_000000),
-        },
-        ask_asset_info: None,
-        belief_price: None,
-        max_spread: None,
-        to: None,
-    };
-    let send_funds = vec![Coin {
-        denom: "uusd".to_owned(),
-        amount: Uint128::new(1_000000),
-    }];
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
-        .unwrap();
-
-    // Check that asset balances changed after swaping
-    app.update_block(|b| b.height += 1);
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uluna".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(999_000000));
-
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uusd".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(1000_000000));
-
-    app.execute_contract(
-        owner.clone(),
-        pair_instance.clone(),
-        &ExecuteMsg::WithdrawLiquidity {
-            assets: vec![],
-            min_assets_to_receive: None,
-        },
-        &[coin(500_000000u128, lp_token_address)],
-    )
-    .unwrap();
-
-    // Check that asset balances changed after withdrawing
-    app.update_block(|b| b.height += 1);
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uluna".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(499_250063));
-
-    let res: Option<Uint128> = app
-        .wrap()
-        .query_wasm_smart(
-            &pair_instance,
-            &QueryMsg::AssetBalanceAt {
-                asset_info: AssetInfo::NativeToken {
-                    denom: "uusd".to_owned(),
-                },
-                block_height: app.block_info().height.into(),
-            },
-        )
-        .unwrap();
-    assert_eq!(res.unwrap(), Uint128::new(499_749812));
-}
-
-#[test]
 fn update_pair_config() {
     let owner = Addr::unchecked(OWNER);
     let mut router = mock_app(
@@ -1249,12 +985,8 @@ fn update_pair_config() {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: store_tracker_contract(&mut router),
-            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
-        }),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1303,16 +1035,9 @@ fn update_pair_config() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(
-                to_json_binary(&XYKPoolConfig {
-                    track_asset_balances: false,
-                    fee_share: None,
-                })
-                .unwrap()
-            ),
+            params: Some(to_json_binary(&XYKPoolConfig { fee_share: None }).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0"),
-            tracker_addr: None
         }
     );
 }
@@ -1345,9 +1070,8 @@ fn enable_disable_fee_sharing() {
         token_code_id: token_contract_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1396,16 +1120,9 @@ fn enable_disable_fee_sharing() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(
-                to_json_binary(&XYKPoolConfig {
-                    track_asset_balances: false,
-                    fee_share: None,
-                })
-                .unwrap()
-            ),
+            params: Some(to_json_binary(&XYKPoolConfig { fee_share: None }).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0"),
-            tracker_addr: None
         }
     );
 
@@ -1468,7 +1185,6 @@ fn enable_disable_fee_sharing() {
             block_time_last: 0,
             params: Some(
                 to_json_binary(&XYKPoolConfig {
-                    track_asset_balances: false,
                     fee_share: Some(FeeShareConfig {
                         bps: fee_share_bps,
                         recipient: Addr::unchecked(fee_share_contract),
@@ -1478,7 +1194,6 @@ fn enable_disable_fee_sharing() {
             ),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0"),
-            tracker_addr: None
         }
     );
 
@@ -1499,16 +1214,9 @@ fn enable_disable_fee_sharing() {
         res,
         ConfigResponse {
             block_time_last: 0,
-            params: Some(
-                to_json_binary(&XYKPoolConfig {
-                    track_asset_balances: false,
-                    fee_share: None,
-                })
-                .unwrap()
-            ),
+            params: Some(to_json_binary(&XYKPoolConfig { fee_share: None }).unwrap()),
             owner: Addr::unchecked("owner"),
             factory_addr: Addr::unchecked("contract0"),
-            tracker_addr: None
         }
     );
 }
@@ -1579,12 +1287,8 @@ fn provide_liquidity_with_autostaking_to_generator() {
         token_code_id: token_contract_code_id,
         generator_address: None,
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: store_tracker_contract(&mut router),
-            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
-        }),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1624,8 +1328,8 @@ fn provide_liquidity_with_autostaking_to_generator() {
                 token_code_id: None,
                 fee_address: None,
                 generator_address: Some(generator_instance.to_string()),
-                whitelist_code_id: None,
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )
@@ -1641,12 +1345,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
             },
         ],
         pair_type: PairType::Xyk {},
-        init_params: Some(
-            to_json_binary(&XYKPoolParams {
-                track_asset_balances: Some(true),
-            })
-            .unwrap(),
-        ),
+        init_params: Some(to_json_binary(&XYKPoolParams {}).unwrap()),
     };
 
     router
@@ -1958,7 +1657,6 @@ fn test_fee_share(
 
     let pair_code_id = store_pair_code(&mut app);
     let factory_code_id = store_factory_code(&mut app);
-    let tracker_code_id = store_tracker_contract(&mut app);
 
     let init_msg = FactoryInstantiateMsg {
         fee_address: Some(maker_address.to_string()),
@@ -1975,12 +1673,8 @@ fn test_fee_share(
         token_code_id,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: tracker_code_id,
-            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
-        }),
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -2004,12 +1698,7 @@ fn test_fee_share(
             },
         ],
         pair_type: PairType::Xyk {},
-        init_params: Some(
-            to_json_binary(&XYKPoolParams {
-                track_asset_balances: Some(true),
-            })
-            .unwrap(),
-        ),
+        init_params: Some(to_json_binary(&XYKPoolParams {}).unwrap()),
     };
 
     app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
@@ -2156,21 +1845,6 @@ fn test_fee_share(
         y_amount - y_expected_return - expected_maker_fee - expected_fee_share
             + acceptable_spread_amount
     );
-
-    // Assert LP balances tracked are correct
-    let msg = QueryMsg::AssetBalanceAt {
-        asset_info: AssetInfo::Token {
-            contract_addr: token_y_instance,
-        },
-        block_height: Uint64::from(app.block_info().height),
-    };
-    let res: Option<Uint128> = app.wrap().query_wasm_smart(&pair_instance, &msg).unwrap();
-
-    assert_eq!(
-        res.unwrap(),
-        y_amount - y_expected_return - expected_maker_fee - expected_fee_share
-            + acceptable_spread_amount
-    );
 }
 
 #[test]
@@ -2265,180 +1939,6 @@ fn test_provide_liquidity_without_funds() {
 }
 
 #[test]
-fn test_tracker_contract() {
-    let owner = Addr::unchecked("owner");
-    let alice = Addr::unchecked("alice");
-    let mut app = mock_app(
-        owner.clone(),
-        vec![
-            Coin {
-                denom: "test1".to_owned(),
-                amount: Uint128::new(5_000000),
-            },
-            Coin {
-                denom: "test2".to_owned(),
-                amount: Uint128::new(5_000000),
-            },
-            Coin {
-                denom: "uluna".to_owned(),
-                amount: Uint128::new(1000_000000),
-            },
-            Coin {
-                denom: "uusd".to_owned(),
-                amount: Uint128::new(1000_000000),
-            },
-        ],
-    );
-    let token_code_id = store_token_code(&mut app);
-    let pair_code_id = store_pair_code(&mut app);
-    let factory_code_id = store_factory_code(&mut app);
-
-    let init_msg = FactoryInstantiateMsg {
-        fee_address: None,
-        pair_configs: vec![PairConfig {
-            code_id: pair_code_id,
-            maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
-            total_fee_bps: 0,
-            is_disabled: false,
-            is_generator_disabled: false,
-            permissioned: false,
-            whitelist: None,
-        }],
-        token_code_id,
-        generator_address: Some(String::from("generator")),
-        owner: owner.to_string(),
-        whitelist_code_id: 234u64,
-        coin_registry_address: "coin_registry".to_string(),
-        tracker_config: Some(TrackerConfig {
-            code_id: store_tracker_contract(&mut app),
-            token_factory_addr: TOKEN_FACTORY_MODULE.to_string(),
-        }),
-    };
-
-    let factory_instance = app
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "FACTORY",
-            None,
-        )
-        .unwrap();
-
-    // Instantiate pair without asset balances tracking
-    let msg = FactoryExecuteMsg::CreatePair {
-        asset_infos: vec![
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-        ],
-        pair_type: PairType::Xyk {},
-        init_params: Some(
-            to_json_binary(&XYKPoolParams {
-                track_asset_balances: Some(true),
-            })
-            .unwrap(),
-        ),
-    };
-
-    app.execute_contract(owner.clone(), factory_instance.clone(), &msg, &[])
-        .unwrap();
-
-    let msg = FactoryQueryMsg::Pair {
-        asset_infos: vec![
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-        ],
-    };
-
-    let res: PairInfo = app
-        .wrap()
-        .query_wasm_smart(&factory_instance, &msg)
-        .unwrap();
-
-    let pair_instance = res.contract_addr;
-    let lp_token = res.liquidity_token;
-
-    // Provide liquidity
-    let (msg, send_funds) = provide_liquidity_msg(
-        Uint128::new(999_000000),
-        Uint128::new(1000_000000),
-        None,
-        None,
-        None,
-    );
-    app.execute_contract(owner.clone(), pair_instance.clone(), &msg, &send_funds)
-        .unwrap();
-
-    let owner_lp_funds = app
-        .wrap()
-        .query_balance(owner.clone(), lp_token.clone())
-        .unwrap();
-
-    let total_supply = owner_lp_funds.amount + MINIMUM_LIQUIDITY_AMOUNT;
-
-    // Set Alice's balances
-    app.send_tokens(
-        owner.clone(),
-        alice.clone(),
-        &[Coin {
-            denom: lp_token.to_string(),
-            amount: Uint128::new(100),
-        }],
-    )
-    .unwrap();
-
-    let config: ConfigResponse = app
-        .wrap()
-        .query_wasm_smart(pair_instance.clone(), &QueryMsg::Config {})
-        .unwrap();
-
-    let tracker_addr = config.tracker_addr.unwrap();
-
-    let tracker_config: TrackerConfigResponse = app
-        .wrap()
-        .query_wasm_smart(tracker_addr.clone(), &TrackerQueryMsg::Config {})
-        .unwrap();
-    assert_eq!(
-        tracker_config.token_factory_module,
-        TOKEN_FACTORY_MODULE.to_string()
-    );
-    assert_eq!(tracker_config.tracked_denom, lp_token.to_string());
-
-    let tracker_total_supply: Uint128 = app
-        .wrap()
-        .query_wasm_smart(
-            tracker_addr.clone(),
-            &TrackerQueryMsg::TotalSupplyAt { unit: None },
-        )
-        .unwrap();
-
-    assert_eq!(total_supply, tracker_total_supply);
-
-    let alice_balance: Uint128 = app
-        .wrap()
-        .query_wasm_smart(
-            tracker_addr,
-            &TrackerQueryMsg::BalanceAt {
-                address: alice.to_string(),
-                unit: None,
-            },
-        )
-        .unwrap();
-
-    assert_eq!(alice_balance, Uint128::new(100));
-}
-
-#[test]
 fn test_create_xyk_custom_type() {
     let owner = Addr::unchecked("owner");
     let mut app = mock_app(owner.clone(), vec![]);
@@ -2473,9 +1973,8 @@ fn test_create_xyk_custom_type() {
         token_code_id,
         generator_address: None,
         owner: owner.to_string(),
-        whitelist_code_id: 0,
         coin_registry_address: "coin_registry".to_string(),
-        tracker_config: None,
+        creation_fee: None,
     };
 
     let factory_instance = app

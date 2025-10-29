@@ -10,12 +10,6 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
-    #[error("Pair was already created")]
-    PairWasCreated {},
-
-    #[error("Pair was already registered")]
-    PairWasRegistered {},
-
     #[error("Duplicate of pair configs")]
     PairConfigDuplicate {},
 
@@ -42,4 +36,7 @@ pub enum ContractError {
 
     #[error("Invalid whitelist address in pair config")]
     PairConfigInvalidWhitelistAddress {},
+
+    #[error("Pair creation fee expected: {fee}")]
+    CreationFeeExpected { fee: String },
 }

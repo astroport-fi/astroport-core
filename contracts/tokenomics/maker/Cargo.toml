@@ -19,6 +19,8 @@ exclude = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[lints]
+workspace = true
 
 [features]
 # for more explicit tests, cargo test --features=backtraces

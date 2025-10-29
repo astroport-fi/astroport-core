@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-factory",
-  "contract_version": "1.10.0",
+  "contract_version": "2.0.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -11,13 +11,23 @@
       "coin_registry_address",
       "owner",
       "pair_configs",
-      "token_code_id",
-      "whitelist_code_id"
+      "token_code_id"
     ],
     "properties": {
       "coin_registry_address": {
         "description": "The address of the contract that contains the coins and their accuracy",
         "type": "string"
+      },
+      "creation_fee": {
+        "description": "Pair creation fee. Prevents over-spamming with useless pairs.",
+        "anyOf": [
+          {
+            "$ref": "#/definitions/Coin"
+          },
+          {
+            "type": "null"
+          }
+        ]
       },
       "fee_address": {
         "description": "Contract address to send governance fees to (the Maker)",
@@ -49,27 +59,25 @@
         "type": "integer",
         "format": "uint64",
         "minimum": 0.0
-      },
-      "tracker_config": {
-        "description": "Config for the tracking contract",
-        "anyOf": [
-          {
-            "$ref": "#/definitions/TrackerConfig"
-          },
-          {
-            "type": "null"
-          }
-        ]
-      },
-      "whitelist_code_id": {
-        "description": "CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens",
-        "type": "integer",
-        "format": "uint64",
-        "minimum": 0.0
       }
     },
     "additionalProperties": false,
     "definitions": {
+      "Coin": {
+        "type": "object",
+        "required": [
+          "amount",
+          "denom"
+        ],
+        "properties": {
+          "amount": {
+            "$ref": "#/definitions/Uint128"
+          },
+          "denom": {
+            "type": "string"
+          }
+        }
+      },
       "PairConfig": {
         "description": "This structure stores a pair type's configuration.",
         "type": "object",
@@ -181,25 +189,9 @@
           }
         ]
       },
-      "TrackerConfig": {
-        "type": "object",
-        "required": [
-          "code_id",
-          "token_factory_addr"
-        ],
-        "properties": {
-          "code_id": {
-            "description": "Tracking contract code id",
-            "type": "integer",
-            "format": "uint64",
-            "minimum": 0.0
-          },
-          "token_factory_addr": {
-            "description": "Token factory module address",
-            "type": "string"
-          }
-        },
-        "additionalProperties": false
+      "Uint128": {
+        "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+        "type": "string"
       }
     }
   },
@@ -225,6 +217,17 @@
                   "null"
                 ]
               },
+              "creation_fee": {
+                "description": "Pair creation fee. Prevents over-spamming with useless pairs.",
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/Coin"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "fee_address": {
                 "description": "Contract address to send governance fees to (the Maker)",
                 "type": [
@@ -245,46 +248,6 @@
                   "integer",
                   "null"
                 ],
-                "format": "uint64",
-                "minimum": 0.0
-              },
-              "whitelist_code_id": {
-                "description": "CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens",
-                "type": [
-                  "integer",
-                  "null"
-                ],
-                "format": "uint64",
-                "minimum": 0.0
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "update_tracker_config"
-        ],
-        "properties": {
-          "update_tracker_config": {
-            "type": "object",
-            "required": [
-              "tracker_code_id"
-            ],
-            "properties": {
-              "token_factory_addr": {
-                "description": "Token factory module address",
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "tracker_code_id": {
-                "description": "Tracking contract code id",
-                "type": "integer",
                 "format": "uint64",
                 "minimum": 0.0
               }
@@ -360,32 +323,6 @@
                     "$ref": "#/definitions/PairType"
                   }
                 ]
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "description": "Deregister removes a previously created pair.",
-        "type": "object",
-        "required": [
-          "deregister"
-        ],
-        "properties": {
-          "deregister": {
-            "type": "object",
-            "required": [
-              "asset_infos"
-            ],
-            "properties": {
-              "asset_infos": {
-                "description": "The assets for which we deregister a pool",
-                "type": "array",
-                "items": {
-                  "$ref": "#/definitions/AssetInfo"
-                }
               }
             },
             "additionalProperties": false
@@ -510,6 +447,21 @@
         "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
         "type": "string"
       },
+      "Coin": {
+        "type": "object",
+        "required": [
+          "amount",
+          "denom"
+        ],
+        "properties": {
+          "amount": {
+            "$ref": "#/definitions/Uint128"
+          },
+          "denom": {
+            "type": "string"
+          }
+        }
+      },
       "PairConfig": {
         "description": "This structure stores a pair type's configuration.",
         "type": "object",
@@ -620,6 +572,10 @@
             "additionalProperties": false
           }
         ]
+      },
+      "Uint128": {
+        "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+        "type": "string"
       }
     }
   },
@@ -643,7 +599,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Pair returns information about a specific pair according to the specified assets.",
+        "description": "Pair returns information about a specific pair according to the specified assets. Gets the first pool from the list WARNING: this endpoint is left only for backward compatability. Consider using `QueryMsg::PairsByAssetInfos` and selecting a pool address based on your needs.",
         "type": "object",
         "required": [
           "pair"
@@ -669,6 +625,94 @@
         "additionalProperties": false
       },
       {
+        "description": "PairByAddr returns pair info for the specified pair address (if exists).",
+        "type": "object",
+        "required": [
+          "pair_by_addr"
+        ],
+        "properties": {
+          "pair_by_addr": {
+            "type": "object",
+            "required": [
+              "pair_addr"
+            ],
+            "properties": {
+              "pair_addr": {
+                "description": "The pair address for which we return a [`PairInfo`]",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "PairsByAssetInfos returns a list of pairs for the specified assets.",
+        "type": "object",
+        "required": [
+          "pairs_by_asset_infos"
+        ],
+        "properties": {
+          "pairs_by_asset_infos": {
+            "type": "object",
+            "required": [
+              "asset_infos"
+            ],
+            "properties": {
+              "asset_infos": {
+                "description": "The assets for which we return a pair",
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AssetInfo"
+                }
+              },
+              "limit": {
+                "description": "The number of pairs to read and return. Optional",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint32",
+                "minimum": 0.0
+              },
+              "start_after": {
+                "description": "The pair address to start reading from. Optional",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "PairByLpToken returns a pair info for the specified liquidity token.",
+        "type": "object",
+        "required": [
+          "pair_by_lp_token"
+        ],
+        "properties": {
+          "pair_by_lp_token": {
+            "type": "object",
+            "required": [
+              "lp_token"
+            ],
+            "properties": {
+              "lp_token": {
+                "description": "The liquidity token address for which we return a pair",
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Pairs returns an array of pairs and their information according to the specified parameters in `start_after` and `limit` variables.",
         "type": "object",
         "required": [
@@ -679,7 +723,7 @@
             "type": "object",
             "properties": {
               "limit": {
-                "description": "The number of pairs to read and return. It is an [`Option`] type.",
+                "description": "The number of pairs to read and return. Optional",
                 "type": [
                   "integer",
                   "null"
@@ -688,14 +732,11 @@
                 "minimum": 0.0
               },
               "start_after": {
-                "description": "The pair item to start reading from. It is an [`Option`] type that accepts [`AssetInfo`] elements.",
+                "description": "The pair address to start reading from. Optional",
                 "type": [
-                  "array",
+                  "string",
                   "null"
-                ],
-                "items": {
-                  "$ref": "#/definitions/AssetInfo"
-                }
+                ]
               }
             },
             "additionalProperties": false
@@ -738,19 +779,6 @@
         ],
         "properties": {
           "blacklisted_pair_types": {
-            "type": "object",
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "type": "object",
-        "required": [
-          "tracker_config"
-        ],
-        "properties": {
-          "tracker_config": {
             "type": "object",
             "additionalProperties": false
           }
@@ -928,8 +956,7 @@
         "coin_registry_address",
         "owner",
         "pair_configs",
-        "token_code_id",
-        "whitelist_code_id"
+        "token_code_id"
       ],
       "properties": {
         "coin_registry_address": {
@@ -979,12 +1006,6 @@
         },
         "token_code_id": {
           "description": "CW20 token contract code identifier",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "whitelist_code_id": {
-          "description": "CW1 whitelist contract code id used to store 3rd party rewards for staking Astroport LP tokens",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
@@ -1294,6 +1315,292 @@
         }
       }
     },
+    "pair_by_addr": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PairInfo",
+      "description": "This structure stores the main parameters for an Astroport pair",
+      "type": "object",
+      "required": [
+        "asset_infos",
+        "contract_addr",
+        "liquidity_token",
+        "pair_type"
+      ],
+      "properties": {
+        "asset_infos": {
+          "description": "Asset information for the assets in the pool",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AssetInfo"
+          }
+        },
+        "contract_addr": {
+          "description": "Pair contract address",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        },
+        "liquidity_token": {
+          "description": "Pair LP token denom",
+          "type": "string"
+        },
+        "pair_type": {
+          "description": "The pool type (xyk, stableswap etc) available in [`PairType`]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PairType"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
+        "AssetInfo": {
+          "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+          "oneOf": [
+            {
+              "description": "Non-native Token",
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "required": [
+                    "contract_addr"
+                  ],
+                  "properties": {
+                    "contract_addr": {
+                      "$ref": "#/definitions/Addr"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Native token",
+              "type": "object",
+              "required": [
+                "native_token"
+              ],
+              "properties": {
+                "native_token": {
+                  "type": "object",
+                  "required": [
+                    "denom"
+                  ],
+                  "properties": {
+                    "denom": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "PairType": {
+          "description": "This enum describes available pair types. ## Available pool types ``` # use astroport::factory::PairType::{Custom, Stable, Xyk}; Xyk {}; Stable {}; Custom(String::from(\"Custom\")); ```",
+          "oneOf": [
+            {
+              "description": "XYK pair type",
+              "type": "object",
+              "required": [
+                "xyk"
+              ],
+              "properties": {
+                "xyk": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Stable pair type",
+              "type": "object",
+              "required": [
+                "stable"
+              ],
+              "properties": {
+                "stable": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Custom pair type",
+              "type": "object",
+              "required": [
+                "custom"
+              ],
+              "properties": {
+                "custom": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    },
+    "pair_by_lp_token": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "PairInfo",
+      "description": "This structure stores the main parameters for an Astroport pair",
+      "type": "object",
+      "required": [
+        "asset_infos",
+        "contract_addr",
+        "liquidity_token",
+        "pair_type"
+      ],
+      "properties": {
+        "asset_infos": {
+          "description": "Asset information for the assets in the pool",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/AssetInfo"
+          }
+        },
+        "contract_addr": {
+          "description": "Pair contract address",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        },
+        "liquidity_token": {
+          "description": "Pair LP token denom",
+          "type": "string"
+        },
+        "pair_type": {
+          "description": "The pool type (xyk, stableswap etc) available in [`PairType`]",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PairType"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
+        "AssetInfo": {
+          "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+          "oneOf": [
+            {
+              "description": "Non-native Token",
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "required": [
+                    "contract_addr"
+                  ],
+                  "properties": {
+                    "contract_addr": {
+                      "$ref": "#/definitions/Addr"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Native token",
+              "type": "object",
+              "required": [
+                "native_token"
+              ],
+              "properties": {
+                "native_token": {
+                  "type": "object",
+                  "required": [
+                    "denom"
+                  ],
+                  "properties": {
+                    "denom": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "PairType": {
+          "description": "This enum describes available pair types. ## Available pool types ``` # use astroport::factory::PairType::{Custom, Stable, Xyk}; Xyk {}; Stable {}; Custom(String::from(\"Custom\")); ```",
+          "oneOf": [
+            {
+              "description": "XYK pair type",
+              "type": "object",
+              "required": [
+                "xyk"
+              ],
+              "properties": {
+                "xyk": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Stable pair type",
+              "type": "object",
+              "required": [
+                "stable"
+              ],
+              "properties": {
+                "stable": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Custom pair type",
+              "type": "object",
+              "required": [
+                "custom"
+              ],
+              "properties": {
+                "custom": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
+    },
     "pairs": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "PairsResponse",
@@ -1454,27 +1761,154 @@
         }
       }
     },
-    "tracker_config": {
+    "pairs_by_asset_infos": {
       "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "TrackerConfig",
-      "type": "object",
-      "required": [
-        "code_id",
-        "token_factory_addr"
-      ],
-      "properties": {
-        "code_id": {
-          "description": "Tracking contract code id",
-          "type": "integer",
-          "format": "uint64",
-          "minimum": 0.0
-        },
-        "token_factory_addr": {
-          "description": "Token factory module address",
-          "type": "string"
-        }
+      "title": "Array_of_PairInfo",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/PairInfo"
       },
-      "additionalProperties": false
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        },
+        "AssetInfo": {
+          "description": "This enum describes available Token types. ## Examples ``` # use cosmwasm_std::Addr; # use astroport::asset::AssetInfo::{NativeToken, Token}; Token { contract_addr: Addr::unchecked(\"stake...\") }; NativeToken { denom: String::from(\"uluna\") }; ```",
+          "oneOf": [
+            {
+              "description": "Non-native Token",
+              "type": "object",
+              "required": [
+                "token"
+              ],
+              "properties": {
+                "token": {
+                  "type": "object",
+                  "required": [
+                    "contract_addr"
+                  ],
+                  "properties": {
+                    "contract_addr": {
+                      "$ref": "#/definitions/Addr"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Native token",
+              "type": "object",
+              "required": [
+                "native_token"
+              ],
+              "properties": {
+                "native_token": {
+                  "type": "object",
+                  "required": [
+                    "denom"
+                  ],
+                  "properties": {
+                    "denom": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        },
+        "PairInfo": {
+          "description": "This structure stores the main parameters for an Astroport pair",
+          "type": "object",
+          "required": [
+            "asset_infos",
+            "contract_addr",
+            "liquidity_token",
+            "pair_type"
+          ],
+          "properties": {
+            "asset_infos": {
+              "description": "Asset information for the assets in the pool",
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/AssetInfo"
+              }
+            },
+            "contract_addr": {
+              "description": "Pair contract address",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Addr"
+                }
+              ]
+            },
+            "liquidity_token": {
+              "description": "Pair LP token denom",
+              "type": "string"
+            },
+            "pair_type": {
+              "description": "The pool type (xyk, stableswap etc) available in [`PairType`]",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/PairType"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "PairType": {
+          "description": "This enum describes available pair types. ## Available pool types ``` # use astroport::factory::PairType::{Custom, Stable, Xyk}; Xyk {}; Stable {}; Custom(String::from(\"Custom\")); ```",
+          "oneOf": [
+            {
+              "description": "XYK pair type",
+              "type": "object",
+              "required": [
+                "xyk"
+              ],
+              "properties": {
+                "xyk": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Stable pair type",
+              "type": "object",
+              "required": [
+                "stable"
+              ],
+              "properties": {
+                "stable": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            },
+            {
+              "description": "Custom pair type",
+              "type": "object",
+              "required": [
+                "custom"
+              ],
+              "properties": {
+                "custom": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      }
     }
   }
 }

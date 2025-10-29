@@ -14,11 +14,11 @@ use astroport::asset::{
     native_asset, native_asset_info, token_asset, token_asset_info, Asset, AssetInfo, AssetInfoExt,
     PairInfo,
 };
-use astroport::factory::{PairConfig, PairType, UpdateAddr};
+use astroport::factory::{PairConfig, PairType};
 use astroport::maker::{
     AssetWithLimit, BalancesResponse, ConfigResponse, DevFundConfig, ExecuteMsg, InstantiateMsg,
-    QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig, UpdateDevFundConfig,
-    COOLDOWN_LIMITS,
+    QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig, UpdateAddr,
+    UpdateDevFundConfig, COOLDOWN_LIMITS,
 };
 use astroport_maker::error::ContractError;
 use astroport_test::cw_multi_test::{
@@ -212,9 +212,8 @@ fn instantiate_contracts(
         fee_address: None,
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
-        tracker_config: None,
+        creation_fee: None,
     };
 
     let factory_instance = router
