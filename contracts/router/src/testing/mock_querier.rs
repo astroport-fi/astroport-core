@@ -1,15 +1,16 @@
+use std::collections::HashMap;
+
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::{MockApi, MockQuerier, MockStorage, MOCK_CONTRACT_ADDR};
 use cosmwasm_std::{
     from_json, to_json_binary, Addr, Binary, Coin, ContractResult, Empty, OwnedDeps, Querier,
     QuerierResult, QueryRequest, SystemError, SystemResult, Uint128, WasmQuery,
 };
-use std::collections::HashMap;
+use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
 use astroport::factory::PairType;
 use astroport::pair::SimulationResponse;
-use cw20::{BalanceResponse, Cw20QueryMsg, TokenInfoResponse};
 
 #[cw_serde]
 pub enum QueryMsg {
@@ -122,9 +123,9 @@ impl WasmMockQuerier {
                 if contract_addr.to_string().starts_with("token")
                     || contract_addr.to_string().starts_with("asset")
                 {
-                    self.handle_cw20(&contract_addr, &msg)
+                    self.handle_cw20(contract_addr, msg)
                 } else {
-                    self.handle_default(&msg)
+                    self.handle_default(msg)
                 }
             }
             _ => self.base.handle_query(request),
@@ -132,7 +133,7 @@ impl WasmMockQuerier {
     }
 
     fn handle_default(&self, msg: &Binary) -> QuerierResult {
-        match from_json(&msg).unwrap() {
+        match from_json(msg).unwrap() {
             QueryMsg::Pair { asset_infos } => {
                 let key = asset_infos[0].to_string() + asset_infos[1].to_string().as_str();
                 match self.astroport_factory_querier.pairs.get(&key) {
@@ -166,7 +167,7 @@ impl WasmMockQuerier {
     }
 
     fn handle_cw20(&self, contract_addr: &String, msg: &Binary) -> QuerierResult {
-        match from_json(&msg).unwrap() {
+        match from_json(msg).unwrap() {
             Cw20QueryMsg::TokenInfo {} => {
                 let balances: &HashMap<String, Uint128> =
                     match self.token_querier.balances.get(contract_addr) {
@@ -186,7 +187,7 @@ impl WasmMockQuerier {
                     name: "mAPPL".to_string(),
                     symbol: "mAPPL".to_string(),
                     decimals: 6,
-                    total_supply: total_supply,
+                    total_supply,
                 })))
             }
             Cw20QueryMsg::Balance { address } => {
