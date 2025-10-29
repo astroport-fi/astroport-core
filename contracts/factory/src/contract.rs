@@ -3,8 +3,8 @@ use std::collections::HashSet;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order, Reply,
-    Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
+    attr, to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Order,
+    Reply, Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, WasmMsg,
 };
 use cw2::set_contract_version;
 use cw_storage_plus::Bound;
@@ -409,6 +409,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
         QueryMsg::Pair { asset_infos } => to_json_binary(&query_pair(deps, asset_infos)?),
+        QueryMsg::PairByAddr { pair_addr } => {
+            to_json_binary(&PAIRS.load(deps.storage, &Addr::unchecked(pair_addr))?)
+        }
         QueryMsg::PairsByAssetInfos {
             asset_infos,
             start_after,

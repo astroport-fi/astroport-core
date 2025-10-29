@@ -171,6 +171,12 @@ pub enum QueryMsg {
         /// The assets for which we return a pair
         asset_infos: Vec<AssetInfo>,
     },
+    /// PairByAddr returns pair info for the specified pair address (if exists).
+    #[returns(PairInfo)]
+    PairByAddr {
+        /// The pair address for which we return a [`PairInfo`]
+        pair_addr: String,
+    },
     /// PairsByAssetInfos returns a list of pairs for the specified assets.
     #[returns(Vec<PairInfo>)]
     PairsByAssetInfos {

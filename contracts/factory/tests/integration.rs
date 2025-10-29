@@ -742,4 +742,26 @@ fn test_indexed_queries() {
         )
         .unwrap();
     assert_eq!(pair, pairs[0]);
+
+    let pair: PairInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &helper.factory,
+            &QueryMsg::PairByAddr {
+                pair_addr: pair.contract_addr.to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(pair, pairs[0]);
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<PairInfo>(
+            &helper.factory,
+            &QueryMsg::PairByAddr {
+                pair_addr: "non_existent_pair".to_string(),
+            },
+        )
+        .unwrap_err();
+    assert_eq!("Generic error: Querier contract error: type: astroport::asset::PairInfo; key: [00, 01, 70, 6E, 6F, 6E, 5F, 65, 78, 69, 73, 74, 65, 6E, 74, 5F, 70, 61, 69, 72] not found", err.to_string())
 }
