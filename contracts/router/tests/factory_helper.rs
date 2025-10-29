@@ -65,6 +65,7 @@ impl FactoryHelper {
             owner: owner.to_string(),
             coin_registry_address: app.api().addr_make("coin_registry").to_string(),
             generator_address: None,
+            creation_fee: None,
         };
 
         let factory = app
