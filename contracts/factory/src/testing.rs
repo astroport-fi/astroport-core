@@ -67,6 +67,7 @@ fn proper_initialization() {
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -91,6 +92,7 @@ fn proper_initialization() {
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -129,6 +131,7 @@ fn proper_initialization() {
         generator_address: Some(String::from("generator")),
         owner: owner.clone(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -166,6 +169,7 @@ fn update_config() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -182,6 +186,7 @@ fn update_config() {
         fee_address: Some(String::from("new_fee_addr")),
         generator_address: Some(String::from("new_generator_addr")),
         coin_registry_address: None,
+        creation_fee: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -209,6 +214,7 @@ fn update_config() {
         fee_address: None,
         generator_address: None,
         coin_registry_address: None,
+        creation_fee: None,
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
@@ -227,6 +233,7 @@ fn update_owner() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -315,6 +322,7 @@ fn update_pair_config() {
         owner: owner.to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -432,6 +440,7 @@ fn create_pair() {
         owner: "owner0000".to_string(),
         generator_address: Some(String::from("generator")),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();
@@ -532,6 +541,7 @@ fn register() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let env = mock_env();

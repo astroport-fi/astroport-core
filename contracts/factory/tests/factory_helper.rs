@@ -1,7 +1,7 @@
 use anyhow::Result as AnyResult;
 use astroport_test::cw_multi_test::{AppResponse, ContractWrapper, Executor};
 use astroport_test::modules::stargate::StargateApp as App;
-use cosmwasm_std::{Addr, Binary, StdResult};
+use cosmwasm_std::{Addr, Binary, Coin, StdResult};
 use cw20::MinterResponse;
 
 use astroport::asset::AssetInfo;
@@ -82,6 +82,7 @@ impl FactoryHelper {
             generator_address: None,
             owner: owner.to_string(),
             coin_registry_address: "coin_registry".to_string(),
+            creation_fee: None,
         };
 
         let factory = app
@@ -109,12 +110,14 @@ impl FactoryHelper {
         fee_address: Option<String>,
         generator_address: Option<String>,
         coin_registry_address: Option<String>,
+        creation_fee: Option<Coin>,
     ) -> AnyResult<AppResponse> {
         let msg = astroport::factory::ExecuteMsg::UpdateConfig {
             token_code_id,
             fee_address,
             generator_address,
             coin_registry_address,
+            creation_fee,
         };
 
         router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
@@ -127,6 +130,7 @@ impl FactoryHelper {
         pair_type: PairType,
         tokens: [&Addr; 2],
         init_params: Option<Binary>,
+        funds: &[Coin],
     ) -> AnyResult<AppResponse> {
         let asset_infos = vec![
             AssetInfo::Token {
@@ -143,7 +147,7 @@ impl FactoryHelper {
             init_params,
         };
 
-        router.execute_contract(sender.clone(), self.factory.clone(), &msg, &[])
+        router.execute_contract(sender.clone(), self.factory.clone(), &msg, funds)
     }
 
     pub fn query_config(&mut self, router: &mut App) -> StdResult<ConfigResponse> {

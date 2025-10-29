@@ -217,6 +217,7 @@ impl Helper {
             generator_address: None,
             owner: owner.to_string(),
             coin_registry_address: coin_registry_address.to_string(),
+            creation_fee: None,
         };
 
         let factory = app.instantiate_contract(
@@ -256,6 +257,7 @@ impl Helper {
                 fee_address: None,
                 generator_address: Some(generator_address.to_string()),
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )

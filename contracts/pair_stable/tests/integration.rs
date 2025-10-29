@@ -151,6 +151,7 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
         generator_address: None,
         owner: owner.to_string(),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_addr = router
@@ -664,6 +665,7 @@ fn provide_lp_for_single_token() {
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -1003,6 +1005,7 @@ fn test_compatibility_of_tokens_with_different_precision() {
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = app
@@ -1318,6 +1321,7 @@ fn update_pair_config() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1565,6 +1569,7 @@ fn enable_disable_fee_sharing() {
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1864,6 +1869,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
         generator_address: None,
         owner: owner.to_string(),
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -1904,6 +1910,7 @@ fn provide_liquidity_with_autostaking_to_generator() {
                 fee_address: None,
                 generator_address: Some(generator_instance.to_string()),
                 coin_registry_address: None,
+                creation_fee: None,
             },
             &[],
         )
@@ -2351,6 +2358,7 @@ fn test_fee_share(
         generator_address: Some(String::from("generator")),
         owner: String::from("owner0000"),
         coin_registry_address: "coin_registry".to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = app
