@@ -17,7 +17,6 @@ pub mod token;
 pub mod token_factory;
 pub mod tokenfactory_tracker;
 pub mod vesting;
-pub mod xastro_token;
 
 #[cfg(test)]
 mod mock_querier;

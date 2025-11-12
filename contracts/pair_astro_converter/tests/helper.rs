@@ -4,12 +4,12 @@
 use std::collections::HashMap;
 
 use anyhow::Result as AnyResult;
+use astroport_test::cw_multi_test::{AppBuilder, AppResponse, Contract, ContractWrapper, Executor};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
     coin, from_json, to_json_binary, Addr, Coin, Decimal, Empty, StdError, StdResult, Uint128,
 };
 use cw20::{BalanceResponse, Cw20Coin, Cw20ExecuteMsg, Cw20QueryMsg};
-use cw_multi_test::{App, AppResponse, Contract, ContractWrapper, Executor};
 use derivative::Derivative;
 use itertools::Itertools;
 
@@ -23,6 +23,7 @@ use astroport::pair::{
 };
 use astroport::pair_concentrated::QueryMsg;
 use astroport_pair_converter::state::Config;
+use astroport_test::modules::stargate::{MockStargate, StargateApp};
 
 const INIT_BALANCE: u128 = u128::MAX;
 
@@ -138,7 +139,7 @@ fn factory_contract() -> Box<dyn Contract<Empty>> {
 #[derivative(Debug)]
 pub struct Helper {
     #[derivative(Debug = "ignore")]
-    pub app: App,
+    pub app: StargateApp,
     pub owner: Addr,
     pub assets: HashMap<TestCoin, AssetInfo>,
     pub factory: Addr,
@@ -147,12 +148,14 @@ pub struct Helper {
 
 impl Helper {
     pub fn new(owner: &Addr, test_coins: Vec<TestCoin>) -> AnyResult<Self> {
-        let mut app = App::new(|router, _, storage| {
-            router
-                .bank
-                .init_balance(storage, owner, init_native_coins(&test_coins))
-                .unwrap()
-        });
+        let mut app = AppBuilder::new_custom()
+            .with_stargate(MockStargate::default())
+            .build(|router, _, storage| {
+                router
+                    .bank
+                    .init_balance(storage, owner, init_native_coins(&test_coins))
+                    .unwrap()
+            });
 
         let token_code_id = app.store_code(token_contract());
 
@@ -191,12 +194,13 @@ impl Helper {
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             }],
             token_code_id,
             generator_address: None,
             owner: owner.to_string(),
-            whitelist_code_id: 0,
             coin_registry_address: "registry".to_string(),
+            creation_fee: None,
         };
 
         let factory = app.instantiate_contract(
@@ -301,6 +305,7 @@ impl Helper {
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         };
 
         self.app
@@ -382,7 +387,7 @@ impl Helper {
     }
 
     fn init_token(
-        app: &mut App,
+        app: &mut StargateApp,
         token_code: u64,
         name: String,
         decimals: u8,
@@ -484,7 +489,7 @@ pub enum SendType {
 pub trait AssetExt {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut StargateApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -494,7 +499,7 @@ pub trait AssetExt {
 impl AssetExt for Asset {
     fn mock_coin_sent(
         &self,
-        app: &mut App,
+        app: &mut StargateApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -530,7 +535,7 @@ impl AssetExt for Asset {
 pub trait AssetsExt {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut StargateApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,
@@ -540,7 +545,7 @@ pub trait AssetsExt {
 impl AssetsExt for &[Asset] {
     fn mock_coins_sent(
         &self,
-        app: &mut App,
+        app: &mut StargateApp,
         user: &Addr,
         spender: &Addr,
         typ: SendType,

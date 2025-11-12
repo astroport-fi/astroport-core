@@ -1,5 +1,5 @@
+use astroport_test::cw_multi_test::{App, Executor};
 use cosmwasm_std::{Addr, StdError};
-use cw_multi_test::{App, Executor};
 
 use astroport::asset::{AssetInfo, AssetInfoExt, PairInfo};
 use astroport::factory::PairType;
@@ -325,7 +325,8 @@ fn test_cant_instantiate() {
     app.instantiate_contract(
         converter_pair_code_id,
         Addr::unchecked("owner"),
-        &astroport::pair::InstantiateMsg {
+        &pair::InstantiateMsg {
+            pair_type: PairType::Xyk {},
             asset_infos: vec![
                 AssetInfo::cw20_unchecked("astro_addr"),
                 AssetInfo::native("ibc/tf_astro"),

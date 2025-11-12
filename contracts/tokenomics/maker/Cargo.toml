@@ -25,7 +25,7 @@ cw-storage-plus.workspace = true
 astroport.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
-astro-satellite-package = "1"
+astro-satellite-package = "1.2"
 cw-utils = "1"
 itertools.workspace = true
 serde = { version = "1.0.219", features = ["derive"] }

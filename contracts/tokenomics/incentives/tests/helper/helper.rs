@@ -80,17 +80,6 @@ fn vesting_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-fn vesting_contract_v131() -> Box<dyn Contract<Empty>> {
-    Box::new(
-        ContractWrapper::new_with_empty(
-            astroport_vesting_131::contract::execute,
-            astroport_vesting_131::contract::instantiate,
-            astroport_vesting_131::contract::query,
-        )
-        .with_migrate_empty(astroport_vesting_131::contract::migrate),
-    )
-}
-
 fn astro_converter() -> Box<dyn Contract<Empty>> {
     Box::new(ContractWrapper::new_with_empty(
         astro_token_converter::contract::execute,
@@ -260,7 +249,7 @@ pub struct Helper {
 }
 
 impl Helper {
-    pub fn new(owner: &str, astro: &AssetInfo, with_old_vesting: bool) -> AnyResult<Self> {
+    pub fn new(owner: &str, astro: &AssetInfo) -> AnyResult<Self> {
         let mut app = AppBuilder::new()
             .with_stargate(MockStargate::default())
             .with_wasm(WasmKeeper::new().with_address_generator(TestAddr))
@@ -273,11 +262,7 @@ impl Helper {
             .build(|_, _, _| {});
         let owner = TestAddr::new(owner);
 
-        let vesting_code = if with_old_vesting {
-            app.store_code(vesting_contract_v131())
-        } else {
-            app.store_code(vesting_contract())
-        };
+        let vesting_code = app.store_code(vesting_contract());
         let vesting = app
             .instantiate_contract(
                 vesting_code,

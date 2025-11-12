@@ -84,7 +84,6 @@ pub fn receive_cw20(
             AssetInfo::cw20_unchecked(info.sender).with_balance(cw20_msg.amount),
             to,
         ),
-        _ => Err(ContractError::NotSupported {}),
     }
 }
 
@@ -153,15 +152,11 @@ pub fn swap(
 pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
-    // phoenix-1: v1.0.1
-    // pisco-1, injective-1, neutron-1: v1.3.3
-    // injective-888: v1.1.0
-    // pion-1: v1.3.0
     match (
         contract_version.contract.as_ref(),
         contract_version.version.as_ref(),
     ) {
-        ("astroport-pair", "1.0.1" | "1.1.0" | "1.3.0" | "1.3.3") => {
+        ("astroport-pair", "2.2.0") => {
             let converter_addr = deps.api.addr_validate(&msg.converter_contract)?;
             let converter_config = deps.querier.query_wasm_smart::<astro_converter::Config>(
                 &converter_addr,
