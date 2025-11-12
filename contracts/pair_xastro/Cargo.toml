@@ -11,6 +11,9 @@ homepage = "https://astroport.fi"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[lints]
+workspace = true
+
 [features]
 backtraces = ["cosmwasm-std/backtraces"]
 library = []

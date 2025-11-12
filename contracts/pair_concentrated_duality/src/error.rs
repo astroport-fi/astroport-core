@@ -41,9 +41,6 @@ pub enum ContractError {
     #[error("The asset {0} does not belong to the pair")]
     InvalidAsset(String),
 
-    #[error("Pair is not registered in the factory. Only swap and withdraw are allowed")]
-    PairIsNotRegistered {},
-
     #[error("Invalid number of assets. This pair supports only {0} assets")]
     InvalidNumberOfAssets(usize),
 

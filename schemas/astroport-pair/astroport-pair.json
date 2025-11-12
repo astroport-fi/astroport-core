@@ -905,13 +905,7 @@
       }
     }
   },
-  "migrate": {
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "title": "MigrateMsg",
-    "description": "This structure describes a migration message. We currently take no arguments for migrations.",
-    "type": "object",
-    "additionalProperties": false
-  },
+  "migrate": null,
   "sudo": null,
   "responses": {
     "asset_balance_at": {
@@ -970,17 +964,6 @@
           "anyOf": [
             {
               "$ref": "#/definitions/Binary"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "tracker_addr": {
-          "description": "Tracker contract address",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/Addr"
             },
             {
               "type": "null"

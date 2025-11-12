@@ -21,7 +21,7 @@ members = [
 
 [workspace.dependencies]
 cosmwasm-std = "1.5"
-cw-storage-plus = "1.2"
+cw-storage-plus = { version = "1.2", features = ["macro"] }
 cw2 = "1"
 thiserror = "1.0"
 itertools = "0.12"
@@ -43,3 +43,6 @@ strip = true
 
 [patch.'https://github.com/astroport-fi/astroport-core']
 astroport = { path = "packages/astroport" }
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(tarpaulin_include)"] }

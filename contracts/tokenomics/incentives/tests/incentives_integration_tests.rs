@@ -1594,9 +1594,12 @@ fn test_blocked_pair_types() {
         ContractError::Unauthorized {}
     );
 
-    // Deactivate norm_pair1_info by its asset infos
+    // Deactivate norm_pair1_info
     helper
-        .deactivate_pool_full_flow(&[tokens[0].clone(), tokens[1].clone()])
+        .deactivate_pool(
+            &helper.factory.clone(),
+            norm_pair1_info.liquidity_token.as_str(),
+        )
         .unwrap();
 
     helper.next_block(1000);
@@ -2520,22 +2523,6 @@ fn test_broken_cw20_incentives() {
         .query_pool(&helper.app.wrap(), &user)
         .unwrap();
     assert_eq!(broken_reward_balance.u128(), 0);
-}
-
-#[test]
-fn test_factory_deregisters_any_pool() {
-    let astro = native_asset_info("astro".to_string());
-    let mut helper = Helper::new("owner", &astro, false).unwrap();
-    let asset_infos = &[AssetInfo::native("usd"), AssetInfo::native("foo")];
-
-    // factory contract create pair
-    helper.create_pair(asset_infos).unwrap();
-    // ensure pair created
-    let pair_info = helper.query_pair_info(asset_infos);
-    assert_eq!(pair_info.asset_infos, asset_infos);
-
-    // Incentives contract doesn't have such pool yet but it doesn't block deregistration
-    helper.deactivate_pool_full_flow(asset_infos).unwrap();
 }
 
 #[test]

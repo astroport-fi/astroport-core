@@ -1,15 +1,14 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
+use cosmwasm_std::{DepsMut, Empty, Env, Response};
 use cw2::{get_contract_version, set_contract_version};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
-use astroport::pair::MigrateMsg;
 
 use crate::error::ContractError;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {

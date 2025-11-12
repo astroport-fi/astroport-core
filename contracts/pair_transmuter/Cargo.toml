@@ -12,6 +12,9 @@ metadata = { build_variants = ["injective"] }
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[lints]
+workspace = true
+
 [features]
 library = []
 injective = ["astroport/injective"]

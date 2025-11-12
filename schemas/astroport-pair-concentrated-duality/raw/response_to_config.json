@@ -41,17 +41,6 @@
           "type": "null"
         }
       ]
-    },
-    "tracker_addr": {
-      "description": "Tracker contract address",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Addr"
-        },
-        {
-          "type": "null"
-        }
-      ]
     }
   },
   "additionalProperties": false,

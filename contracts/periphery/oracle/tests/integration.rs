@@ -10,7 +10,7 @@ use cosmwasm_std::{
 use cw20::{BalanceResponse, Cw20QueryMsg, MinterResponse};
 
 use astroport::asset::{Asset, AssetInfo, PairInfo};
-use astroport::token::InstantiateMsg as TokenInstantiateMsg;
+use cw20_base::msg::InstantiateMsg as TokenInstantiateMsg;
 
 use astroport::factory::{PairConfig, PairType};
 
@@ -156,6 +156,7 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
             PairConfig {
                 code_id: pair_stable_code_id,
@@ -165,14 +166,15 @@ fn instantiate_contracts(mut router: &mut App, owner: Addr) -> (Addr, Addr, u64)
                 is_disabled: false,
                 is_generator_disabled: false,
                 permissioned: false,
+                whitelist: None,
             },
         ],
         token_code_id: 1u64,
         fee_address: None,
         generator_address: Some(String::from("generator")),
         owner: owner.to_string(),
-        whitelist_code_id: 234u64,
         coin_registry_address: coin_registry_address.to_string(),
+        creation_fee: None,
     };
 
     let factory_instance = router
@@ -328,6 +330,7 @@ fn provide_liquidity(
             slippage_tolerance: None,
             auto_stake: None,
             receiver: None,
+            min_lp_to_receive: None,
         },
         &funds,
     )
@@ -445,6 +448,7 @@ fn change_provide_liquidity(
                 slippage_tolerance: Some(Decimal::percent(50)),
                 auto_stake: None,
                 receiver: None,
+                min_lp_to_receive: None,
             },
             &vec![],
         )

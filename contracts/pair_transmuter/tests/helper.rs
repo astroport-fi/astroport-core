@@ -178,9 +178,8 @@ impl Helper {
             token_code_id,
             generator_address: None,
             owner: owner.to_string(),
-            whitelist_code_id: 0,
             coin_registry_address: coin_registry_address.to_string(),
-            tracker_config: None,
+            creation_fee: None,
         };
 
         let factory = app.instantiate_contract(

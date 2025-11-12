@@ -105,7 +105,7 @@ impl WasmMockQuerier {
                             to_json_binary(&PairInfo {
                                 asset_infos,
                                 contract_addr: Addr::unchecked("pair"),
-                                liquidity_token: Addr::unchecked("lp_token"),
+                                liquidity_token: "lp_token".to_string(),
                                 pair_type: PairType::Xyk {},
                             })
                             .into(),

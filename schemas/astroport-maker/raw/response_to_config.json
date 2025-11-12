@@ -1,34 +1,34 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "ConfigResponse",
-  "description": "A custom struct that holds contract parameters and is used to retrieve them.",
+  "title": "Config",
+  "description": "This structure stores the main parameters for the Maker contract.",
   "type": "object",
   "required": [
-    "astro_token",
+    "astro_denom",
+    "collector",
     "factory_contract",
-    "governance_percent",
     "max_spread",
-    "owner",
-    "pre_upgrade_astro_amount",
-    "remainder_reward"
+    "owner"
   ],
   "properties": {
-    "astro_token": {
-      "description": "The ASTRO token asset info",
+    "astro_denom": {
+      "description": "ASTRO denom",
+      "type": "string"
+    },
+    "collect_cooldown": {
+      "description": "If set defines the period when maker collect can be called",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "collector": {
+      "description": "Address which receives all swapped Astro. On the Hub it simply sends astro to the staking contract; On an outpost - triggers IBC send on the satellite contract.",
       "allOf": [
         {
-          "$ref": "#/definitions/AssetInfo"
-        }
-      ]
-    },
-    "default_bridge": {
-      "description": "Default bridge (Terra1 - LUNC, Terra2 - LUNA, etc.)",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/AssetInfo"
-        },
-        {
-          "type": "null"
+          "$ref": "#/definitions/Addr"
         }
       ]
     },
@@ -51,25 +51,6 @@
         }
       ]
     },
-    "governance_contract": {
-      "description": "The governance contract address (fee distributor for vxASTRO stakers)",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Addr"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "governance_percent": {
-      "description": "The percentage of fees that go to governance_contract",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint64"
-        }
-      ]
-    },
     "max_spread": {
       "description": "The maximum spread used when swapping fee tokens to ASTRO",
       "allOf": [
@@ -79,48 +60,10 @@
       ]
     },
     "owner": {
-      "description": "Address that is allowed to update contract parameters",
+      "description": "Address that's allowed to set contract parameters",
       "allOf": [
         {
           "$ref": "#/definitions/Addr"
-        }
-      ]
-    },
-    "pre_upgrade_astro_amount": {
-      "description": "The amount of ASTRO tokens accrued before upgrading the Maker implementation and enabling reward distribution",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
-    },
-    "remainder_reward": {
-      "description": "The remainder ASTRO tokens (accrued before the Maker is upgraded) to be distributed to xASTRO stakers",
-      "allOf": [
-        {
-          "$ref": "#/definitions/Uint128"
-        }
-      ]
-    },
-    "second_receiver_cfg": {
-      "description": "Parameters that describe the second receiver of fees",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/SecondReceiverConfig"
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
-    "staking_contract": {
-      "description": "The xASTRO staking contract address",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/Addr"
-        },
-        {
-          "type": "null"
         }
       ]
     }
@@ -189,6 +132,7 @@
       "required": [
         "address",
         "asset_info",
+        "pool_addr",
         "share"
       ],
       "properties": {
@@ -204,6 +148,14 @@
             }
           ]
         },
+        "pool_addr": {
+          "description": "Pair address to swap ASTRO to dev's reserve asset",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Addr"
+            }
+          ]
+        },
         "share": {
           "description": "The percentage of fees that go to the dev fund",
           "allOf": [
@@ -214,41 +166,6 @@
         }
       },
       "additionalProperties": false
-    },
-    "SecondReceiverConfig": {
-      "description": "This structure stores the parameters for the second receiver of fees.",
-      "type": "object",
-      "required": [
-        "second_fee_receiver",
-        "second_receiver_cut"
-      ],
-      "properties": {
-        "second_fee_receiver": {
-          "description": "The second fee receiver contract address",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Addr"
-            }
-          ]
-        },
-        "second_receiver_cut": {
-          "description": "The percentage of fees that go to the second fee receiver",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint64"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "Uint128": {
-      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
-      "type": "string"
-    },
-    "Uint64": {
-      "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
-      "type": "string"
     }
   }
 }

@@ -226,10 +226,6 @@ impl WasmMockQuerier {
         self.query_handler.astroport_factory_querier = AstroportFactoryQuerier::new(pairs);
     }
 
-    pub fn with_default_query_handler(&mut self) {
-        self.handler = QueryHandler::Default;
-    }
-
     pub fn with_cw20_query_handler(&mut self) {
         self.handler = QueryHandler::Cw20;
     }

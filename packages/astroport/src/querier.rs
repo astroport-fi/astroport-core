@@ -1,7 +1,6 @@
 use crate::asset::{Asset, AssetInfo, PairInfo};
 use crate::factory::{
-    Config as FactoryConfig, FeeInfoResponse, PairType, PairsResponse, QueryMsg as FactoryQueryMsg,
-    TrackerConfig,
+    Config as FactoryConfig, FeeInfoResponse, PairType, QueryMsg as FactoryQueryMsg,
 };
 use crate::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
@@ -165,21 +164,6 @@ where
     }
 }
 
-/// Returns the tracker configuration from the factory contract.
-pub fn query_tracker_config<C>(
-    querier: &QuerierWrapper<C>,
-    factory_contract: impl Into<String>,
-) -> StdResult<TrackerConfig>
-where
-    C: CustomQuery,
-{
-    if let Some(res) = querier.query_wasm_raw(factory_contract, b"tracker_config".as_slice())? {
-        Ok(from_json(res)?)
-    } else {
-        Err(StdError::generic_err("The tracker config not found!"))
-    }
-}
-
 /// This structure holds parameters that describe the fee structure for a pool.
 #[derive(Clone)]
 pub struct FeeInfo {
@@ -223,20 +207,6 @@ pub fn query_pair_info(
         &FactoryQueryMsg::Pair {
             asset_infos: asset_infos.to_vec(),
         },
-    )
-}
-
-/// Returns a vector that contains items of type [`PairInfo`] which
-/// symbolize pairs instantiated in the Astroport factory
-pub fn query_pairs_info(
-    querier: &QuerierWrapper,
-    factory_contract: impl Into<String>,
-    start_after: Option<Vec<AssetInfo>>,
-    limit: Option<u32>,
-) -> StdResult<PairsResponse> {
-    querier.query_wasm_smart(
-        factory_contract,
-        &FactoryQueryMsg::Pairs { start_after, limit },
     )
 }
 
