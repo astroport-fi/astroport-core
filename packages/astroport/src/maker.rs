@@ -97,7 +97,7 @@ pub enum ExecuteMsg {
     /// If a route already exists, it will be overwritten.
     SetPoolRoutes(Vec<PoolRoute>),
     /// Self-call endpoint used to swap the whole asset_in balance.
-    /// No one by Maker contract can call this endpoint.
+    /// No one but Maker contract can call this endpoint.
     AutoSwap {
         asset_in: AssetInfo,
         asset_out: AssetInfo,
