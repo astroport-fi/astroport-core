@@ -165,7 +165,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Self-call endpoint used to swap the whole asset_in balance. No one by Maker contract can call this endpoint.",
+        "description": "Self-call endpoint used to swap the whole asset_in balance. No one but Maker contract can call this endpoint.",
         "type": "object",
         "required": [
           "auto_swap"
