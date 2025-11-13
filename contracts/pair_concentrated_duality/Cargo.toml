@@ -48,7 +48,7 @@ neutron-std = { git = "https://github.com/astroport-fi/neutron-std", branch = "b
 neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
 
 [dev-dependencies]
-astroport-native-coin-registry = { version = "1.1", features = ["library"] }
+astroport-native-coin-registry = { path = "../periphery/native_coin_registry", version = "1.1", features = ["library"] }
 astroport-test = { path = "../../packages/astroport_test", version = "0.1.0" }
 astroport-factory = { path = "../factory", features = ["library"] }
 astroport-pair-concentrated = { path = "../pair_concentrated", version = "4.1.0", features = ["library"] }

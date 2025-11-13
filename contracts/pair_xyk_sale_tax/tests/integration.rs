@@ -10,7 +10,7 @@ use astroport::pair::{
     TWAP_PRECISION,
 };
 use astroport::pair_xyk_sale_tax::{
-    MigrateMsg, SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked, TaxConfigsUnchecked,
+    SaleTaxConfigUpdates, SaleTaxInitParams, TaxConfigUnchecked, TaxConfigsUnchecked,
 };
 use astroport::token::InstantiateMsg as TokenInstantiateMsg;
 
@@ -21,7 +21,6 @@ use astroport_test::cw_multi_test::{AppBuilder, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as TestApp};
 use cosmwasm_std::{attr, coin, to_json_binary, Addr, Coin, Decimal, StdError, Uint128};
 use cw20::{Cw20Coin, Cw20ExecuteMsg, MinterResponse};
-use test_case::test_case;
 
 const OWNER: &str = "owner";
 
@@ -39,37 +38,6 @@ fn store_token_code(app: &mut TestApp) -> u64 {
     ));
 
     app.store_code(astro_token_contract)
-}
-
-fn store_standard_xyk_pair_code(app: &mut TestApp, version: &str) -> u64 {
-    let code_id = match version {
-        "1.3.1" => {
-            let code = Box::new(
-                ContractWrapper::new_with_empty(
-                    astroport_pair_1_3_3::contract::execute,
-                    astroport_pair_1_3_3::contract::instantiate,
-                    astroport_pair_1_3_3::contract::query,
-                )
-                .with_migrate_empty(astroport_pair_1_3_3::contract::migrate)
-                .with_reply_empty(astroport_pair_1_3_3::contract::reply),
-            );
-            app.store_code(code)
-        }
-        "1.5.0" => {
-            let code = Box::new(
-                ContractWrapper::new_with_empty(
-                    astroport_pair::contract::execute,
-                    astroport_pair::contract::instantiate,
-                    astroport_pair::contract::query,
-                )
-                .with_reply_empty(astroport_pair::contract::reply),
-            );
-            app.store_code(code)
-        }
-        _ => panic!("Unsupported version"),
-    };
-
-    code_id
 }
 
 fn store_pair_code(app: &mut TestApp) -> u64 {
@@ -178,81 +146,6 @@ fn instantiate_pair(mut router: &mut TestApp, owner: &Addr) -> Addr {
     assert_eq!("contract1", res.contract_addr);
     assert_eq!(
         format!("factory/contract1/{LP_SUBDENOM}"),
-        res.liquidity_token
-    );
-
-    pair
-}
-
-fn instantiate_standard_xyk_pair(mut router: &mut TestApp, owner: &Addr, version: &str) -> Addr {
-    let token_contract_code_id = store_token_code(&mut router);
-
-    let pair_contract_code_id = store_standard_xyk_pair_code(&mut router, version);
-    let factory_code_id = store_factory_code(&mut router);
-
-    let init_msg = FactoryInstantiateMsg {
-        fee_address: None,
-        pair_configs: vec![PairConfig {
-            code_id: pair_contract_code_id,
-            maker_fee_bps: 0,
-            pair_type: PairType::Xyk {},
-            total_fee_bps: 0,
-            is_disabled: false,
-            is_generator_disabled: false,
-            permissioned: false,
-            whitelist: None,
-        }],
-        token_code_id: token_contract_code_id,
-        generator_address: Some(String::from("generator")),
-        owner: owner.to_string(),
-        coin_registry_address: "coin_registry".to_string(),
-        creation_fee: None,
-    };
-
-    let factory_instance = router
-        .instantiate_contract(
-            factory_code_id,
-            owner.clone(),
-            &init_msg,
-            &[],
-            "FACTORY",
-            None,
-        )
-        .unwrap();
-
-    let msg = InstantiateMsg {
-        pair_type: PairType::Custom(CONTRACT_NAME.to_string()),
-        asset_infos: vec![
-            AssetInfo::NativeToken {
-                denom: "uusd".to_string(),
-            },
-            AssetInfo::NativeToken {
-                denom: "uluna".to_string(),
-            },
-        ],
-        token_code_id: token_contract_code_id,
-        factory_addr: factory_instance.to_string(),
-        init_params: None,
-    };
-
-    let pair = router
-        .instantiate_contract(
-            pair_contract_code_id,
-            owner.clone(),
-            &msg,
-            &[],
-            String::from("PAIR"),
-            Some(owner.to_string()),
-        )
-        .unwrap();
-
-    let res: PairInfo = router
-        .wrap()
-        .query_wasm_smart(pair.clone(), &QueryMsg::Pair {})
-        .unwrap();
-    assert_eq!("contract1", res.contract_addr);
-    assert_eq!(
-        format!("factory/contract1/{}", LP_SUBDENOM),
         res.liquidity_token
     );
 
@@ -1921,59 +1814,4 @@ fn test_imbalanced_withdraw_is_disabled() {
         err.root_cause().to_string(),
         "Generic error: Imbalanced withdraw is currently disabled"
     );
-}
-
-#[ignore]
-#[test_case("1.3.1"; "v1.3.1")]
-#[test_case("1.5.0"; "v1.5.0")]
-fn test_migrate_from_standard_xyk(old_version: &str) {
-    let owner = Addr::unchecked("owner");
-    let mut router = mock_app(
-        owner.clone(),
-        vec![
-            Coin {
-                denom: "uusd".to_string(),
-                amount: Uint128::new(100_000_000_000u128),
-            },
-            Coin {
-                denom: "uluna".to_string(),
-                amount: Uint128::new(100_000_000_000u128),
-            },
-        ],
-    );
-
-    // Init pair
-    let pair_instance = instantiate_standard_xyk_pair(&mut router, &owner, old_version);
-
-    // Store xyk_sale_tax wasm
-    let xyk_sale_tax_code_id = store_pair_code(&mut router);
-
-    // Migrate pair
-    let msg = MigrateMsg {
-        tax_config_admin: "addr0000".to_string(),
-        tax_configs: TaxConfigsUnchecked::default(),
-    };
-    router
-        .migrate_contract(
-            owner.clone(),
-            pair_instance.clone(),
-            &msg,
-            xyk_sale_tax_code_id,
-        )
-        .unwrap();
-
-    // Query config
-    let config: ConfigResponse = router
-        .wrap()
-        .query_wasm_smart(pair_instance.to_string(), &QueryMsg::Config {})
-        .unwrap();
-    assert_eq!(
-        config.clone(),
-        ConfigResponse {
-            block_time_last: 0,
-            params: Some(to_json_binary(&SaleTaxInitParams::default()).unwrap()),
-            owner,
-            factory_addr: config.factory_addr,
-        }
-    )
 }

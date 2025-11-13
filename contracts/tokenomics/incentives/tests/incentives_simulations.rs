@@ -106,7 +106,7 @@ fn update_total_rewards(
 
 fn simulate_case(events: Vec<(Event, u64)>) {
     let astro = AssetInfo::native("astro");
-    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let mut helper = Helper::new("owner", &astro).unwrap();
     let owner = helper.owner.clone();
     let incentivization_fee = helper.incentivization_fee.clone();
 

@@ -24,7 +24,7 @@ cosmwasm-std = { workspace = true, features = ["cosmwasm_1_1"] }
 cw-storage-plus.workspace = true
 cosmwasm-schema.workspace = true
 thiserror.workspace = true
-astroport = "5.1"
+astroport.workspace = true
 
 # Optional dependencies
 neutron-test-tube = { git = "https://github.com/astroport-fi/neutron-test-tube", optional = true, branch = "feat/neutron-v5-cosmwasm-v1", version = "4.2.2-rc" }
