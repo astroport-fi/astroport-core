@@ -57,7 +57,7 @@ dependencies = [
 name = "astro-token-converter"
 version = "1.1.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -72,7 +72,7 @@ name = "astro-token-converter-neutron"
 version = "1.1.0"
 dependencies = [
  "astro-token-converter",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-std",
  "cw-utils",
  "cw2",
@@ -98,7 +98,7 @@ dependencies = [
 
 [[package]]
 name = "astroport"
-version = "5.12.0"
+version = "6.0.0"
 dependencies = [
  "astroport-circular-buffer 0.2.0",
  "cosmos-sdk-proto 0.19.0",
@@ -140,7 +140,7 @@ name = "astroport-factory"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-pair",
  "astroport-test",
  "cosmwasm-schema",
@@ -161,7 +161,7 @@ version = "1.4.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-pair",
@@ -186,7 +186,7 @@ version = "2.0.0"
 dependencies = [
  "anyhow",
  "astro-satellite-package",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-pair",
  "astroport-test",
@@ -207,7 +207,7 @@ dependencies = [
 name = "astroport-native-coin-registry"
 version = "1.1.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 1.2.0",
@@ -222,7 +222,7 @@ name = "astroport-oracle"
 version = "2.1.2"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-pair",
@@ -241,7 +241,7 @@ dependencies = [
 name = "astroport-pair"
 version = "2.2.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-incentives",
  "astroport-test",
@@ -262,7 +262,7 @@ name = "astroport-pair-concentrated"
 version = "4.2.1"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory",
  "astroport-incentives",
@@ -287,7 +287,7 @@ name = "astroport-pair-concentrated-duality"
 version = "4.3.2"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-pair-concentrated",
@@ -313,7 +313,7 @@ name = "astroport-pair-concentrated-sale-tax"
 version = "4.2.1"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory",
  "astroport-incentives",
@@ -339,7 +339,7 @@ version = "1.1.0"
 dependencies = [
  "anyhow",
  "astro-token-converter",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-pair",
  "astroport-test",
@@ -360,7 +360,7 @@ name = "astroport-pair-stable"
 version = "4.2.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-circular-buffer 0.2.0",
  "astroport-factory",
  "astroport-incentives",
@@ -386,7 +386,7 @@ name = "astroport-pair-transmuter"
 version = "1.1.2"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-native-coin-registry",
  "astroport-test",
@@ -407,7 +407,7 @@ name = "astroport-pair-xastro"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-staking",
  "astroport-test",
@@ -425,7 +425,7 @@ dependencies = [
 name = "astroport-pair-xyk-sale-tax"
 version = "2.2.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-incentives",
  "astroport-pair",
@@ -448,7 +448,7 @@ name = "astroport-pcl-common"
 version = "2.2.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-test",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -462,7 +462,7 @@ name = "astroport-router"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-factory",
  "astroport-pair",
  "astroport-test",
@@ -481,7 +481,7 @@ version = "2.3.0"
 dependencies = [
  "anyhow",
  "astroport 4.0.3",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "astroport-tokenfactory-tracker 1.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -498,7 +498,7 @@ dependencies = [
 name = "astroport-supervault-adapter"
 version = "1.1.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-storage-plus 1.2.0",
@@ -515,7 +515,7 @@ name = "astroport-test"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 1.0.0",
@@ -546,7 +546,7 @@ dependencies = [
 name = "astroport-tokenfactory-tracker"
 version = "2.0.0"
 dependencies = [
- "astroport 5.12.0",
+ "astroport 6.0.0",
  "cosmwasm-schema",
  "cosmwasm-std",
  "cw-multi-test 0.20.0",
