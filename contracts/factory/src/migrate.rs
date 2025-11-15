@@ -28,7 +28,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
                     .map(|item| Ok(item?.1))
                     .collect::<StdResult<Vec<_>>>()?;
 
-                old_pairs_iface.clear(deps.storage);
+                // Keeping old state data for backwards compatibility.
+                // See: https://github.com/astroport-fi/astroport-core/blob/v5.13.0/packages/astroport_pcl_common/src/utils.rs#L389
+                // old_pairs_iface.clear(deps.storage);
 
                 for pool in pools {
                     let pair_info = deps
