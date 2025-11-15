@@ -2565,6 +2565,6 @@ fn test_invalid_cw20_lp_token() {
     let err = helper.stake(&user, cw20_lp_token).unwrap_err();
     assert_eq!(
         err.root_cause().to_string(),
-        "Generic error: LP token wasm1_contract6 doesn't match LP token registered in factory factory/wasm1_contract5/astroport/share".to_string()
+        "Generic error: Querier contract error: Generic error: Pair not found".to_string()
     )
 }

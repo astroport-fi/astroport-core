@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn,
-    Response, StdError, StdResult, Storage, SubMsg, Uint128,
+    attr, ensure, wasm_execute, Addr, BankMsg, Deps, DepsMut, Env, MessageInfo, Order,
+    QuerierWrapper, ReplyOn, Response, StdError, StdResult, Storage, SubMsg, Uint128,
 };
 use itertools::Itertools;
 
@@ -226,7 +226,7 @@ pub fn incentivize(
     }
 
     let config = CONFIG.load(deps.storage)?;
-    is_valid_pool(deps.as_ref(), &config, &lp_token_asset)?;
+    is_valid_pool(deps.querier, &config, &lp_token)?;
 
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
@@ -404,39 +404,16 @@ pub fn get_pair_from_denom(deps: Deps, denom: &str) -> StdResult<Addr> {
     }
 }
 
-/// Checks if the pool with the following asset infos is registered in the factory contract and
-/// LP tokens address/denom matches the one registered in the factory.
-pub fn is_valid_pool(deps: Deps, config: &Config, lp_token: &AssetInfo) -> StdResult<()> {
-    if let AssetInfo::NativeToken { denom } = lp_token {
-        // Check if the native token at least follows Astroport LP token format
-        get_pair_from_denom(deps, denom).map(|_| ())
-    } else {
-        // Full check that cw20 LP token is registered in the factory
-        let pair_info = query_pair_info(deps, lp_token)?;
-        deps.querier
-            .query_wasm_smart::<PairInfo>(
-                &config.factory,
-                &factory::QueryMsg::Pair {
-                    asset_infos: pair_info.asset_infos.to_vec(),
-                },
-            )
-            .map_err(|_| {
-                StdError::generic_err(format!(
-                    "The pair is not registered: {}-{}",
-                    pair_info.asset_infos[0], pair_info.asset_infos[1]
-                ))
-            })
-            .map(|resp| {
-                if resp.liquidity_token == lp_token.to_string() {
-                    Ok(())
-                } else {
-                    Err(StdError::generic_err(format!(
-                        "LP token {lp_token} doesn't match LP token registered in factory {}",
-                        resp.liquidity_token
-                    )))
-                }
-            })?
-    }
+/// Checks if the pool with the following LP token is registered in the factory.
+pub fn is_valid_pool(querier: QuerierWrapper, config: &Config, lp_token: &str) -> StdResult<()> {
+    querier
+        .query_wasm_smart::<PairInfo>(
+            &config.factory,
+            &factory::QueryMsg::PairByLpToken {
+                lp_token: lp_token.to_string(),
+            },
+        )
+        .map(|_| ())
 }
 
 pub fn claim_orphaned_rewards(
