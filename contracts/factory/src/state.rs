@@ -4,10 +4,13 @@ use itertools::Itertools;
 
 use astroport::asset::{AssetInfo, PairInfo};
 use astroport::common::OwnershipProposal;
-use astroport::factory::{Config, PairConfig};
+use astroport::factory::{Config, ConfigV2, PairConfig};
 
 /// Saves factory settings
 pub const CONFIG: Item<Config> = Item::new("config");
+
+/// Saves factory settings v2
+pub const CONFIG_V2: Item<ConfigV2> = Item::new("config_v2");
 
 #[index_list(PairInfo)]
 pub struct PairIndexes<'a> {

@@ -14,14 +14,16 @@ use itertools::Itertools;
 use astroport::asset::{addr_opt_validate, validate_native_denom, AssetInfo, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
 use astroport::factory::{
-    Config, ConfigResponse, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig, PairType,
-    PairsResponse, QueryMsg,
+    Config, ConfigResponse, ConfigV2, ExecuteMsg, FeeInfoResponse, InstantiateMsg, PairConfig,
+    PairType, PairsResponse, QueryMsg,
 };
 use astroport::pair;
 use astroport::pair::InstantiateMsg as PairInstantiateMsg;
 
 use crate::error::ContractError;
-use crate::state::{pair_key, CONFIG, DEFAULT_LIMIT, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS};
+use crate::state::{
+    pair_key, CONFIG, CONFIG_V2, DEFAULT_LIMIT, OWNERSHIP_PROPOSAL, PAIRS, PAIR_CONFIGS,
+};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = "astroport-factory";
@@ -55,6 +57,13 @@ pub fn instantiate(
             fee_address: addr_opt_validate(deps.api, &msg.fee_address)?,
             generator_address: addr_opt_validate(deps.api, &msg.generator_address)?,
             coin_registry_address: deps.api.addr_validate(&msg.coin_registry_address)?,
+            whitelist_code_id: 0,
+        },
+    )?;
+
+    CONFIG_V2.save(
+        deps.storage,
+        &ConfigV2 {
             creation_fee: msg.creation_fee,
         },
     )?;
@@ -212,7 +221,10 @@ pub fn execute_update_config(
 
     if let Some(creation_fee) = creation_fee {
         validate_native_denom(&creation_fee.denom)?;
-        config.creation_fee = Some(creation_fee);
+        CONFIG_V2.update::<_, StdError>(deps.storage, |mut v| {
+            v.creation_fee = Some(creation_fee);
+            Ok(v)
+        })?;
     }
 
     CONFIG.save(deps.storage, &config)?;
@@ -304,7 +316,9 @@ pub fn execute_create_pair(
     let mut funds = info.funds;
     let mut msgs = vec![];
 
-    if let (Some(creation_fee), Some(fee_address)) = (config.creation_fee, config.fee_address) {
+    let config_v2 = CONFIG_V2.load(deps.storage)?;
+
+    if let (Some(creation_fee), Some(fee_address)) = (config_v2.creation_fee, config.fee_address) {
         let pos = funds
             .iter()
             .position(|coin| coin.denom == creation_fee.denom);

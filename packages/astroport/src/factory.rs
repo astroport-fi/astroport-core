@@ -19,10 +19,20 @@ pub struct Config {
     pub generator_address: Option<Addr>,
     /// Contract address to send governance fees to (the Maker contract)
     pub fee_address: Option<Addr>,
-    /// Pair creation fee. Prevents over-spamming with useless pairs.
-    pub creation_fee: Option<Coin>,
+    /// CW1 whitelist contract code id used to store 3rd party incentives staking rewards
+    pub whitelist_code_id: u64,
     /// The address of the contract that contains the coins with their precision
     pub coin_registry_address: Addr,
+}
+
+/// Config v2 holds extended configuration parameters introduced after factory v2.
+/// This workaround is needed as legacy pair contracts use raw queries to fetch factory config,
+/// and adding new fields to the original Config struct would break them.
+/// See: https://github.com/astroport-fi/astroport-core/blob/v5.13.0/packages/astroport_pcl_common/src/utils.rs#L389
+#[cw_serde]
+pub struct ConfigV2 {
+    /// Pair creation fee. Prevents over-spamming with useless pairs.
+    pub creation_fee: Option<Coin>,
 }
 
 /// This enum describes available pair types.
