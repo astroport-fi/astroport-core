@@ -2,7 +2,8 @@
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::PAIRS;
+use crate::state::{CONFIG_V2, PAIRS};
+use astroport::factory::ConfigV2;
 use astroport::pair;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
@@ -28,7 +29,9 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
                     .map(|item| Ok(item?.1))
                     .collect::<StdResult<Vec<_>>>()?;
 
-                old_pairs_iface.clear(deps.storage);
+                // Keeping old state data for backwards compatibility.
+                // See: https://github.com/astroport-fi/astroport-core/blob/v5.13.0/packages/astroport_pcl_common/src/utils.rs#L389
+                // old_pairs_iface.clear(deps.storage);
 
                 for pool in pools {
                     let pair_info = deps
@@ -37,6 +40,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
                     PAIRS.save(deps.storage, &pool, &pair_info)?;
                 }
+
+                CONFIG_V2.save(deps.storage, &ConfigV2 { creation_fee: None })?;
             }
             _ => return Err(ContractError::MigrationError {}),
         },
