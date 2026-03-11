@@ -262,20 +262,25 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> Result<Response, Contrac
             "1.0.0" => {}
             "1.1.0" => {
                 // Recovering an LP share that was incorrectly burned during supervault freeze period
-                let config = CONFIG.load(deps.storage)?;
+                if env.contract.address
+                    == "neutron1pqnl0035jjeyqadn6sdcl69ahu942e5lkdsardlgcx3pkdy70kss3qu2kg"
+                {
+                    let config = CONFIG.load(deps.storage)?;
 
-                // Proof tx: https://neutron.celat.one/neutron-1/txs/7FCDB63DF69F4AE97CCEBD70E13B73C131A1FA82BB58F5B2669EA85FF242F722
-                let receiver = Addr::unchecked("neutron1q647rsfcwrz5cpaj2gmyqxl2z6cw9el474zrrt");
-                let recover_lp_amount = Uint128::new(242452275081);
-                let msgs = mint_liquidity_token_message(
-                    deps.querier,
-                    &config,
-                    &env.contract.address,
-                    &receiver,
-                    recover_lp_amount,
-                    false,
-                )?;
-                resp = resp.add_messages(msgs);
+                    // Proof tx: https://neutron.celat.one/neutron-1/txs/7FCDB63DF69F4AE97CCEBD70E13B73C131A1FA82BB58F5B2669EA85FF242F722
+                    let receiver =
+                        Addr::unchecked("neutron1q647rsfcwrz5cpaj2gmyqxl2z6cw9el474zrrt");
+                    let recover_lp_amount = Uint128::new(242452275081);
+                    let msgs = mint_liquidity_token_message(
+                        deps.querier,
+                        &config,
+                        &env.contract.address,
+                        &receiver,
+                        recover_lp_amount,
+                        false,
+                    )?;
+                    resp = resp.add_messages(msgs);
+                }
             }
             _ => return Err(ContractError::MigrationError {}),
         },
