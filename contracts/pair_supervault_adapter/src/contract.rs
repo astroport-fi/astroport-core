@@ -4,6 +4,7 @@ use crate::reply::ReplyIds;
 use crate::state::{
     Config, ProvideTmpData, WithdrawTmpData, CONFIG, PROVIDE_TMP_DATA, WITHDRAW_TMP_DATA,
 };
+use crate::utils::mint_liquidity_token_message;
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, CoinsExt, PairInfo};
 use astroport::common::LP_SUBDENOM;
 use astroport::factory::PairType;
@@ -252,12 +253,35 @@ pub fn withdraw_liquidity(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
+    let mut resp = Response::new();
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
             "1.0.0" => {}
+            "1.1.0" => {
+                // Recovering an LP share that was incorrectly burned during supervault freeze period
+                if env.contract.address
+                    == "neutron1pqnl0035jjeyqadn6sdcl69ahu942e5lkdsardlgcx3pkdy70kss3qu2kg"
+                {
+                    let config = CONFIG.load(deps.storage)?;
+
+                    // Proof tx: https://neutron.celat.one/neutron-1/txs/7FCDB63DF69F4AE97CCEBD70E13B73C131A1FA82BB58F5B2669EA85FF242F722
+                    let receiver =
+                        Addr::unchecked("neutron1q647rsfcwrz5cpaj2gmyqxl2z6cw9el474zrrt");
+                    let recover_lp_amount = Uint128::new(242452275081);
+                    let msgs = mint_liquidity_token_message(
+                        deps.querier,
+                        &config,
+                        &env.contract.address,
+                        &receiver,
+                        recover_lp_amount,
+                        false,
+                    )?;
+                    resp = resp.add_messages(msgs);
+                }
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -265,7 +289,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::new()
+    Ok(resp
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)

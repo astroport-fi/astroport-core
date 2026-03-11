@@ -115,6 +115,11 @@ pub fn reply(deps: DepsMut, env: Env, msg: Reply) -> Result<Response, ContractEr
                 .map(|asset| asset.into_msg(&withdraw_data.receiver))
                 .collect::<StdResult<Vec<_>>>()?;
 
+            ensure!(
+                !messages.is_empty(),
+                StdError::generic_err("No assets to withdraw")
+            );
+
             Ok(Response::new().add_messages(messages).add_attributes([
                 attr("action", "withdraw_liquidity"),
                 attr("withdrawn_share", withdraw_data.lp_amount),
