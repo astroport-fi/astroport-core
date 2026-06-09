@@ -260,17 +260,17 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: Empty) -> Result<Response, Contrac
     match contract_version.contract.as_ref() {
         CONTRACT_NAME => match contract_version.version.as_ref() {
             "1.0.0" => {}
-            "1.1.0" => {
+            "1.1.0" | "1.1.1" => {
                 // Recovering an LP share that was incorrectly burned during supervault freeze period
                 if env.contract.address
-                    == "neutron1pqnl0035jjeyqadn6sdcl69ahu942e5lkdsardlgcx3pkdy70kss3qu2kg"
+                    == "neutron14xh79j07ccu02ffc230vsh0x74avzyeqhxelz908jlrj8h05y5qqfjpt77"
                 {
                     let config = CONFIG.load(deps.storage)?;
 
-                    // Proof tx: https://neutron.celat.one/neutron-1/txs/7FCDB63DF69F4AE97CCEBD70E13B73C131A1FA82BB58F5B2669EA85FF242F722
+                    // Proof tx: https://www.mintscan.io/neutron/tx/5E26A31F3549672AB4BDD5F8A2DE2449E14E3FA44FD6A3F0D0D5B676A5CEB660
                     let receiver =
-                        Addr::unchecked("neutron1q647rsfcwrz5cpaj2gmyqxl2z6cw9el474zrrt");
-                    let recover_lp_amount = Uint128::new(242452275081);
+                        Addr::unchecked("neutron1yf7au76lczx64u4k44h0mdakmnnd2tjjyl6wna");
+                    let recover_lp_amount = Uint128::new(470674358765);
                     let msgs = mint_liquidity_token_message(
                         deps.querier,
                         &config,
