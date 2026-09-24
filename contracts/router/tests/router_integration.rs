@@ -98,9 +98,8 @@ fn router_does_not_enforce_spread_assertion() {
                             ask_asset_info: token_asset_info(token_z.clone()),
                         },
                     ],
-                    minimum_receive: None,
+                    minimum_receive: Uint128::new(1),
                     to: None,
-                    max_spread: None,
                 })
                 .unwrap(),
             },
@@ -114,7 +113,20 @@ fn router_does_not_enforce_spread_assertion() {
         "Unexpected data set after cw20 send hook"
     );
 
-    // However, single hop will still enforce spread assertion
+    // Single hops don't enforce the pool's spread check either; minimum_receive does the job
+    let single_hop = |minimum_receive: u128| {
+        to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
+            operations: vec![SwapOperation::AstroSwap {
+                offer_asset_info: token_asset_info(token_x.clone()),
+                ask_asset_info: token_asset_info(token_y.clone()),
+            }],
+            minimum_receive: minimum_receive.into(),
+            to: None,
+        })
+        .unwrap()
+    };
+
+    // a minimum above what the pool returns fails the swap
     mint(&mut app, &owner, &token_x, 50_000_000000, &owner).unwrap();
     let err = app
         .execute_contract(
@@ -123,24 +135,31 @@ fn router_does_not_enforce_spread_assertion() {
             &Cw20ExecuteMsg::Send {
                 contract: router.to_string(),
                 amount: 50_000_000000u128.into(),
-                msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
-                    operations: vec![SwapOperation::AstroSwap {
-                        offer_asset_info: token_asset_info(token_x.clone()),
-                        ask_asset_info: token_asset_info(token_y.clone()),
-                    }],
-                    minimum_receive: None,
-                    to: None,
-                    max_spread: None,
-                })
-                .unwrap(),
+                msg: single_hop(50_000_000000),
             },
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        astroport_pair::error::ContractError::MaxSpreadAssertion {},
-        err.downcast().unwrap()
+    assert!(
+        matches!(
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::AssertionMinimumReceive { .. }
+        ),
+        "expected the minimum receive to fail the swap"
+    );
+
+    // the same huge-spread swap goes through when it meets the minimum
+    app.execute_contract(
+        owner.clone(),
+        token_x.clone(),
+        &Cw20ExecuteMsg::Send {
+            contract: router.to_string(),
+            amount: 50_000_000000u128.into(),
+            msg: single_hop(1),
+        },
+        &[],
     )
+    .unwrap();
 }
 
 #[test]
@@ -200,8 +219,6 @@ fn route_through_pairs_with_natives() {
                     ask_asset_info: native_asset_info(denom_y.to_string()),
                 },
                 to: None,
-                max_spread: None,
-                single: false,
             },
             &[],
         )
@@ -215,20 +232,20 @@ fn route_through_pairs_with_natives() {
             owner.clone(),
             router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
-                operations: vec![SwapOperation::NativeSwap {
-                    offer_denom: denom_x.to_string(),
-                    ask_denom: denom_y.to_string(),
+                operations: vec![SwapOperation::AstroSwap {
+                    offer_asset_info: native_asset_info(denom_x.to_string()),
+                    ask_asset_info: native_asset_info(denom_y.to_string()),
                 }],
                 to: None,
-                max_spread: None,
-                minimum_receive: None,
+                // the pools' spread checks are off, so a route must set a real minimum
+                minimum_receive: Uint128::zero(),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::NativeSwapNotSupported {}
+        ContractError::MinimumReceiveRequired {}
     );
 
     let err = app
@@ -241,8 +258,7 @@ fn route_through_pairs_with_natives() {
                     ask_asset_info: native_asset_info(denom_x.to_string()),
                 }],
                 to: None,
-                max_spread: None,
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
             },
             &[],
         )
@@ -273,9 +289,8 @@ fn route_through_pairs_with_natives() {
                         ask_asset_info: native_asset_info(denom_z.to_string()),
                     },
                 ],
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             },
             &coins(50_000_000000, denom_x),
         )
@@ -301,9 +316,8 @@ fn route_through_pairs_with_natives() {
                         ask_asset_info: native_asset_info(denom_z.to_string()),
                     },
                 ],
-                minimum_receive: Some(50_000_000000u128.into()), // <--- enforcing minimum receive with 1:1 rate (which practically impossible)
+                minimum_receive: 50_000_000000u128.into(), // <--- enforcing minimum receive with 1:1 rate (which practically impossible,
                 to: None,
-                max_spread: None,
             },
             &coins(50_000_000000, denom_x),
         )
@@ -479,9 +493,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -557,7 +570,7 @@ fn test_swap_route() {
     // mint more astro to user
     mint(&mut app, &owner, &astro, swap_amount.u128(), &user).unwrap();
 
-    // victim tx gets executed. Assume user provide `minimum_receive` as `None`"
+    // victim tx gets executed with a token minimum of 1, i.e. effectively no protection
     app.execute_contract(
         user.clone(),
         astro.clone(),
@@ -566,9 +579,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -658,9 +670,8 @@ fn test_swap_route() {
                         contract_addr: atom.clone(),
                     },
                 }],
-                minimum_receive: Some(Uint128::new(9_997_000)),
+                minimum_receive: Uint128::new(9_997_000),
                 to: None,
-                max_spread: None,
             },
             &[],
         )
@@ -746,9 +757,9 @@ fn test_swap_route() {
     assert_eq!(balance_res.balance, Uint128::zero());
 
     /* -------------------------------------------------------------------------------------------
-    2. lets try attack with minimum_receive as Some(_).
+    2. lets try attack with a real minimum_receive.
     -------------------------------------------------------------------------------------------*/
-    println!("\n2. Assume user provide `minimum_receive` as `Some(_)`");
+    println!("\n2. Assume user provides a real `minimum_receive`");
 
     mint(&mut app, &owner, &astro, swap_amount.u128(), &user).unwrap();
 
@@ -793,9 +804,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: Some(donated_atom),
+                minimum_receive: donated_atom,
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -851,9 +861,8 @@ fn test_swap_route() {
                         contract_addr: atom.clone(),
                     },
                 }],
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             },
             &[],
         )
@@ -1159,9 +1168,8 @@ fn route_through_standalone_transmuter() {
             router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
                 operations: operations.clone(),
-                minimum_receive: Some(simulated.amount + Uint128::one()),
+                minimum_receive: simulated.amount + Uint128::one(),
                 to: None,
-                max_spread: None,
             },
             &coins(offer_amount, luna),
         )
@@ -1180,9 +1188,8 @@ fn route_through_standalone_transmuter() {
             router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
                 operations: operations.clone(),
-                minimum_receive: Some(simulated.amount),
+                minimum_receive: simulated.amount,
                 to: None,
-                max_spread: None,
             },
             &coins(offer_amount, luna),
         )
@@ -1275,9 +1282,8 @@ fn pool_swap_rejects_pools_without_the_assets() {
             router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
                 operations: wrong_asset,
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             },
             &coins(1_000000, denom_x),
         )

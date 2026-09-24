@@ -581,7 +581,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-router"
-version = "1.4.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "astroport 5.13.2",

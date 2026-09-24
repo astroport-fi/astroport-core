@@ -13,19 +13,15 @@ use crate::state::CONFIG;
 
 /// Execute a swap operation.
 ///
-/// * **operation** to perform (native or Astro swap with offer and ask asset information).
+/// * **operation** to perform (factory or direct pool swap with offer and ask asset information).
 ///
 /// * **to** address that receives the ask assets.
-///
-/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operation: SwapOperation,
     to: Option<String>,
-    max_spread: Option<Decimal>,
-    single: bool,
 ) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
         return Err(ContractError::Unauthorized {});
@@ -46,14 +42,7 @@ pub fn execute_swap_operation(
         amount,
     };
 
-    let message = asset_into_swap_msg(
-        pool_addr.to_string(),
-        offer_asset,
-        ask_asset_info,
-        max_spread,
-        to,
-        single,
-    )?;
+    let message = asset_into_swap_msg(pool_addr.to_string(), offer_asset, ask_asset_info, to)?;
 
     Ok(Response::new().add_message(message))
 }
@@ -106,33 +95,29 @@ pub fn resolve_pool(
 
             Ok((pool_addr, offer_asset_info.clone(), ask_asset_info.clone()))
         }
-        SwapOperation::NativeSwap { .. } => Err(ContractError::NativeSwapNotSupported {}),
     }
 }
 
 /// Creates a message of type [`CosmosMsg`] representing a swap operation.
 ///
-/// * **pair_contract** Astroport pair contract for which the swap operation is performed.
+/// The pool's own spread check is disabled (belief price set to the maximum): the route's
+/// `minimum_receive`, checked on the final output, is what protects the swapper.
+///
+/// * **pair_contract** pool contract for which the swap operation is performed.
 ///
 /// * **offer_asset** asset that is swapped. It also mentions the amount to swap.
 ///
 /// * **ask_asset_info** asset that is swapped to.
 ///
-/// * **max_spread** max spread enforced for the swap.
-///
 /// * **to** address that receives the ask assets.
-///
-/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn asset_into_swap_msg(
     pair_contract: String,
     offer_asset: Asset,
     ask_asset_info: AssetInfo,
-    max_spread: Option<Decimal>,
     to: Option<String>,
-    single: bool,
 ) -> StdResult<CosmosMsg> {
-    // Disabling spread assertion if this swap is part of a multi hop route
-    let belief_price = if single { None } else { Some(Decimal::MAX) };
+    let belief_price = Some(Decimal::MAX);
+    let max_spread = None;
 
     match &offer_asset.info {
         AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {

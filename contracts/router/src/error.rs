@@ -38,8 +38,8 @@ pub enum ContractError {
     #[error("The swap operation limit was exceeded!")]
     SwapLimitExceeded {},
 
-    #[error("Native swap operations are not supported!")]
-    NativeSwapNotSupported {},
+    #[error("minimum_receive must be greater than zero")]
+    MinimumReceiveRequired {},
 
     #[error("A swap route is already in progress; nested routes are not allowed")]
     RouteInProgress {},

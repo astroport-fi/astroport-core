@@ -17,7 +17,7 @@
       "additionalProperties": false
     },
     {
-      "description": "ExecuteSwapOperations processes multiple swaps while mentioning the minimum amount of tokens to receive for the last swap operation",
+      "description": "ExecuteSwapOperations swaps the sent amount along the route. Pools' own spread checks are disabled on every hop; `minimum_receive` on the final output is the swap's only price guarantee, so it's required and must be greater than zero.",
       "type": "object",
       "required": [
         "execute_swap_operations"
@@ -26,28 +26,12 @@
         "execute_swap_operations": {
           "type": "object",
           "required": [
+            "minimum_receive",
             "operations"
           ],
           "properties": {
-            "max_spread": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "minimum_receive": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint128"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/Uint128"
             },
             "operations": {
               "type": "array",
@@ -77,25 +61,11 @@
         "execute_swap_operation": {
           "type": "object",
           "required": [
-            "operation",
-            "single"
+            "operation"
           ],
           "properties": {
-            "max_spread": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Decimal"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
             "operation": {
               "$ref": "#/definitions/SwapOperation"
-            },
-            "single": {
-              "type": "boolean"
             },
             "to": {
               "type": [
@@ -189,43 +159,11 @@
       },
       "additionalProperties": false
     },
-    "Decimal": {
-      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
-      "type": "string"
-    },
     "SwapOperation": {
       "description": "This enum describes a swap operation.",
       "oneOf": [
         {
-          "description": "Native swap",
-          "type": "object",
-          "required": [
-            "native_swap"
-          ],
-          "properties": {
-            "native_swap": {
-              "type": "object",
-              "required": [
-                "ask_denom",
-                "offer_denom"
-              ],
-              "properties": {
-                "ask_denom": {
-                  "description": "The name (denomination) of the native asset to swap to",
-                  "type": "string"
-                },
-                "offer_denom": {
-                  "description": "The name (denomination) of the native asset to swap from",
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "ASTRO swap",
+          "description": "Swap in the factory's pool for this asset pair",
           "type": "object",
           "required": [
             "astro_swap"

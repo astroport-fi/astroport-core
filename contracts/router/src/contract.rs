@@ -1,7 +1,6 @@
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, wasm_execute, Addr, Api, Binary, Decimal, Deps,
-    DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult,
-    Uint128,
+    entry_point, from_json, to_json_binary, wasm_execute, Addr, Api, Binary, Deps, DepsMut, Empty,
+    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
@@ -77,22 +76,10 @@ pub fn execute(
             operations,
             minimum_receive,
             to,
-            max_spread,
-        } => execute_swap_operations(
-            deps,
-            env,
-            info.sender,
-            operations,
-            minimum_receive,
-            to,
-            max_spread,
-        ),
-        ExecuteMsg::ExecuteSwapOperation {
-            operation,
-            to,
-            max_spread,
-            single,
-        } => execute_swap_operation(deps, env, info, operation, to, max_spread, single),
+        } => execute_swap_operations(deps, env, info.sender, operations, minimum_receive, to),
+        ExecuteMsg::ExecuteSwapOperation { operation, to } => {
+            execute_swap_operation(deps, env, info, operation, to)
+        }
     }
 }
 
@@ -109,7 +96,6 @@ pub fn receive_cw20(
             operations,
             minimum_receive,
             to,
-            max_spread,
         } => execute_swap_operations(
             deps,
             env,
@@ -117,7 +103,6 @@ pub fn receive_cw20(
             operations,
             minimum_receive,
             to,
-            max_spread,
         ),
     }
 }
@@ -128,24 +113,27 @@ pub fn receive_cw20(
 ///
 /// * **operations** all swap operations to perform.
 ///
-/// * **minimum_receive** used to guarantee that the ask amount is above a minimum amount.
+/// * **minimum_receive** the least the route must return; required and greater than zero, since
+///   the pools' own spread checks are disabled.
 ///
 /// * **to** recipient of the ask tokens.
-#[allow(clippy::too_many_arguments)]
 pub fn execute_swap_operations(
     deps: DepsMut,
     env: Env,
     sender: Addr,
     operations: Vec<SwapOperation>,
-    minimum_receive: Option<Uint128>,
+    minimum_receive: Uint128,
     to: Option<String>,
-    max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     // The route's minimum receive check reads REPLY_DATA in the final reply. A route started
     // from inside another route (e.g. by a pool during a hop) would overwrite it, so the outer
     // route would be checked against the wrong data. Nested routes are refused.
     if REPLY_DATA.exists(deps.storage) {
         return Err(ContractError::RouteInProgress {});
+    }
+
+    if minimum_receive.is_zero() {
+        return Err(ContractError::MinimumReceiveRequired {});
     }
 
     assert_operations(deps.api, &operations)?;
@@ -164,8 +152,6 @@ pub fn execute_swap_operations(
                     &ExecuteMsg::ExecuteSwapOperation {
                         operation: op,
                         to: Some(to.to_string()),
-                        max_spread,
-                        single: operations_len == 1,
                     },
                     vec![],
                 )
@@ -176,8 +162,6 @@ pub fn execute_swap_operations(
                     &ExecuteMsg::ExecuteSwapOperation {
                         operation: op,
                         to: None,
-                        max_spread,
-                        single: operations_len == 1,
                     },
                     vec![],
                 )
@@ -215,13 +199,11 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
                 .query_pool(&deps.querier, reply_data.receiver)?;
             let swap_amount = receiver_balance.checked_sub(reply_data.prev_balance)?;
 
-            if let Some(minimum_receive) = reply_data.minimum_receive {
-                if swap_amount < minimum_receive {
-                    return Err(ContractError::AssertionMinimumReceive {
-                        receive: minimum_receive,
-                        amount: swap_amount,
-                    });
-                }
+            if swap_amount < reply_data.minimum_receive {
+                return Err(ContractError::AssertionMinimumReceive {
+                    receive: reply_data.minimum_receive,
+                    amount: swap_amount,
+                });
             }
 
             // Reply data makes sense ONLY if the first token in multi-hop swap is native.
@@ -284,12 +266,10 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
-        "astroport-router" => match contract_version.version.as_ref() {
-            "1.1.2" | "1.2.0" | "1.3.0" | "1.3.1" => {
-                // older versions never cleared the last route's data, which would now block
-                // every new route
-                REPLY_DATA.remove(deps.storage);
-            }
+        // 2.x changed the execute API (required minimum_receive, no max_spread), so 1.x
+        // instances can't be migrated in place; the 2.x router is deployed on its own
+        "astroport-router" => match contract_version.version.as_str() {
+            version if version.starts_with("2.") => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -396,9 +376,6 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
             } => {
                 api.addr_validate(pool_addr)?;
                 (offer_asset_info.clone(), ask_asset_info.clone())
-            }
-            SwapOperation::NativeSwap { .. } => {
-                return Err(ContractError::NativeSwapNotSupported {})
             }
         };
 
