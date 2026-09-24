@@ -207,6 +207,9 @@ fn execute_swap_operations() {
         .unwrap(),
     });
 
+    // mock deps don't run the final reply, so finish the previous route by hand
+    crate::state::REPLY_DATA.remove(deps.as_mut().storage);
+
     let env = mock_env();
     let info = mock_info("asset0000", &[]);
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
@@ -462,4 +465,81 @@ fn assert_maximum_receive_swap_operations() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
 
     assert_eq!(res, ContractError::SwapLimitExceeded {});
+}
+
+#[test]
+fn refuses_a_route_while_another_is_in_progress() {
+    use crate::state::{ReplyData, REPLY_DATA};
+
+    let mut deps = mock_dependencies(&[]);
+    instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            astroport_factory: String::from("astroportfactory"),
+        },
+    )
+    .unwrap();
+
+    // as if a route had started and not reached its final reply yet
+    REPLY_DATA
+        .save(
+            deps.as_mut().storage,
+            &ReplyData {
+                asset_info: native_asset_info("uluna".to_string()),
+                prev_balance: Uint128::zero(),
+                minimum_receive: Some(Uint128::new(1)),
+                receiver: String::from("addr0000"),
+            },
+        )
+        .unwrap();
+
+    let msg = ExecuteMsg::ExecuteSwapOperations {
+        operations: vec![SwapOperation::AstroSwap {
+            offer_asset_info: native_asset_info("ukrw".to_string()),
+            ask_asset_info: native_asset_info("uluna".to_string()),
+        }],
+        minimum_receive: None,
+        to: None,
+        max_spread: None,
+    };
+    let err = execute(deps.as_mut(), mock_env(), mock_info("addr0000", &[]), msg).unwrap_err();
+    assert_eq!(err, ContractError::RouteInProgress {});
+}
+
+#[test]
+fn migration_clears_leftover_route_data() {
+    use crate::contract::migrate;
+    use crate::state::{ReplyData, REPLY_DATA};
+    use cosmwasm_std::Empty;
+
+    let mut deps = mock_dependencies(&[]);
+    instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            astroport_factory: String::from("astroportfactory"),
+        },
+    )
+    .unwrap();
+
+    // 1.3.1 never cleared the last route's data
+    cw2::set_contract_version(deps.as_mut().storage, "astroport-router", "1.3.1").unwrap();
+    REPLY_DATA
+        .save(
+            deps.as_mut().storage,
+            &ReplyData {
+                asset_info: native_asset_info("uluna".to_string()),
+                prev_balance: Uint128::zero(),
+                minimum_receive: None,
+                receiver: String::from("addr0000"),
+            },
+        )
+        .unwrap();
+
+    migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+
+    assert!(!REPLY_DATA.exists(deps.as_ref().storage));
 }

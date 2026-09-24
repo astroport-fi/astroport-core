@@ -41,6 +41,9 @@ pub enum ContractError {
     #[error("Native swap operations are not supported!")]
     NativeSwapNotSupported {},
 
+    #[error("A swap route is already in progress; nested routes are not allowed")]
+    RouteInProgress {},
+
     #[error("Pool {pool} doesn't hold both {offer_asset} and {ask_asset}")]
     PoolAssetsMismatch {
         pool: String,

@@ -141,6 +141,13 @@ pub fn execute_swap_operations(
     to: Option<String>,
     max_spread: Option<Decimal>,
 ) -> Result<Response, ContractError> {
+    // The route's minimum receive check reads REPLY_DATA in the final reply. A route started
+    // from inside another route (e.g. by a pool during a hop) would overwrite it, so the outer
+    // route would be checked against the wrong data. Nested routes are refused.
+    if REPLY_DATA.exists(deps.storage) {
+        return Err(ContractError::RouteInProgress {});
+    }
+
     assert_operations(deps.api, &operations)?;
 
     let to = addr_opt_validate(deps.api, &to)?.unwrap_or(sender);
@@ -201,6 +208,8 @@ pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractE
             result: SubMsgResult::Ok(..),
         } => {
             let reply_data = REPLY_DATA.load(deps.storage)?;
+            // the route is finished; clearing it lets the next route start
+            REPLY_DATA.remove(deps.storage);
             let receiver_balance = reply_data
                 .asset_info
                 .query_pool(&deps.querier, reply_data.receiver)?;
@@ -276,7 +285,11 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.1.2" | "1.2.0" | "1.3.0" | "1.3.1" => {}
+            "1.1.2" | "1.2.0" | "1.3.0" | "1.3.1" => {
+                // older versions never cleared the last route's data, which would now block
+                // every new route
+                REPLY_DATA.remove(deps.storage);
+            }
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

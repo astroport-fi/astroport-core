@@ -1192,8 +1192,13 @@ fn route_through_standalone_transmuter() {
 
     let user_usdc_inj = app.wrap().query_balance(&user, usdc_inj).unwrap().amount;
     assert_eq!(user_usdc_inj, simulated.amount);
-    // nothing is left behind in the router
+    // nothing is left behind in the router, funds or route data
     assert!(app.wrap().query_all_balances(&router).unwrap().is_empty());
+    assert!(app
+        .wrap()
+        .query_wasm_raw(&router, b"reply_data".as_slice())
+        .unwrap()
+        .is_none());
 }
 
 #[test]
