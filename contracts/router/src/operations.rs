@@ -1,10 +1,10 @@
 use astroport::asset::{Asset, AssetInfo};
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
+use astroport::pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::router::SwapOperation;
 use cosmwasm_std::{
-    to_json_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdResult,
-    WasmMsg,
+    ensure, to_json_binary, Addr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -31,7 +31,42 @@ pub fn execute_swap_operation(
         return Err(ContractError::Unauthorized {});
     }
 
-    let message = match operation {
+    let (pool_addr, offer_asset_info, ask_asset_info) = resolve_pool(deps.as_ref(), &operation)?;
+
+    let amount = match &offer_asset_info {
+        AssetInfo::NativeToken { denom } => {
+            query_balance(&deps.querier, env.contract.address, denom)?
+        }
+        AssetInfo::Token { contract_addr } => {
+            query_token_balance(&deps.querier, contract_addr, env.contract.address)?
+        }
+    };
+    let offer_asset = Asset {
+        info: offer_asset_info,
+        amount,
+    };
+
+    let message = asset_into_swap_msg(
+        pool_addr.to_string(),
+        offer_asset,
+        ask_asset_info,
+        max_spread,
+        to,
+        single,
+    )?;
+
+    Ok(Response::new().add_message(message))
+}
+
+/// Returns the pool to swap in and the operation's offer and ask assets.
+///
+/// An [`SwapOperation::AstroSwap`] pool is looked up in the factory by its asset pair. A
+/// [`SwapOperation::PoolSwap`] pool is used as given, after checking that it holds both assets.
+pub fn resolve_pool(
+    deps: Deps,
+    operation: &SwapOperation,
+) -> Result<(Addr, AssetInfo, AssetInfo), ContractError> {
+    match operation {
         SwapOperation::AstroSwap {
             offer_asset_info,
             ask_asset_info,
@@ -43,32 +78,36 @@ pub fn execute_swap_operation(
                 &[offer_asset_info.clone(), ask_asset_info.clone()],
             )?;
 
-            let amount = match &offer_asset_info {
-                AssetInfo::NativeToken { denom } => {
-                    query_balance(&deps.querier, env.contract.address, denom)?
-                }
-                AssetInfo::Token { contract_addr } => {
-                    query_token_balance(&deps.querier, contract_addr, env.contract.address)?
-                }
-            };
-            let offer_asset = Asset {
-                info: offer_asset_info,
-                amount,
-            };
-
-            asset_into_swap_msg(
-                pair_info.contract_addr.to_string(),
-                offer_asset,
-                ask_asset_info,
-                max_spread,
-                to,
-                single,
-            )?
+            Ok((
+                pair_info.contract_addr,
+                offer_asset_info.clone(),
+                ask_asset_info.clone(),
+            ))
         }
-        SwapOperation::NativeSwap { .. } => return Err(ContractError::NativeSwapNotSupported {}),
-    };
+        SwapOperation::PoolSwap {
+            pool_addr,
+            offer_asset_info,
+            ask_asset_info,
+        } => {
+            let pool_addr = deps.api.addr_validate(pool_addr)?;
+            let pair_info: astroport::asset::PairInfo = deps
+                .querier
+                .query_wasm_smart(&pool_addr, &PairQueryMsg::Pair {})?;
 
-    Ok(Response::new().add_message(message))
+            ensure!(
+                pair_info.asset_infos.contains(offer_asset_info)
+                    && pair_info.asset_infos.contains(ask_asset_info),
+                ContractError::PoolAssetsMismatch {
+                    pool: pool_addr.to_string(),
+                    offer_asset: offer_asset_info.to_string(),
+                    ask_asset: ask_asset_info.to_string(),
+                }
+            );
+
+            Ok((pool_addr, offer_asset_info.clone(), ask_asset_info.clone()))
+        }
+        SwapOperation::NativeSwap { .. } => Err(ContractError::NativeSwapNotSupported {}),
+    }
 }
 
 /// Creates a message of type [`CosmosMsg`] representing a swap operation.

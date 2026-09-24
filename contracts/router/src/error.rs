@@ -41,6 +41,13 @@ pub enum ContractError {
     #[error("Native swap operations are not supported!")]
     NativeSwapNotSupported {},
 
+    #[error("Pool {pool} doesn't hold both {offer_asset} and {ask_asset}")]
+    PoolAssetsMismatch {
+        pool: String,
+        offer_asset: String,
+        ask_asset: String,
+    },
+
     #[error("Contract can't be migrated!")]
     MigrationError {},
 }

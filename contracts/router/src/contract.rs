@@ -8,14 +8,13 @@ use cw20::Cw20ReceiveMsg;
 
 use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
 use astroport::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
-use astroport::querier::query_pair_info;
 use astroport::router::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, SwapResponseData, MAX_SWAP_OPERATIONS,
 };
 
 use crate::error::ContractError;
-use crate::operations::execute_swap_operation;
+use crate::operations::{execute_swap_operation, resolve_pool};
 use crate::state::{Config, ReplyData, CONFIG, REPLY_DATA};
 
 /// Contract name that is used for migration.
@@ -277,7 +276,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
 
     match contract_version.contract.as_ref() {
         "astroport-router" => match contract_version.version.as_ref() {
-            "1.1.2" | "1.2.0" | "1.3.0" => {}
+            "1.1.2" | "1.2.0" | "1.3.0" | "1.3.1" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -306,39 +305,23 @@ fn simulate_swap_operations(
 ) -> Result<SimulateSwapOperationsResponse, ContractError> {
     assert_operations(deps.api, &operations)?;
 
-    let config = CONFIG.load(deps.storage)?;
-    let astroport_factory = config.astroport_factory;
     let mut return_amount = offer_amount;
 
-    for operation in operations.into_iter() {
-        match operation {
-            SwapOperation::AstroSwap {
-                offer_asset_info,
-                ask_asset_info,
-            } => {
-                let pair_info = query_pair_info(
-                    &deps.querier,
-                    astroport_factory.clone(),
-                    &[offer_asset_info.clone(), ask_asset_info.clone()],
-                )?;
+    for operation in operations.iter() {
+        let (pool_addr, offer_asset_info, ask_asset_info) = resolve_pool(deps, operation)?;
 
-                let res: SimulationResponse = deps.querier.query_wasm_smart(
-                    pair_info.contract_addr,
-                    &PairQueryMsg::Simulation {
-                        offer_asset: Asset {
-                            info: offer_asset_info.clone(),
-                            amount: return_amount,
-                        },
-                        ask_asset_info: Some(ask_asset_info.clone()),
-                    },
-                )?;
+        let res: SimulationResponse = deps.querier.query_wasm_smart(
+            pool_addr,
+            &PairQueryMsg::Simulation {
+                offer_asset: Asset {
+                    info: offer_asset_info,
+                    amount: return_amount,
+                },
+                ask_asset_info: Some(ask_asset_info),
+            },
+        )?;
 
-                return_amount = res.return_amount;
-            }
-            SwapOperation::NativeSwap { .. } => {
-                return Err(ContractError::NativeSwapNotSupported {})
-            }
-        }
+        return_amount = res.return_amount;
     }
 
     Ok(SimulateSwapOperationsResponse {
@@ -353,35 +336,20 @@ fn simulate_reverse_swap_operations(
 ) -> Result<Uint128, ContractError> {
     assert_operations(deps.api, &operations)?;
 
-    let config = CONFIG.load(deps.storage)?;
     let mut step_amount = ask_amount;
 
-    for operation in operations.into_iter().rev() {
-        match operation {
-            SwapOperation::AstroSwap {
-                offer_asset_info,
-                ask_asset_info,
-            } => {
-                let pair_info = query_pair_info(
-                    &deps.querier,
-                    &config.astroport_factory,
-                    &[offer_asset_info.clone(), ask_asset_info.clone()],
-                )?;
+    for operation in operations.iter().rev() {
+        let (pool_addr, offer_asset_info, ask_asset_info) = resolve_pool(deps, operation)?;
 
-                let res: ReverseSimulationResponse = deps.querier.query_wasm_smart(
-                    pair_info.contract_addr,
-                    &PairQueryMsg::ReverseSimulation {
-                        offer_asset_info: Some(offer_asset_info.clone()),
-                        ask_asset: ask_asset_info.with_balance(step_amount),
-                    },
-                )?;
+        let res: ReverseSimulationResponse = deps.querier.query_wasm_smart(
+            pool_addr,
+            &PairQueryMsg::ReverseSimulation {
+                offer_asset_info: Some(offer_asset_info),
+                ask_asset: ask_asset_info.with_balance(step_amount),
+            },
+        )?;
 
-                step_amount = res.offer_amount;
-            }
-            SwapOperation::NativeSwap { .. } => {
-                return Err(ContractError::NativeSwapNotSupported {})
-            }
-        }
+        step_amount = res.offer_amount;
     }
 
     Ok(step_amount)
@@ -408,6 +376,14 @@ fn assert_operations(api: &dyn Api, operations: &[SwapOperation]) -> Result<(), 
                 offer_asset_info,
                 ask_asset_info,
             } => (offer_asset_info.clone(), ask_asset_info.clone()),
+            SwapOperation::PoolSwap {
+                pool_addr,
+                offer_asset_info,
+                ask_asset_info,
+            } => {
+                api.addr_validate(pool_addr)?;
+                (offer_asset_info.clone(), ask_asset_info.clone())
+            }
             SwapOperation::NativeSwap { .. } => {
                 return Err(ContractError::NativeSwapNotSupported {})
             }

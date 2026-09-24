@@ -30,6 +30,18 @@ pub enum SwapOperation {
         /// Information about the asset we swap to
         ask_asset_info: AssetInfo,
     },
+    /// Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool
+    /// doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter
+    /// instantiated directly) can be part of a multi-hop route. The pool must report both assets
+    /// in its `pair {}` query.
+    PoolSwap {
+        /// The pool contract address
+        pool_addr: String,
+        /// Information about the asset being swapped
+        offer_asset_info: AssetInfo,
+        /// Information about the asset we swap to
+        ask_asset_info: AssetInfo,
+    },
 }
 
 impl SwapOperation {
@@ -38,7 +50,8 @@ impl SwapOperation {
             SwapOperation::NativeSwap { ask_denom, .. } => AssetInfo::NativeToken {
                 denom: ask_denom.clone(),
             },
-            SwapOperation::AstroSwap { ask_asset_info, .. } => ask_asset_info.clone(),
+            SwapOperation::AstroSwap { ask_asset_info, .. }
+            | SwapOperation::PoolSwap { ask_asset_info, .. } => ask_asset_info.clone(),
         }
     }
 }
