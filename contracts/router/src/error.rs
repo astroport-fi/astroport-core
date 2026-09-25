@@ -38,8 +38,21 @@ pub enum ContractError {
     #[error("The swap operation limit was exceeded!")]
     SwapLimitExceeded {},
 
-    #[error("Native swap operations are not supported!")]
-    NativeSwapNotSupported {},
+    #[error("minimum_receive must be greater than zero")]
+    MinimumReceiveRequired {},
+
+    #[error("A swap route is already in progress; nested routes are not allowed")]
+    RouteInProgress {},
+
+    #[error("Pool {pool} reports its address as {reported}")]
+    PoolAddressMismatch { pool: String, reported: String },
+
+    #[error("Pool {pool} doesn't hold both {offer_asset} and {ask_asset}")]
+    PoolAssetsMismatch {
+        pool: String,
+        offer_asset: String,
+        ask_asset: String,
+    },
 
     #[error("Contract can't be migrated!")]
     MigrationError {},

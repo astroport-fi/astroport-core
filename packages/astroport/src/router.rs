@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Decimal, Uint128};
+use cosmwasm_std::Uint128;
 use cw20::Cw20ReceiveMsg;
 
 use crate::asset::AssetInfo;
@@ -16,15 +16,20 @@ pub struct InstantiateMsg {
 /// This enum describes a swap operation.
 #[cw_serde]
 pub enum SwapOperation {
-    /// Native swap
-    NativeSwap {
-        /// The name (denomination) of the native asset to swap from
-        offer_denom: String,
-        /// The name (denomination) of the native asset to swap to
-        ask_denom: String,
-    },
-    /// ASTRO swap
+    /// Swap in the factory's pool for this asset pair
     AstroSwap {
+        /// Information about the asset being swapped
+        offer_asset_info: AssetInfo,
+        /// Information about the asset we swap to
+        ask_asset_info: AssetInfo,
+    },
+    /// Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool
+    /// doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter
+    /// instantiated directly) can be part of a multi-hop route. The pool must report both assets
+    /// in its `pair {}` query.
+    PoolSwap {
+        /// The pool contract address
+        pool_addr: String,
         /// Information about the asset being swapped
         offer_asset_info: AssetInfo,
         /// Information about the asset we swap to
@@ -35,10 +40,8 @@ pub enum SwapOperation {
 impl SwapOperation {
     pub fn get_target_asset_info(&self) -> AssetInfo {
         match self {
-            SwapOperation::NativeSwap { ask_denom, .. } => AssetInfo::NativeToken {
-                denom: ask_denom.clone(),
-            },
-            SwapOperation::AstroSwap { ask_asset_info, .. } => ask_asset_info.clone(),
+            SwapOperation::AstroSwap { ask_asset_info, .. }
+            | SwapOperation::PoolSwap { ask_asset_info, .. } => ask_asset_info.clone(),
         }
     }
 }
@@ -48,12 +51,13 @@ impl SwapOperation {
 pub enum ExecuteMsg {
     /// Receive receives a message of type [`Cw20ReceiveMsg`] and processes it depending on the received template
     Receive(Cw20ReceiveMsg),
-    /// ExecuteSwapOperations processes multiple swaps while mentioning the minimum amount of tokens to receive for the last swap operation
+    /// ExecuteSwapOperations swaps the sent amount along the route. Pools' own spread checks are
+    /// disabled on every hop; `minimum_receive` on the final output is the swap's only price
+    /// guarantee, so it's required and must be greater than zero.
     ExecuteSwapOperations {
         operations: Vec<SwapOperation>,
-        minimum_receive: Option<Uint128>,
+        minimum_receive: Uint128,
         to: Option<String>,
-        max_spread: Option<Decimal>,
     },
 
     /// Internal use
@@ -61,8 +65,6 @@ pub enum ExecuteMsg {
     ExecuteSwapOperation {
         operation: SwapOperation,
         to: Option<String>,
-        max_spread: Option<Decimal>,
-        single: bool,
     },
 }
 
@@ -76,12 +78,10 @@ pub enum Cw20HookMsg {
     ExecuteSwapOperations {
         /// A vector of swap operations
         operations: Vec<SwapOperation>,
-        /// The minimum amount of tokens to get from a swap
-        minimum_receive: Option<Uint128>,
+        /// The minimum amount of tokens to get from the swap; required and greater than zero
+        minimum_receive: Uint128,
         /// The recipient
         to: Option<String>,
-        /// Max spread
-        max_spread: Option<Decimal>,
     },
 }
 

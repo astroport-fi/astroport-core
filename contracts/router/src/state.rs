@@ -19,6 +19,6 @@ pub const REPLY_DATA: Item<ReplyData> = Item::new("reply_data");
 pub struct ReplyData {
     pub asset_info: AssetInfo,
     pub prev_balance: Uint128,
-    pub minimum_receive: Option<Uint128>,
+    pub minimum_receive: Uint128,
     pub receiver: String,
 }

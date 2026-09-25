@@ -1,10 +1,10 @@
 use astroport::asset::{Asset, AssetInfo};
-use astroport::pair::ExecuteMsg as PairExecuteMsg;
+use astroport::pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
 use astroport::router::SwapOperation;
 use cosmwasm_std::{
-    to_json_binary, Coin, CosmosMsg, Decimal, DepsMut, Env, MessageInfo, Response, StdResult,
-    WasmMsg,
+    ensure, to_json_binary, Addr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -13,25 +13,49 @@ use crate::state::CONFIG;
 
 /// Execute a swap operation.
 ///
-/// * **operation** to perform (native or Astro swap with offer and ask asset information).
+/// * **operation** to perform (factory or direct pool swap with offer and ask asset information).
 ///
 /// * **to** address that receives the ask assets.
-///
-/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn execute_swap_operation(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     operation: SwapOperation,
     to: Option<String>,
-    max_spread: Option<Decimal>,
-    single: bool,
 ) -> Result<Response, ContractError> {
     if env.contract.address != info.sender {
         return Err(ContractError::Unauthorized {});
     }
 
-    let message = match operation {
+    let (pool_addr, offer_asset_info, ask_asset_info) = resolve_pool(deps.as_ref(), &operation)?;
+
+    let amount = match &offer_asset_info {
+        AssetInfo::NativeToken { denom } => {
+            query_balance(&deps.querier, env.contract.address, denom)?
+        }
+        AssetInfo::Token { contract_addr } => {
+            query_token_balance(&deps.querier, contract_addr, env.contract.address)?
+        }
+    };
+    let offer_asset = Asset {
+        info: offer_asset_info,
+        amount,
+    };
+
+    let message = asset_into_swap_msg(pool_addr.to_string(), offer_asset, ask_asset_info, to)?;
+
+    Ok(Response::new().add_message(message))
+}
+
+/// Returns the pool to swap in and the operation's offer and ask assets.
+///
+/// An [`SwapOperation::AstroSwap`] pool is looked up in the factory by its asset pair. A
+/// [`SwapOperation::PoolSwap`] pool is used as given, after checking that it holds both assets.
+pub fn resolve_pool(
+    deps: Deps,
+    operation: &SwapOperation,
+) -> Result<(Addr, AssetInfo, AssetInfo), ContractError> {
+    match operation {
         SwapOperation::AstroSwap {
             offer_asset_info,
             ask_asset_info,
@@ -43,57 +67,66 @@ pub fn execute_swap_operation(
                 &[offer_asset_info.clone(), ask_asset_info.clone()],
             )?;
 
-            let amount = match &offer_asset_info {
-                AssetInfo::NativeToken { denom } => {
-                    query_balance(&deps.querier, env.contract.address, denom)?
-                }
-                AssetInfo::Token { contract_addr } => {
-                    query_token_balance(&deps.querier, contract_addr, env.contract.address)?
-                }
-            };
-            let offer_asset = Asset {
-                info: offer_asset_info,
-                amount,
-            };
-
-            asset_into_swap_msg(
-                pair_info.contract_addr.to_string(),
-                offer_asset,
-                ask_asset_info,
-                max_spread,
-                to,
-                single,
-            )?
+            Ok((
+                pair_info.contract_addr,
+                offer_asset_info.clone(),
+                ask_asset_info.clone(),
+            ))
         }
-        SwapOperation::NativeSwap { .. } => return Err(ContractError::NativeSwapNotSupported {}),
-    };
+        SwapOperation::PoolSwap {
+            pool_addr,
+            offer_asset_info,
+            ask_asset_info,
+        } => {
+            let pool_addr = deps.api.addr_validate(pool_addr)?;
+            let pair_info: astroport::asset::PairInfo = deps
+                .querier
+                .query_wasm_smart(&pool_addr, &PairQueryMsg::Pair {})?;
 
-    Ok(Response::new().add_message(message))
+            // catches proxies and pasted addresses that report another pool's info
+            ensure!(
+                pair_info.contract_addr == pool_addr,
+                ContractError::PoolAddressMismatch {
+                    pool: pool_addr.to_string(),
+                    reported: pair_info.contract_addr.to_string(),
+                }
+            );
+
+            ensure!(
+                pair_info.asset_infos.contains(offer_asset_info)
+                    && pair_info.asset_infos.contains(ask_asset_info),
+                ContractError::PoolAssetsMismatch {
+                    pool: pool_addr.to_string(),
+                    offer_asset: offer_asset_info.to_string(),
+                    ask_asset: ask_asset_info.to_string(),
+                }
+            );
+
+            Ok((pool_addr, offer_asset_info.clone(), ask_asset_info.clone()))
+        }
+    }
 }
 
 /// Creates a message of type [`CosmosMsg`] representing a swap operation.
 ///
-/// * **pair_contract** Astroport pair contract for which the swap operation is performed.
+/// The pool's own spread check is disabled (belief price set to the maximum): the route's
+/// `minimum_receive`, checked on the final output, is what protects the swapper.
+///
+/// * **pair_contract** pool contract for which the swap operation is performed.
 ///
 /// * **offer_asset** asset that is swapped. It also mentions the amount to swap.
 ///
 /// * **ask_asset_info** asset that is swapped to.
 ///
-/// * **max_spread** max spread enforced for the swap.
-///
 /// * **to** address that receives the ask assets.
-///
-/// * **single** defines whether this swap is single or part of a multi hop route.
 pub fn asset_into_swap_msg(
     pair_contract: String,
     offer_asset: Asset,
     ask_asset_info: AssetInfo,
-    max_spread: Option<Decimal>,
     to: Option<String>,
-    single: bool,
 ) -> StdResult<CosmosMsg> {
-    // Disabling spread assertion if this swap is part of a multi hop route
-    let belief_price = if single { None } else { Some(Decimal::MAX) };
+    let belief_price = Some(Decimal::MAX);
+    let max_spread = None;
 
     match &offer_asset.info {
         AssetInfo::NativeToken { denom } => Ok(CosmosMsg::Wasm(WasmMsg::Execute {

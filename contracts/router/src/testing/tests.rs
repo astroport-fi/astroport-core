@@ -1,5 +1,7 @@
 use cosmwasm_std::testing::{mock_env, mock_info, MOCK_CONTRACT_ADDR};
-use cosmwasm_std::{from_json, to_json_binary, Addr, Coin, ReplyOn, SubMsg, Uint128, WasmMsg};
+use cosmwasm_std::{
+    from_json, to_json_binary, Addr, Coin, Decimal, ReplyOn, SubMsg, Uint128, WasmMsg,
+};
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
 use astroport::asset::{native_asset_info, AssetInfo};
@@ -47,9 +49,8 @@ fn execute_swap_operations() {
 
     let msg = ExecuteMsg::ExecuteSwapOperations {
         operations: vec![],
-        minimum_receive: None,
+        minimum_receive: Uint128::new(1),
         to: None,
-        max_spread: None,
     };
 
     let env = mock_env();
@@ -84,9 +85,8 @@ fn execute_swap_operations() {
                 },
             },
         ],
-        minimum_receive: Some(Uint128::from(1000000u128)),
+        minimum_receive: Uint128::from(1000000u128),
         to: None,
-        max_spread: None,
     };
 
     let env = mock_env();
@@ -109,8 +109,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -133,8 +131,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -157,8 +153,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: Some(String::from("addr0000")),
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -200,12 +194,14 @@ fn execute_swap_operations() {
                     },
                 },
             ],
-            minimum_receive: None,
+            minimum_receive: Uint128::new(1),
             to: Some(String::from("addr0002")),
-            max_spread: None,
         })
         .unwrap(),
     });
+
+    // mock deps don't run the final reply, so finish the previous route by hand
+    crate::state::REPLY_DATA.remove(deps.as_mut().storage);
 
     let env = mock_env();
     let info = mock_info("asset0000", &[]);
@@ -227,8 +223,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -251,8 +245,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: None,
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -275,8 +267,6 @@ fn execute_swap_operations() {
                             },
                         },
                         to: Some(String::from("addr0002")),
-                        max_spread: None,
-                        single: false
                     })
                     .unwrap(),
                 }
@@ -331,8 +321,6 @@ fn execute_swap_operation() {
             },
         },
         to: Some(String::from("addr0000")),
-        max_spread: None,
-        single: true,
     };
     let env = mock_env();
     let info = mock_info(MOCK_CONTRACT_ADDR, &[]);
@@ -348,7 +336,8 @@ fn execute_swap_operation() {
                     amount: Uint128::new(1000000u128),
                     msg: to_json_binary(&astroport::pair::Cw20HookMsg::Swap {
                         ask_asset_info: Some(native_asset_info("uusd".to_string())),
-                        belief_price: None,
+                        // the pool's spread check is off; minimum_receive protects the route
+                        belief_price: Some(Decimal::MAX),
                         max_spread: None,
                         to: Some(String::from("addr0000")),
                     })
@@ -419,16 +408,6 @@ fn query_buy_with_routes() {
             amount: Uint128::from(1000000u128),
         }
     );
-
-    let msg = QueryMsg::SimulateSwapOperations {
-        offer_amount: Uint128::from(1000000u128),
-        operations: vec![SwapOperation::NativeSwap {
-            offer_denom: "ukrw".to_string(),
-            ask_denom: "test".to_string(),
-        }],
-    };
-    let err = query(deps.as_ref(), env.clone(), msg).unwrap_err();
-    assert_eq!(err, ContractError::NativeSwapNotSupported {});
 }
 
 #[test]
@@ -446,15 +425,14 @@ fn assert_maximum_receive_swap_operations() {
 
     let msg = ExecuteMsg::ExecuteSwapOperations {
         operations: vec![
-            SwapOperation::NativeSwap {
-                offer_denom: "uusd".to_string(),
-                ask_denom: "ukrw".to_string(),
+            SwapOperation::AstroSwap {
+                offer_asset_info: native_asset_info("uusd".to_string()),
+                ask_asset_info: native_asset_info("ukrw".to_string()),
             };
             MAX_SWAP_OPERATIONS + 1
         ],
-        minimum_receive: None,
+        minimum_receive: Uint128::new(1),
         to: None,
-        max_spread: None,
     };
 
     let env = mock_env();
@@ -462,4 +440,91 @@ fn assert_maximum_receive_swap_operations() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
 
     assert_eq!(res, ContractError::SwapLimitExceeded {});
+}
+
+#[test]
+fn refuses_a_route_while_another_is_in_progress() {
+    use crate::state::{ReplyData, REPLY_DATA};
+
+    let mut deps = mock_dependencies(&[]);
+    instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            astroport_factory: String::from("astroportfactory"),
+        },
+    )
+    .unwrap();
+
+    // as if a route had started and not reached its final reply yet
+    REPLY_DATA
+        .save(
+            deps.as_mut().storage,
+            &ReplyData {
+                asset_info: native_asset_info("uluna".to_string()),
+                prev_balance: Uint128::zero(),
+                minimum_receive: Uint128::new(1),
+                receiver: String::from("addr0000"),
+            },
+        )
+        .unwrap();
+
+    let msg = ExecuteMsg::ExecuteSwapOperations {
+        operations: vec![SwapOperation::AstroSwap {
+            offer_asset_info: native_asset_info("ukrw".to_string()),
+            ask_asset_info: native_asset_info("uluna".to_string()),
+        }],
+        minimum_receive: Uint128::new(1),
+        to: None,
+    };
+    let err = execute(deps.as_mut(), mock_env(), mock_info("addr0000", &[]), msg).unwrap_err();
+    assert_eq!(err, ContractError::RouteInProgress {});
+}
+
+#[test]
+fn refuses_to_migrate_from_1x() {
+    use crate::contract::migrate;
+    use cosmwasm_std::Empty;
+
+    let mut deps = mock_dependencies(&[]);
+    instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            astroport_factory: String::from("astroportfactory"),
+        },
+    )
+    .unwrap();
+
+    // 2.x changed the execute API, so a 1.x router can't be migrated in place
+    cw2::set_contract_version(deps.as_mut().storage, "astroport-router", "1.3.1").unwrap();
+    let err = migrate(deps.as_mut(), mock_env(), Empty {}).unwrap_err();
+    assert_eq!(err, ContractError::MigrationError {});
+}
+
+#[test]
+fn requires_a_non_zero_minimum_receive() {
+    let mut deps = mock_dependencies(&[]);
+    instantiate(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("addr0000", &[]),
+        InstantiateMsg {
+            astroport_factory: String::from("astroportfactory"),
+        },
+    )
+    .unwrap();
+
+    let msg = ExecuteMsg::ExecuteSwapOperations {
+        operations: vec![SwapOperation::AstroSwap {
+            offer_asset_info: native_asset_info("ukrw".to_string()),
+            ask_asset_info: native_asset_info("uluna".to_string()),
+        }],
+        minimum_receive: Uint128::zero(),
+        to: None,
+    };
+    let err = execute(deps.as_mut(), mock_env(), mock_info("addr0000", &[]), msg).unwrap_err();
+    assert_eq!(err, ContractError::MinimumReceiveRequired {});
 }

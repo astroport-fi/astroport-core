@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-router",
-  "contract_version": "1.3.1",
+  "contract_version": "2.0.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -37,7 +37,7 @@
         "additionalProperties": false
       },
       {
-        "description": "ExecuteSwapOperations processes multiple swaps while mentioning the minimum amount of tokens to receive for the last swap operation",
+        "description": "ExecuteSwapOperations swaps the sent amount along the route. Pools' own spread checks are disabled on every hop; `minimum_receive` on the final output is the swap's only price guarantee, so it's required and must be greater than zero.",
         "type": "object",
         "required": [
           "execute_swap_operations"
@@ -46,28 +46,12 @@
           "execute_swap_operations": {
             "type": "object",
             "required": [
+              "minimum_receive",
               "operations"
             ],
             "properties": {
-              "max_spread": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Decimal"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
               "minimum_receive": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Uint128"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
+                "$ref": "#/definitions/Uint128"
               },
               "operations": {
                 "type": "array",
@@ -97,25 +81,11 @@
           "execute_swap_operation": {
             "type": "object",
             "required": [
-              "operation",
-              "single"
+              "operation"
             ],
             "properties": {
-              "max_spread": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/Decimal"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
               "operation": {
                 "$ref": "#/definitions/SwapOperation"
-              },
-              "single": {
-                "type": "boolean"
               },
               "to": {
                 "type": [
@@ -209,43 +179,11 @@
         },
         "additionalProperties": false
       },
-      "Decimal": {
-        "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
-        "type": "string"
-      },
       "SwapOperation": {
         "description": "This enum describes a swap operation.",
         "oneOf": [
           {
-            "description": "Native swap",
-            "type": "object",
-            "required": [
-              "native_swap"
-            ],
-            "properties": {
-              "native_swap": {
-                "type": "object",
-                "required": [
-                  "ask_denom",
-                  "offer_denom"
-                ],
-                "properties": {
-                  "ask_denom": {
-                    "description": "The name (denomination) of the native asset to swap to",
-                    "type": "string"
-                  },
-                  "offer_denom": {
-                    "description": "The name (denomination) of the native asset to swap from",
-                    "type": "string"
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "ASTRO swap",
+            "description": "Swap in the factory's pool for this asset pair",
             "type": "object",
             "required": [
               "astro_swap"
@@ -273,6 +211,47 @@
                         "$ref": "#/definitions/AssetInfo"
                       }
                     ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter instantiated directly) can be part of a multi-hop route. The pool must report both assets in its `pair {}` query.",
+            "type": "object",
+            "required": [
+              "pool_swap"
+            ],
+            "properties": {
+              "pool_swap": {
+                "type": "object",
+                "required": [
+                  "ask_asset_info",
+                  "offer_asset_info",
+                  "pool_addr"
+                ],
+                "properties": {
+                  "ask_asset_info": {
+                    "description": "Information about the asset we swap to",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssetInfo"
+                      }
+                    ]
+                  },
+                  "offer_asset_info": {
+                    "description": "Information about the asset being swapped",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssetInfo"
+                      }
+                    ]
+                  },
+                  "pool_addr": {
+                    "description": "The pool contract address",
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false
@@ -435,35 +414,7 @@
         "description": "This enum describes a swap operation.",
         "oneOf": [
           {
-            "description": "Native swap",
-            "type": "object",
-            "required": [
-              "native_swap"
-            ],
-            "properties": {
-              "native_swap": {
-                "type": "object",
-                "required": [
-                  "ask_denom",
-                  "offer_denom"
-                ],
-                "properties": {
-                  "ask_denom": {
-                    "description": "The name (denomination) of the native asset to swap to",
-                    "type": "string"
-                  },
-                  "offer_denom": {
-                    "description": "The name (denomination) of the native asset to swap from",
-                    "type": "string"
-                  }
-                },
-                "additionalProperties": false
-              }
-            },
-            "additionalProperties": false
-          },
-          {
-            "description": "ASTRO swap",
+            "description": "Swap in the factory's pool for this asset pair",
             "type": "object",
             "required": [
               "astro_swap"
@@ -491,6 +442,47 @@
                         "$ref": "#/definitions/AssetInfo"
                       }
                     ]
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter instantiated directly) can be part of a multi-hop route. The pool must report both assets in its `pair {}` query.",
+            "type": "object",
+            "required": [
+              "pool_swap"
+            ],
+            "properties": {
+              "pool_swap": {
+                "type": "object",
+                "required": [
+                  "ask_asset_info",
+                  "offer_asset_info",
+                  "pool_addr"
+                ],
+                "properties": {
+                  "ask_asset_info": {
+                    "description": "Information about the asset we swap to",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssetInfo"
+                      }
+                    ]
+                  },
+                  "offer_asset_info": {
+                    "description": "Information about the asset being swapped",
+                    "allOf": [
+                      {
+                        "$ref": "#/definitions/AssetInfo"
+                      }
+                    ]
+                  },
+                  "pool_addr": {
+                    "description": "The pool contract address",
+                    "type": "string"
                   }
                 },
                 "additionalProperties": false

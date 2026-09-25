@@ -145,35 +145,7 @@
       "description": "This enum describes a swap operation.",
       "oneOf": [
         {
-          "description": "Native swap",
-          "type": "object",
-          "required": [
-            "native_swap"
-          ],
-          "properties": {
-            "native_swap": {
-              "type": "object",
-              "required": [
-                "ask_denom",
-                "offer_denom"
-              ],
-              "properties": {
-                "ask_denom": {
-                  "description": "The name (denomination) of the native asset to swap to",
-                  "type": "string"
-                },
-                "offer_denom": {
-                  "description": "The name (denomination) of the native asset to swap from",
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false
-            }
-          },
-          "additionalProperties": false
-        },
-        {
-          "description": "ASTRO swap",
+          "description": "Swap in the factory's pool for this asset pair",
           "type": "object",
           "required": [
             "astro_swap"
@@ -201,6 +173,47 @@
                       "$ref": "#/definitions/AssetInfo"
                     }
                   ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter instantiated directly) can be part of a multi-hop route. The pool must report both assets in its `pair {}` query.",
+          "type": "object",
+          "required": [
+            "pool_swap"
+          ],
+          "properties": {
+            "pool_swap": {
+              "type": "object",
+              "required": [
+                "ask_asset_info",
+                "offer_asset_info",
+                "pool_addr"
+              ],
+              "properties": {
+                "ask_asset_info": {
+                  "description": "Information about the asset we swap to",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                },
+                "offer_asset_info": {
+                  "description": "Information about the asset being swapped",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                },
+                "pool_addr": {
+                  "description": "The pool contract address",
+                  "type": "string"
                 }
               },
               "additionalProperties": false

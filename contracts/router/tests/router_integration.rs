@@ -98,9 +98,8 @@ fn router_does_not_enforce_spread_assertion() {
                             ask_asset_info: token_asset_info(token_z.clone()),
                         },
                     ],
-                    minimum_receive: None,
+                    minimum_receive: Uint128::new(1),
                     to: None,
-                    max_spread: None,
                 })
                 .unwrap(),
             },
@@ -114,7 +113,20 @@ fn router_does_not_enforce_spread_assertion() {
         "Unexpected data set after cw20 send hook"
     );
 
-    // However, single hop will still enforce spread assertion
+    // Single hops don't enforce the pool's spread check either; minimum_receive does the job
+    let single_hop = |minimum_receive: u128| {
+        to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
+            operations: vec![SwapOperation::AstroSwap {
+                offer_asset_info: token_asset_info(token_x.clone()),
+                ask_asset_info: token_asset_info(token_y.clone()),
+            }],
+            minimum_receive: minimum_receive.into(),
+            to: None,
+        })
+        .unwrap()
+    };
+
+    // a minimum above what the pool returns fails the swap
     mint(&mut app, &owner, &token_x, 50_000_000000, &owner).unwrap();
     let err = app
         .execute_contract(
@@ -123,24 +135,31 @@ fn router_does_not_enforce_spread_assertion() {
             &Cw20ExecuteMsg::Send {
                 contract: router.to_string(),
                 amount: 50_000_000000u128.into(),
-                msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
-                    operations: vec![SwapOperation::AstroSwap {
-                        offer_asset_info: token_asset_info(token_x.clone()),
-                        ask_asset_info: token_asset_info(token_y.clone()),
-                    }],
-                    minimum_receive: None,
-                    to: None,
-                    max_spread: None,
-                })
-                .unwrap(),
+                msg: single_hop(50_000_000000),
             },
             &[],
         )
         .unwrap_err();
-    assert_eq!(
-        astroport_pair::error::ContractError::MaxSpreadAssertion {},
-        err.downcast().unwrap()
+    assert!(
+        matches!(
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::AssertionMinimumReceive { .. }
+        ),
+        "expected the minimum receive to fail the swap"
+    );
+
+    // the same huge-spread swap goes through when it meets the minimum
+    app.execute_contract(
+        owner.clone(),
+        token_x.clone(),
+        &Cw20ExecuteMsg::Send {
+            contract: router.to_string(),
+            amount: 50_000_000000u128.into(),
+            msg: single_hop(1),
+        },
+        &[],
     )
+    .unwrap();
 }
 
 #[test]
@@ -200,8 +219,6 @@ fn route_through_pairs_with_natives() {
                     ask_asset_info: native_asset_info(denom_y.to_string()),
                 },
                 to: None,
-                max_spread: None,
-                single: false,
             },
             &[],
         )
@@ -215,20 +232,20 @@ fn route_through_pairs_with_natives() {
             owner.clone(),
             router.clone(),
             &ExecuteMsg::ExecuteSwapOperations {
-                operations: vec![SwapOperation::NativeSwap {
-                    offer_denom: denom_x.to_string(),
-                    ask_denom: denom_y.to_string(),
+                operations: vec![SwapOperation::AstroSwap {
+                    offer_asset_info: native_asset_info(denom_x.to_string()),
+                    ask_asset_info: native_asset_info(denom_y.to_string()),
                 }],
                 to: None,
-                max_spread: None,
-                minimum_receive: None,
+                // the pools' spread checks are off, so a route must set a real minimum
+                minimum_receive: Uint128::zero(),
             },
             &[],
         )
         .unwrap_err();
     assert_eq!(
         err.downcast::<ContractError>().unwrap(),
-        ContractError::NativeSwapNotSupported {}
+        ContractError::MinimumReceiveRequired {}
     );
 
     let err = app
@@ -241,8 +258,7 @@ fn route_through_pairs_with_natives() {
                     ask_asset_info: native_asset_info(denom_x.to_string()),
                 }],
                 to: None,
-                max_spread: None,
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
             },
             &[],
         )
@@ -273,9 +289,8 @@ fn route_through_pairs_with_natives() {
                         ask_asset_info: native_asset_info(denom_z.to_string()),
                     },
                 ],
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             },
             &coins(50_000_000000, denom_x),
         )
@@ -301,9 +316,8 @@ fn route_through_pairs_with_natives() {
                         ask_asset_info: native_asset_info(denom_z.to_string()),
                     },
                 ],
-                minimum_receive: Some(50_000_000000u128.into()), // <--- enforcing minimum receive with 1:1 rate (which practically impossible)
+                minimum_receive: 50_000_000000u128.into(), // <--- enforcing minimum receive with 1:1 rate (which practically impossible,
                 to: None,
-                max_spread: None,
             },
             &coins(50_000_000000, denom_x),
         )
@@ -479,9 +493,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -557,7 +570,7 @@ fn test_swap_route() {
     // mint more astro to user
     mint(&mut app, &owner, &astro, swap_amount.u128(), &user).unwrap();
 
-    // victim tx gets executed. Assume user provide `minimum_receive` as `None`"
+    // victim tx gets executed with a token minimum of 1, i.e. effectively no protection
     app.execute_contract(
         user.clone(),
         astro.clone(),
@@ -566,9 +579,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -658,9 +670,8 @@ fn test_swap_route() {
                         contract_addr: atom.clone(),
                     },
                 }],
-                minimum_receive: Some(Uint128::new(9_997_000)),
+                minimum_receive: Uint128::new(9_997_000),
                 to: None,
-                max_spread: None,
             },
             &[],
         )
@@ -746,9 +757,9 @@ fn test_swap_route() {
     assert_eq!(balance_res.balance, Uint128::zero());
 
     /* -------------------------------------------------------------------------------------------
-    2. lets try attack with minimum_receive as Some(_).
+    2. lets try attack with a real minimum_receive.
     -------------------------------------------------------------------------------------------*/
-    println!("\n2. Assume user provide `minimum_receive` as `Some(_)`");
+    println!("\n2. Assume user provides a real `minimum_receive`");
 
     mint(&mut app, &owner, &astro, swap_amount.u128(), &user).unwrap();
 
@@ -793,9 +804,8 @@ fn test_swap_route() {
             amount: swap_amount,
             msg: to_json_binary(&ExecuteMsg::ExecuteSwapOperations {
                 operations: swap_operations.clone(),
-                minimum_receive: Some(donated_atom),
+                minimum_receive: donated_atom,
                 to: None,
-                max_spread: None,
             })
             .unwrap(),
         },
@@ -851,9 +861,8 @@ fn test_swap_route() {
                         contract_addr: atom.clone(),
                     },
                 }],
-                minimum_receive: None,
+                minimum_receive: Uint128::new(1),
                 to: None,
-                max_spread: None,
             },
             &[],
         )
@@ -993,5 +1002,415 @@ fn test_reverse_simulation() {
     assert!(
         return_amount >= ask_amount,
         "Return amount is less than ask amount: {return_amount} >= {ask_amount}"
+    );
+}
+
+fn transmuter_contract() -> Box<dyn Contract<Empty>> {
+    Box::new(
+        ContractWrapper::new_with_empty(
+            astroport_pair_transmuter::contract::execute,
+            astroport_pair_transmuter::contract::instantiate,
+            astroport_pair_transmuter::queries::query,
+        )
+        .with_reply_empty(astroport_pair_transmuter::contract::reply),
+    )
+}
+
+/// A transmuter instantiated directly (not through the factory) can't be reached with
+/// AstroSwap, but PoolSwap can route through it, including as a later hop of a multi-hop swap.
+#[test]
+fn route_through_standalone_transmuter() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let user = Addr::unchecked("user");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let luna = "uluna";
+    let usdc_n = "usdc_noble";
+    let usdc_inj = "usdc_inj";
+
+    // factory LUNA/USDC.n pool
+    let luna_usdc = helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [
+                native_asset_info(luna.to_string()),
+                native_asset_info(usdc_n.to_string()),
+            ],
+            None,
+        )
+        .unwrap();
+    mint_native(&mut app, luna, 1_000_000_000000, &luna_usdc).unwrap();
+    mint_native(&mut app, usdc_n, 50_000_000000, &luna_usdc).unwrap();
+
+    // standalone USDC.n/USDC.inj transmuter, like the one on Terra
+    app.execute_contract(
+        owner.clone(),
+        helper.coin_registry.clone(),
+        &astroport::native_coin_registry::ExecuteMsg::Add {
+            native_coins: vec![(usdc_inj.to_string(), 6)],
+        },
+        &[],
+    )
+    .unwrap();
+    let transmuter_code = app.store_code(transmuter_contract());
+    let transmuter = app
+        .instantiate_contract(
+            transmuter_code,
+            owner.clone(),
+            &astroport::pair::InstantiateMsg {
+                pair_type: PairType::Custom("transmuter".to_string()),
+                asset_infos: vec![
+                    native_asset_info(usdc_n.to_string()),
+                    native_asset_info(usdc_inj.to_string()),
+                ],
+                token_code_id: helper.cw20_token_code_id,
+                factory_addr: helper.factory.to_string(),
+                init_params: None,
+            },
+            &[],
+            "usdc transmuter",
+            None,
+        )
+        .unwrap();
+    mint_native(&mut app, usdc_inj, 10_000_000000, &transmuter).unwrap();
+
+    let router_code = app.store_code(router_contract());
+    let router = app
+        .instantiate_contract(
+            router_code,
+            owner.clone(),
+            &InstantiateMsg {
+                astroport_factory: helper.factory.to_string(),
+            },
+            &[],
+            "router",
+            None,
+        )
+        .unwrap();
+
+    // the factory doesn't know the transmuter, so AstroSwap can't find it
+    let astro_swap_ops = vec![SwapOperation::AstroSwap {
+        offer_asset_info: native_asset_info(usdc_n.to_string()),
+        ask_asset_info: native_asset_info(usdc_inj.to_string()),
+    }];
+    app.wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: 1_000000u128.into(),
+                operations: astro_swap_ops,
+            },
+        )
+        .unwrap_err();
+
+    let operations = vec![
+        SwapOperation::AstroSwap {
+            offer_asset_info: native_asset_info(luna.to_string()),
+            ask_asset_info: native_asset_info(usdc_n.to_string()),
+        },
+        SwapOperation::PoolSwap {
+            pool_addr: transmuter.to_string(),
+            offer_asset_info: native_asset_info(usdc_n.to_string()),
+            ask_asset_info: native_asset_info(usdc_inj.to_string()),
+        },
+    ];
+
+    let offer_amount = 100_000000u128;
+    let first_hop: SimulateSwapOperationsResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: offer_amount.into(),
+                operations: operations[..1].to_vec(),
+            },
+        )
+        .unwrap();
+    let simulated: SimulateSwapOperationsResponse = app
+        .wrap()
+        .query_wasm_smart(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: offer_amount.into(),
+                operations: operations.clone(),
+            },
+        )
+        .unwrap();
+    // the transmuter hop is 1:1, so the route returns exactly what the first hop does
+    assert_eq!(simulated.amount, first_hop.amount);
+    assert!(!simulated.amount.is_zero());
+
+    let reverse: Uint128 = app
+        .wrap()
+        .query_wasm_smart(
+            &router,
+            &QueryMsg::ReverseSimulateSwapOperations {
+                ask_amount: simulated.amount,
+                operations: operations.clone(),
+            },
+        )
+        .unwrap();
+    // xyk reverse simulation rounds up, so it can need a unit or so more than the offer
+    assert!(
+        reverse.u128().abs_diff(offer_amount) <= 2,
+        "reverse simulation {reverse} too far from {offer_amount}"
+    );
+
+    // a minimum receive above the route's output fails the whole swap
+    mint_native(&mut app, luna, offer_amount, &user).unwrap();
+    let err = app
+        .execute_contract(
+            user.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: operations.clone(),
+                minimum_receive: simulated.amount + Uint128::one(),
+                to: None,
+            },
+            &coins(offer_amount, luna),
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::AssertionMinimumReceive {
+            receive: simulated.amount + Uint128::one(),
+            amount: simulated.amount,
+        }
+    );
+
+    let resp = app
+        .execute_contract(
+            user.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: operations.clone(),
+                minimum_receive: simulated.amount,
+                to: None,
+            },
+            &coins(offer_amount, luna),
+        )
+        .unwrap();
+    let resp_data: SwapResponseData = from_json(resp.data.unwrap()).unwrap();
+    assert_eq!(resp_data.return_amount, simulated.amount);
+
+    let user_usdc_inj = app.wrap().query_balance(&user, usdc_inj).unwrap().amount;
+    assert_eq!(user_usdc_inj, simulated.amount);
+    // nothing is left behind in the router, funds or route data
+    assert!(app.wrap().query_all_balances(&router).unwrap().is_empty());
+    assert!(app
+        .wrap()
+        .query_wasm_raw(&router, b"reply_data".as_slice())
+        .unwrap()
+        .is_none());
+}
+
+#[test]
+fn pool_swap_rejects_pools_without_the_assets() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let mut helper = FactoryHelper::init(&mut app, &owner);
+
+    let denom_x = "denom_x";
+    let denom_y = "denom_y";
+    let denom_z = "denom_z";
+
+    let pair = helper
+        .create_pair(
+            &mut app,
+            &owner,
+            PairType::Xyk {},
+            [
+                native_asset_info(denom_x.to_string()),
+                native_asset_info(denom_y.to_string()),
+            ],
+            None,
+        )
+        .unwrap();
+    mint_native(&mut app, denom_x, 1_000_000000, &pair).unwrap();
+    mint_native(&mut app, denom_y, 1_000_000000, &pair).unwrap();
+
+    let router_code = app.store_code(router_contract());
+    let router = app
+        .instantiate_contract(
+            router_code,
+            owner.clone(),
+            &InstantiateMsg {
+                astroport_factory: helper.factory.to_string(),
+            },
+            &[],
+            "router",
+            None,
+        )
+        .unwrap();
+
+    // the pool holds X/Y, not Z
+    let wrong_asset = vec![SwapOperation::PoolSwap {
+        pool_addr: pair.to_string(),
+        offer_asset_info: native_asset_info(denom_x.to_string()),
+        ask_asset_info: native_asset_info(denom_z.to_string()),
+    }];
+    let expected = ContractError::PoolAssetsMismatch {
+        pool: pair.to_string(),
+        offer_asset: denom_x.to_string(),
+        ask_asset: denom_z.to_string(),
+    };
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: 1_000000u128.into(),
+                operations: wrong_asset.clone(),
+            },
+        )
+        .unwrap_err();
+    assert!(
+        err.to_string().contains(&expected.to_string()),
+        "unexpected error: {err}"
+    );
+
+    mint_native(&mut app, denom_x, 1_000000, &owner).unwrap();
+    let err = app
+        .execute_contract(
+            owner.clone(),
+            router.clone(),
+            &ExecuteMsg::ExecuteSwapOperations {
+                operations: wrong_asset,
+                minimum_receive: Uint128::new(1),
+                to: None,
+            },
+            &coins(1_000000, denom_x),
+        )
+        .unwrap_err();
+    assert_eq!(err.downcast::<ContractError>().unwrap(), expected);
+
+    // an address that isn't a pool at all
+    let err = app
+        .wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: 1_000000u128.into(),
+                operations: vec![SwapOperation::PoolSwap {
+                    pool_addr: "not_a_pool".to_string(),
+                    offer_asset_info: native_asset_info(denom_x.to_string()),
+                    ask_asset_info: native_asset_info(denom_y.to_string()),
+                }],
+            },
+        )
+        .unwrap_err();
+    assert!(!err.to_string().is_empty());
+
+    // PoolSwap and AstroSwap on the same factory pool give the same quote
+    let quote = |op: SwapOperation| -> Uint128 {
+        app.wrap()
+            .query_wasm_smart::<SimulateSwapOperationsResponse>(
+                &router,
+                &QueryMsg::SimulateSwapOperations {
+                    offer_amount: 1_000000u128.into(),
+                    operations: vec![op],
+                },
+            )
+            .unwrap()
+            .amount
+    };
+    assert_eq!(
+        quote(SwapOperation::PoolSwap {
+            pool_addr: pair.to_string(),
+            offer_asset_info: native_asset_info(denom_x.to_string()),
+            ask_asset_info: native_asset_info(denom_y.to_string()),
+        }),
+        quote(SwapOperation::AstroSwap {
+            offer_asset_info: native_asset_info(denom_x.to_string()),
+            ask_asset_info: native_asset_info(denom_y.to_string()),
+        })
+    );
+}
+
+/// A contract whose `pair {}` reports a different address, e.g. a proxy in front of a pool.
+fn misreporting_pool_contract() -> Box<dyn Contract<Empty>> {
+    use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+
+    fn instantiate(_: DepsMut, _: Env, _: MessageInfo, _: Empty) -> StdResult<Response> {
+        Ok(Response::new())
+    }
+    fn execute(_: DepsMut, _: Env, _: MessageInfo, _: Empty) -> StdResult<Response> {
+        Ok(Response::new())
+    }
+    fn query(_: Deps, _: Env, _: astroport::pair::QueryMsg) -> StdResult<Binary> {
+        to_json_binary(&astroport::asset::PairInfo {
+            asset_infos: vec![
+                native_asset_info("denom_x".to_string()),
+                native_asset_info("denom_y".to_string()),
+            ],
+            contract_addr: Addr::unchecked("some_other_pool"),
+            liquidity_token: String::new(),
+            pair_type: PairType::Xyk {},
+        })
+    }
+
+    Box::new(ContractWrapper::new_with_empty(execute, instantiate, query))
+}
+
+#[test]
+fn pool_swap_rejects_pools_reporting_another_address() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let helper = FactoryHelper::init(&mut app, &owner);
+
+    let misreporting_code = app.store_code(misreporting_pool_contract());
+    let misreporting = app
+        .instantiate_contract(
+            misreporting_code,
+            owner.clone(),
+            &Empty {},
+            &[],
+            "misreporting pool",
+            None,
+        )
+        .unwrap();
+
+    let router_code = app.store_code(router_contract());
+    let router = app
+        .instantiate_contract(
+            router_code,
+            owner.clone(),
+            &InstantiateMsg {
+                astroport_factory: helper.factory.to_string(),
+            },
+            &[],
+            "router",
+            None,
+        )
+        .unwrap();
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: 1_000000u128.into(),
+                operations: vec![SwapOperation::PoolSwap {
+                    pool_addr: misreporting.to_string(),
+                    offer_asset_info: native_asset_info("denom_x".to_string()),
+                    ask_asset_info: native_asset_info("denom_y".to_string()),
+                }],
+            },
+        )
+        .unwrap_err();
+    let expected = ContractError::PoolAddressMismatch {
+        pool: misreporting.to_string(),
+        reported: "some_other_pool".to_string(),
+    };
+    assert!(
+        err.to_string().contains(&expected.to_string()),
+        "unexpected error: {err}"
     );
 }
