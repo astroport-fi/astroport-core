@@ -83,6 +83,15 @@ pub fn resolve_pool(
                 .querier
                 .query_wasm_smart(&pool_addr, &PairQueryMsg::Pair {})?;
 
+            // catches proxies and pasted addresses that report another pool's info
+            ensure!(
+                pair_info.contract_addr == pool_addr,
+                ContractError::PoolAddressMismatch {
+                    pool: pool_addr.to_string(),
+                    reported: pair_info.contract_addr.to_string(),
+                }
+            );
+
             ensure!(
                 pair_info.asset_infos.contains(offer_asset_info)
                     && pair_info.asset_infos.contains(ask_asset_info),

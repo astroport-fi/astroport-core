@@ -49,20 +49,11 @@ pub fn instantiate(
 /// * **ExecuteMsg::Receive(msg)** Receives a message of type [`Cw20ReceiveMsg`] and processes
 ///   it depending on the received template.
 ///
-/// * **ExecuteMsg::ExecuteSwapOperations {
-///             operations,
-///             minimum_receive,
-///             to
-///         }** Performs swap operations with the specified parameters.
+/// * **ExecuteMsg::ExecuteSwapOperations { operations, minimum_receive, to }** Swaps the sent
+///   amount along the route and fails unless the final output is at least `minimum_receive`.
 ///
-/// * **ExecuteMsg::ExecuteSwapOperation { operation, to }** Execute a single swap operation.
-///
-/// * **ExecuteMsg::AssertMinimumReceive {
-///             asset_info,
-///             prev_balance,
-///             minimum_receive,
-///             receiver
-///         }** Checks if an ask amount is higher than or equal to the minimum amount to receive.
+/// * **ExecuteMsg::ExecuteSwapOperation { operation, to }** Executes a single swap operation.
+///   Only the router itself can call it.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -268,8 +259,8 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, Contra
     match contract_version.contract.as_ref() {
         // 2.x changed the execute API (required minimum_receive, no max_spread), so 1.x
         // instances can't be migrated in place; the 2.x router is deployed on its own
-        "astroport-router" => match contract_version.version.as_str() {
-            version if version.starts_with("2.") => {}
+        "astroport-router" => match contract_version.version.as_ref() {
+            "2.0.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),

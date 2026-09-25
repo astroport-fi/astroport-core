@@ -1332,3 +1332,85 @@ fn pool_swap_rejects_pools_without_the_assets() {
         })
     );
 }
+
+/// A contract whose `pair {}` reports a different address, e.g. a proxy in front of a pool.
+fn misreporting_pool_contract() -> Box<dyn Contract<Empty>> {
+    use cosmwasm_std::{Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
+
+    fn instantiate(_: DepsMut, _: Env, _: MessageInfo, _: Empty) -> StdResult<Response> {
+        Ok(Response::new())
+    }
+    fn execute(_: DepsMut, _: Env, _: MessageInfo, _: Empty) -> StdResult<Response> {
+        Ok(Response::new())
+    }
+    fn query(_: Deps, _: Env, _: astroport::pair::QueryMsg) -> StdResult<Binary> {
+        to_json_binary(&astroport::asset::PairInfo {
+            asset_infos: vec![
+                native_asset_info("denom_x".to_string()),
+                native_asset_info("denom_y".to_string()),
+            ],
+            contract_addr: Addr::unchecked("some_other_pool"),
+            liquidity_token: String::new(),
+            pair_type: PairType::Xyk {},
+        })
+    }
+
+    Box::new(ContractWrapper::new_with_empty(execute, instantiate, query))
+}
+
+#[test]
+fn pool_swap_rejects_pools_reporting_another_address() {
+    let mut app = mock_app();
+
+    let owner = Addr::unchecked("owner");
+    let helper = FactoryHelper::init(&mut app, &owner);
+
+    let misreporting_code = app.store_code(misreporting_pool_contract());
+    let misreporting = app
+        .instantiate_contract(
+            misreporting_code,
+            owner.clone(),
+            &Empty {},
+            &[],
+            "misreporting pool",
+            None,
+        )
+        .unwrap();
+
+    let router_code = app.store_code(router_contract());
+    let router = app
+        .instantiate_contract(
+            router_code,
+            owner.clone(),
+            &InstantiateMsg {
+                astroport_factory: helper.factory.to_string(),
+            },
+            &[],
+            "router",
+            None,
+        )
+        .unwrap();
+
+    let err = app
+        .wrap()
+        .query_wasm_smart::<SimulateSwapOperationsResponse>(
+            &router,
+            &QueryMsg::SimulateSwapOperations {
+                offer_amount: 1_000000u128.into(),
+                operations: vec![SwapOperation::PoolSwap {
+                    pool_addr: misreporting.to_string(),
+                    offer_asset_info: native_asset_info("denom_x".to_string()),
+                    ask_asset_info: native_asset_info("denom_y".to_string()),
+                }],
+            },
+        )
+        .unwrap_err();
+    let expected = ContractError::PoolAddressMismatch {
+        pool: misreporting.to_string(),
+        reported: "some_other_pool".to_string(),
+    };
+    assert!(
+        err.to_string().contains(&expected.to_string()),
+        "unexpected error: {err}"
+    );
+}

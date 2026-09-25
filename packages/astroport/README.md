@@ -2,6 +2,10 @@
 
 This is a collection of common types and queriers which are commonly used in Astroport contracts.
 
+## Versions
+
+- **6.0.0**: the `router` types target router **2.x**. `ExecuteSwapOperations` (and the CW20 hook) take a required `minimum_receive: Uint128` and no `max_spread`, `SwapOperation` gains `PoolSwap` and drops `NativeSwap`, and the internal `ExecuteSwapOperation` drops `max_spread` and `single`. Use 5.x to talk to router 1.x.
+
 ## Data Types
 
 ### AssetInfo

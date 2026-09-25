@@ -44,6 +44,9 @@ pub enum ContractError {
     #[error("A swap route is already in progress; nested routes are not allowed")]
     RouteInProgress {},
 
+    #[error("Pool {pool} reports its address as {reported}")]
+    PoolAddressMismatch { pool: String, reported: String },
+
     #[error("Pool {pool} doesn't hold both {offer_asset} and {ask_asset}")]
     PoolAssetsMismatch {
         pool: String,
