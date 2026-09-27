@@ -1,7 +1,7 @@
+use crate::msg::SwapOperation;
 use astroport::asset::{Asset, AssetInfo};
 use astroport::pair::{ExecuteMsg as PairExecuteMsg, QueryMsg as PairQueryMsg};
 use astroport::querier::{query_balance, query_pair_info, query_token_balance};
-use astroport::router::SwapOperation;
 use cosmwasm_std::{
     ensure, to_json_binary, Addr, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdResult, WasmMsg,

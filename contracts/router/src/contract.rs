@@ -5,12 +5,12 @@ use cosmwasm_std::{
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;
 
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
-use astroport::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
-use astroport::router::{
+use crate::msg::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, SwapResponseData, MAX_SWAP_OPERATIONS,
 };
+use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
+use astroport::pair::{QueryMsg as PairQueryMsg, ReverseSimulationResponse, SimulationResponse};
 
 use crate::error::ContractError;
 use crate::operations::{execute_swap_operation, resolve_pool};

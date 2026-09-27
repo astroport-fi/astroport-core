@@ -6,11 +6,11 @@ use cw20::{BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg};
 use astroport::asset::{native_asset_info, token_asset_info, AssetInfo};
 use astroport::factory::PairType;
 use astroport::pair_concentrated::ConcentratedPoolParams;
-use astroport::router::{
+use astroport_router::error::ContractError;
+use astroport_router::msg::{
     ExecuteMsg, InstantiateMsg, QueryMsg, SimulateSwapOperationsResponse, SwapOperation,
     SwapResponseData,
 };
-use astroport_router::error::ContractError;
 use astroport_test::convert::f64_to_dec;
 use astroport_test::cw_multi_test::{AppBuilder, Contract, ContractWrapper, Executor};
 use astroport_test::modules::stargate::{MockStargate, StargateApp as App};

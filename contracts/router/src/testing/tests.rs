@@ -4,11 +4,11 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20ExecuteMsg, Cw20ReceiveMsg};
 
-use astroport::asset::{native_asset_info, AssetInfo};
-use astroport::router::{
+use crate::msg::{
     ConfigResponse, Cw20HookMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
     SimulateSwapOperationsResponse, SwapOperation, MAX_SWAP_OPERATIONS,
 };
+use astroport::asset::{native_asset_info, AssetInfo};
 
 use crate::contract::{execute, instantiate, query, AFTER_SWAP_REPLY_ID};
 use crate::error::ContractError;
