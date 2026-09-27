@@ -1,16 +1,36 @@
 # Astroport Router
 
-The Router contract contains logic to facilitate multi-hop swaps for Terra native & Astroport tokens.
+The Router contract performs multi-hop swaps across Astroport pools. Each hop is either a pool the factory knows for an
+asset pair (`astro_swap`) or a pool given by address (`pool_swap`), so pools that aren't registered in the factory, such as
+a transmuter instantiated directly, can be part of a route.
+
+Router 2.x is deployed as its own instance. Router 1.x instances keep their old API and can't be migrated to 2.x.
 
 ---
 
-### Operations Assertion
+### Price protection
 
-For every swap, the contract checks if the resulting token is the one that was asked for and whether the receiving amount exceeds the minimum to receive.
+Pools' own spread checks are disabled on every hop, including single-hop swaps. The only price guarantee is
+`minimum_receive`: after the last hop, the router checks that the receiver got at least that amount of the ask asset and
+reverts the whole transaction otherwise. It is required and must be greater than zero.
+
+The bound is only as good as the number you send. Set `minimum_receive` from a price you trust (for example your own quote
+minus slippage), not from a hop's own simulation. `minimum_receive: "1"` is accepted but protects almost nothing.
+
+Nested routes are refused: a route can't be started while another one is in progress (`RouteInProgress`).
+
+### Choosing pools
+
+`pool_swap` accepts any address. The router checks that the pool's `pair {}` query reports that address and both assets, which
+catches mistyped routes, but it can't prove a contract is a genuine Astroport pool. Only build `pool_swap` routes from pools
+you trust.
+
+Each hop offers the router's whole balance of the offer asset. The router holds nothing between transactions, so this is only
+the route's own funds plus anything sent to the router by mistake.
 
 ## InstantiateMsg
 
-Initializes the contract with the Astroport factory contract address.
+Initializes the contract with the Astroport factory contract address, used to resolve `astro_swap` hops.
 
 ```json
 {
@@ -22,7 +42,7 @@ Initializes the contract with the Astroport factory contract address.
 
 ### `receive`
 
-CW20 receive msg.
+CW20 receive msg. The embedded message is `execute_swap_operations` below, used when the first offer asset is a CW20 token.
 
 ```json
 {
@@ -34,103 +54,47 @@ CW20 receive msg.
 }
 ```
 
-### `execute_swap_operation`
-
-Swaps one token to another. _single_ defines whether this swap is single or part of a multi hop route. 
-This message is for internal use.
-
-### Example
-
-Swap UST => mABNB
-
-```json
-{
-   "execute_swap_operation": {
-     "operation": {
-        "astro_swap": {
-          "offer_asset_info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "ask_asset_info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          }
-        }
-      },
-     "to": "terra...",
-     "max_spread": "0.05",
-     "single": false
-   }
-}
-```
-
 ### `execute_swap_operations`
 
-Performs multi-hop swap operations for native & Astroport tokens. Swaps execute one-by-one and the last swap will return the ask token. This function is public (can be called by anyone).
-Contract sets total 'return_amount' in response data after all routes are processed. See `SwapResponseData` type for more info.
-Note: Response data makes sense ONLY if the first token in multi-hop swap is native. Otherwise, cw20::send message resets response data.
+Swaps the sent amount along the route. Hops execute one by one and the last one sends the ask asset to `to` (the sender if
+omitted). Anyone can call it.
 
-### Example
+The response data contains the total `return_amount` (see `SwapResponseData`). It is only set when the route starts with a
+native asset; a CW20 `send` resets the response data.
 
-Swap KRT => UST => mABNB
+#### Example
+
+Swap LUNA => USDC.n through a factory pool, then USDC.n => USDC.inj through a standalone transmuter:
 
 ```json
 {
   "execute_swap_operations": {
     "operations": [
       {
-        "native_swap":{
-          "offer_denom":"ukrw",
-          "ask_denom":"uusd"
+        "astro_swap": {
+          "offer_asset_info": { "native_token": { "denom": "uluna" } },
+          "ask_asset_info": { "native_token": { "denom": "ibc/USDC_N..." } }
         }
       },
       {
-        "astro_swap": {
-          "offer_asset_info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "ask_asset_info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          }
+        "pool_swap": {
+          "pool_addr": "terra1...transmuter",
+          "offer_asset_info": { "native_token": { "denom": "ibc/USDC_N..." } },
+          "ask_asset_info": { "native_token": { "denom": "ibc/USDC_INJ..." } }
         }
       }
     ],
     "minimum_receive": "123",
-    "to": "terra...",
-    "max_spread": "0.05"
+    "to": "terra..."
   }
 }
 ```
 
-### `assert_minimum_receive`
+### `execute_swap_operation`
 
-Checks that an amount of ask tokens exceeds `minimum_receive`. This message is for internal use.
-
-```json
-{
-  "assert_minimum_receive": {
-    "asset_info": {
-      "token": {
-        "contract_addr": "terra..."
-      }
-    },
-    "prev_balance": "123",
-    "minimum_receive": "123",
-    "receiver": "terra..."
-  }
-}
-```
+Executes a single hop. Only the router itself can call it.
 
 ## QueryMsg
-
-All query messages are described below. A custom struct is defined for each query response.
 
 ### `config`
 
@@ -144,33 +108,25 @@ Returns the general configuration for the router contract.
 
 ### `simulate_swap_operations`
 
-Simulates multi-hop swap operations. Examples:
-
-- KRT => UST => mABNB
+Simulates a route for an offer amount and returns the amount received. Takes the same operations as
+`execute_swap_operations`.
 
 ```json
 {
-  "simulate_swap_operations" : {
+  "simulate_swap_operations": {
     "offer_amount": "123",
     "operations": [
       {
-        "native_swap": {
-          "offer_denom": "ukrw",
-          "ask_denom": "uusd"
+        "astro_swap": {
+          "offer_asset_info": { "native_token": { "denom": "uluna" } },
+          "ask_asset_info": { "native_token": { "denom": "ibc/USDC_N..." } }
         }
       },
       {
-        "astro_swap": {
-          "offer_asset_info": {
-            "native_token": {
-              "denom": "uusd"
-            }
-          },
-          "ask_asset_info": {
-            "token": {
-              "contract_addr": "terra..."
-            }
-          }
+        "pool_swap": {
+          "pool_addr": "terra1...transmuter",
+          "offer_asset_info": { "native_token": { "denom": "ibc/USDC_N..." } },
+          "ask_asset_info": { "native_token": { "denom": "ibc/USDC_INJ..." } }
         }
       }
     ]
@@ -178,34 +134,22 @@ Simulates multi-hop swap operations. Examples:
 }
 ```
 
-- mABNB => UST => KRT
+### `reverse_simulate_swap_operations`
+
+Simulates a route backwards: returns the offer amount needed to receive `ask_amount`.
 
 ```json
 {
-  "simulate_swap_operations" : {
-    "offer_amount": "123",
+  "reverse_simulate_swap_operations": {
+    "ask_amount": "123",
     "operations": [
-    {
-      "native_swap": {
-        "offer_denom": "uusd",
-        "ask_denom": "ukrw"
-      }
-    },
-    {
-      "astro_swap": {
-        "offer_asset_info": {
-          "token": {
-            "contract_addr": "terra..."
-          }
-        },
-        "ask_asset_info": {
-          "native_token": {
-            "denom": "uusd"
-          }
+      {
+        "astro_swap": {
+          "offer_asset_info": { "native_token": { "denom": "uluna" } },
+          "ask_asset_info": { "native_token": { "denom": "ibc/USDC_N..." } }
         }
       }
-    }
-  ]
+    ]
   }
 }
 ```
