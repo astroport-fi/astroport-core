@@ -1,0 +1,35 @@
+[package]
+name = "astroport-astro-burner"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Burns every ASTRO it holds; holds the ASTRO tokenfactory denom admin"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema.workspace = true
+cosmwasm-std.workspace = true
+cw-storage-plus.workspace = true
+cw2.workspace = true
+thiserror.workspace = true
+astroport.workspace = true
+
+[dev-dependencies]
+astroport-test = { path = "../../../packages/astroport_test" }

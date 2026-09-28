@@ -1,10 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "QueryMsg",
-  "description": "This structure describes the query functions available in the contract.",
   "oneOf": [
     {
-      "description": "Returns information about the maker configs that contains in the [`ConfigResponse`]",
       "type": "object",
       "required": [
         "config"
@@ -18,7 +16,21 @@
       "additionalProperties": false
     },
     {
-      "description": "Returns the balance for each asset in the specified input parameters",
+      "description": "Fee token routes to the base asset",
+      "type": "object",
+      "required": [
+        "routes"
+      ],
+      "properties": {
+        "routes": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "The Maker's balances of the given assets (zero balances left out)",
       "type": "object",
       "required": [
         "balances"
@@ -43,20 +55,6 @@
       "additionalProperties": false
     },
     {
-      "type": "object",
-      "required": [
-        "bridges"
-      ],
-      "properties": {
-        "bridges": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Returns the seize config",
       "type": "object",
       "required": [
         "query_seize_config"

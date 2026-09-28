@@ -1,6 +1,6 @@
 [package]
 name = "astroport-maker"
-version = "1.7.0"
+version = "2.0.0"
 authors = ["Astroport"]
 edition = "2021"
 description = "Astroport Maker contract"
@@ -33,7 +33,8 @@ cw-storage-plus.workspace = true
 astroport.workspace = true
 thiserror.workspace = true
 cosmwasm-schema.workspace = true
-astro-satellite-package = "1"
+astroport-router = { path = "../../router", features = ["library"] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 cw20-base = "1"
@@ -43,3 +44,6 @@ astroport-test = { path = "../../../packages/astroport_test" }
 astroport-pair-stable = { path = "../../pair_stable" }
 astroport-native-coin-registry = { path = "../../periphery/native_coin_registry" }
 anyhow = "1.0.86"
+serde_json = "1"
+astroport-router = { path = "../../router" }
+astroport-astro-burner = { path = "../astro_burner" }
