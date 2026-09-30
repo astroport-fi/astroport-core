@@ -1,56 +1,65 @@
-use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Decimal, DepsMut, Uint128, Uint64};
-use cw_storage_plus::Item;
+use cosmwasm_std::{Addr, Decimal, DepsMut, Env, Response};
+use cw2::{get_contract_version, set_contract_version};
+use cw_storage_plus::{Item, Map};
+use serde::{Deserialize, Serialize};
 
 use astroport::asset::AssetInfo;
-use astroport::maker::{Config, MigrateMsg, SecondReceiverConfig};
 
+use crate::contract::{set_routes, validate_config, CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
+use crate::msg::{Config, MigrateMsg};
 use crate::state::CONFIG;
-use crate::utils::{update_second_receiver_cfg, validate_cooldown};
 
-pub(crate) fn migrate_from_v120_plus(deps: DepsMut, msg: MigrateMsg) -> Result<(), ContractError> {
-    #[cw_serde]
-    struct ConfigV130 {
-        pub owner: Addr,
-        pub factory_contract: Addr,
-        pub staking_contract: Option<Addr>,
-        pub default_bridge: Option<AssetInfo>,
-        pub governance_contract: Option<Addr>,
-        pub governance_percent: Uint64,
-        pub astro_token: AssetInfo,
-        pub max_spread: Decimal,
-        pub rewards_enabled: bool,
-        pub pre_upgrade_blocks: u64,
-        pub last_distribution_block: u64,
-        pub remainder_reward: Uint128,
-        pub pre_upgrade_astro_amount: Uint128,
-        pub second_receiver_cfg: Option<SecondReceiverConfig>, // even tho versions < v1.3.0 don't have this field this is fully compatible for serde as this field is optional
+/// The parts of a Maker 1.7.0 config that carry over. Its other fields (governance, second
+/// receiver, dev fund, pre-upgrade rewards) are replaced by legs, so they're not read; serde
+/// ignores them.
+#[derive(Serialize, Deserialize)]
+struct ConfigV170 {
+    owner: Addr,
+    max_spread: Decimal,
+    collect_cooldown: Option<u64>,
+}
+
+pub(crate) fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    msg: MigrateMsg,
+) -> Result<Response, ContractError> {
+    let version = get_contract_version(deps.storage)?;
+    if version.contract != CONTRACT_NAME || version.version != "1.7.0" {
+        return Err(ContractError::MigrationError {});
     }
-    let cfg_v130: ConfigV130 = Item::new("config").load(deps.storage)?;
 
-    validate_cooldown(msg.collect_cooldown)?;
+    let old: ConfigV170 = Item::new("config").load(deps.storage)?;
 
-    let mut new_config = Config {
-        owner: cfg_v130.owner,
-        factory_contract: cfg_v130.factory_contract,
-        staking_contract: cfg_v130.staking_contract,
-        dev_fund_conf: None,
-        default_bridge: cfg_v130.default_bridge,
-        governance_contract: cfg_v130.governance_contract,
-        governance_percent: cfg_v130.governance_percent,
-        astro_token: cfg_v130.astro_token,
-        max_spread: cfg_v130.max_spread,
-        rewards_enabled: cfg_v130.rewards_enabled,
-        pre_upgrade_blocks: cfg_v130.pre_upgrade_blocks,
-        last_distribution_block: cfg_v130.last_distribution_block,
-        remainder_reward: cfg_v130.remainder_reward,
-        pre_upgrade_astro_amount: cfg_v130.pre_upgrade_astro_amount,
-        second_receiver_cfg: cfg_v130.second_receiver_cfg,
-        collect_cooldown: msg.collect_cooldown,
+    let config = Config {
+        owner: old.owner,
+        router: deps.api.addr_validate(&msg.router)?,
+        base_asset: msg.base_asset,
+        max_spread: msg.max_spread.unwrap_or(old.max_spread),
+        collect_cooldown: msg.collect_cooldown.or(old.collect_cooldown),
+        legs: msg.legs,
     };
+    validate_config(deps.as_ref(), &config)?;
+    CONFIG.save(deps.storage, &config)?;
 
-    update_second_receiver_cfg(deps.as_ref(), &mut new_config, &msg.second_receiver_params)?;
+    // 1.x bridges (fee token -> next asset toward ASTRO) are replaced by full routes to the base
+    // asset; the seize config, last collect time and any ownership proposal are kept as they are
+    let bridges: Map<String, AssetInfo> = Map::new("bridges");
+    bridges.clear(deps.storage);
+    set_routes(
+        deps.storage,
+        deps.api,
+        &config.base_asset,
+        msg.routes,
+        vec![],
+    )?;
 
-    Ok(CONFIG.save(deps.storage, &new_config)?)
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", version.contract)
+        .add_attribute("previous_contract_version", version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
 }

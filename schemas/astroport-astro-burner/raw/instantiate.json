@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "denom"
+  ],
+  "properties": {
+    "denom": {
+      "description": "The tokenfactory denom to burn. The burner must be made its admin to burn it.",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

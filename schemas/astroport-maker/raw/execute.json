@@ -1,10 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "ExecuteMsg",
-  "description": "This structure describes the functions that can be executed in this contract.",
   "oneOf": [
     {
-      "description": "Collects and swaps fee tokens to ASTRO",
+      "description": "Swaps the given fee tokens into the base asset along their routes, then splits the base asset across the legs. Anyone can call it.",
       "type": "object",
       "required": [
         "collect"
@@ -17,7 +16,6 @@
           ],
           "properties": {
             "assets": {
-              "description": "The assets to swap to ASTRO",
               "type": "array",
               "items": {
                 "$ref": "#/definitions/AssetWithLimit"
@@ -30,7 +28,69 @@
       "additionalProperties": false
     },
     {
-      "description": "Updates general settings",
+      "description": "Internal: splits the base asset across the legs.",
+      "type": "object",
+      "required": [
+        "distribute"
+      ],
+      "properties": {
+        "distribute": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Internal: records the Maker's balance of a leg's output asset before its swap.",
+      "type": "object",
+      "required": [
+        "snapshot_leg"
+      ],
+      "properties": {
+        "snapshot_leg": {
+          "type": "object",
+          "required": [
+            "leg"
+          ],
+          "properties": {
+            "leg": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Internal: deposits what a leg's swap produced.",
+      "type": "object",
+      "required": [
+        "deposit_leg"
+      ],
+      "properties": {
+        "deposit_leg": {
+          "type": "object",
+          "required": [
+            "leg"
+          ],
+          "properties": {
+            "leg": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Owner only. Leaves unset fields as they are.",
       "type": "object",
       "required": [
         "update_config"
@@ -39,19 +99,7 @@
         "update_config": {
           "type": "object",
           "properties": {
-            "astro_token": {
-              "description": "The ASTRO token asset info",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/AssetInfo"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "basic_asset": {
-              "description": "Basic chain asset (Terra1 - LUNC, Terra2 - LUNA, etc.)",
+            "base_asset": {
               "anyOf": [
                 {
                   "$ref": "#/definitions/AssetInfo"
@@ -62,7 +110,6 @@
               ]
             },
             "collect_cooldown": {
-              "description": "Defines the period when maker collect can be called",
               "type": [
                 "integer",
                 "null"
@@ -70,48 +117,16 @@
               "format": "uint64",
               "minimum": 0.0
             },
-            "dev_fund_config": {
-              "description": "Dev tax configuration",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/UpdateDevFundConfig"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "factory_contract": {
-              "description": "The factory contract address",
+            "legs": {
               "type": [
-                "string",
+                "array",
                 "null"
-              ]
-            },
-            "governance_contract": {
-              "description": "The governance contract address (fee distributor for vxASTRO)",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/UpdateAddr"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "governance_percent": {
-              "description": "The percentage of fees that go to governance_contract",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/Uint64"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              ],
+              "items": {
+                "$ref": "#/definitions/Leg"
+              }
             },
             "max_spread": {
-              "description": "The maximum spread used when swapping fee tokens to ASTRO",
               "anyOf": [
                 {
                   "$ref": "#/definitions/Decimal"
@@ -121,19 +136,7 @@
                 }
               ]
             },
-            "second_receiver_params": {
-              "description": "The second receiver parameters of fees",
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/SecondReceiverParams"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "staking_contract": {
-              "description": "The xASTRO staking contract address",
+            "router": {
               "type": [
                 "string",
                 "null"
@@ -146,20 +149,18 @@
       "additionalProperties": false
     },
     {
-      "description": "Add bridge tokens used to swap specific fee tokens to ASTRO (effectively declaring a swap route)",
+      "description": "Owner only. Sets or removes fee token routes to the base asset.",
       "type": "object",
       "required": [
-        "update_bridges"
+        "update_routes"
       ],
       "properties": {
-        "update_bridges": {
+        "update_routes": {
           "type": "object",
           "properties": {
             "add": {
-              "type": [
-                "array",
-                "null"
-              ],
+              "default": [],
+              "type": "array",
               "items": {
                 "type": "array",
                 "items": [
@@ -167,7 +168,10 @@
                     "$ref": "#/definitions/AssetInfo"
                   },
                   {
-                    "$ref": "#/definitions/AssetInfo"
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/definitions/SwapOperation"
+                    }
                   }
                 ],
                 "maxItems": 2,
@@ -175,44 +179,11 @@
               }
             },
             "remove": {
-              "type": [
-                "array",
-                "null"
-              ],
-              "items": {
-                "$ref": "#/definitions/AssetInfo"
-              }
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Swap fee tokens via bridge assets",
-      "type": "object",
-      "required": [
-        "swap_bridge_assets"
-      ],
-      "properties": {
-        "swap_bridge_assets": {
-          "type": "object",
-          "required": [
-            "assets",
-            "depth"
-          ],
-          "properties": {
-            "assets": {
+              "default": [],
               "type": "array",
               "items": {
                 "$ref": "#/definitions/AssetInfo"
               }
-            },
-            "depth": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             }
           },
           "additionalProperties": false
@@ -221,21 +192,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Distribute ASTRO to stakers and to governance",
-      "type": "object",
-      "required": [
-        "distribute_astro"
-      ],
-      "properties": {
-        "distribute_astro": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Creates a request to change the contract's ownership",
+      "description": "Creates a request to change contract ownership. Owner only.",
       "type": "object",
       "required": [
         "propose_new_owner"
@@ -249,13 +206,11 @@
           ],
           "properties": {
             "expires_in": {
-              "description": "The validity period of the proposal to change the owner",
               "type": "integer",
               "format": "uint64",
               "minimum": 0.0
             },
             "owner": {
-              "description": "The newly proposed owner",
               "type": "string"
             }
           },
@@ -265,7 +220,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Removes a request to change contract ownership",
+      "description": "Removes a request to change contract ownership. Owner only.",
       "type": "object",
       "required": [
         "drop_ownership_proposal"
@@ -279,7 +234,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Claims contract ownership",
+      "description": "Claims contract ownership. Only the proposed owner.",
       "type": "object",
       "required": [
         "claim_ownership"
@@ -293,31 +248,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Enables the distribution of current fees accrued in the contract over \"blocks\" number of blocks",
-      "type": "object",
-      "required": [
-        "enable_rewards"
-      ],
-      "properties": {
-        "enable_rewards": {
-          "type": "object",
-          "required": [
-            "blocks"
-          ],
-          "properties": {
-            "blocks": {
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Permissionless endpoint that sends certain assets to predefined seizing address",
+      "description": "Permissionless: sends the given seizable assets to the seize receiver.",
       "type": "object",
       "required": [
         "seize"
@@ -330,7 +261,6 @@
           ],
           "properties": {
             "assets": {
-              "description": "The assets to seize",
               "type": "array",
               "items": {
                 "$ref": "#/definitions/AssetWithLimit"
@@ -343,7 +273,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Sets parameters for seizing assets. Permissioned to a contract owner. If governance wants to stop seizing assets, it can set an empty list of seizable assets.",
+      "description": "Owner only. Resets the seizable assets to this list every time.",
       "type": "object",
       "required": [
         "update_seize_config"
@@ -353,14 +283,12 @@
           "type": "object",
           "properties": {
             "receiver": {
-              "description": "The address that will receive the seized tokens",
               "type": [
                 "string",
                 "null"
               ]
             },
             "seizable_assets": {
-              "description": "The assets that can be seized. Resets the list to this one every time it is executed",
               "default": [],
               "type": "array",
               "items": {
@@ -429,22 +357,16 @@
       ]
     },
     "AssetWithLimit": {
-      "description": "This struct holds parameters to help with swapping a specific amount of a fee token to ASTRO.",
+      "description": "A fee token to collect, and optionally the most of it to swap in this call.",
       "type": "object",
       "required": [
         "info"
       ],
       "properties": {
         "info": {
-          "description": "Information about the fee token to swap",
-          "allOf": [
-            {
-              "$ref": "#/definitions/AssetInfo"
-            }
-          ]
+          "$ref": "#/definitions/AssetInfo"
         },
         "limit": {
-          "description": "The amount of tokens to swap",
           "anyOf": [
             {
               "$ref": "#/definitions/Uint128"
@@ -457,32 +379,35 @@
       },
       "additionalProperties": false
     },
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
     "Decimal": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
-    "DevFundConfig": {
+    "Leg": {
+      "description": "One destination for part of the collected fees.",
       "type": "object",
       "required": [
-        "address",
-        "asset_info",
+        "action",
         "share"
       ],
       "properties": {
-        "address": {
-          "description": "The dev fund address",
-          "type": "string"
+        "action": {
+          "$ref": "#/definitions/LegAction"
         },
-        "asset_info": {
-          "description": "Asset that devs want ASTRO to be swapped to",
-          "allOf": [
-            {
-              "$ref": "#/definitions/AssetInfo"
-            }
-          ]
+        "route": {
+          "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/SwapOperation"
+          }
         },
         "share": {
-          "description": "The percentage of fees that go to the dev fund",
+          "description": "Share of the base asset this leg gets. All legs' shares add up to exactly 1.",
           "allOf": [
             {
               "$ref": "#/definitions/Decimal"
@@ -492,62 +417,52 @@
       },
       "additionalProperties": false
     },
-    "SecondReceiverParams": {
-      "description": "This structure describes the parameters for updating the second receiver of fees.",
-      "type": "object",
-      "required": [
-        "second_fee_receiver",
-        "second_receiver_cut"
-      ],
-      "properties": {
-        "second_fee_receiver": {
-          "description": "The second fee receiver",
-          "type": "string"
-        },
-        "second_receiver_cut": {
-          "description": "The percentage of fees that go to the second fee receiver",
-          "allOf": [
-            {
-              "$ref": "#/definitions/Uint64"
-            }
-          ]
-        }
-      },
-      "additionalProperties": false
-    },
-    "Uint128": {
-      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
-      "type": "string"
-    },
-    "Uint64": {
-      "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
-      "type": "string"
-    },
-    "UpdateAddr": {
-      "description": "This is an enum used for setting and removing a contract address.",
+    "LegAction": {
+      "description": "What a leg does with its share once it's in the leg's output asset.",
       "oneOf": [
         {
-          "description": "Sets a new contract address.",
+          "description": "Send the share to an address.",
           "type": "object",
           "required": [
-            "set"
+            "send"
           ],
           "properties": {
-            "set": {
-              "type": "string"
+            "send": {
+              "type": "object",
+              "required": [
+                "recipient"
+              ],
+              "properties": {
+                "recipient": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
             }
           },
           "additionalProperties": false
         },
         {
-          "description": "Removes a contract address.",
+          "description": "Execute `contract` with `msg` and the share attached (native funds, or a CW20 `send` with `msg` as its hook), so the receiver knows it has been paid, e.g. a burner or a staking contract that distributes rewards.",
           "type": "object",
           "required": [
-            "remove"
+            "deposit"
           ],
           "properties": {
-            "remove": {
+            "deposit": {
               "type": "object",
+              "required": [
+                "contract",
+                "msg"
+              ],
+              "properties": {
+                "contract": {
+                  "type": "string"
+                },
+                "msg": {
+                  "$ref": "#/definitions/Binary"
+                }
+              },
               "additionalProperties": false
             }
           },
@@ -555,22 +470,91 @@
         }
       ]
     },
-    "UpdateDevFundConfig": {
-      "type": "object",
-      "properties": {
-        "set": {
-          "description": "If 'set' is None then dev fund config will be removed, otherwise it will be updated with the new parameters",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/DevFundConfig"
-            },
-            {
-              "type": "null"
+    "SwapOperation": {
+      "description": "This enum describes a swap operation.",
+      "oneOf": [
+        {
+          "description": "Swap in the factory's pool for this asset pair",
+          "type": "object",
+          "required": [
+            "astro_swap"
+          ],
+          "properties": {
+            "astro_swap": {
+              "type": "object",
+              "required": [
+                "ask_asset_info",
+                "offer_asset_info"
+              ],
+              "properties": {
+                "ask_asset_info": {
+                  "description": "Information about the asset we swap to",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                },
+                "offer_asset_info": {
+                  "description": "Information about the asset being swapped",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                }
+              },
+              "additionalProperties": false
             }
-          ]
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Swap in a specific pool, given by address. Unlike [`SwapOperation::AstroSwap`] the pool doesn't have to be registered in the factory, so standalone pools (e.g. a transmuter instantiated directly) can be part of a multi-hop route. The pool must report both assets in its `pair {}` query.",
+          "type": "object",
+          "required": [
+            "pool_swap"
+          ],
+          "properties": {
+            "pool_swap": {
+              "type": "object",
+              "required": [
+                "ask_asset_info",
+                "offer_asset_info",
+                "pool_addr"
+              ],
+              "properties": {
+                "ask_asset_info": {
+                  "description": "Information about the asset we swap to",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                },
+                "offer_asset_info": {
+                  "description": "Information about the asset being swapped",
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/AssetInfo"
+                    }
+                  ]
+                },
+                "pool_addr": {
+                  "description": "The pool contract address",
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
         }
-      },
-      "additionalProperties": false
+      ]
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
     }
   }
 }

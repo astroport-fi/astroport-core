@@ -1,5 +1,4 @@
-use astroport::asset::AssetInfo;
-use cosmwasm_std::{DivideByZeroError, OverflowError, StdError};
+use cosmwasm_std::{CheckedMultiplyRatioError, DivideByZeroError, OverflowError, StdError};
 use thiserror::Error;
 
 /// This enum describes maker contract errors
@@ -8,57 +7,42 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    Overflow(#[from] OverflowError),
+
+    #[error("{0}")]
+    DivideByZero(#[from] DivideByZeroError),
+
+    #[error("{0}")]
+    CheckedMultiplyRatio(#[from] CheckedMultiplyRatioError),
+
     #[error("Unauthorized")]
     Unauthorized {},
-
-    #[error("Invalid bridge {0} to {1}")]
-    InvalidBridge(AssetInfo, AssetInfo),
-
-    #[error("Invalid bridge. Pool {0} to {1} not found")]
-    InvalidBridgeNoPool(String, String),
-
-    #[error("Invalid bridge destination. {0} cannot be swapped to ASTRO")]
-    InvalidBridgeDestination(String),
-
-    #[error("Max bridge length of {0} was reached")]
-    MaxBridgeDepth(u64),
-
-    #[error("Cannot swap {0}. No swap destinations")]
-    CannotSwap(AssetInfo),
-
-    #[error("Incorrect governance percent of its share")]
-    IncorrectGovernancePercent {},
-
-    #[error("Governance percent must be 100% when staking contract is not set")]
-    GovernancePercentMustBe100 {},
 
     #[error("Incorrect max spread")]
     IncorrectMaxSpread {},
 
-    #[error("Cannot collect. Remove duplicate asset")]
-    DuplicatedAsset {},
-
-    #[error("Rewards collecting is already enabled")]
-    RewardsAlreadyEnabled {},
-
-    #[error("An error occurred during migration")]
-    MigrationError {},
+    #[error("Incorrect cooldown. Min: {min}, Max: {max}")]
+    IncorrectCooldown { min: u64, max: u64 },
 
     #[error("Collect cooldown is not expired. Next collect is possible at {next_collect_ts}")]
     Cooldown { next_collect_ts: u64 },
 
-    #[error("Incorrect cooldown. Min: {min}, Max: {max}")]
-    IncorrectCooldown { min: u64, max: u64 },
-}
+    #[error("There must be between 1 and {max} legs")]
+    InvalidLegCount { max: usize },
 
-impl From<OverflowError> for ContractError {
-    fn from(o: OverflowError) -> Self {
-        StdError::from(o).into()
-    }
-}
+    #[error("Leg shares must be greater than zero and add up to exactly 1, got {total}")]
+    InvalidLegShares { total: String },
 
-impl From<DivideByZeroError> for ContractError {
-    fn from(err: DivideByZeroError) -> Self {
-        StdError::from(err).into()
-    }
+    #[error("Route {reason}")]
+    InvalidRoute { reason: String },
+
+    #[error("No route from {asset} to the base asset")]
+    NoRoute { asset: String },
+
+    #[error("Duplicate asset {asset} in the list")]
+    DuplicateAsset { asset: String },
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
