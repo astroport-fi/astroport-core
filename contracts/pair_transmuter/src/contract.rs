@@ -4,7 +4,7 @@ use cosmwasm_std::{
     attr, coin, ensure, ensure_eq, BankMsg, Coin, DepsMut, Empty, Env, MessageInfo, Reply,
     Response, StdError, StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128,
 };
-use cw2::set_contract_version;
+use cw2::{get_contract_version, set_contract_version};
 use cw_utils::{one_coin, PaymentError};
 use itertools::Itertools;
 
@@ -301,6 +301,60 @@ pub fn swap(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
-    unimplemented!("No safe path available for migration from cw20 to tokenfactory LP tokens")
+pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+    let contract_version = get_contract_version(deps.storage)?;
+
+    // Only migrate the transmuter builds that shipped the offer-membership
+    // vulnerability. Their stored state matches the new build (same Config,
+    // including norm_coeff), so this is a plain version bump that swaps in code
+    // whose assert_and_swap rejects offer assets that are not pool assets.
+    match contract_version.contract.as_ref() {
+        "astroport-pair-transmuter" => match contract_version.version.as_ref() {
+            "1.1.0" | "1.1.1" => {}
+            _ => return Err(ContractError::MigrationError {}),
+        },
+        _ => return Err(ContractError::MigrationError {}),
+    }
+
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+
+    Ok(Response::new()
+        .add_attribute("previous_contract_name", &contract_version.contract)
+        .add_attribute("previous_contract_version", &contract_version.version)
+        .add_attribute("new_contract_name", CONTRACT_NAME)
+        .add_attribute("new_contract_version", CONTRACT_VERSION))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env};
+
+    #[test]
+    fn migrate_only_from_vulnerable_versions() {
+        let mut deps = mock_dependencies();
+
+        // A different contract is rejected.
+        set_contract_version(&mut deps.storage, "other-contract", "1.1.1").unwrap();
+        assert_eq!(
+            migrate(deps.as_mut(), mock_env(), Empty {}).unwrap_err(),
+            ContractError::MigrationError {}
+        );
+
+        // A transmuter version that never carried the bug is rejected.
+        set_contract_version(&mut deps.storage, CONTRACT_NAME, "1.0.0").unwrap();
+        assert_eq!(
+            migrate(deps.as_mut(), mock_env(), Empty {}).unwrap_err(),
+            ContractError::MigrationError {}
+        );
+
+        // Each vulnerable version migrates and is bumped to the current version.
+        for from in ["1.1.0", "1.1.1"] {
+            set_contract_version(&mut deps.storage, CONTRACT_NAME, from).unwrap();
+            migrate(deps.as_mut(), mock_env(), Empty {}).unwrap();
+            let version = get_contract_version(&deps.storage).unwrap();
+            assert_eq!(version.contract, CONTRACT_NAME);
+            assert_eq!(version.version, CONTRACT_VERSION);
+        }
+    }
 }

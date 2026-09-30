@@ -56,4 +56,7 @@ pub enum ContractError {
 
     #[error("ask_asset_info must be set for pools with >2 assets")]
     AskAssetMustBeSet {},
+
+    #[error("Contract can't be migrated!")]
+    MigrationError {},
 }
