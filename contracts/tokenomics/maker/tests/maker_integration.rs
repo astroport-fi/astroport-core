@@ -373,8 +373,17 @@ impl Suite {
         maker: &Addr,
         assets: &[(&AssetInfo, Option<u128>)],
     ) -> anyhow::Result<AppResponse> {
+        self.collect_as(&Addr::unchecked("anyone"), maker, assets)
+    }
+
+    fn collect_as(
+        &mut self,
+        sender: &Addr,
+        maker: &Addr,
+        assets: &[(&AssetInfo, Option<u128>)],
+    ) -> anyhow::Result<AppResponse> {
         self.app.execute_contract(
-            Addr::unchecked("anyone"),
+            sender.clone(),
             maker.clone(),
             &ExecuteMsg::Collect {
                 assets: assets
@@ -445,6 +454,7 @@ fn terra_collect_swaps_fees_and_splits_across_legs() {
             base_asset: usdc.clone(),
             max_spread: Some(Decimal::percent(5)),
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![
                 Leg {
                     share: Decimal::percent(50),
@@ -514,6 +524,7 @@ fn neutron_collect_burns_everything() {
             base_asset: astro.clone(),
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![Leg {
                 share: Decimal::one(),
                 route: vec![],
@@ -566,6 +577,7 @@ fn max_spread_caps_price_impact() {
             base_asset: usdc.clone(),
             max_spread: Some(Decimal::percent(5)),
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![Leg {
                 share: Decimal::one(),
                 route: vec![],
@@ -611,6 +623,7 @@ fn collects_cw20_fee_tokens() {
             base_asset: usdc.clone(),
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![Leg {
                 share: Decimal::one(),
                 route: vec![],
@@ -650,6 +663,7 @@ fn validates_legs_and_routes() {
         base_asset: usdc.clone(),
         max_spread: None,
         collect_cooldown: None,
+        collectors: vec![],
         legs,
         routes,
     };
@@ -688,6 +702,25 @@ fn validates_legs_and_routes() {
         vec![send(100)],
         vec![(usdc.clone(), vec![hop(&usdc, &luna)])],
     ));
+    assert!(matches!(err(res), ContractError::InvalidRoute { .. }));
+
+    // a route can't visit the same asset twice
+    let res = suite.maker(base_msg(
+        vec![send(100)],
+        vec![(
+            atom.clone(),
+            vec![hop(&atom, &usdc), hop(&usdc, &luna), hop(&luna, &usdc)],
+        )],
+    ));
+    assert!(matches!(err(res), ContractError::InvalidRoute { .. }));
+    let round_trip = Leg {
+        share: Decimal::one(),
+        route: vec![hop(&usdc, &luna), hop(&luna, &usdc)],
+        action: LegAction::Send {
+            recipient: "x".to_string(),
+        },
+    };
+    let res = suite.maker(base_msg(vec![round_trip], vec![]));
     assert!(matches!(err(res), ContractError::InvalidRoute { .. }));
 
     // the same asset can't get two routes
@@ -737,10 +770,66 @@ fn owner_updates_config_and_routes() {
             base_asset: usdc.clone(),
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![leg_to("dev_dao")],
             routes: vec![],
         })
         .unwrap();
+
+    // a leg can't send to or deposit into the Maker itself
+    let self_leg = |action: LegAction| ExecuteMsg::UpdateConfig {
+        router: None,
+        base_asset: None,
+        max_spread: None,
+        collect_cooldown: None,
+        collectors: None,
+        legs: Some(vec![Leg {
+            share: Decimal::one(),
+            route: vec![],
+            action,
+        }]),
+    };
+    for action in [
+        LegAction::Send {
+            recipient: maker.to_string(),
+        },
+        LegAction::Deposit {
+            contract: maker.to_string(),
+            msg: to_json_binary(&ExecuteMsg::Distribute {}).unwrap(),
+        },
+    ] {
+        let res =
+            suite
+                .app
+                .execute_contract(suite.owner.clone(), maker.clone(), &self_leg(action), &[]);
+        assert!(matches!(err(res), ContractError::InvalidLeg { .. }));
+    }
+
+    // a cooldown can be set, and removed again with 0
+    for (set, expected) in [(Some(60), Some(60)), (Some(0), None)] {
+        suite
+            .app
+            .execute_contract(
+                suite.owner.clone(),
+                maker.clone(),
+                &ExecuteMsg::UpdateConfig {
+                    router: None,
+                    base_asset: None,
+                    max_spread: None,
+                    collect_cooldown: set,
+                    collectors: None,
+                    legs: None,
+                },
+                &[],
+            )
+            .unwrap();
+        let config: Config = suite
+            .app
+            .wrap()
+            .query_wasm_smart(&maker, &QueryMsg::Config {})
+            .unwrap();
+        assert_eq!(config.collect_cooldown, expected);
+    }
 
     // only the owner can change anything
     let res = suite.app.execute_contract(
@@ -793,6 +882,7 @@ fn owner_updates_config_and_routes() {
                 base_asset: Some(astro.clone()),
                 max_spread: None,
                 collect_cooldown: None,
+                collectors: None,
                 legs: Some(vec![leg_to("burner")]),
             },
             &[],
@@ -857,6 +947,7 @@ fn internal_messages_are_self_only() {
             base_asset: usdc.clone(),
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![Leg {
                 share: Decimal::one(),
                 route: vec![],
@@ -897,6 +988,7 @@ fn seize_and_cooldown() {
             base_asset: usdc.clone(),
             max_spread: None,
             collect_cooldown: Some(60),
+            collectors: vec![],
             legs: vec![Leg {
                 share: Decimal::one(),
                 route: vec![],
@@ -1027,6 +1119,7 @@ fn migrate_from_fixture(chain: &str) {
                 base_asset: usdc.clone(),
                 max_spread: None,
                 collect_cooldown: None,
+                collectors: vec!["keeper".to_string()],
                 legs: vec![Leg {
                     share: Decimal::one(),
                     route: vec![],
@@ -1051,6 +1144,7 @@ fn migrate_from_fixture(chain: &str) {
         old_config["max_spread"].as_str().unwrap()
     );
     assert_eq!(config.base_asset, usdc);
+    assert_eq!(config.collectors, vec![Addr::unchecked("keeper")]);
 
     // the seize config carries over byte for byte
     let seize: SeizeConfig = suite
@@ -1074,9 +1168,15 @@ fn migrate_from_fixture(chain: &str) {
     let version = cw2::query_contract_info(&suite.app.wrap(), maker.to_string()).unwrap();
     assert_eq!(version.version, env!("CARGO_PKG_VERSION"));
 
-    // the migrated Maker collects normally
+    // the migrated Maker collects normally, for the collector it was given
     suite.fund(&maker, &luna, 1_000000);
-    suite.collect(&maker, &[(&luna, None)]).unwrap();
+    assert_eq!(
+        err(suite.collect(&maker, &[(&luna, None)])),
+        ContractError::Unauthorized {}
+    );
+    suite
+        .collect_as(&Addr::unchecked("keeper"), &maker, &[(&luna, None)])
+        .unwrap();
     assert!(suite.balance(&Addr::unchecked("dev_dao"), &usdc) > 900000);
 
     // migrating again is refused
@@ -1088,6 +1188,7 @@ fn migrate_from_fixture(chain: &str) {
             base_asset: usdc,
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![],
             routes: vec![],
         },
@@ -1126,6 +1227,7 @@ fn swap_and_send_leg_and_dust() {
             base_asset: usdc.clone(),
             max_spread: None,
             collect_cooldown: None,
+            collectors: vec![],
             legs: vec![
                 Leg {
                     share: Decimal::percent(25),
@@ -1164,4 +1266,83 @@ fn swap_and_send_leg_and_dust() {
         "got {astro_out}"
     );
     assert_eq!(suite.balance(&maker, &usdc), 0);
+}
+
+/// With `collectors` set only they can collect; an empty list opens it up again.
+#[test]
+fn collectors_restrict_collect() {
+    let mut suite = Suite::new();
+    let (luna, usdc) = (
+        native_asset_info(LUNA.to_string()),
+        native_asset_info(USDC.to_string()),
+    );
+    suite.pool(&luna, &usdc);
+    let keeper = Addr::unchecked("keeper");
+
+    let update_collectors = |collectors: Vec<&str>| ExecuteMsg::UpdateConfig {
+        router: None,
+        base_asset: None,
+        max_spread: None,
+        collect_cooldown: None,
+        collectors: Some(collectors.into_iter().map(String::from).collect()),
+        legs: None,
+    };
+
+    let maker = suite
+        .maker(InstantiateMsg {
+            owner: OWNER.to_string(),
+            router: suite.router.to_string(),
+            base_asset: usdc.clone(),
+            max_spread: None,
+            collect_cooldown: None,
+            collectors: vec![keeper.to_string()],
+            legs: vec![Leg {
+                share: Decimal::one(),
+                route: vec![],
+                action: LegAction::Send {
+                    recipient: "dev_dao".to_string(),
+                },
+            }],
+            routes: vec![(luna.clone(), vec![hop(&luna, &usdc)])],
+        })
+        .unwrap();
+    suite.fund(&maker, &luna, 1_000000);
+
+    // only a listed address can collect
+    assert_eq!(
+        err(suite.collect(&maker, &[(&luna, None)])),
+        ContractError::Unauthorized {}
+    );
+    assert_eq!(suite.balance(&maker, &luna), 1_000000);
+    suite.collect_as(&keeper, &maker, &[(&luna, None)]).unwrap();
+    assert_eq!(suite.balance(&maker, &luna), 0);
+
+    // the list is validated
+    let res = suite.app.execute_contract(
+        suite.owner.clone(),
+        maker.clone(),
+        &update_collectors(vec!["keeper", "keeper"]),
+        &[],
+    );
+    assert!(matches!(err(res), ContractError::DuplicateCollector { .. }));
+
+    // an empty list lets anyone collect again
+    suite
+        .app
+        .execute_contract(
+            suite.owner.clone(),
+            maker.clone(),
+            &update_collectors(vec![]),
+            &[],
+        )
+        .unwrap();
+    let config: Config = suite
+        .app
+        .wrap()
+        .query_wasm_smart(&maker, &QueryMsg::Config {})
+        .unwrap();
+    assert!(config.collectors.is_empty());
+    suite.fund(&maker, &luna, 1_000000);
+    suite.collect(&maker, &[(&luna, None)]).unwrap();
+    assert_eq!(suite.balance(&maker, &luna), 0);
 }

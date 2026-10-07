@@ -17,12 +17,21 @@
         "$ref": "#/definitions/AssetInfo"
       },
       "collect_cooldown": {
+        "description": "Unset or `0` means no cooldown",
         "type": [
           "integer",
           "null"
         ],
         "format": "uint64",
         "minimum": 0.0
+      },
+      "collectors": {
+        "description": "Addresses allowed to call collect. Empty (the default) means anyone can.",
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       },
       "legs": {
         "type": "array",
@@ -144,7 +153,7 @@
             "$ref": "#/definitions/LegAction"
           },
           "route": {
-            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset. A route doesn't visit the same asset twice.",
             "default": [],
             "type": "array",
             "items": {
@@ -163,7 +172,7 @@
         "additionalProperties": false
       },
       "LegAction": {
-        "description": "What a leg does with its share once it's in the leg's output asset.",
+        "description": "What a leg does with its share once it's in the leg's output asset. The target can't be the Maker itself.",
         "oneOf": [
           {
             "description": "Send the share to an address.",
@@ -304,7 +313,7 @@
     "title": "ExecuteMsg",
     "oneOf": [
       {
-        "description": "Swaps the given fee tokens into the base asset along their routes, then splits the base asset across the legs. Anyone can call it.",
+        "description": "Swaps the given fee tokens into the base asset along their routes, then splits the base asset across the legs. Anyone can call it, unless `collectors` is set.",
         "type": "object",
         "required": [
           "collect"
@@ -411,12 +420,23 @@
                 ]
               },
               "collect_cooldown": {
+                "description": "`0` removes the cooldown",
                 "type": [
                   "integer",
                   "null"
                 ],
                 "format": "uint64",
                 "minimum": 0.0
+              },
+              "collectors": {
+                "description": "An empty list lets anyone call collect again",
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
               },
               "legs": {
                 "type": [
@@ -700,7 +720,7 @@
             "$ref": "#/definitions/LegAction"
           },
           "route": {
-            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset. A route doesn't visit the same asset twice.",
             "default": [],
             "type": "array",
             "items": {
@@ -719,7 +739,7 @@
         "additionalProperties": false
       },
       "LegAction": {
-        "description": "What a leg does with its share once it's in the leg's output asset.",
+        "description": "What a leg does with its share once it's in the leg's output asset. The target can't be the Maker itself.",
         "oneOf": [
           {
             "description": "Send the share to an address.",
@@ -1000,13 +1020,21 @@
         "$ref": "#/definitions/AssetInfo"
       },
       "collect_cooldown": {
-        "description": "Keeps the old cooldown if not set",
+        "description": "Keeps the old cooldown if not set; `0` removes it",
         "type": [
           "integer",
           "null"
         ],
         "format": "uint64",
         "minimum": 0.0
+      },
+      "collectors": {
+        "description": "Addresses allowed to call collect. Empty (the default) means anyone can.",
+        "default": [],
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
       },
       "legs": {
         "type": "array",
@@ -1124,7 +1152,7 @@
             "$ref": "#/definitions/LegAction"
           },
           "route": {
-            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+            "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset. A route doesn't visit the same asset twice.",
             "default": [],
             "type": "array",
             "items": {
@@ -1143,7 +1171,7 @@
         "additionalProperties": false
       },
       "LegAction": {
-        "description": "What a leg does with its share once it's in the leg's output asset.",
+        "description": "What a leg does with its share once it's in the leg's output asset. The target can't be the Maker itself.",
         "oneOf": [
           {
             "description": "Send the share to an address.",
@@ -1391,6 +1419,7 @@
       "type": "object",
       "required": [
         "base_asset",
+        "collectors",
         "legs",
         "max_spread",
         "owner",
@@ -1413,6 +1442,13 @@
           ],
           "format": "uint64",
           "minimum": 0.0
+        },
+        "collectors": {
+          "description": "Addresses allowed to call collect. Empty means anyone can.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Addr"
+          }
         },
         "legs": {
           "type": "array",
@@ -1520,7 +1556,7 @@
               "$ref": "#/definitions/LegAction"
             },
             "route": {
-              "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+              "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset. A route doesn't visit the same asset twice.",
               "default": [],
               "type": "array",
               "items": {
@@ -1539,7 +1575,7 @@
           "additionalProperties": false
         },
         "LegAction": {
-          "description": "What a leg does with its share once it's in the leg's output asset.",
+          "description": "What a leg does with its share once it's in the leg's output asset. The target can't be the Maker itself.",
           "oneOf": [
             {
               "description": "Send the share to an address.",

@@ -13,12 +13,21 @@
       "$ref": "#/definitions/AssetInfo"
     },
     "collect_cooldown": {
+      "description": "Unset or `0` means no cooldown",
       "type": [
         "integer",
         "null"
       ],
       "format": "uint64",
       "minimum": 0.0
+    },
+    "collectors": {
+      "description": "Addresses allowed to call collect. Empty (the default) means anyone can.",
+      "default": [],
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "legs": {
       "type": "array",
@@ -140,7 +149,7 @@
           "$ref": "#/definitions/LegAction"
         },
         "route": {
-          "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset.",
+          "description": "Swap operations from the base asset into the leg's output asset, through the router. Empty to keep the base asset. A route doesn't visit the same asset twice.",
           "default": [],
           "type": "array",
           "items": {
@@ -159,7 +168,7 @@
       "additionalProperties": false
     },
     "LegAction": {
-      "description": "What a leg does with its share once it's in the leg's output asset.",
+      "description": "What a leg does with its share once it's in the leg's output asset. The target can't be the Maker itself.",
       "oneOf": [
         {
           "description": "Send the share to an address.",

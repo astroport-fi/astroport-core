@@ -14,8 +14,8 @@ routes. A 1.7.0 Maker is migrated in place; see [Migration](#migration).
 ### Base asset and routes
 
 Every fee token needs a route: a list of router 2.x `SwapOperation`s (`astro_swap` or `pool_swap`) that starts at the
-fee token and ends at the base asset. A route has between 1 and 5 hops, and each hop must offer what the previous hop
-asked for. The base asset itself has no route; it's split across the legs as it is.
+fee token and ends at the base asset. A route has between 1 and 5 hops, each hop must offer what the previous hop asked
+for, and no asset is visited twice. The base asset itself has no route; it's split across the legs as it is.
 
 ### Legs
 
@@ -30,12 +30,14 @@ asked for. The base asset itself has no route; it's split across the legs as it 
 - `share`: the part of the base asset balance this leg gets. There are 1 to 10 legs, every share is greater than zero and
   the shares add up to exactly 1. The last leg also gets what rounding leaves over.
 - `route`: optional. If set, it starts at the base asset and the leg's share is swapped along it. It can end in any
-  asset.
+  other asset, and doesn't visit the same asset twice.
 - `action`: what happens to the leg's output:
   - `send { recipient }`: transfers it to `recipient`. If the leg has a route, the router pays `recipient` directly.
   - `deposit { contract, msg }`: executes `contract` with `msg` and the output attached, as native funds or as a CW20
     `send` with `msg` as its hook. If the leg has a route, the Maker swaps first and deposits exactly what the swap
     produced.
+
+  Neither target can be the Maker itself.
 
 For example, these legs burn half the fees and pay the other half to a DAO, with USDC as the base asset
 (`eyJidXJuIjp7fX0=` is `{"burn":{}}`):
@@ -90,6 +92,7 @@ stays in the Maker for the next split.
   "base_asset": { "native_token": { "denom": "usdc" } },
   "max_spread": "0.05",
   "collect_cooldown": 300,
+  "collectors": ["terra..."],
   "legs": [],
   "routes": [
     [
@@ -108,14 +111,14 @@ stays in the Maker for the next split.
 ```
 
 `router` must be a router 2.x instance. `collect_cooldown` is optional; if set, it's between 30 and 600 seconds.
-`routes` is optional.
+`collectors` is optional; if set, only those addresses can call `collect`. `routes` is optional.
 
 ## ExecuteMsg
 
 ### `collect`
 
-Permissionless. Swaps the listed fee tokens into the base asset, then splits the Maker's whole base asset balance across
-the legs:
+Swaps the listed fee tokens into the base asset, then splits the Maker's whole base asset balance across the legs.
+Anyone can call it unless `collectors` is set:
 
 - `limit` caps how much of a token is swapped. Without it, the whole balance is swapped.
 - An empty list only splits the base asset the Maker already holds.
@@ -139,6 +142,8 @@ Owner only. Every field is optional.
 
 - Legs are replaced as a whole and validated against the base asset, including a new one set in the same message.
 - If the base asset changes, routes that end in the old one are refused at collect until they're replaced.
+- `collect_cooldown: 0` removes the cooldown.
+- An empty `collectors` list lets anyone call `collect` again.
 
 ```json
 {
@@ -147,6 +152,7 @@ Owner only. Every field is optional.
     "base_asset": { "native_token": { "denom": "astro" } },
     "max_spread": "0.05",
     "collect_cooldown": 300,
+    "collectors": [],
     "legs": []
   }
 }
@@ -277,8 +283,8 @@ Returns the Maker's balances of the listed assets. Zero balances are left out.
 Only a Maker at `astroport-maker` 1.7.0 can be migrated. The migration:
 
 - keeps the owner, any pending ownership proposal, the seize config and the last collect time;
-- keeps `max_spread` and `collect_cooldown` unless the message sets them;
-- sets the router, base asset and legs from the message;
+- keeps `max_spread` and `collect_cooldown` unless the message sets them (`collect_cooldown: 0` removes it);
+- sets the router, base asset, collectors and legs from the message;
 - removes the 1.x bridges and sets the routes from the message.
 
 The old governance, second receiver and dev fund settings are dropped. Legs replace them.
@@ -289,6 +295,7 @@ The old governance, second receiver and dev fund settings are dropped. Legs repl
   "base_asset": { "native_token": { "denom": "usdc" } },
   "max_spread": null,
   "collect_cooldown": null,
+  "collectors": [],
   "legs": [],
   "routes": []
 }

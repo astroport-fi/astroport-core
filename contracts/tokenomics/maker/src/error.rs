@@ -34,6 +34,9 @@ pub enum ContractError {
     #[error("Leg shares must be greater than zero and add up to exactly 1, got {total}")]
     InvalidLegShares { total: String },
 
+    #[error("Leg {reason}")]
+    InvalidLeg { reason: String },
+
     #[error("Route {reason}")]
     InvalidRoute { reason: String },
 
@@ -42,6 +45,9 @@ pub enum ContractError {
 
     #[error("Duplicate asset {asset} in the list")]
     DuplicateAsset { asset: String },
+
+    #[error("Duplicate collector {address}")]
+    DuplicateCollector { address: String },
 
     #[error("Contract can't be migrated!")]
     MigrationError {},

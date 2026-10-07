@@ -14,7 +14,8 @@ pub const COOLDOWN_LIMITS: std::ops::RangeInclusive<u64> = 30..=600;
 /// The most legs a Maker can split its base asset into.
 pub const MAX_LEGS: usize = 10;
 
-/// What a leg does with its share once it's in the leg's output asset.
+/// What a leg does with its share once it's in the leg's output asset. The target can't be the
+/// Maker itself.
 #[cw_serde]
 pub enum LegAction {
     /// Send the share to an address.
@@ -31,7 +32,7 @@ pub struct Leg {
     /// Share of the base asset this leg gets. All legs' shares add up to exactly 1.
     pub share: Decimal,
     /// Swap operations from the base asset into the leg's output asset, through the router.
-    /// Empty to keep the base asset.
+    /// Empty to keep the base asset. A route doesn't visit the same asset twice.
     #[serde(default)]
     pub route: Vec<SwapOperation>,
     pub action: LegAction,
@@ -50,6 +51,8 @@ pub struct Config {
     pub max_spread: Decimal,
     /// If set, collect can be called at most once per this many seconds
     pub collect_cooldown: Option<u64>,
+    /// Addresses allowed to call collect. Empty means anyone can.
+    pub collectors: Vec<Addr>,
     pub legs: Vec<Leg>,
 }
 
@@ -60,7 +63,11 @@ pub struct InstantiateMsg {
     pub base_asset: AssetInfo,
     /// Defaults to 5%
     pub max_spread: Option<Decimal>,
+    /// Unset or `0` means no cooldown
     pub collect_cooldown: Option<u64>,
+    /// Addresses allowed to call collect. Empty (the default) means anyone can.
+    #[serde(default)]
+    pub collectors: Vec<String>,
     pub legs: Vec<Leg>,
     /// Routes from fee tokens to the base asset
     #[serde(default)]
@@ -77,7 +84,7 @@ pub struct AssetWithLimit {
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Swaps the given fee tokens into the base asset along their routes, then splits the base
-    /// asset across the legs. Anyone can call it.
+    /// asset across the legs. Anyone can call it, unless `collectors` is set.
     Collect { assets: Vec<AssetWithLimit> },
     /// Internal: splits the base asset across the legs.
     Distribute {},
@@ -90,7 +97,10 @@ pub enum ExecuteMsg {
         router: Option<String>,
         base_asset: Option<AssetInfo>,
         max_spread: Option<Decimal>,
+        /// `0` removes the cooldown
         collect_cooldown: Option<u64>,
+        /// An empty list lets anyone call collect again
+        collectors: Option<Vec<String>>,
         legs: Option<Vec<Leg>>,
     },
     /// Owner only. Sets or removes fee token routes to the base asset.
@@ -159,8 +169,11 @@ pub struct MigrateMsg {
     pub base_asset: AssetInfo,
     /// Keeps the old max spread if not set
     pub max_spread: Option<Decimal>,
-    /// Keeps the old cooldown if not set
+    /// Keeps the old cooldown if not set; `0` removes it
     pub collect_cooldown: Option<u64>,
+    /// Addresses allowed to call collect. Empty (the default) means anyone can.
+    #[serde(default)]
+    pub collectors: Vec<String>,
     pub legs: Vec<Leg>,
     #[serde(default)]
     pub routes: Vec<(AssetInfo, Vec<SwapOperation>)>,

@@ -2,8 +2,8 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use cosmwasm_std::{
-    coins, to_json_binary, Api, Binary, CosmosMsg, Decimal, QuerierWrapper, StdResult, Uint128,
-    WasmMsg,
+    coins, to_json_binary, Addr, Api, Binary, CosmosMsg, Decimal, QuerierWrapper, StdResult,
+    Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 
@@ -44,7 +44,8 @@ pub fn route_output(start: &AssetInfo, route: &[SwapOperation]) -> AssetInfo {
         .unwrap_or_else(|| start.clone())
 }
 
-/// Checks that `route` is a chain of hops starting at `from` and, if given, ending at `to`.
+/// Checks that `route` is a chain of hops starting at `from` and, if given, ending at `to`, and
+/// that it doesn't visit the same asset twice.
 pub fn validate_route(
     api: &dyn Api,
     route: &[SwapOperation],
@@ -61,6 +62,7 @@ pub fn validate_route(
     }
 
     let mut current = from.clone();
+    let mut visited = vec![from.to_string()];
     for op in route {
         let (offer, ask) = op_assets(op);
         offer.check(api)?;
@@ -74,10 +76,14 @@ pub fn validate_route(
         if offer == ask {
             return Err(invalid(format!("hop swaps {offer} into itself")));
         }
+        if visited.contains(&ask.to_string()) {
+            return Err(invalid(format!("visits {ask} twice")));
+        }
         if let SwapOperation::PoolSwap { pool_addr, .. } = op {
             api.addr_validate(pool_addr)?;
         }
 
+        visited.push(ask.to_string());
         current = ask.clone();
     }
 
@@ -90,10 +96,13 @@ pub fn validate_route(
     Ok(())
 }
 
+/// Checks the legs' shares, routes and targets. `maker` is the Maker's own address, which a leg
+/// can't send to or deposit into.
 pub fn validate_legs(
     api: &dyn Api,
     legs: &[Leg],
     base_asset: &AssetInfo,
+    maker: &Addr,
 ) -> Result<(), ContractError> {
     if legs.is_empty() || legs.len() > MAX_LEGS {
         return Err(ContractError::InvalidLegCount { max: MAX_LEGS });
@@ -112,13 +121,14 @@ pub fn validate_legs(
             validate_route(api, &leg.route, base_asset, None)?;
         }
 
-        match &leg.action {
-            LegAction::Send { recipient } => {
-                api.addr_validate(recipient)?;
-            }
-            LegAction::Deposit { contract, .. } => {
-                api.addr_validate(contract)?;
-            }
+        let target = match &leg.action {
+            LegAction::Send { recipient } => api.addr_validate(recipient)?,
+            LegAction::Deposit { contract, .. } => api.addr_validate(contract)?,
+        };
+        if target == *maker {
+            return Err(ContractError::InvalidLeg {
+                reason: "can't target the Maker itself".to_string(),
+            });
         }
     }
 
@@ -146,6 +156,26 @@ pub fn ensure_unique<'a>(
     Ok(())
 }
 
+/// Validates the collector addresses and checks that none is listed twice.
+pub fn validate_collectors(
+    api: &dyn Api,
+    collectors: &[String],
+) -> Result<Vec<Addr>, ContractError> {
+    let mut seen = HashSet::new();
+    collectors
+        .iter()
+        .map(|collector| {
+            let addr = api.addr_validate(collector)?;
+            if !seen.insert(addr.clone()) {
+                return Err(ContractError::DuplicateCollector {
+                    address: addr.to_string(),
+                });
+            }
+            Ok(addr)
+        })
+        .collect()
+}
+
 pub fn validate_max_spread(max_spread: Decimal) -> Result<(), ContractError> {
     if max_spread.is_zero() || max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
         return Err(ContractError::IncorrectMaxSpread {});
@@ -163,6 +193,11 @@ pub fn validate_cooldown(maybe_cooldown: Option<u64>) -> Result<(), ContractErro
         }
     }
     Ok(())
+}
+
+/// `None` and `Some(0)` both mean no cooldown.
+pub fn cooldown_or_none(cooldown: Option<u64>) -> Option<u64> {
+    cooldown.filter(|cooldown| *cooldown > 0)
 }
 
 /// The least a swap of `amount` along `route` may return: its value at the route's rate for a

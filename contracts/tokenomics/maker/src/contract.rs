@@ -19,8 +19,8 @@ use crate::state::{
     CONFIG, LAST_COLLECT_TS, LEG_SNAPSHOT, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG,
 };
 use crate::utils::{
-    deposit_msg, ensure_unique, minimum_receive, route_output, swap_msg, validate_cooldown,
-    validate_legs, validate_max_spread, validate_route,
+    cooldown_or_none, deposit_msg, ensure_unique, minimum_receive, route_output, swap_msg,
+    validate_collectors, validate_cooldown, validate_legs, validate_max_spread, validate_route,
 };
 
 /// Contract name that is used for migration.
@@ -46,10 +46,11 @@ pub fn instantiate(
         max_spread: msg
             .max_spread
             .unwrap_or_else(|| Decimal::percent(DEFAULT_MAX_SPREAD)),
-        collect_cooldown: msg.collect_cooldown,
+        collect_cooldown: cooldown_or_none(msg.collect_cooldown),
+        collectors: validate_collectors(deps.api, &msg.collectors)?,
         legs: msg.legs,
     };
-    validate_config(deps.as_ref(), &config)?;
+    validate_config(deps.as_ref(), &env, &config)?;
     CONFIG.save(deps.storage, &config)?;
 
     set_routes(
@@ -85,7 +86,7 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Collect { assets } => collect(deps, env, assets),
+        ExecuteMsg::Collect { assets } => collect(deps, env, info, assets),
         ExecuteMsg::Distribute {} => {
             ensure_self(&env, &info)?;
             distribute(deps, env)
@@ -103,6 +104,7 @@ pub fn execute(
             base_asset,
             max_spread,
             collect_cooldown,
+            collectors,
             legs,
         } => {
             let mut config = CONFIG.load(deps.storage)?;
@@ -118,14 +120,17 @@ pub fn execute(
                 config.max_spread = max_spread;
             }
             if let Some(collect_cooldown) = collect_cooldown {
-                config.collect_cooldown = Some(collect_cooldown);
+                config.collect_cooldown = cooldown_or_none(Some(collect_cooldown));
+            }
+            if let Some(collectors) = collectors {
+                config.collectors = validate_collectors(deps.api, &collectors)?;
             }
             if let Some(legs) = legs {
                 config.legs = legs;
             }
 
             // checked as a whole, so a new base asset must come with legs that start from it
-            validate_config(deps.as_ref(), &config)?;
+            validate_config(deps.as_ref(), &env, &config)?;
             CONFIG.save(deps.storage, &config)?;
 
             Ok(Response::new().add_attribute("action", "update_config"))
@@ -199,11 +204,16 @@ fn ensure_self(env: &Env, info: &MessageInfo) -> Result<(), ContractError> {
     Ok(())
 }
 
-pub(crate) fn validate_config(deps: Deps, config: &Config) -> Result<(), ContractError> {
+pub(crate) fn validate_config(deps: Deps, env: &Env, config: &Config) -> Result<(), ContractError> {
     config.base_asset.check(deps.api)?;
     validate_max_spread(config.max_spread)?;
     validate_cooldown(config.collect_cooldown)?;
-    validate_legs(deps.api, &config.legs, &config.base_asset)
+    validate_legs(
+        deps.api,
+        &config.legs,
+        &config.base_asset,
+        &env.contract.address,
+    )
 }
 
 /// Removes `remove`, then sets each route in `add`, which must run from its asset to the base
@@ -240,9 +250,16 @@ pub(crate) fn set_routes(
 fn collect(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     assets: Vec<AssetWithLimit>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    // anyone can collect unless the owner has set who can
+    ensure!(
+        config.collectors.is_empty() || config.collectors.contains(&info.sender),
+        ContractError::Unauthorized {}
+    );
 
     // allowing collect only once per cooldown period
     LAST_COLLECT_TS.update(deps.storage, |last_ts| match config.collect_cooldown {

@@ -9,6 +9,7 @@ use crate::contract::{set_routes, validate_config, CONTRACT_NAME, CONTRACT_VERSI
 use crate::error::ContractError;
 use crate::msg::{Config, MigrateMsg};
 use crate::state::CONFIG;
+use crate::utils::{cooldown_or_none, validate_collectors};
 
 /// The parts of a Maker 1.7.0 config that carry over. Its other fields (governance, second
 /// receiver, dev fund, pre-upgrade rewards) are replaced by legs, so they're not read; serde
@@ -20,11 +21,7 @@ struct ConfigV170 {
     collect_cooldown: Option<u64>,
 }
 
-pub(crate) fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    msg: MigrateMsg,
-) -> Result<Response, ContractError> {
+pub(crate) fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let version = get_contract_version(deps.storage)?;
     if version.contract != CONTRACT_NAME || version.version != "1.7.0" {
         return Err(ContractError::MigrationError {});
@@ -37,10 +34,14 @@ pub(crate) fn migrate(
         router: deps.api.addr_validate(&msg.router)?,
         base_asset: msg.base_asset,
         max_spread: msg.max_spread.unwrap_or(old.max_spread),
-        collect_cooldown: msg.collect_cooldown.or(old.collect_cooldown),
+        collect_cooldown: match msg.collect_cooldown {
+            None => old.collect_cooldown,
+            set => cooldown_or_none(set),
+        },
+        collectors: validate_collectors(deps.api, &msg.collectors)?,
         legs: msg.legs,
     };
-    validate_config(deps.as_ref(), &config)?;
+    validate_config(deps.as_ref(), &env, &config)?;
     CONFIG.save(deps.storage, &config)?;
 
     // 1.x bridges (fee token -> next asset toward ASTRO) are replaced by full routes to the base
