@@ -606,7 +606,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Owner only. Resets the seizable assets to this list every time.",
+        "description": "Owner only. Leaves unset fields as they are.",
         "type": "object",
         "required": [
           "update_seize_config"
@@ -622,8 +622,11 @@
                 ]
               },
               "seizable_assets": {
-                "default": [],
-                "type": "array",
+                "description": "Replaces the seizable assets as a whole. An empty list clears them",
+                "type": [
+                  "array",
+                  "null"
+                ],
                 "items": {
                   "$ref": "#/definitions/AssetInfo"
                 }

@@ -209,7 +209,9 @@ pub fn cooldown_or_none(cooldown: Option<u64>) -> Option<u64> {
 /// small probe (see [`PROBE_DIVISORS`]), less `max_spread`. A swap whose price impact is more
 /// than `max_spread` fails its minimum and reverts.
 ///
-/// Returns zero for dust that's too small to price, which the caller skips.
+/// Returns zero for dust that's too small to price, which the caller skips. A probe that a pool
+/// refuses outright is skipped like one that's too small; only the whole amount failing to
+/// simulate is an error.
 pub fn minimum_receive(
     querier: &QuerierWrapper,
     router: &str,
@@ -223,13 +225,21 @@ pub fn minimum_receive(
             continue;
         }
 
-        let probe_out: SimulateSwapOperationsResponse = querier.query_wasm_smart(
+        let simulated: StdResult<SimulateSwapOperationsResponse> = querier.query_wasm_smart(
             router,
             &RouterQueryMsg::SimulateSwapOperations {
                 offer_amount: probe,
                 operations: route.to_vec(),
             },
-        )?;
+        );
+        let probe_out = match simulated {
+            Ok(probe_out) => probe_out,
+            // some pools refuse a tiny offer outright rather than returning zero; a larger
+            // probe may still price the route. If the whole amount can't be simulated, the
+            // swap itself would fail
+            Err(_) if divisor > 1 => continue,
+            Err(err) => return Err(err.into()),
+        };
         if probe_out.amount.u128() < MIN_PROBE_OUT {
             continue;
         }

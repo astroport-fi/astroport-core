@@ -77,9 +77,10 @@ balance, use `limit` and collect it in parts. The base asset takes a `limit` too
 the legs, so a balance too big for a leg's route can be split in parts as well.
 
 The probe only sets the rate if it returns at least 1000 units, so that integer rounding stays under 0.1% of it. For
-smaller amounts the Maker tries larger probes (a hundredth, a tenth, then the whole amount). What can't be priced even
-then is skipped, left for a later collect and reported with a `skipped_dust` attribute. A leg share that is too small to
-swap is also skipped and stays in the Maker for the next split.
+smaller amounts the Maker tries larger probes (a hundredth, a tenth, then the whole amount); a probe that a pool refuses
+outright is skipped the same way, and only the whole amount failing to simulate fails the collect. What can't be priced
+even then is skipped, left for a later collect and reported with a `skipped_dust` attribute. A leg share that is too
+small to swap is also skipped and stays in the Maker for the next split.
 
 The Maker measures a swap against the pool as it is at execution, so it can't tell that the pool was pushed off market
 just before. A collector that quotes the price elsewhere first can pass `min_receive` with each fee token: the swap then
@@ -206,7 +207,7 @@ Permissionless. Sends the listed assets to the seize receiver. Only assets in th
 
 ### `update_seize_config`
 
-Owner only.
+Owner only. Every field is optional: `seizable_assets` replaces the list as a whole, and an empty list clears it.
 
 ```json
 {

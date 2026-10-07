@@ -1047,7 +1047,7 @@ fn seize_and_cooldown() {
             maker.clone(),
             &ExecuteMsg::UpdateSeizeConfig {
                 receiver: Some("seize_receiver".to_string()),
-                seizable_assets: vec![atom.clone()],
+                seizable_assets: Some(vec![atom.clone()]),
             },
             &[],
         )
@@ -1076,7 +1076,43 @@ fn seize_and_cooldown() {
         .wrap()
         .query_wasm_smart(&maker, &QueryMsg::QuerySeizeConfig {})
         .unwrap();
+    assert_eq!(seize.seizable_assets, vec![atom.clone()]);
+
+    // a receiver-only update keeps the list; an empty list clears it
+    suite
+        .app
+        .execute_contract(
+            suite.owner.clone(),
+            maker.clone(),
+            &serde_json::json!({"update_seize_config": {"receiver": "seize_receiver2"}}),
+            &[],
+        )
+        .unwrap();
+    let seize: SeizeConfig = suite
+        .app
+        .wrap()
+        .query_wasm_smart(&maker, &QueryMsg::QuerySeizeConfig {})
+        .unwrap();
+    assert_eq!(seize.receiver, Addr::unchecked("seize_receiver2"));
     assert_eq!(seize.seizable_assets, vec![atom]);
+    suite
+        .app
+        .execute_contract(
+            suite.owner.clone(),
+            maker.clone(),
+            &ExecuteMsg::UpdateSeizeConfig {
+                receiver: None,
+                seizable_assets: Some(vec![]),
+            },
+            &[],
+        )
+        .unwrap();
+    let seize: SeizeConfig = suite
+        .app
+        .wrap()
+        .query_wasm_smart(&maker, &QueryMsg::QuerySeizeConfig {})
+        .unwrap();
+    assert!(seize.seizable_assets.is_empty());
 }
 
 /// Loads a deployed Maker 1.7.0's real storage (fetched from chain) into a contract, migrates
@@ -1527,7 +1563,8 @@ fn small_amounts_use_a_larger_probe() {
     use cosmwasm_std::testing::MockQuerier;
     use cosmwasm_std::{from_json, ContractResult, QuerierWrapper, SystemResult, WasmQuery};
 
-    // a route paying 0.9995 per unit, floored like a pool does
+    // a route paying 0.9995 per unit, floored like a pool does, through a pool that refuses
+    // offers under 100 units outright instead of returning zero
     let rate = Decimal::from_ratio(9995u128, 10000u128);
     let mut querier = MockQuerier::default();
     querier.update_wasm(move |req| match req {
@@ -1537,6 +1574,9 @@ fn small_amounts_use_a_larger_probe() {
             else {
                 panic!("unexpected query");
             };
+            if offer_amount.u128() < 100 {
+                return SystemResult::Ok(ContractResult::Err("offer too small".to_string()));
+            }
             SystemResult::Ok(ContractResult::Ok(
                 to_json_binary(&astroport_router::msg::SimulateSwapOperationsResponse {
                     amount: offer_amount * rate,
@@ -1581,4 +1621,17 @@ fn small_amounts_use_a_larger_probe() {
     within_spread(minimum(3_000_000), 3_000_000);
     // under 1_000 out even the whole amount can't be priced: dust
     assert_eq!(minimum(999), 0);
+
+    // a route that can't be simulated at all fails the collect instead of being skipped
+    let mut broken = MockQuerier::default();
+    broken.update_wasm(|_| SystemResult::Ok(ContractResult::Err("pool is paused".to_string())));
+    let broken = QuerierWrapper::new(&broken);
+    assert!(astroport_maker::utils::minimum_receive(
+        &broken,
+        "router",
+        &route,
+        Uint128::new(3_000),
+        Decimal::percent(5),
+    )
+    .is_err());
 }

@@ -186,7 +186,9 @@ pub fn execute(
                 if let Some(receiver) = receiver {
                     seize_config.receiver = deps.api.addr_validate(&receiver)?;
                 }
-                seize_config.seizable_assets = seizable_assets;
+                if let Some(seizable_assets) = seizable_assets {
+                    seize_config.seizable_assets = seizable_assets;
+                }
                 Ok(seize_config)
             })?;
 

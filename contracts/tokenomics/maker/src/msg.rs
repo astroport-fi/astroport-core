@@ -132,11 +132,11 @@ pub enum ExecuteMsg {
     ClaimOwnership {},
     /// Permissionless: sends the given seizable assets to the seize receiver.
     Seize { assets: Vec<AssetWithLimit> },
-    /// Owner only. Resets the seizable assets to this list every time.
+    /// Owner only. Leaves unset fields as they are.
     UpdateSeizeConfig {
         receiver: Option<String>,
-        #[serde(default)]
-        seizable_assets: Vec<AssetInfo>,
+        /// Replaces the seizable assets as a whole. An empty list clears them
+        seizable_assets: Option<Vec<AssetInfo>>,
     },
 }
 
