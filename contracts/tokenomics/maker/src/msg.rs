@@ -74,20 +74,34 @@ pub struct InstantiateMsg {
     pub routes: Vec<(AssetInfo, Vec<SwapOperation>)>,
 }
 
-/// A fee token to collect, and optionally the most of it to swap in this call.
+/// An asset to seize, and optionally the most of it to send in this call.
 #[cw_serde]
 pub struct AssetWithLimit {
     pub info: AssetInfo,
     pub limit: Option<Uint128>,
 }
 
+/// A fee token to collect.
+#[cw_serde]
+pub struct CollectAsset {
+    pub info: AssetInfo,
+    /// The most of it to swap in this call. For the base asset, the most of it to split across
+    /// the legs.
+    pub limit: Option<Uint128>,
+    /// The least base asset its swap must return, e.g. from a quote taken elsewhere first. The
+    /// swap fails below it even where the Maker's own price check, which only sees the pool as
+    /// it is, would let it through. Ignored for the base asset and for amounts too small to
+    /// price.
+    pub min_receive: Option<Uint128>,
+}
+
 #[cw_serde]
 pub enum ExecuteMsg {
     /// Swaps the given fee tokens into the base asset along their routes, then splits the base
     /// asset across the legs. Anyone can call it, unless `collectors` is set.
-    Collect { assets: Vec<AssetWithLimit> },
-    /// Internal: splits the base asset across the legs.
-    Distribute {},
+    Collect { assets: Vec<CollectAsset> },
+    /// Internal: splits the base asset, or `limit` of it, across the legs.
+    Distribute { limit: Option<Uint128> },
     /// Internal: records the Maker's balance of a leg's output asset before its swap.
     SnapshotLeg { leg: u32 },
     /// Internal: deposits what a leg's swap produced.

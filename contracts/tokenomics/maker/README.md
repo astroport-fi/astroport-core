@@ -73,11 +73,17 @@ minimum_receive = amount * (probe_out / probe) * (1 - max_spread)
 ```
 
 A swap whose price impact is more than `max_spread` fails its minimum and reverts the whole collect. To collect a large
-balance, use `limit` and collect it in parts.
+balance, use `limit` and collect it in parts. The base asset takes a `limit` too: it caps how much of it is split across
+the legs, so a balance too big for a leg's route can be split in parts as well.
 
-Some fee amounts are too small to price, because their minimum comes out as zero. The Maker skips them, leaves them for a
-later collect and reports them with a `skipped_dust` attribute. A leg share that is too small to swap is also skipped and
-stays in the Maker for the next split.
+The probe only sets the rate if it returns at least 1000 units, so that integer rounding stays under 0.1% of it. For
+smaller amounts the Maker tries larger probes (a hundredth, a tenth, then the whole amount). What can't be priced even
+then is skipped, left for a later collect and reported with a `skipped_dust` attribute. A leg share that is too small to
+swap is also skipped and stays in the Maker for the next split.
+
+The Maker measures a swap against the pool as it is at execution, so it can't tell that the pool was pushed off market
+just before. A collector that quotes the price elsewhere first can pass `min_receive` with each fee token: the swap then
+fails below that floor too, whatever the pool says.
 
 `max_spread` is greater than zero and at most 50%. The default is 5%.
 
@@ -121,16 +127,19 @@ Swaps the listed fee tokens into the base asset, then splits the Maker's whole b
 Anyone can call it unless `collectors` is set:
 
 - `limit` caps how much of a token is swapped. Without it, the whole balance is swapped.
+- `min_receive` is the least base asset the token's swap must return, on top of the Maker's own price check.
+- Every listed token needs a route, even one with no balance.
 - An empty list only splits the base asset the Maker already holds.
-- The base asset can be listed, but it isn't swapped.
+- The base asset can be listed, but it isn't swapped; its `limit` caps how much of it is split across the legs.
 - If a cooldown is set, `collect` fails until the cooldown has passed since the last collect.
 
 ```json
 {
   "collect": {
     "assets": [
-      { "info": { "native_token": { "denom": "uluna" } }, "limit": "1000000" },
-      { "info": { "token": { "contract_addr": "terra..." } } }
+      { "info": { "native_token": { "denom": "uluna" } }, "limit": "1000000", "min_receive": "950000" },
+      { "info": { "token": { "contract_addr": "terra..." } } },
+      { "info": { "native_token": { "denom": "usdc" } }, "limit": "5000000" }
     ]
   }
 }

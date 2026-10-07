@@ -18,7 +18,7 @@
             "assets": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/AssetWithLimit"
+                "$ref": "#/definitions/CollectAsset"
               }
             }
           },
@@ -28,7 +28,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Internal: splits the base asset across the legs.",
+      "description": "Internal: splits the base asset, or `limit` of it, across the legs.",
       "type": "object",
       "required": [
         "distribute"
@@ -36,6 +36,18 @@
       "properties": {
         "distribute": {
           "type": "object",
+          "properties": {
+            "limit": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Uint128"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
           "additionalProperties": false
         }
       },
@@ -368,7 +380,7 @@
       ]
     },
     "AssetWithLimit": {
-      "description": "A fee token to collect, and optionally the most of it to swap in this call.",
+      "description": "An asset to seize, and optionally the most of it to send in this call.",
       "type": "object",
       "required": [
         "info"
@@ -393,6 +405,41 @@
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
       "type": "string"
+    },
+    "CollectAsset": {
+      "description": "A fee token to collect.",
+      "type": "object",
+      "required": [
+        "info"
+      ],
+      "properties": {
+        "info": {
+          "$ref": "#/definitions/AssetInfo"
+        },
+        "limit": {
+          "description": "The most of it to swap in this call. For the base asset, the most of it to split across the legs.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_receive": {
+          "description": "The least base asset its swap must return, e.g. from a quote taken elsewhere first. The swap fails below it even where the Maker's own price check, which only sees the pool as it is, would let it through. Ignored for the base asset and for amounts too small to price.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Uint128"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
     },
     "Decimal": {
       "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",

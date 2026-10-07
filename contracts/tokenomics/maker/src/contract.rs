@@ -12,8 +12,8 @@ use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_ow
 use crate::error::ContractError;
 use crate::migration;
 use crate::msg::{
-    AssetWithLimit, BalancesResponse, Config, ExecuteMsg, InstantiateMsg, LegAction, MigrateMsg,
-    QueryMsg, RouteResponse, SeizeConfig, SwapOperation,
+    AssetWithLimit, BalancesResponse, CollectAsset, Config, ExecuteMsg, InstantiateMsg, LegAction,
+    MigrateMsg, QueryMsg, RouteResponse, SeizeConfig, SwapOperation,
 };
 use crate::state::{
     CONFIG, LAST_COLLECT_TS, LEG_SNAPSHOT, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG,
@@ -87,9 +87,9 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Collect { assets } => collect(deps, env, info, assets),
-        ExecuteMsg::Distribute {} => {
+        ExecuteMsg::Distribute { limit } => {
             ensure_self(&env, &info)?;
-            distribute(deps, env)
+            distribute(deps, env, limit)
         }
         ExecuteMsg::SnapshotLeg { leg } => {
             ensure_self(&env, &info)?;
@@ -251,7 +251,7 @@ fn collect(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    assets: Vec<AssetWithLimit>,
+    assets: Vec<CollectAsset>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -274,18 +274,12 @@ fn collect(
     ensure_unique(assets.iter().map(|a| &a.info))?;
 
     let mut response = Response::new().add_attribute("action", "collect");
+    let mut base_limit = None;
 
     for asset in assets {
         // the base asset isn't swapped, it's split across the legs below
         if asset.info == config.base_asset {
-            continue;
-        }
-
-        let balance = asset
-            .info
-            .query_pool(&deps.querier, &env.contract.address)?;
-        let amount = asset.limit.map_or(balance, |limit| limit.min(balance));
-        if amount.is_zero() {
+            base_limit = asset.limit;
             continue;
         }
 
@@ -302,6 +296,14 @@ fn collect(
             }
         );
 
+        let balance = asset
+            .info
+            .query_pool(&deps.querier, &env.contract.address)?;
+        let amount = asset.limit.map_or(balance, |limit| limit.min(balance));
+        if amount.is_zero() {
+            continue;
+        }
+
         let minimum = minimum_receive(
             &deps.querier,
             config.router.as_str(),
@@ -313,6 +315,8 @@ fn collect(
             response = response.add_attribute("skipped_dust", asset.info.to_string());
             continue;
         }
+        // the caller's own floor, from a quote taken elsewhere, on top of the Maker's
+        let minimum = minimum.max(asset.min_receive.unwrap_or_default());
 
         response = response
             .add_message(swap_msg(
@@ -327,18 +331,19 @@ fn collect(
 
     Ok(response.add_message(wasm_execute(
         env.contract.address,
-        &ExecuteMsg::Distribute {},
+        &ExecuteMsg::Distribute { limit: base_limit },
         vec![],
     )?))
 }
 
-/// Splits the Maker's whole base asset balance across the legs by share. The last leg gets
-/// what rounding leaves, so nothing is left behind.
-fn distribute(deps: DepsMut, env: Env) -> Result<Response, ContractError> {
+/// Splits the Maker's base asset balance, or `limit` of it, across the legs by share. The last
+/// leg gets what rounding leaves, so nothing is left behind.
+fn distribute(deps: DepsMut, env: Env, limit: Option<Uint128>) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let balance = config
         .base_asset
         .query_pool(&deps.querier, &env.contract.address)?;
+    let balance = limit.map_or(balance, |limit| limit.min(balance));
 
     let mut response = Response::new().add_attribute("action", "distribute");
     if balance.is_zero() {

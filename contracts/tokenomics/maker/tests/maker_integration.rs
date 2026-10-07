@@ -11,8 +11,8 @@ use astroport::asset::{native_asset_info, token_asset_info, AssetInfo, PairInfo}
 use astroport::factory::{PairConfig, PairType};
 use astroport_maker::error::ContractError;
 use astroport_maker::msg::{
-    AssetWithLimit, Config, ExecuteMsg, InstantiateMsg, Leg, LegAction, MigrateMsg, QueryMsg,
-    RouteResponse, SeizeConfig, SwapOperation,
+    AssetWithLimit, CollectAsset, Config, ExecuteMsg, InstantiateMsg, Leg, LegAction, MigrateMsg,
+    QueryMsg, RouteResponse, SeizeConfig, SwapOperation,
 };
 use astroport_test::cw_multi_test::{
     AppBuilder, AppResponse, BankSudo, Contract, ContractWrapper, Executor,
@@ -382,18 +382,30 @@ impl Suite {
         maker: &Addr,
         assets: &[(&AssetInfo, Option<u128>)],
     ) -> anyhow::Result<AppResponse> {
+        self.collect_assets(
+            sender,
+            maker,
+            assets
+                .iter()
+                .map(|(info, limit)| CollectAsset {
+                    info: (*info).clone(),
+                    limit: limit.map(Uint128::new),
+                    min_receive: None,
+                })
+                .collect(),
+        )
+    }
+
+    fn collect_assets(
+        &mut self,
+        sender: &Addr,
+        maker: &Addr,
+        assets: Vec<CollectAsset>,
+    ) -> anyhow::Result<AppResponse> {
         self.app.execute_contract(
             sender.clone(),
             maker.clone(),
-            &ExecuteMsg::Collect {
-                assets: assets
-                    .iter()
-                    .map(|(info, limit)| AssetWithLimit {
-                        info: (*info).clone(),
-                        limit: limit.map(Uint128::new),
-                    })
-                    .collect(),
-            },
+            &ExecuteMsg::Collect { assets },
             &[],
         )
     }
@@ -795,7 +807,7 @@ fn owner_updates_config_and_routes() {
         },
         LegAction::Deposit {
             contract: maker.to_string(),
-            msg: to_json_binary(&ExecuteMsg::Distribute {}).unwrap(),
+            msg: to_json_binary(&ExecuteMsg::Distribute { limit: None }).unwrap(),
         },
     ] {
         let res =
@@ -843,7 +855,11 @@ fn owner_updates_config_and_routes() {
     );
     assert_eq!(err(res), ContractError::Unauthorized {});
 
-    // a fee token without a route can't be collected
+    // a fee token without a route can't be collected, even with no balance
+    assert!(matches!(
+        err(suite.collect(&maker, &[(&luna, None)])),
+        ContractError::NoRoute { .. }
+    ));
     suite.fund(&maker, &luna, 1_000000);
     assert!(matches!(
         err(suite.collect(&maker, &[(&luna, None)])),
@@ -960,7 +976,7 @@ fn internal_messages_are_self_only() {
         .unwrap();
 
     for msg in [
-        ExecuteMsg::Distribute {},
+        ExecuteMsg::Distribute { limit: None },
         ExecuteMsg::SnapshotLeg { leg: 0 },
         ExecuteMsg::DepositLeg { leg: 0 },
     ] {
@@ -1345,4 +1361,224 @@ fn collectors_restrict_collect() {
     suite.fund(&maker, &luna, 1_000000);
     suite.collect(&maker, &[(&luna, None)]).unwrap();
     assert_eq!(suite.balance(&maker, &luna), 0);
+}
+
+/// `min_receive` given with a fee token is a floor on top of the Maker's own check. The Maker
+/// measures a swap against the pool as it is, so it can't see that the pool was pushed off
+/// market just before; a floor from a quote taken elsewhere can.
+#[test]
+fn min_receive_floor_catches_a_skewed_pool() {
+    let mut suite = Suite::new();
+    let (luna, usdc) = (
+        native_asset_info(LUNA.to_string()),
+        native_asset_info(USDC.to_string()),
+    );
+    suite.pool(&luna, &usdc);
+    let keeper = Addr::unchecked("keeper");
+    let dev_dao = Addr::unchecked("dev_dao");
+
+    let maker = suite
+        .maker(InstantiateMsg {
+            owner: OWNER.to_string(),
+            router: suite.router.to_string(),
+            base_asset: usdc.clone(),
+            max_spread: Some(Decimal::percent(5)),
+            collect_cooldown: None,
+            collectors: vec![keeper.to_string()],
+            legs: vec![Leg {
+                share: Decimal::one(),
+                route: vec![],
+                action: LegAction::Send {
+                    recipient: dev_dao.to_string(),
+                },
+            }],
+            routes: vec![(luna.clone(), vec![hop(&luna, &usdc)])],
+        })
+        .unwrap();
+
+    // the keeper quotes the route first and allows 1% under it
+    let fees = POOL_DEPTH / 100;
+    let quote: astroport_router::msg::SimulateSwapOperationsResponse = suite
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &suite.router,
+            &astroport_router::msg::QueryMsg::SimulateSwapOperations {
+                offer_amount: Uint128::new(fees),
+                operations: vec![hop(&luna, &usdc)],
+            },
+        )
+        .unwrap();
+    let floor = quote.amount.u128() * 99 / 100;
+    let with_floor = vec![CollectAsset {
+        info: luna.clone(),
+        limit: None,
+        min_receive: Some(Uint128::new(floor)),
+    }];
+
+    // an honest collect clears the floor
+    suite.fund(&maker, &luna, fees);
+    suite
+        .collect_assets(&keeper, &maker, with_floor.clone())
+        .unwrap();
+    assert!(suite.balance(&dev_dao, &usdc) >= floor);
+
+    // someone pushes LUNA's price in the pool far down just before the next collect
+    suite.fund(&maker, &luna, fees);
+    let attacker = Addr::unchecked("attacker");
+    suite.fund(&attacker, &luna, POOL_DEPTH / 2);
+    suite
+        .app
+        .execute_contract(
+            attacker,
+            suite.router.clone(),
+            &astroport_router::msg::ExecuteMsg::ExecuteSwapOperations {
+                operations: vec![hop(&luna, &usdc)],
+                minimum_receive: Uint128::one(),
+                to: None,
+            },
+            &coins(POOL_DEPTH / 2, LUNA),
+        )
+        .unwrap();
+
+    // the floor fails the swap and nothing moves
+    let paid_before = suite.balance(&dev_dao, &usdc);
+    let e = suite
+        .collect_assets(&keeper, &maker, with_floor)
+        .unwrap_err()
+        .root_cause()
+        .to_string();
+    assert!(e.contains("minimum receive"), "{e}");
+    assert_eq!(suite.balance(&maker, &luna), fees);
+
+    // without it the Maker's own check lets the same swap through at the skewed price
+    suite.collect_as(&keeper, &maker, &[(&luna, None)]).unwrap();
+    let paid = suite.balance(&dev_dao, &usdc) - paid_before;
+    assert!(paid < floor / 2, "paid {paid} against a floor of {floor}");
+}
+
+/// The base asset's `limit` caps how much of it is split across the legs, so a balance too big
+/// for a leg's route is split in parts instead of blocking every collect.
+#[test]
+fn base_asset_limit_caps_the_split() {
+    let mut suite = Suite::new();
+    let (luna, usdc, astro) = (
+        native_asset_info(LUNA.to_string()),
+        native_asset_info(USDC.to_string()),
+        native_asset_info(ASTRO.to_string()),
+    );
+    suite.pool(&luna, &usdc);
+    suite.pool(&usdc, &astro);
+    let burner = Addr::unchecked("burner");
+
+    let maker = suite
+        .maker(InstantiateMsg {
+            owner: OWNER.to_string(),
+            router: suite.router.to_string(),
+            base_asset: usdc.clone(),
+            max_spread: Some(Decimal::percent(5)),
+            collect_cooldown: None,
+            collectors: vec![],
+            legs: vec![Leg {
+                share: Decimal::one(),
+                route: vec![hop(&usdc, &astro)],
+                action: LegAction::Send {
+                    recipient: burner.to_string(),
+                },
+            }],
+            routes: vec![(luna.clone(), vec![hop(&luna, &usdc)])],
+        })
+        .unwrap();
+
+    // a fifth of the leg pool's depth in USDC, plus some fees
+    let stuck = POOL_DEPTH / 5;
+    suite.fund(&maker, &usdc, stuck);
+    suite.fund(&maker, &luna, 1_000000);
+
+    // splitting it all moves the leg's pool more than 5%: every uncapped collect fails
+    for assets in [vec![], vec![(&luna, None)]] {
+        let e = suite
+            .collect(&maker, &assets)
+            .unwrap_err()
+            .root_cause()
+            .to_string();
+        assert!(e.contains("minimum receive"), "{e}");
+    }
+
+    // capped, the fees are swapped and a slice of the base asset is split
+    suite
+        .collect(&maker, &[(&luna, None), (&usdc, Some(10_000000))])
+        .unwrap();
+    assert_eq!(suite.balance(&maker, &luna), 0);
+    let left = suite.balance(&maker, &usdc);
+    assert!(
+        left > stuck - 10_000000 && left < stuck - 9_000000,
+        "left {left}"
+    );
+    let out = suite.balance(&burner, &astro);
+    assert!(out > 9_900000 && out <= 10_000000, "burner got {out}");
+}
+
+/// Small amounts are priced with a larger probe: the integer rounding of a tiny probe output
+/// would otherwise put the minimum far below the route's rate. What even the whole amount can't
+/// price is dust.
+#[test]
+fn small_amounts_use_a_larger_probe() {
+    use cosmwasm_std::testing::MockQuerier;
+    use cosmwasm_std::{from_json, ContractResult, QuerierWrapper, SystemResult, WasmQuery};
+
+    // a route paying 0.9995 per unit, floored like a pool does
+    let rate = Decimal::from_ratio(9995u128, 10000u128);
+    let mut querier = MockQuerier::default();
+    querier.update_wasm(move |req| match req {
+        WasmQuery::Smart { msg, .. } => {
+            let astroport_router::msg::QueryMsg::SimulateSwapOperations { offer_amount, .. } =
+                from_json(msg).unwrap()
+            else {
+                panic!("unexpected query");
+            };
+            SystemResult::Ok(ContractResult::Ok(
+                to_json_binary(&astroport_router::msg::SimulateSwapOperationsResponse {
+                    amount: offer_amount * rate,
+                })
+                .unwrap(),
+            ))
+        }
+        _ => panic!("unexpected query"),
+    });
+    let querier = QuerierWrapper::new(&querier);
+    let (luna, usdc) = (
+        native_asset_info(LUNA.to_string()),
+        native_asset_info(USDC.to_string()),
+    );
+    let route = vec![hop(&luna, &usdc)];
+    let minimum = |amount: u128| {
+        astroport_maker::utils::minimum_receive(
+            &querier,
+            "router",
+            &route,
+            Uint128::new(amount),
+            Decimal::percent(5),
+        )
+        .unwrap()
+        .u128()
+    };
+    // 5% under the fair value, give or take the probe's own rounding
+    let within_spread = |minimum: u128, amount: u128| {
+        let fair = amount * 9995 / 10000;
+        assert!(
+            minimum >= fair * 949 / 1000 && minimum <= fair * 95 / 100,
+            "{minimum} for {amount} (fair {fair})"
+        );
+    };
+
+    // 3_000: a thousandth prices as 2 (2.9985 floored), which would put the minimum at 1_900,
+    // 37% under the fair 2_998; the whole amount is used instead
+    assert_eq!(minimum(3_000), 2_998 * 95 / 100);
+    // 300_000: a thousandth prices as 299, a hundredth as 2_998 and is used
+    within_spread(minimum(300_000), 300_000);
+    // large amounts use a thousandth
+    within_spread(minimum(3_000_000), 3_000_000);
+    // under 1_000 out even the whole amount can't be priced: dust
+    assert_eq!(minimum(999), 0);
 }

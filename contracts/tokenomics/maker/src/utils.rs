@@ -19,8 +19,13 @@ use crate::msg::{Leg, LegAction, SwapOperation, COOLDOWN_LIMITS, MAX_LEGS};
 
 /// The most hops a route may have.
 pub const MAX_ROUTE_HOPS: usize = 5;
-/// The probe used to find a route's no-impact rate is this fraction of the amount swapped.
-const PROBE_DIVISOR: u128 = 1000;
+/// Probe sizes tried in turn, as fractions of the amount swapped: the first whose output is at
+/// least [`MIN_PROBE_OUT`] sets the route's rate. A smaller probe has less price impact of its
+/// own; a larger one is needed for small amounts, where the integer rounding of a tiny output
+/// would distort the rate.
+const PROBE_DIVISORS: [u128; 4] = [1000, 100, 10, 1];
+/// The least a probe may return for its rate to be used: its rounding is then under 0.1%.
+const MIN_PROBE_OUT: u128 = 1_000;
 
 pub fn op_assets(op: &SwapOperation) -> (&AssetInfo, &AssetInfo) {
     match op {
@@ -201,8 +206,8 @@ pub fn cooldown_or_none(cooldown: Option<u64>) -> Option<u64> {
 }
 
 /// The least a swap of `amount` along `route` may return: its value at the route's rate for a
-/// tiny amount (a probe of a thousandth of it), less `max_spread`. A swap whose price impact is
-/// more than `max_spread` fails its minimum and reverts.
+/// small probe (see [`PROBE_DIVISORS`]), less `max_spread`. A swap whose price impact is more
+/// than `max_spread` fails its minimum and reverts.
 ///
 /// Returns zero for dust that's too small to price, which the caller skips.
 pub fn minimum_receive(
@@ -212,21 +217,28 @@ pub fn minimum_receive(
     amount: Uint128,
     max_spread: Decimal,
 ) -> Result<Uint128, ContractError> {
-    let probe = amount.checked_div(Uint128::new(PROBE_DIVISOR))?;
-    // amounts under the divisor are too small to move a pool, so they're priced as they are
-    let probe = if probe.is_zero() { amount } else { probe };
+    for divisor in PROBE_DIVISORS {
+        let probe = amount.checked_div(Uint128::new(divisor))?;
+        if probe.is_zero() {
+            continue;
+        }
 
-    let probe_out: SimulateSwapOperationsResponse = querier.query_wasm_smart(
-        router,
-        &RouterQueryMsg::SimulateSwapOperations {
-            offer_amount: probe,
-            operations: route.to_vec(),
-        },
-    )?;
+        let probe_out: SimulateSwapOperationsResponse = querier.query_wasm_smart(
+            router,
+            &RouterQueryMsg::SimulateSwapOperations {
+                offer_amount: probe,
+                operations: route.to_vec(),
+            },
+        )?;
+        if probe_out.amount.u128() < MIN_PROBE_OUT {
+            continue;
+        }
 
-    let expected = amount.checked_multiply_ratio(probe_out.amount, probe)?;
+        let expected = amount.checked_multiply_ratio(probe_out.amount, probe)?;
+        return Ok(expected * (Decimal::one() - max_spread));
+    }
 
-    Ok(expected * (Decimal::one() - max_spread))
+    Ok(Uint128::zero())
 }
 
 /// Swaps `offer` along `route` through the router, sending the output to `to` (the Maker if
