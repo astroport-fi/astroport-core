@@ -1,6 +1,8 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    entry_point, from_json, to_json_binary, wasm_execute, Addr, Api, Binary, Deps, DepsMut, Empty,
-    Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult, Uint128,
+    from_json, to_json_binary, wasm_execute, Addr, Api, Binary, Deps, DepsMut, Empty, Env,
+    MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
 use cw20::Cw20ReceiveMsg;

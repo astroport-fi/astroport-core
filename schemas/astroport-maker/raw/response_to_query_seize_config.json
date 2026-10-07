@@ -8,7 +8,7 @@
   ],
   "properties": {
     "receiver": {
-      "description": "The address of the contract that will receive the seized tokens",
+      "description": "Address that receives seized assets",
       "allOf": [
         {
           "$ref": "#/definitions/Addr"
@@ -16,7 +16,7 @@
       ]
     },
     "seizable_assets": {
-      "description": "The assets that can be seized",
+      "description": "Assets that can be seized",
       "type": "array",
       "items": {
         "$ref": "#/definitions/AssetInfo"

@@ -44,17 +44,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3d1d046238990b9cf5bcde22a3fb3584ee5cf65fb2765f454ed428c7a0063da"
 
 [[package]]
-name = "astro-satellite-package"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "893363819104a2a4685d99f19e35e5d81102fb782e622619ac643e54ff65d638"
-dependencies = [
- "astroport-governance",
- "cosmwasm-schema",
- "cosmwasm-std",
-]
-
-[[package]]
 name = "astro-token-converter"
 version = "1.1.0"
 dependencies = [
@@ -167,6 +156,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-astro-burner"
+version = "1.0.0"
+dependencies = [
+ "astroport 5.14.1",
+ "astroport-test",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw2 1.1.2",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-circular-buffer"
 version = "0.2.0"
 dependencies = [
@@ -225,19 +227,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "astroport-governance"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72806ace350e81c4e1cab7e275ef91f05bad830275d697d67ad1bd4acc6f016d"
-dependencies = [
- "astroport 2.9.5",
- "cosmwasm-schema",
- "cosmwasm-std",
- "cw-storage-plus 0.15.1",
- "cw20 0.15.1",
-]
-
-[[package]]
 name = "astroport-incentives"
 version = "1.4.0"
 dependencies = [
@@ -265,15 +254,16 @@ dependencies = [
 
 [[package]]
 name = "astroport-maker"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
- "astro-satellite-package",
  "astroport 5.14.1",
+ "astroport-astro-burner",
  "astroport-factory 1.10.0",
  "astroport-native-coin-registry 1.1.0",
  "astroport-pair 2.2.0",
  "astroport-pair-stable",
+ "astroport-router",
  "astroport-test",
  "cosmwasm-schema",
  "cosmwasm-std",
@@ -281,6 +271,8 @@ dependencies = [
  "cw2 1.1.2",
  "cw20 1.1.2",
  "cw20-base 1.1.2",
+ "serde",
+ "serde_json",
  "thiserror",
 ]
 

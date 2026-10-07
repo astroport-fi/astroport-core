@@ -1,42 +1,35 @@
-use std::cmp::min;
-use std::collections::{HashMap, HashSet};
-use std::str::FromStr;
+use std::collections::HashSet;
 
 use cosmwasm_std::{
-    attr, ensure, ensure_eq, entry_point, to_json_binary, to_json_string, Addr, Attribute, Binary,
-    Decimal, Deps, DepsMut, Env, MessageInfo, Order, ReplyOn, Response, StdError, StdResult,
-    SubMsg, Uint128, Uint64,
+    attr, ensure, ensure_eq, entry_point, to_json_binary, wasm_execute, Addr, Binary, Decimal,
+    Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult, Uint128,
 };
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 
-use astroport::asset::{addr_opt_validate, Asset, AssetInfo, AssetInfoExt};
+use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::factory::UpdateAddr;
-use astroport::maker::{
-    AssetWithLimit, BalancesResponse, Config, ConfigResponse, ExecuteMsg, InstantiateMsg,
-    MigrateMsg, QueryMsg, SecondReceiverConfig, SecondReceiverParams, SeizeConfig,
-    UpdateDevFundConfig,
-};
-use astroport::pair::MAX_ALLOWED_SLIPPAGE;
 
 use crate::error::ContractError;
-use crate::migration::migrate_from_v120_plus;
-use crate::reply::PROCESS_DEV_FUND_REPLY_ID;
-use crate::state::{BRIDGES, CONFIG, LAST_COLLECT_TS, OWNERSHIP_PROPOSAL, SEIZE_CONFIG};
+use crate::migration;
+use crate::msg::{
+    AssetWithLimit, BalancesResponse, CollectAsset, Config, ExecuteMsg, InstantiateMsg, LegAction,
+    MigrateMsg, QueryMsg, RouteResponse, SeizeConfig, SwapOperation,
+};
+use crate::state::{
+    CONFIG, LAST_COLLECT_TS, LEG_SNAPSHOT, OWNERSHIP_PROPOSAL, ROUTES, SEIZE_CONFIG,
+};
 use crate::utils::{
-    build_distribute_msg, build_send_msg, build_swap_msg, get_pool, try_build_swap_msg,
-    update_second_receiver_cfg, validate_bridge, validate_cooldown, BRIDGES_EXECUTION_MAX_DEPTH,
-    BRIDGES_INITIAL_DEPTH,
+    cooldown_or_none, deposit_msg, ensure_unique, minimum_receive, route_output, swap_msg,
+    validate_collectors, validate_cooldown, validate_legs, validate_max_spread, validate_route,
 };
 
 /// Contract name that is used for migration.
-const CONTRACT_NAME: &str = "astroport-maker";
+pub(crate) const CONTRACT_NAME: &str = "astroport-maker";
 /// Contract version that is used for migration.
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-/// Sets the default maximum spread (as a percentage) used when swapping fee tokens to ASTRO.
-const DEFAULT_MAX_SPREAD: u64 = 5; // 5%
+pub(crate) const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+/// Default max spread (as a percentage) for the Maker's swaps.
+const DEFAULT_MAX_SPREAD: u64 = 5;
 
-/// Creates a new contract with the specified parameters in [`InstantiateMsg`].
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -45,146 +38,46 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    let governance_contract = addr_opt_validate(deps.api, &msg.governance_contract)?;
 
-    let governance_percent = if let Some(governance_percent) = msg.governance_percent {
-        if governance_percent > Uint64::new(100) {
-            return Err(ContractError::IncorrectGovernancePercent {});
-        };
-        governance_percent
-    } else {
-        Uint64::zero()
-    };
-
-    if msg.staking_contract.is_none() && governance_percent != Uint64::new(100) {
-        return Err(ContractError::GovernancePercentMustBe100 {});
-    }
-
-    let max_spread = if let Some(max_spread) = msg.max_spread {
-        if max_spread.is_zero() || max_spread.gt(&Decimal::from_str(MAX_ALLOWED_SLIPPAGE)?) {
-            return Err(ContractError::IncorrectMaxSpread {});
-        };
-
-        max_spread
-    } else {
-        Decimal::percent(DEFAULT_MAX_SPREAD)
-    };
-
-    msg.astro_token.check(deps.api)?;
-
-    if let Some(default_bridge) = &msg.default_bridge {
-        default_bridge.check(deps.api)?
-    }
-
-    validate_cooldown(msg.collect_cooldown)?;
-    LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
-
-    let mut cfg = Config {
+    let config = Config {
         owner: deps.api.addr_validate(&msg.owner)?,
-        default_bridge: msg.default_bridge,
-        astro_token: msg.astro_token,
-        factory_contract: deps.api.addr_validate(&msg.factory_contract)?,
-        staking_contract: addr_opt_validate(deps.api, &msg.staking_contract)?,
-        rewards_enabled: false,
-        pre_upgrade_blocks: 0,
-        last_distribution_block: 0,
-        remainder_reward: Uint128::zero(),
-        pre_upgrade_astro_amount: Uint128::zero(),
-        governance_contract,
-        governance_percent,
-        max_spread,
-        second_receiver_cfg: None,
-        collect_cooldown: msg.collect_cooldown,
-        dev_fund_conf: None,
+        router: deps.api.addr_validate(&msg.router)?,
+        base_asset: msg.base_asset,
+        max_spread: msg
+            .max_spread
+            .unwrap_or_else(|| Decimal::percent(DEFAULT_MAX_SPREAD)),
+        collect_cooldown: cooldown_or_none(msg.collect_cooldown),
+        collectors: validate_collectors(deps.api, &msg.collectors)?,
+        legs: msg.legs,
     };
+    validate_config(deps.as_ref(), &env, &config)?;
+    CONFIG.save(deps.storage, &config)?;
 
-    update_second_receiver_cfg(deps.as_ref(), &mut cfg, &msg.second_receiver_params)?;
+    set_routes(
+        deps.storage,
+        deps.api,
+        &config.base_asset,
+        msg.routes,
+        vec![],
+    )?;
 
-    if cfg.staking_contract.is_none() && cfg.governance_contract.is_none() {
-        return Err(
-            StdError::generic_err("Either staking or governance contract must be set").into(),
-        );
-    }
-
-    CONFIG.save(deps.storage, &cfg)?;
-
-    let (second_fee_receiver, second_receiver_cut) = if let Some(SecondReceiverConfig {
-        second_fee_receiver,
-        second_receiver_cut,
-    }) = cfg.second_receiver_cfg
-    {
-        (
-            second_fee_receiver.to_string(),
-            second_receiver_cut.to_string(),
-        )
-    } else {
-        (String::from("none"), String::from("0"))
-    };
-
+    LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
     SEIZE_CONFIG.save(
         deps.storage,
         &SeizeConfig {
-            // set to invalid address initially
-            // governance must update this explicitly
+            // set to an invalid address initially; the owner must set it explicitly
             receiver: Addr::unchecked(""),
             seizable_assets: vec![],
         },
     )?;
 
-    Ok(Response::default().add_attributes([
-        attr("owner", msg.owner),
-        attr(
-            "default_bridge",
-            cfg.default_bridge
-                .map(|v| v.to_string())
-                .unwrap_or_else(|| String::from("none")),
-        ),
-        attr("astro_token", cfg.astro_token.to_string()),
-        attr("factory_contract", msg.factory_contract),
-        attr(
-            "staking_contract",
-            msg.staking_contract.unwrap_or_else(|| String::from("none")),
-        ),
-        attr(
-            "governance_contract",
-            msg.governance_contract
-                .unwrap_or_else(|| String::from("none")),
-        ),
-        attr("governance_percent", governance_percent),
-        attr("max_spread", max_spread.to_string()),
-        attr("second_fee_receiver", second_fee_receiver),
-        attr("second_receiver_cut", second_receiver_cut),
+    Ok(Response::new().add_attributes([
+        attr("action", "instantiate"),
+        attr("owner", config.owner),
+        attr("base_asset", config.base_asset.to_string()),
     ]))
 }
 
-/// Exposes execute functions available in the contract.
-///
-/// ## Variants
-/// * **ExecuteMsg::Collect { assets }** Swaps collected fee tokens to ASTRO
-///   and distributes the ASTRO between xASTRO and vxASTRO stakers.
-///
-/// * **ExecuteMsg::UpdateConfig {
-///             factory_contract,
-///             staking_contract,
-///             governance_contract,
-///             governance_percent,
-///             max_spread,
-///             second_receiver_params,
-///         }** Updates general contract settings stores in the [`Config`].
-///
-/// * **ExecuteMsg::UpdateBridges { add, remove }** Adds or removes bridge assets used to swap fee tokens to ASTRO.
-///
-/// * **ExecuteMsg::SwapBridgeAssets { assets }** Swap fee tokens (through bridges) to ASTRO.
-///
-/// * **ExecuteMsg::DistributeAstro {}** Private method used by the contract to distribute ASTRO rewards.
-///
-/// * **ExecuteMsg::ProposeNewOwner { owner, expires_in }** Creates a new request to change contract ownership.
-///
-/// * **ExecuteMsg::DropOwnershipProposal {}** Removes a request to change contract ownership.
-///
-/// * **ExecuteMsg::ClaimOwnership {}** Claims contract ownership.
-///
-/// * **ExecuteMsg::EnableRewards** Enables collected ASTRO (pre Maker upgrade) to be distributed to xASTRO stakers.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
@@ -193,39 +86,65 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::Collect { assets } => collect(deps, env, assets),
-        ExecuteMsg::UpdateConfig {
-            factory_contract,
-            staking_contract,
-            governance_contract,
-            governance_percent,
-            basic_asset,
-            max_spread,
-            second_receiver_params,
-            collect_cooldown,
-            astro_token,
-            dev_fund_config,
-        } => update_config(
-            deps,
-            info,
-            factory_contract,
-            staking_contract,
-            governance_contract,
-            governance_percent,
-            basic_asset,
-            max_spread,
-            second_receiver_params,
-            collect_cooldown,
-            astro_token,
-            dev_fund_config,
-        ),
-        ExecuteMsg::UpdateBridges { add, remove } => update_bridges(deps, info, add, remove),
-        ExecuteMsg::SwapBridgeAssets { assets, depth } => {
-            swap_bridge_assets(deps, env, info, assets, depth)
+        ExecuteMsg::Collect { assets } => collect(deps, env, info, assets),
+        ExecuteMsg::Distribute { limit } => {
+            ensure_self(&env, &info)?;
+            distribute(deps, env, limit)
         }
-        ExecuteMsg::DistributeAstro {} => distribute_astro(deps, env, info),
+        ExecuteMsg::SnapshotLeg { leg } => {
+            ensure_self(&env, &info)?;
+            snapshot_leg(deps, env, leg)
+        }
+        ExecuteMsg::DepositLeg { leg } => {
+            ensure_self(&env, &info)?;
+            deposit_leg(deps, env, leg)
+        }
+        ExecuteMsg::UpdateConfig {
+            router,
+            base_asset,
+            max_spread,
+            collect_cooldown,
+            collectors,
+            legs,
+        } => {
+            let mut config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            if let Some(router) = router {
+                config.router = deps.api.addr_validate(&router)?;
+            }
+            if let Some(base_asset) = base_asset {
+                config.base_asset = base_asset;
+            }
+            if let Some(max_spread) = max_spread {
+                config.max_spread = max_spread;
+            }
+            if let Some(collect_cooldown) = collect_cooldown {
+                config.collect_cooldown = cooldown_or_none(Some(collect_cooldown));
+            }
+            if let Some(collectors) = collectors {
+                config.collectors = validate_collectors(deps.api, &collectors)?;
+            }
+            if let Some(legs) = legs {
+                config.legs = legs;
+            }
+
+            // checked as a whole, so a new base asset must come with legs that start from it
+            validate_config(deps.as_ref(), &env, &config)?;
+            CONFIG.save(deps.storage, &config)?;
+
+            Ok(Response::new().add_attribute("action", "update_config"))
+        }
+        ExecuteMsg::UpdateRoutes { add, remove } => {
+            let config = CONFIG.load(deps.storage)?;
+            ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
+
+            set_routes(deps.storage, deps.api, &config.base_asset, add, remove)?;
+
+            Ok(Response::new().add_attribute("action", "update_routes"))
+        }
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             propose_new_owner(
                 deps,
@@ -239,7 +158,7 @@ pub fn execute(
             .map_err(Into::into)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
-            let config: Config = CONFIG.load(deps.storage)?;
+            let config = CONFIG.load(deps.storage)?;
 
             drop_ownership_proposal(deps, info, config.owner, OWNERSHIP_PROPOSAL)
                 .map_err(Into::into)
@@ -255,46 +174,21 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
-        ExecuteMsg::EnableRewards { blocks } => {
-            let mut config: Config = CONFIG.load(deps.storage)?;
-
-            // Permission check
-            if info.sender != config.owner {
-                return Err(ContractError::Unauthorized {});
-            }
-
-            // Can be enabled only once
-            if config.rewards_enabled {
-                return Err(ContractError::RewardsAlreadyEnabled {});
-            }
-
-            if blocks == 0 {
-                return Err(ContractError::Std(StdError::generic_err(
-                    "Number of blocks should be > 0",
-                )));
-            }
-
-            config.rewards_enabled = true;
-            config.pre_upgrade_blocks = blocks;
-            config.last_distribution_block = env.block.height;
-            CONFIG.save(deps.storage, &config)?;
-
-            Ok(Response::default().add_attribute("action", "enable_rewards"))
-        }
         ExecuteMsg::Seize { assets } => seize(deps, env, assets),
         ExecuteMsg::UpdateSeizeConfig {
             receiver,
             seizable_assets,
         } => {
             let config = CONFIG.load(deps.storage)?;
-
             ensure_eq!(info.sender, config.owner, ContractError::Unauthorized {});
 
             SEIZE_CONFIG.update::<_, StdError>(deps.storage, |mut seize_config| {
                 if let Some(receiver) = receiver {
                     seize_config.receiver = deps.api.addr_validate(&receiver)?;
                 }
-                seize_config.seizable_assets = seizable_assets;
+                if let Some(seizable_assets) = seizable_assets {
+                    seize_config.seizable_assets = seizable_assets;
+                }
                 Ok(seize_config)
             })?;
 
@@ -303,18 +197,74 @@ pub fn execute(
     }
 }
 
-/// Swaps fee tokens to ASTRO and distribute the resulting ASTRO to xASTRO and vxASTRO stakers.
-///
-/// * **assets** array with fee tokens being swapped to ASTRO.
+fn ensure_self(env: &Env, info: &MessageInfo) -> Result<(), ContractError> {
+    ensure_eq!(
+        info.sender,
+        env.contract.address,
+        ContractError::Unauthorized {}
+    );
+    Ok(())
+}
+
+pub(crate) fn validate_config(deps: Deps, env: &Env, config: &Config) -> Result<(), ContractError> {
+    config.base_asset.check(deps.api)?;
+    validate_max_spread(config.max_spread)?;
+    validate_cooldown(config.collect_cooldown)?;
+    validate_legs(
+        deps.api,
+        &config.legs,
+        &config.base_asset,
+        &env.contract.address,
+    )
+}
+
+/// Removes `remove`, then sets each route in `add`, which must run from its asset to the base
+/// asset.
+pub(crate) fn set_routes(
+    storage: &mut dyn cosmwasm_std::Storage,
+    api: &dyn cosmwasm_std::Api,
+    base_asset: &AssetInfo,
+    add: Vec<(AssetInfo, Vec<SwapOperation>)>,
+    remove: Vec<AssetInfo>,
+) -> Result<(), ContractError> {
+    ensure_unique(add.iter().map(|(asset, _)| asset))?;
+
+    for asset in remove {
+        ROUTES.remove(storage, asset.to_string());
+    }
+
+    for (asset, route) in add {
+        asset.check(api)?;
+        ensure!(
+            &asset != base_asset,
+            ContractError::InvalidRoute {
+                reason: "can't start at the base asset, which isn't swapped".to_string()
+            }
+        );
+        validate_route(api, &route, &asset, Some(base_asset))?;
+        ROUTES.save(storage, asset.to_string(), &route)?;
+    }
+
+    Ok(())
+}
+
+/// Swaps the given fee tokens into the base asset, then splits the base asset across the legs.
 fn collect(
     deps: DepsMut,
     env: Env,
-    assets: Vec<AssetWithLimit>,
+    info: MessageInfo,
+    assets: Vec<CollectAsset>,
 ) -> Result<Response, ContractError> {
-    let mut cfg = CONFIG.load(deps.storage)?;
+    let config = CONFIG.load(deps.storage)?;
 
-    // Allowing collect only once per cooldown period
-    LAST_COLLECT_TS.update(deps.storage, |last_ts| match cfg.collect_cooldown {
+    // anyone can collect unless the owner has set who can
+    ensure!(
+        config.collectors.is_empty() || config.collectors.contains(&info.sender),
+        ContractError::Unauthorized {}
+    );
+
+    // allowing collect only once per cooldown period
+    LAST_COLLECT_TS.update(deps.storage, |last_ts| match config.collect_cooldown {
         Some(cd_period) if env.block.time.seconds() < last_ts + cd_period => {
             Err(ContractError::Cooldown {
                 next_collect_ts: last_ts + cd_period,
@@ -323,581 +273,202 @@ fn collect(
         _ => Ok(env.block.time.seconds()),
     })?;
 
-    let astro = cfg.astro_token.clone();
+    ensure_unique(assets.iter().map(|a| &a.info))?;
 
-    // Check for duplicate assets
-    let mut uniq = HashSet::new();
-    if !assets
-        .clone()
-        .into_iter()
-        .all(|a| uniq.insert(a.info.to_string()))
-    {
-        return Err(ContractError::DuplicatedAsset {});
-    }
+    let mut response = Response::new().add_attribute("action", "collect");
+    let mut base_limit = None;
 
-    // Swap all non ASTRO tokens
-    let (mut response, bridge_assets) = swap_assets(
-        deps.as_ref(),
-        &env.contract.address,
-        &cfg,
-        assets.into_iter().filter(|a| a.info.ne(&astro)).collect(),
-    )?;
-
-    // If no swap messages - send ASTRO directly to x/vxASTRO stakers
-    if response.messages.is_empty() {
-        let (mut distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
-        if !distribute_msg.is_empty() {
-            response.messages.append(&mut distribute_msg);
-            response = response.add_attributes(attributes);
+    for asset in assets {
+        // the base asset isn't swapped, it's split across the legs below
+        if asset.info == config.base_asset {
+            base_limit = asset.limit;
+            continue;
         }
-    } else {
-        response.messages.push(build_distribute_msg(
-            env,
-            bridge_assets,
-            BRIDGES_INITIAL_DEPTH,
-        )?);
-    }
 
-    Ok(response.add_attribute("action", "collect"))
-}
-
-/// This enum describes available token types that can be used as a SwapTarget.
-enum SwapTarget {
-    Astro(SubMsg),
-    Bridge { asset: AssetInfo, msg: SubMsg },
-}
-
-/// Swap all non ASTRO tokens to ASTRO.
-///
-/// * **contract_addr** maker contract address.
-///
-/// * **assets** array with assets to swap to ASTRO.
-///
-/// * **with_validation** whether the swap operation should be validated or not.
-fn swap_assets(
-    deps: Deps,
-    contract_addr: &Addr,
-    cfg: &Config,
-    assets: Vec<AssetWithLimit>,
-) -> Result<(Response, Vec<AssetInfo>), ContractError> {
-    let mut response = Response::default();
-    let mut bridge_assets = HashMap::new();
-
-    for a in assets {
-        // Get balance
-        let mut balance = a.info.query_pool(&deps.querier, contract_addr)?;
-        if let Some(limit) = a.limit {
-            if limit < balance && limit > Uint128::zero() {
-                balance = limit;
+        let route = ROUTES
+            .may_load(deps.storage, asset.info.to_string())?
+            .ok_or_else(|| ContractError::NoRoute {
+                asset: asset.info.to_string(),
+            })?;
+        // a route set before the base asset changed would end in the old one
+        ensure!(
+            route_output(&asset.info, &route) == config.base_asset,
+            ContractError::InvalidRoute {
+                reason: format!("from {} doesn't end in the base asset", asset.info)
             }
-        }
-
-        if !balance.is_zero() {
-            match swap(deps, cfg, a.info, balance)? {
-                SwapTarget::Astro(msg) => {
-                    response.messages.push(msg);
-                }
-                SwapTarget::Bridge { asset, msg } => {
-                    response.messages.push(msg);
-                    bridge_assets.insert(asset.to_string(), asset);
-                }
-            }
-        }
-    }
-
-    Ok((response, bridge_assets.into_values().collect()))
-}
-
-/// Checks if all required pools and bridges exists and performs a swap operation to ASTRO.
-///
-/// * **from_token** token to swap to ASTRO.
-///
-/// * **amount_in** amount of tokens to swap.
-fn swap(
-    deps: Deps,
-    cfg: &Config,
-    from_token: AssetInfo,
-    amount_in: Uint128,
-) -> Result<SwapTarget, ContractError> {
-    // 1. Check if bridge tokens exist
-    let bridge_token = BRIDGES.load(deps.storage, from_token.to_string());
-    if let Ok(bridge_token) = bridge_token {
-        let bridge_pool = validate_bridge(
-            deps,
-            &cfg.factory_contract,
-            &from_token,
-            &bridge_token,
-            &cfg.astro_token,
-            BRIDGES_INITIAL_DEPTH,
-        )?;
-
-        let msg = build_swap_msg(
-            cfg.max_spread,
-            &bridge_pool,
-            &from_token,
-            Some(&bridge_token),
-            amount_in,
-        )?;
-
-        let swap_msg = if bridge_token == cfg.astro_token {
-            SwapTarget::Astro(msg)
-        } else {
-            SwapTarget::Bridge {
-                asset: bridge_token,
-                msg,
-            }
-        };
-        return Ok(swap_msg);
-    }
-
-    // 2. Check for a pair with a default bridge
-    if let Some(default_bridge) = &cfg.default_bridge {
-        if from_token.ne(default_bridge) {
-            let swap_to_default =
-                try_build_swap_msg(&deps.querier, cfg, &from_token, default_bridge, amount_in);
-            if let Ok(msg) = swap_to_default {
-                return Ok(SwapTarget::Bridge {
-                    asset: default_bridge.clone(),
-                    msg,
-                });
-            }
-        }
-    }
-
-    // 3. Check for a direct pair with ASTRO
-    let swap_to_astro =
-        try_build_swap_msg(&deps.querier, cfg, &from_token, &cfg.astro_token, amount_in);
-    if let Ok(msg) = swap_to_astro {
-        return Ok(SwapTarget::Astro(msg));
-    }
-
-    Err(ContractError::CannotSwap(from_token))
-}
-
-/// Swaps collected fees using bridge assets.
-///
-/// * **assets** array with fee tokens to swap as well as amount of tokens to swap.
-///
-/// * **depth** maximum route length used to swap a fee token.
-///
-/// ## Executor
-/// Only the Maker contract itself can execute this.
-fn swap_bridge_assets(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    assets: Vec<AssetInfo>,
-    depth: u64,
-) -> Result<Response, ContractError> {
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if assets.is_empty() {
-        return Ok(Response::default());
-    }
-
-    // Check that the contract doesn't call itself endlessly
-    if depth >= BRIDGES_EXECUTION_MAX_DEPTH {
-        return Err(ContractError::MaxBridgeDepth(depth));
-    }
-
-    let cfg = CONFIG.load(deps.storage)?;
-
-    let bridges = assets
-        .into_iter()
-        .map(|a| AssetWithLimit {
-            info: a,
-            limit: None,
-        })
-        .collect();
-
-    let (response, bridge_assets) =
-        swap_assets(deps.as_ref(), &env.contract.address, &cfg, bridges)?;
-
-    // There should always be some messages, if there are none - something went wrong
-    if response.messages.is_empty() {
-        return Err(ContractError::Std(StdError::generic_err(
-            "Empty swap messages",
-        )));
-    }
-
-    Ok(response
-        .add_submessage(build_distribute_msg(env, bridge_assets, depth + 1)?)
-        .add_attribute("action", "swap_bridge_assets"))
-}
-
-/// Distributes ASTRO rewards to x/vxASTRO holders.
-///
-/// ## Executor
-/// Only the Maker contract itself can execute this.
-fn distribute_astro(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
-    if info.sender != env.contract.address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let mut cfg = CONFIG.load(deps.storage)?;
-    let (distribute_msg, attributes) = distribute(deps, env, &mut cfg)?;
-    if distribute_msg.is_empty() {
-        return Ok(Response::default());
-    }
-
-    Ok(Response::default()
-        .add_submessages(distribute_msg)
-        .add_attributes(attributes))
-}
-
-type DistributeMsgParts = (Vec<SubMsg>, Vec<Attribute>);
-
-/// Private function that performs the ASTRO token distribution to x/vxASTRO.
-fn distribute(
-    deps: DepsMut,
-    env: Env,
-    cfg: &mut Config,
-) -> Result<DistributeMsgParts, ContractError> {
-    let mut result = vec![];
-    let mut attributes = vec![];
-
-    let mut amount = cfg
-        .astro_token
-        .query_pool(&deps.querier, &env.contract.address)?;
-    if amount.is_zero() {
-        return Ok((result, attributes));
-    }
-    let mut pure_astro_reward = amount;
-    let mut current_preupgrade_distribution = Uint128::zero();
-
-    if !cfg.rewards_enabled {
-        cfg.pre_upgrade_astro_amount = amount;
-        cfg.remainder_reward = amount;
-        CONFIG.save(deps.storage, cfg)?;
-        return Ok((result, attributes));
-    } else if !cfg.remainder_reward.is_zero() {
-        let blocks_passed = env.block.height - cfg.last_distribution_block;
-        if blocks_passed == 0 {
-            return Ok((result, attributes));
-        }
-        let mut remainder_reward = cfg.remainder_reward;
-        let astro_distribution_portion = cfg
-            .pre_upgrade_astro_amount
-            .checked_div(Uint128::from(cfg.pre_upgrade_blocks))?;
-
-        current_preupgrade_distribution = min(
-            Uint128::from(blocks_passed).checked_mul(astro_distribution_portion)?,
-            remainder_reward,
         );
 
-        // Subtract undistributed rewards
-        amount = amount.checked_sub(remainder_reward)?;
-        pure_astro_reward = amount;
-
-        // Add the amount of pre Maker upgrade accrued ASTRO from fee token swaps
-        amount = amount.checked_add(current_preupgrade_distribution)?;
-
-        remainder_reward = remainder_reward.checked_sub(current_preupgrade_distribution)?;
-
-        // Reduce the amount of pre-upgrade ASTRO that has to be distributed
-        cfg.remainder_reward = remainder_reward;
-        cfg.last_distribution_block = env.block.height;
-        CONFIG.save(deps.storage, cfg)?;
-    }
-
-    let second_receiver_amount = if let Some(second_receiver_cfg) = &cfg.second_receiver_cfg {
-        let amount = amount.multiply_ratio(
-            Uint128::from(second_receiver_cfg.second_receiver_cut),
-            Uint128::new(100),
-        );
-
-        if !amount.is_zero() {
-            let asset = Asset {
-                info: cfg.astro_token.clone(),
-                amount,
-            };
-
-            result.push(SubMsg::new(
-                asset.into_msg(second_receiver_cfg.second_fee_receiver.to_string())?,
-            ))
+        let balance = asset
+            .info
+            .query_pool(&deps.querier, &env.contract.address)?;
+        let amount = asset.limit.map_or(balance, |limit| limit.min(balance));
+        if amount.is_zero() {
+            continue;
         }
 
-        amount
-    } else {
-        Uint128::zero()
-    };
+        let minimum = minimum_receive(
+            &deps.querier,
+            config.router.as_str(),
+            &route,
+            amount,
+            config.max_spread,
+        )?;
+        if minimum.is_zero() {
+            response = response.add_attribute("skipped_dust", asset.info.to_string());
+            continue;
+        }
+        // the caller's own floor, from a quote taken elsewhere, on top of the Maker's
+        let minimum = minimum.max(asset.min_receive.unwrap_or_default());
 
-    let governance_amount = if let Some(governance_contract) = &cfg.governance_contract {
-        let amount = amount
-            .checked_sub(second_receiver_amount)?
-            .multiply_ratio(Uint128::from(cfg.governance_percent), Uint128::new(100));
-
-        if !amount.is_zero() {
-            result.push(SubMsg::new(build_send_msg(
-                &Asset {
-                    info: cfg.astro_token.clone(),
-                    amount,
-                },
-                governance_contract.to_string(),
+        response = response
+            .add_message(swap_msg(
+                config.router.as_str(),
+                asset.info.with_balance(amount),
+                route,
+                minimum,
                 None,
-            )?))
-        }
-
-        amount
-    } else {
-        Uint128::zero()
-    };
-
-    let dev_amount = if let Some(dev_fund_conf) = &cfg.dev_fund_conf {
-        let dev_share = amount * dev_fund_conf.share;
-
-        if !dev_share.is_zero() {
-            // Swap ASTRO and process result in reply
-            let pool = get_pool(
-                &deps.querier,
-                &cfg.factory_contract,
-                &cfg.astro_token,
-                &dev_fund_conf.asset_info,
-            )?;
-            let mut swap_msg = build_swap_msg(
-                cfg.max_spread,
-                &pool,
-                &cfg.astro_token,
-                Some(&dev_fund_conf.asset_info),
-                dev_share,
-            )?;
-            swap_msg.reply_on = ReplyOn::Success;
-            swap_msg.id = PROCESS_DEV_FUND_REPLY_ID;
-
-            result.push(swap_msg);
-        }
-
-        dev_share
-    } else {
-        Uint128::zero()
-    };
-
-    if let Some(staking_contract) = &cfg.staking_contract {
-        let amount = amount.checked_sub(governance_amount + second_receiver_amount + dev_amount)?;
-        if !amount.is_zero() {
-            let to_staking_asset = cfg.astro_token.with_balance(amount);
-            result.push(SubMsg::new(to_staking_asset.into_msg(staking_contract)?));
-        }
+            )?)
+            .add_attribute("collected", format!("{amount}{}", asset.info));
     }
 
-    attributes = vec![
-        attr("action", "distribute_astro"),
-        attr("astro_distribution", pure_astro_reward),
-    ];
-    if !current_preupgrade_distribution.is_zero() {
-        attributes.push(attr(
-            "preupgrade_astro_distribution",
-            current_preupgrade_distribution,
-        ));
-    }
-
-    Ok((result, attributes))
+    Ok(response.add_message(wasm_execute(
+        env.contract.address,
+        &ExecuteMsg::Distribute { limit: base_limit },
+        vec![],
+    )?))
 }
 
-/// Updates general contract parameters.
-///
-/// * **factory_contract** address of the factory contract.
-///
-/// * **staking_contract** address of the xASTRO staking contract.
-///
-/// * **governance_contract** address of the vxASTRO fee distributor contract.
-///
-/// * **governance_percent** percentage of ASTRO that goes to the vxASTRO fee distributor.
-///
-/// * **default_bridge_opt** default bridge asset used for intermediate swaps to ASTRO.
-///
-/// * **max_spread** max spread used when swapping fee tokens to ASTRO.
-///
-/// * **second_receiver_params** describes the second receiver of fees
-///
-/// ## Executor
-/// Only the owner can execute this.
-#[allow(clippy::too_many_arguments)]
-fn update_config(
-    deps: DepsMut,
-    info: MessageInfo,
-    factory_contract: Option<String>,
-    staking_contract: Option<String>,
-    governance_contract: Option<UpdateAddr>,
-    governance_percent: Option<Uint64>,
-    default_bridge_opt: Option<AssetInfo>,
-    max_spread: Option<Decimal>,
-    second_receiver_params: Option<SecondReceiverParams>,
-    collect_cooldown: Option<u64>,
-    astro_token: Option<AssetInfo>,
-    dev_fund_conf: Option<Box<UpdateDevFundConfig>>,
-) -> Result<Response, ContractError> {
-    let mut attributes = vec![attr("action", "set_config")];
+/// Splits the Maker's base asset balance, or `limit` of it, across the legs by share. The last
+/// leg gets what rounding leaves, so nothing is left behind.
+fn distribute(deps: DepsMut, env: Env, limit: Option<Uint128>) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let balance = config
+        .base_asset
+        .query_pool(&deps.querier, &env.contract.address)?;
+    let balance = limit.map_or(balance, |limit| limit.min(balance));
 
-    let mut config = CONFIG.load(deps.storage)?;
-
-    // Permission check
-    if info.sender != config.owner {
-        return Err(ContractError::Unauthorized {});
+    let mut response = Response::new().add_attribute("action", "distribute");
+    if balance.is_zero() {
+        return Ok(response);
     }
 
-    if let Some(factory_contract) = factory_contract {
-        config.factory_contract = deps.api.addr_validate(&factory_contract)?;
-        attributes.push(attr("factory_contract", &factory_contract));
-    };
+    let mut assigned = Uint128::zero();
+    let last = config.legs.len() - 1;
 
-    if let Some(staking_contract) = staking_contract {
-        config.staking_contract = Some(deps.api.addr_validate(&staking_contract)?);
-        attributes.push(attr("staking_contract", &staking_contract));
-    };
-
-    if let Some(action) = governance_contract {
-        match action {
-            UpdateAddr::Set(gov) => {
-                config.governance_contract = Some(deps.api.addr_validate(&gov)?);
-                attributes.push(attr("governance_contract", &gov));
-            }
-            UpdateAddr::Remove {} => {
-                if config.staking_contract.is_none() {
-                    return Err(StdError::generic_err(
-                        "Cannot remove governance contract if staking contract is not set",
-                    )
-                    .into());
-                }
-                attributes.push(attr("governance_contract", "removed"));
-                config.governance_contract = None;
-            }
-        }
-    }
-
-    if let Some(governance_percent) = governance_percent {
-        if governance_percent > Uint64::new(100) {
-            return Err(ContractError::IncorrectGovernancePercent {});
+    for (index, leg) in config.legs.iter().enumerate() {
+        let amount = if index == last {
+            balance.checked_sub(assigned)?
+        } else {
+            balance * leg.share
         };
-        if config.staking_contract.is_none() && governance_percent != Uint64::new(100) {
-            return Err(ContractError::GovernancePercentMustBe100 {});
+        assigned = assigned.checked_add(amount)?;
+        if amount.is_zero() {
+            continue;
         }
 
-        config.governance_percent = governance_percent;
-        attributes.push(attr("governance_percent", governance_percent));
-    };
+        let share = config.base_asset.with_balance(amount);
+        response = response.add_attribute("leg", format!("{index}:{amount}"));
 
-    if let Some(default_bridge) = &default_bridge_opt {
-        default_bridge.check(deps.api)?;
-        attributes.push(attr("default_bridge", default_bridge.to_string()));
-        config.default_bridge = default_bridge_opt;
-    }
+        if leg.route.is_empty() {
+            response = response.add_message(match &leg.action {
+                LegAction::Send { recipient } => share.into_msg(recipient)?,
+                LegAction::Deposit { contract, msg } => deposit_msg(share, contract, msg.clone())?,
+            });
+            continue;
+        }
 
-    if let Some(max_spread) = max_spread {
-        if max_spread.is_zero() || max_spread > Decimal::from_str(MAX_ALLOWED_SLIPPAGE)? {
-            return Err(ContractError::IncorrectMaxSpread {});
-        };
+        let minimum = minimum_receive(
+            &deps.querier,
+            config.router.as_str(),
+            &leg.route,
+            amount,
+            config.max_spread,
+        )?;
+        if minimum.is_zero() {
+            // dust stays in the Maker and is split again with the next collect
+            continue;
+        }
 
-        config.max_spread = max_spread;
-        attributes.push(attr("max_spread", max_spread.to_string()));
-    };
-
-    update_second_receiver_cfg(deps.as_ref(), &mut config, &second_receiver_params)?;
-
-    if let Some(second_receiver_params) = second_receiver_params {
-        attributes.push(attr(
-            "second_fee_receiver",
-            second_receiver_params.second_fee_receiver,
-        ));
-        attributes.push(attr(
-            "second_receiver_cut",
-            second_receiver_params.second_receiver_cut,
-        ));
-    }
-
-    if let Some(collect_cooldown) = collect_cooldown {
-        validate_cooldown(Some(collect_cooldown))?;
-        config.collect_cooldown = Some(collect_cooldown);
-        attributes.push(attr("collect_cooldown", collect_cooldown.to_string()));
-    }
-
-    if let Some(astro_token) = astro_token {
-        astro_token.check(deps.api)?;
-        attributes.push(attr("new_astro_token", astro_token.to_string()));
-        config.astro_token = astro_token;
-    }
-
-    if let Some(dev_fund_config) = dev_fund_conf {
-        config.dev_fund_conf = dev_fund_config.set;
-
-        if let Some(dev_fund_conf) = config.dev_fund_conf.as_ref() {
-            deps.api.addr_validate(&dev_fund_conf.address)?;
-            ensure!(
-                dev_fund_conf.share > Decimal::zero() && dev_fund_conf.share <= Decimal::one(),
-                StdError::generic_err("Dev fund share must be > 0 and <= 1")
-            );
-            // Ensure we can swap ASTRO into dev fund asset
-            get_pool(
-                &deps.querier,
-                &config.factory_contract,
-                &config.astro_token,
-                &dev_fund_conf.asset_info,
-            )?;
-            attributes.push(attr(
-                "new_dev_fund_settings",
-                to_json_string(dev_fund_conf)?,
-            ));
+        match &leg.action {
+            // the router delivers the output straight to the recipient
+            LegAction::Send { recipient } => {
+                response = response.add_message(swap_msg(
+                    config.router.as_str(),
+                    share,
+                    leg.route.clone(),
+                    minimum,
+                    Some(recipient.clone()),
+                )?);
+            }
+            // swap into the Maker, then deposit exactly what the swap produced
+            LegAction::Deposit { .. } => {
+                let leg_index = index as u32;
+                response = response
+                    .add_message(wasm_execute(
+                        &env.contract.address,
+                        &ExecuteMsg::SnapshotLeg { leg: leg_index },
+                        vec![],
+                    )?)
+                    .add_message(swap_msg(
+                        config.router.as_str(),
+                        share,
+                        leg.route.clone(),
+                        minimum,
+                        None,
+                    )?)
+                    .add_message(wasm_execute(
+                        &env.contract.address,
+                        &ExecuteMsg::DepositLeg { leg: leg_index },
+                        vec![],
+                    )?);
+            }
         }
     }
 
-    CONFIG.save(deps.storage, &config)?;
-
-    Ok(Response::new().add_attributes(attributes))
+    Ok(response)
 }
 
-/// Adds or removes bridge tokens used to swap fee tokens to ASTRO.
-///
-/// * **add** array of bridge tokens added to swap fee tokens with.
-///
-/// * **remove** array of bridge tokens removed from being used to swap certain fee tokens.
-///
-/// ## Executor
-/// Only the owner can execute this.
-fn update_bridges(
-    deps: DepsMut,
-    info: MessageInfo,
-    add: Option<Vec<(AssetInfo, AssetInfo)>>,
-    remove: Option<Vec<AssetInfo>>,
-) -> Result<Response, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+fn leg_output(config: &Config, leg: u32) -> Result<AssetInfo, ContractError> {
+    let leg = config
+        .legs
+        .get(leg as usize)
+        .ok_or_else(|| StdError::generic_err(format!("No leg {leg}")))?;
+    Ok(route_output(&config.base_asset, &leg.route))
+}
 
-    // Permission check
-    if info.sender != cfg.owner {
-        return Err(ContractError::Unauthorized {});
+fn snapshot_leg(deps: DepsMut, env: Env, leg: u32) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let balance = leg_output(&config, leg)?.query_pool(&deps.querier, &env.contract.address)?;
+    LEG_SNAPSHOT.save(deps.storage, &balance)?;
+
+    Ok(Response::new())
+}
+
+fn deposit_leg(deps: DepsMut, env: Env, leg: u32) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    let output = leg_output(&config, leg)?;
+
+    let before = LEG_SNAPSHOT.load(deps.storage)?;
+    LEG_SNAPSHOT.remove(deps.storage);
+
+    let produced = output
+        .query_pool(&deps.querier, &env.contract.address)?
+        .checked_sub(before)?;
+    if produced.is_zero() {
+        return Ok(Response::new());
     }
 
-    // Remove old bridges
-    if let Some(remove_bridges) = remove {
-        for asset in remove_bridges {
-            BRIDGES.remove(deps.storage, asset.to_string());
-        }
-    }
+    let LegAction::Deposit { contract, msg } = &config.legs[leg as usize].action else {
+        return Err(StdError::generic_err(format!("Leg {leg} doesn't deposit")).into());
+    };
 
-    // Add new bridges
-    let astro = cfg.astro_token.clone();
-    if let Some(add_bridges) = add {
-        for (asset, bridge) in add_bridges {
-            if asset.equal(&bridge) {
-                return Err(ContractError::InvalidBridge(asset, bridge));
-            }
-
-            // Check that bridge tokens can be swapped to ASTRO
-            validate_bridge(
-                deps.as_ref(),
-                &cfg.factory_contract,
-                &asset,
-                &bridge,
-                &astro,
-                BRIDGES_INITIAL_DEPTH,
-            )?;
-
-            BRIDGES.save(deps.storage, asset.to_string(), &bridge)?;
-        }
-    }
-
-    Ok(Response::default().add_attribute("action", "update_bridges"))
+    Ok(Response::new()
+        .add_message(deposit_msg(
+            output.with_balance(produced),
+            contract,
+            msg.clone(),
+        )?)
+        .add_attribute("deposited", format!("{leg}:{produced}{output}")))
 }
 
 fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Response, ContractError> {
@@ -941,7 +512,7 @@ fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Respons
                 .map(|limit| limit.min(balance))
                 .unwrap_or(balance);
 
-            // Filter assets with empty balances
+            // filter assets with empty balances
             if limit.is_zero() {
                 None
             } else {
@@ -955,137 +526,41 @@ fn seize(deps: DepsMut, env: Env, assets: Vec<AssetWithLimit>) -> Result<Respons
         .add_attribute("action", "seize"))
 }
 
-/// Exposes all the queries available in the contract.
-///
-/// ## Queries
-/// * **QueryMsg::Config {}** Returns the Maker contract configuration using a [`ConfigResponse`] object.
-///
-/// * **QueryMsg::Balances { assets }** Returns the balances of certain fee tokens accrued by the Maker
-///   using a [`ConfigResponse`] object.
-///
-/// * **QueryMsg::Bridges {}** Returns the bridges used for swapping fee tokens
-///   using a vector of [`(String, String)`] denoting Asset -> Bridge connections.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_json_binary(&query_get_config(deps)?),
-        QueryMsg::Balances { assets } => to_json_binary(&query_get_balances(deps, env, assets)?),
-        QueryMsg::Bridges {} => to_json_binary(&query_bridges(deps)?),
+        QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
+        QueryMsg::Routes {} => to_json_binary(
+            &ROUTES
+                .range(deps.storage, None, None, Order::Ascending)
+                .map(|item| {
+                    let (_, operations) = item?;
+                    let asset = operations
+                        .first()
+                        .map(|op| crate::utils::op_assets(op).0.clone())
+                        .ok_or_else(|| StdError::generic_err("Empty route"))?;
+                    Ok(RouteResponse { asset, operations })
+                })
+                .collect::<StdResult<Vec<_>>>()?,
+        ),
+        QueryMsg::Balances { assets } => {
+            let balances = assets
+                .into_iter()
+                .map(|info| {
+                    let amount = info.query_pool(&deps.querier, &env.contract.address)?;
+                    Ok(Asset { info, amount })
+                })
+                .collect::<StdResult<Vec<_>>>()?
+                .into_iter()
+                .filter(|asset| !asset.amount.is_zero())
+                .collect();
+            to_json_binary(&BalancesResponse { balances })
+        }
         QueryMsg::QuerySeizeConfig {} => to_json_binary(&SEIZE_CONFIG.load(deps.storage)?),
     }
 }
 
-/// Returns information about the Maker configuration using a [`ConfigResponse`] object.
-fn query_get_config(deps: Deps) -> StdResult<ConfigResponse> {
-    let config = CONFIG.load(deps.storage)?;
-    Ok(ConfigResponse {
-        owner: config.owner,
-        factory_contract: config.factory_contract,
-        staking_contract: config.staking_contract,
-        dev_fund_conf: config.dev_fund_conf,
-        governance_contract: config.governance_contract,
-        governance_percent: config.governance_percent,
-        astro_token: config.astro_token,
-        max_spread: config.max_spread,
-        remainder_reward: config.remainder_reward,
-        pre_upgrade_astro_amount: config.pre_upgrade_astro_amount,
-        default_bridge: config.default_bridge,
-        second_receiver_cfg: config.second_receiver_cfg,
-    })
-}
-
-/// Returns Maker's fee token balances for specific tokens using a [`BalancesResponse`] object.
-///
-/// * **assets** array with assets for which we query the Maker's balances.
-fn query_get_balances(deps: Deps, env: Env, assets: Vec<AssetInfo>) -> StdResult<BalancesResponse> {
-    let mut resp = BalancesResponse { balances: vec![] };
-
-    for a in assets {
-        // Get balance
-        let balance = a.query_pool(&deps.querier, &env.contract.address)?;
-        if !balance.is_zero() {
-            resp.balances.push(Asset {
-                info: a,
-                amount: balance,
-            })
-        }
-    }
-
-    Ok(resp)
-}
-
-/// Returns bridge tokens used for swapping fee tokens to ASTRO.
-fn query_bridges(deps: Deps) -> StdResult<Vec<(String, String)>> {
-    BRIDGES
-        .range(deps.storage, None, None, Order::Ascending)
-        .map(|bridge| {
-            let (bridge, asset) = bridge?;
-            Ok((bridge, asset.to_string()))
-        })
-        .collect()
-}
-
-/// Manages contract migration.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(mut deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
-    let contract_version = get_contract_version(deps.storage)?;
-
-    match contract_version.contract.as_ref() {
-        "astroport-maker" => match contract_version.version.as_ref() {
-            // atlantic-2, injective-888: 1.2.0
-            // neutron-1, pion-1, phoenix-1, pisco-1: 1.5.0
-            // injective-1, pacific-1: 1.4.0
-            "1.2.0" => {
-                migrate_from_v120_plus(deps.branch(), msg)?;
-                LAST_COLLECT_TS.save(deps.storage, &env.block.time.seconds())?;
-
-                SEIZE_CONFIG.save(
-                    deps.storage,
-                    &SeizeConfig {
-                        // set to invalid address initially
-                        // governance must update this explicitly
-                        receiver: Addr::unchecked(""),
-                        seizable_assets: vec![],
-                    },
-                )?;
-            }
-            "1.4.0" | "1.5.0" => {
-                // It is enough to load and save config
-                // as we added only one optional field config.dev_fund_conf
-                let config = CONFIG.load(deps.storage)?;
-                CONFIG.save(deps.storage, &config)?;
-
-                SEIZE_CONFIG.save(
-                    deps.storage,
-                    &SeizeConfig {
-                        // set to invalid address initially
-                        // governance must update this explicitly
-                        receiver: Addr::unchecked(""),
-                        seizable_assets: vec![],
-                    },
-                )?;
-            }
-            "1.6.0" => {
-                SEIZE_CONFIG.save(
-                    deps.storage,
-                    &SeizeConfig {
-                        // set to invalid address initially
-                        // governance must update this explicitly
-                        receiver: Addr::unchecked(""),
-                        seizable_assets: vec![],
-                    },
-                )?;
-            }
-            _ => return Err(ContractError::MigrationError {}),
-        },
-        _ => return Err(ContractError::MigrationError {}),
-    };
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
-    Ok(Response::new()
-        .add_attribute("previous_contract_name", &contract_version.contract)
-        .add_attribute("previous_contract_version", &contract_version.version)
-        .add_attribute("new_contract_name", CONTRACT_NAME)
-        .add_attribute("new_contract_version", CONTRACT_VERSION))
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+    migration::migrate(deps, env, msg)
 }
