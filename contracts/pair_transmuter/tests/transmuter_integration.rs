@@ -671,6 +671,59 @@ fn test_drain_pool() {
 }
 
 #[test]
+fn test_reject_cw20_offer_colliding_with_pool_denom() {
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("usdc"), TestCoin::native("usdt")];
+    let mut helper = Helper::new(
+        &owner,
+        test_coins.clone(),
+        vec![("usdc".to_string(), 6), ("usdt".to_string(), 6)],
+    )
+    .unwrap();
+    let provided = [
+        helper.assets[&test_coins[0]].with_balance(100_000_000000u128),
+        helper.assets[&test_coins[1]].with_balance(100_000_000000u128),
+    ];
+    helper.provide_liquidity(&owner, &provided).unwrap();
+
+    // Token variant whose address string is a pool denom. No funds attached.
+    let colliding = AssetInfo::cw20_unchecked("usdc");
+    let offer = colliding.with_balance(100_000_000000u128);
+    let attacker = Addr::unchecked("attacker");
+
+    let err = helper
+        .app
+        .execute_contract(
+            attacker.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::Swap {
+                offer_asset: offer.clone(),
+                ask_asset_info: Some(helper.assets[&test_coins[1]].clone()),
+                belief_price: None,
+                max_spread: None,
+                to: None,
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::InvalidAsset(colliding.to_string())
+    );
+
+    let sim_err = helper.simulate_swap(&offer, None).unwrap_err();
+    assert!(
+        sim_err.to_string().contains("does not belong to the pair"),
+        "{sim_err}"
+    );
+
+    let pool = helper.query_pool().unwrap();
+    assert_eq!(pool.assets, provided);
+    assert_eq!(helper.coin_balance(&test_coins[0], &attacker), 0);
+    assert_eq!(helper.coin_balance(&test_coins[1], &attacker), 0);
+}
+
+#[test]
 fn test_unbalanced_withdraw() {
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("usdt"), TestCoin::native("usdc")];

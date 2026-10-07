@@ -1,4 +1,4 @@
-use cosmwasm_std::{Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
+use cosmwasm_std::{ensure, Api, Decimal, Deps, QuerierWrapper, StdResult, Uint128};
 use itertools::Itertools;
 
 use astroport::asset::{Asset, AssetInfo, AssetInfoExt};
@@ -59,6 +59,18 @@ pub fn assert_and_swap(
     ask_asset_info: Option<AssetInfo>,
 ) -> Result<Asset, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    // Reject any offer asset that is not a pool asset. NativeToken and Token
+    // both Display as the bare string, and normalize() keys on that string, so
+    // a CW20 whose address equals a pool denom would otherwise be paid out as
+    // the native asset. `contains` compares the enum variant, so it rejects the
+    // Token variant even when the string collides. Pool assets are always
+    // native (enforced at instantiation), so this also rejects non-native
+    // offers.
+    ensure!(
+        config.pair_info.asset_infos.contains(&offer_asset.info),
+        ContractError::InvalidAsset(offer_asset.info.to_string())
+    );
 
     let offer_asset = config.normalize(offer_asset)?;
 
