@@ -6,14 +6,15 @@ use cw2::{get_contract_version, set_contract_version};
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::PAUSED;
+use crate::state::{StakingMode, MODE};
 
 #[cw_serde]
 #[derive(Default)]
 pub struct MigrateMsg {
-    /// Pauses (`true`) or resumes (`false`) enter and leave. Leaves it as it is if not set.
+    /// Sets what users can do: `"open"`, `"leave_only"` or `"paused"`. Leaves it as it is if not
+    /// set.
     #[serde(default)]
-    pub paused: Option<bool>,
+    pub mode: Option<StakingMode>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -28,8 +29,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         _ => return Err(ContractError::MigrationError {}),
     }
 
-    if let Some(paused) = msg.paused {
-        PAUSED.save(deps.storage, &paused)?;
+    if let Some(mode) = msg.mode {
+        MODE.save(deps.storage, &mode)?;
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -40,11 +41,8 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION)
         .add_attribute(
-            "paused",
-            PAUSED
-                .may_load(deps.storage)?
-                .unwrap_or_default()
-                .to_string(),
+            "mode",
+            format!("{:?}", MODE.may_load(deps.storage)?.unwrap_or_default()),
         ))
 }
 
@@ -67,13 +65,19 @@ mod tests {
             let mut deps = mock_dependencies();
             set_contract_version(&mut deps.storage, CONTRACT_NAME, version).unwrap();
 
-            let res = migrate(deps.as_mut(), mock_env(), MigrateMsg { paused: Some(true) });
+            let res = migrate(
+                deps.as_mut(),
+                mock_env(),
+                MigrateMsg {
+                    mode: Some(StakingMode::Paused),
+                },
+            );
             if !ok {
                 assert_eq!(res.unwrap_err(), ContractError::MigrationError {});
                 continue;
             }
             res.unwrap();
-            assert!(PAUSED.load(&deps.storage).unwrap());
+            assert_eq!(MODE.load(&deps.storage).unwrap(), StakingMode::Paused);
             assert_eq!(
                 get_contract_version(&deps.storage).unwrap().version,
                 CONTRACT_VERSION
@@ -93,6 +97,18 @@ mod tests {
     fn empty_message_is_accepted() {
         // the message deployed contracts were migrated with so far
         let msg: MigrateMsg = cosmwasm_std::from_json(b"{}").unwrap();
-        assert_eq!(msg, MigrateMsg { paused: None });
+        assert_eq!(msg, MigrateMsg { mode: None });
+    }
+
+    #[test]
+    fn mode_json() {
+        for (json, mode) in [
+            (r#"{"mode":"open"}"#, StakingMode::Open),
+            (r#"{"mode":"leave_only"}"#, StakingMode::LeaveOnly),
+            (r#"{"mode":"paused"}"#, StakingMode::Paused),
+        ] {
+            let msg: MigrateMsg = cosmwasm_std::from_json(json.as_bytes()).unwrap();
+            assert_eq!(msg.mode, Some(mode));
+        }
     }
 }

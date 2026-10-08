@@ -30,4 +30,7 @@ pub enum ContractError {
 
     #[error("Staking is paused")]
     Paused {},
+
+    #[error("Staking is leave-only: new ASTRO can't be staked")]
+    LeaveOnly {},
 }

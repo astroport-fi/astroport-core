@@ -150,13 +150,16 @@ impl Helper {
         )
     }
 
-    /// Migrates the staking contract to its own code with the given pause setting.
-    pub fn migrate(&mut self, paused: Option<bool>) -> AnyResult<AppResponse> {
+    /// Migrates the staking contract to its own code with the given mode.
+    pub fn migrate(
+        &mut self,
+        mode: Option<astroport_staking::state::StakingMode>,
+    ) -> AnyResult<AppResponse> {
         let code_id = self.app.contract_data(&self.staking)?.code_id;
         self.app.migrate_contract(
             self.owner.clone(),
             self.staking.clone(),
-            &astroport_staking::migrate::MigrateMsg { paused },
+            &astroport_staking::migrate::MigrateMsg { mode },
             code_id,
         )
     }

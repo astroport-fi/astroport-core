@@ -17,7 +17,7 @@ use astroport::staking::{
 };
 
 use crate::error::ContractError;
-use crate::state::{CONFIG, PAUSED, TRACKER_DATA};
+use crate::state::{StakingMode, CONFIG, MODE, TRACKER_DATA};
 
 /// Contract name that is used for migration.
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -114,10 +114,13 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
-    ensure!(
-        !PAUSED.may_load(deps.storage)?.unwrap_or_default(),
-        ContractError::Paused {}
-    );
+    match (MODE.may_load(deps.storage)?.unwrap_or_default(), &msg) {
+        (StakingMode::Paused, _) => return Err(ContractError::Paused {}),
+        (StakingMode::LeaveOnly, ExecuteMsg::Enter { .. } | ExecuteMsg::EnterWithHook { .. }) => {
+            return Err(ContractError::LeaveOnly {})
+        }
+        _ => {}
+    }
 
     match msg {
         ExecuteMsg::Enter { receiver } => {

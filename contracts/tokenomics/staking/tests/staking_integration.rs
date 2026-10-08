@@ -614,7 +614,9 @@ fn test_hooks() {
 }
 
 #[test]
-fn test_pause() {
+fn test_modes() {
+    use astroport_staking::state::StakingMode;
+
     let owner = Addr::unchecked("owner");
     let mut helper = Helper::new(&owner).unwrap();
     let xastro_denom = helper.xastro_denom.clone();
@@ -623,72 +625,81 @@ fn test_pause() {
     helper.give_astro(10000, &alice);
     helper.stake(&alice, 2000).unwrap();
 
-    let total_shares: Uint128 = helper
-        .app
-        .wrap()
-        .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
-        .unwrap();
-    let total_deposit: Uint128 = helper
-        .app
-        .wrap()
-        .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
-        .unwrap();
+    let totals = |helper: &Helper| -> (Uint128, Uint128) {
+        let shares = helper
+            .app
+            .wrap()
+            .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
+            .unwrap();
+        let deposit = helper
+            .app
+            .wrap()
+            .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
+            .unwrap();
+        (shares, deposit)
+    };
+    let mode_attr = |resp: &cw_multi_test::AppResponse| -> String {
+        resp.events
+            .iter()
+            .flat_map(|e| e.attributes.iter())
+            .find(|a| a.key == "mode")
+            .unwrap()
+            .value
+            .clone()
+    };
+    let err_of = |res: anyhow::Result<cw_multi_test::AppResponse>| -> ContractError {
+        res.unwrap_err().downcast::<ContractError>().unwrap()
+    };
 
-    // a migration without the field leaves staking running
-    helper.migrate(None).unwrap();
+    // a migration without the field leaves staking open
+    let resp = helper.migrate(None).unwrap();
+    assert_eq!(mode_attr(&resp), "Open");
     helper.stake(&alice, 100).unwrap();
 
-    let resp = helper.migrate(Some(true)).unwrap();
-    assert!(resp.events.iter().any(|e| e
-        .attributes
-        .iter()
-        .any(|a| a.key == "paused" && a.value == "true")));
-
-    // enter, enter with a hook and leave are all refused while paused
-    let err = helper.stake(&alice, 100).unwrap_err();
+    // paused: enter, enter with a hook and leave are all refused, nothing moves
+    let resp = helper.migrate(Some(StakingMode::Paused)).unwrap();
+    assert_eq!(mode_attr(&resp), "Paused");
+    let before = totals(&helper);
+    assert_eq!(err_of(helper.stake(&alice, 100)), ContractError::Paused {});
     assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
+        err_of(helper.stake_with_hook(&alice, 100, "contract".to_string(), &Empty {})),
         ContractError::Paused {}
     );
-    let err = helper
-        .stake_with_hook(&alice, 100, "contract".to_string(), &Empty {})
-        .unwrap_err();
+    assert_eq!(err_of(helper.unstake(&alice, 10)), ContractError::Paused {});
+    assert_eq!(totals(&helper), before);
     assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::Paused {}
-    );
-    let err = helper.unstake(&alice, 10).unwrap_err();
-    assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::Paused {}
+        helper.query_balance(&alice, &xastro_denom).unwrap().u128(),
+        1100
     );
 
-    // nothing moved, and queries still work
-    let paused_shares: Uint128 = helper
-        .app
-        .wrap()
-        .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
-        .unwrap();
-    let paused_deposit: Uint128 = helper
-        .app
-        .wrap()
-        .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
-        .unwrap();
-    assert_eq!(paused_shares, total_shares + Uint128::new(100));
-    assert_eq!(paused_deposit, total_deposit + Uint128::new(100));
-    let alice_xastro = helper.query_balance(&alice, &xastro_denom).unwrap();
-    assert_eq!(alice_xastro.u128(), 1100);
-
-    // a migration without the field keeps it paused
+    // a migration without the field keeps the current mode
     helper.migrate(None).unwrap();
-    let err = helper.stake(&alice, 100).unwrap_err();
+    assert_eq!(err_of(helper.stake(&alice, 100)), ContractError::Paused {});
+
+    // leave only: entering is refused, leaving works at the usual rate
+    let resp = helper.migrate(Some(StakingMode::LeaveOnly)).unwrap();
+    assert_eq!(mode_attr(&resp), "LeaveOnly");
     assert_eq!(
-        err.downcast::<ContractError>().unwrap(),
-        ContractError::Paused {}
+        err_of(helper.stake(&alice, 100)),
+        ContractError::LeaveOnly {}
+    );
+    assert_eq!(
+        err_of(helper.stake_with_hook(&alice, 100, "contract".to_string(), &Empty {})),
+        ContractError::LeaveOnly {}
+    );
+    let astro_before = helper.query_balance(&alice, ASTRO_DENOM).unwrap();
+    helper.unstake(&alice, 100).unwrap();
+    assert_eq!(
+        helper.query_balance(&alice, &xastro_denom).unwrap().u128(),
+        1000
+    );
+    assert_eq!(
+        helper.query_balance(&alice, ASTRO_DENOM).unwrap() - astro_before,
+        Uint128::new(100)
     );
 
-    // resuming lets enter and leave through again
-    helper.migrate(Some(false)).unwrap();
+    // open again: enter and leave both work
+    helper.migrate(Some(StakingMode::Open)).unwrap();
     helper.stake(&alice, 100).unwrap();
     helper.unstake(&alice, 10).unwrap();
 }
