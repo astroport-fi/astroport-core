@@ -110,5 +110,15 @@ mod tests {
             let msg: MigrateMsg = cosmwasm_std::from_json(json.as_bytes()).unwrap();
             assert_eq!(msg.mode, Some(mode));
         }
+
+        // a misspelled mode or field is rejected, never read as "keep the current mode"
+        for json in [
+            r#"{"mode":"pause"}"#,
+            r#"{"mode":"Paused"}"#,
+            r#"{"mode":"leaveonly"}"#,
+            r#"{"paused":true}"#,
+        ] {
+            assert!(cosmwasm_std::from_json::<MigrateMsg>(json.as_bytes()).is_err());
+        }
     }
 }
