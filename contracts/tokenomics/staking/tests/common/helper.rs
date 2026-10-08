@@ -150,6 +150,42 @@ impl Helper {
         )
     }
 
+    /// Instantiates another tracker, of the same code as the balance tracker, tracking `denom`.
+    pub fn instantiate_tracker(&mut self, denom: &str) -> Addr {
+        let code_id = self
+            .app
+            .contract_data(&Addr::unchecked(&self.tracker_addr))
+            .unwrap()
+            .code_id;
+        self.app
+            .instantiate_contract(
+                code_id,
+                self.owner.clone(),
+                &astroport_v4::tokenfactory_tracker::InstantiateMsg {
+                    tokenfactory_module_address: TOKEN_FACTORY_MODULE.to_string(),
+                    tracked_denom: denom.to_string(),
+                },
+                &[],
+                "tracker",
+                None,
+            )
+            .unwrap()
+    }
+
+    /// Migrates the staking contract to its own code, pointing xASTRO's before-send hook at `hook`.
+    pub fn set_hook(&mut self, hook: &Addr) -> AnyResult<AppResponse> {
+        let code_id = self.app.contract_data(&self.staking)?.code_id;
+        self.app.migrate_contract(
+            self.owner.clone(),
+            self.staking.clone(),
+            &astroport_staking::migrate::MigrateMsg {
+                mode: None,
+                before_send_hook: Some(hook.to_string()),
+            },
+            code_id,
+        )
+    }
+
     /// Migrates the staking contract to its own code with the given mode.
     pub fn migrate(
         &mut self,
@@ -159,7 +195,10 @@ impl Helper {
         self.app.migrate_contract(
             self.owner.clone(),
             self.staking.clone(),
-            &astroport_staking::migrate::MigrateMsg { mode },
+            &astroport_staking::migrate::MigrateMsg {
+                mode,
+                before_send_hook: None,
+            },
             code_id,
         )
     }

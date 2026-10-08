@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-staking",
-  "contract_version": "2.3.1",
+  "contract_version": "2.3.2",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -239,6 +239,14 @@
     "title": "MigrateMsg",
     "type": "object",
     "properties": {
+      "before_send_hook": {
+        "description": "Points xASTRO's tokenfactory before-send hook at this contract (the staking contract is the denom admin). Leaves the hook as it is if not set. The chain only calls a hook whose code id is whitelisted for xASTRO, so this is meant for instances of the whitelisted tracker code: the balance tracker itself, or one tracking another denom, which refuses every xASTRO send, mint and burn and so freezes xASTRO until the hook is pointed back.",
+        "default": null,
+        "type": [
+          "string",
+          "null"
+        ]
+      },
       "mode": {
         "description": "Sets what users can do: `\"open\"`, `\"leave_only\"` or `\"paused\"`. Leaves it as it is if not set.",
         "default": null,
