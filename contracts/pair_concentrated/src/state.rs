@@ -24,3 +24,7 @@ pub const BALANCES: SnapshotMap<&AssetInfo, Uint128> = SnapshotMap::new(
     "balances_change",
     cw_storage_plus::Strategy::EveryBlock,
 );
+
+/// Exit-only mode: swaps, deposits and quotes are refused, and withdrawals return every asset
+/// except this one, which stays in the pool. Only a migration sets it.
+pub const EXIT_ONLY: Item<AssetInfo> = Item::new("exit_only");

@@ -51,6 +51,20 @@ use crate::utils::{calculate_shares, get_assets_with_precision, pool_info, query
 ///   asset that was in the pool just preceding the moment of the specified block height creation.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    // routers and aggregators quote through these; an exit-only pool can't trade
+    if crate::state::EXIT_ONLY.exists(deps.storage)
+        && matches!(
+            msg,
+            QueryMsg::Simulation { .. }
+                | QueryMsg::ReverseSimulation { .. }
+                | QueryMsg::SimulateProvide { .. }
+        )
+    {
+        return Err(StdError::generic_err(
+            "The pool is exit-only: only withdrawing liquidity is allowed",
+        ));
+    }
+
     match msg {
         QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_json_binary(&query_pool(deps)?),

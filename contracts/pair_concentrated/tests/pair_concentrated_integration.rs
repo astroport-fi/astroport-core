@@ -2166,3 +2166,183 @@ fn test_tracker_contract() {
 
     assert_eq!(alice_share[0].amount, alice_hist_bal);
 }
+
+#[test]
+fn exit_only_withholds_one_asset() {
+    use astroport::asset::AssetInfoExt;
+    use astroport_pair_concentrated::contract::{ExitOnly, MigrateMsg};
+
+    let owner = Addr::unchecked("owner");
+    let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
+    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let eclip = helper.assets[&test_coins[0]].clone();
+    let xastro = helper.assets[&test_coins[1]].clone();
+
+    // two LPs
+    let alice = Addr::unchecked("alice");
+    let bob = Addr::unchecked("bob");
+    for (user, amount) in [(&alice, 300_000_000000u128), (&bob, 100_000_000000u128)] {
+        let assets = vec![eclip.with_balance(amount), xastro.with_balance(amount)];
+        helper.give_me_money(&assets, user);
+        helper.provide_liquidity(user, &assets).unwrap();
+    }
+    let pool_before: PoolResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.pair_addr,
+            &astroport::pair_concentrated::QueryMsg::Pool {},
+        )
+        .unwrap();
+
+    // only an asset of the pool can be withheld
+    let code_id = helper.app.contract_data(&helper.pair_addr).unwrap().code_id;
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg {
+                exit_only: Some(ExitOnly {
+                    withheld: astroport::asset::AssetInfo::native("uother"),
+                }),
+            },
+            code_id,
+        )
+        .unwrap_err();
+    assert!(err
+        .root_cause()
+        .to_string()
+        .contains("is not one of the pool's assets"));
+
+    helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg {
+                exit_only: Some(ExitOnly {
+                    withheld: xastro.clone(),
+                }),
+            },
+            code_id,
+        )
+        .unwrap();
+
+    // swaps, deposits and quotes are refused
+    let carol = Addr::unchecked("carol");
+    helper.give_me_money(
+        &[
+            eclip.with_balance(1_000000u128),
+            xastro.with_balance(1_000000u128),
+        ],
+        &carol,
+    );
+    let err = helper
+        .swap(&carol, &xastro.with_balance(1_000000u128), None)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ExitOnly {}
+    );
+    let err = helper
+        .provide_liquidity(
+            &carol,
+            &[
+                eclip.with_balance(1_000000u128),
+                xastro.with_balance(1_000000u128),
+            ],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ExitOnly {}
+    );
+    assert!(helper
+        .simulate_swap(&xastro.with_balance(1_000000u128), None)
+        .is_err());
+
+    // withdrawing returns the LP's share of everything except xASTRO
+    let alice_lp = helper.native_balance(&helper.lp_token, &alice);
+    let lp_supply = helper
+        .app
+        .wrap()
+        .query_supply(&helper.lp_token)
+        .unwrap()
+        .amount
+        .u128();
+    let eclip_pool = pool_before
+        .assets
+        .iter()
+        .find(|a| a.info == eclip)
+        .unwrap()
+        .amount
+        .u128();
+    let xastro_pool = pool_before
+        .assets
+        .iter()
+        .find(|a| a.info == xastro)
+        .unwrap()
+        .amount
+        .u128();
+    helper.withdraw_liquidity(&alice, alice_lp, vec![]).unwrap();
+
+    let expected = (alice_lp - 1) * eclip_pool / lp_supply;
+    let got = helper.coin_balance(&test_coins[0], &alice);
+    assert_eq!(got, expected);
+    assert_eq!(helper.coin_balance(&test_coins[1], &alice), 0);
+    assert_eq!(helper.native_balance(&helper.lp_token, &alice), 0);
+
+    let pool_after: PoolResponse = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &helper.pair_addr,
+            &astroport::pair_concentrated::QueryMsg::Pool {},
+        )
+        .unwrap();
+    assert_eq!(
+        pool_after
+            .assets
+            .iter()
+            .find(|a| a.info == xastro)
+            .unwrap()
+            .amount
+            .u128(),
+        xastro_pool
+    );
+    assert_eq!(
+        pool_after
+            .assets
+            .iter()
+            .find(|a| a.info == eclip)
+            .unwrap()
+            .amount
+            .u128(),
+        eclip_pool - expected
+    );
+
+    // bob exits too; the withheld xASTRO stays in the pool
+    let bob_lp = helper.native_balance(&helper.lp_token, &bob);
+    helper.withdraw_liquidity(&bob, bob_lp, vec![]).unwrap();
+    assert!(helper.coin_balance(&test_coins[0], &bob) > 0);
+    assert_eq!(helper.coin_balance(&test_coins[1], &bob), 0);
+
+    // a migration without the field keeps exit-only
+    helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg::default(),
+            code_id,
+        )
+        .unwrap();
+    let err = helper
+        .swap(&carol, &xastro.with_balance(1_000000u128), None)
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ExitOnly {}
+    );
+}

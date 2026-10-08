@@ -13,6 +13,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("The pool is exit-only: only withdrawing liquidity is allowed")]
+    ExitOnly {},
+
     #[error("{0}")]
     ConversionOverflowError(#[from] ConversionOverflowError),
 

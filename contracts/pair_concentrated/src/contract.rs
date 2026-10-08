@@ -4,7 +4,7 @@ use std::vec;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
     attr, coin, ensure, ensure_eq, from_json, to_json_binary, wasm_execute, Addr, Binary, Coin,
-    CosmosMsg, Decimal, Decimal256, DepsMut, Empty, Env, MessageInfo, Reply, Response, StdError,
+    CosmosMsg, Decimal, Decimal256, DepsMut, Env, MessageInfo, Reply, Response, StdError,
     StdResult, SubMsg, SubMsgResponse, SubMsgResult, Uint128, WasmMsg,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -43,7 +43,7 @@ use astroport_pcl_common::utils::{
 };
 
 use crate::error::ContractError;
-use crate::state::{BALANCES, CONFIG, OBSERVATIONS, OWNERSHIP_PROPOSAL};
+use crate::state::{BALANCES, CONFIG, EXIT_ONLY, OBSERVATIONS, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_swap_sizes, calculate_shares, get_assets_with_precision, query_pools,
 };
@@ -281,6 +281,16 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
+
+    if EXIT_ONLY.exists(deps.storage) {
+        match &msg {
+            ExecuteMsg::WithdrawLiquidity { .. }
+            | ExecuteMsg::ProposeNewOwner { .. }
+            | ExecuteMsg::DropOwnershipProposal {}
+            | ExecuteMsg::ClaimOwnership {} => {}
+            _ => return Err(ContractError::ExitOnly {}),
+        }
+    }
 
     match msg {
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
@@ -586,14 +596,21 @@ fn withdraw_liquidity(
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
 
+    // in exit-only mode the withheld asset's share stays in the pool
+    let withheld = EXIT_ONLY.may_load(deps.storage)?;
     let refund_assets = refund_assets
         .into_iter()
         .map(|asset| {
             let prec = precisions.get_precision(&asset.info).unwrap();
+            let amount = if withheld.as_ref() == Some(&asset.info) {
+                Uint128::zero()
+            } else {
+                asset.amount.to_uint(prec)?
+            };
 
             Ok(Asset {
                 info: asset.info,
-                amount: asset.amount.to_uint(prec)?,
+                amount,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
@@ -601,6 +618,7 @@ fn withdraw_liquidity(
     messages.extend(
         refund_assets
             .iter()
+            .filter(|asset| !asset.amount.is_zero())
             .cloned()
             .map(|asset| asset.into_msg(&info.sender))
             .collect::<StdResult<Vec<_>>>()?,
@@ -887,22 +905,49 @@ fn update_config(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: Empty) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-pair-concentrated" => match contract_version.version.as_ref() {
-            "4.0.0" | "4.0.1" | "4.1.0" | "4.1.1" | "4.1.2" => {}
+            "4.0.0" | "4.0.1" | "4.1.0" | "4.1.1" | "4.1.2" | "4.2.0" | "4.2.1" | "4.2.2"
+            | "4.3.0" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
     }
 
+    let mut response = Response::new();
+    if let Some(ExitOnly { withheld }) = msg.exit_only {
+        let config = CONFIG.load(deps.storage)?;
+        ensure!(
+            config.pair_info.asset_infos.contains(&withheld),
+            StdError::generic_err(format!("{withheld} is not one of the pool's assets"))
+        );
+        EXIT_ONLY.save(deps.storage, &withheld)?;
+        response = response.add_attribute("exit_only_withheld", withheld.to_string());
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::new()
+    Ok(response
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
         .add_attribute("new_contract_version", CONTRACT_VERSION))
+}
+
+/// Puts the pool in exit-only mode, withholding `withheld` from withdrawals.
+#[cosmwasm_schema::cw_serde]
+pub struct ExitOnly {
+    pub withheld: AssetInfo,
+}
+
+#[cosmwasm_schema::cw_serde]
+#[derive(Default)]
+pub struct MigrateMsg {
+    /// Puts the pool in exit-only mode. Leaves the mode as it is if not set; there is no way
+    /// back out of it.
+    #[serde(default)]
+    pub exit_only: Option<ExitOnly>,
 }
