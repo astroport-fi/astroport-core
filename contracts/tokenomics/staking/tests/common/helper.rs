@@ -181,6 +181,7 @@ impl Helper {
             &astroport_staking::migrate::MigrateMsg {
                 mode: None,
                 before_send_hook: Some(hook.to_string()),
+                withdraw_astro: None,
             },
             code_id,
         )
@@ -198,6 +199,7 @@ impl Helper {
             &astroport_staking::migrate::MigrateMsg {
                 mode,
                 before_send_hook: None,
+                withdraw_astro: None,
             },
             code_id,
         )

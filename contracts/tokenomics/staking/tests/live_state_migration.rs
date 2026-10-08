@@ -46,6 +46,7 @@ fn migrate_live_state() {
         MigrateMsg {
             mode: Some(StakingMode::Paused),
             before_send_hook: None,
+            withdraw_astro: None,
         },
     )
     .unwrap();
@@ -111,6 +112,7 @@ fn migrate_live_state() {
         MigrateMsg {
             mode: Some(StakingMode::LeaveOnly),
             before_send_hook: None,
+            withdraw_astro: None,
         },
     )
     .unwrap();
@@ -136,6 +138,7 @@ fn live_state_set_hook() {
         MigrateMsg {
             mode: Some(StakingMode::Paused),
             before_send_hook: Some("freezer".to_string()),
+            withdraw_astro: None,
         },
     )
     .unwrap();
@@ -234,4 +237,51 @@ fn live_v231_freeze() {
     )
     .unwrap_err();
     assert_eq!(err, ContractError::Paused {});
+}
+
+#[test]
+fn live_v231_withdraw_astro() {
+    use astroport_staking::migrate::WithdrawAstro;
+    use cosmwasm_std::{Addr, BankMsg, CosmosMsg};
+
+    const STAKING: &str = "neutron1zlf3hutsa4qnmue53lz2tfxrutp8y2e3rj4nkghg3rupgl4mqy8s5jgxsn";
+    const TREASURY: &str = "neutron19sq60cxtsjcx7vw25c63wyt27fxevuh6l7vxcn04u0t0rueyfpvq4mc75l";
+    let mut deps = live_v231();
+    // what the paused live contract holds: the ASTRO deposited after the attack
+    deps.querier
+        .update_balance(STAKING, coins(4_990_549_139_992, ASTRO));
+    let mut env = mock_env();
+    env.contract.address = Addr::unchecked(STAKING);
+
+    let msg: MigrateMsg = cosmwasm_std::from_json(
+        format!(r#"{{"withdraw_astro":{{"recipient":"{TREASURY}","amount":"4990549139992"}}}}"#)
+            .as_bytes(),
+    )
+    .unwrap();
+    let res = migrate(deps.as_mut(), env.clone(), msg).unwrap();
+    assert_eq!(
+        res.messages[0].msg,
+        CosmosMsg::Bank(BankMsg::Send {
+            to_address: TREASURY.to_string(),
+            amount: coins(4_990_549_139_992, ASTRO)
+        })
+    );
+
+    // one unit more than the balance is refused
+    let mut deps = live_v231();
+    deps.querier
+        .update_balance(STAKING, coins(4_990_549_139_992, ASTRO));
+    let err = migrate(
+        deps.as_mut(),
+        env,
+        MigrateMsg {
+            withdraw_astro: Some(WithdrawAstro {
+                recipient: TREASURY.to_string(),
+                amount: 4_990_549_139_993u128.into(),
+            }),
+            ..Default::default()
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(err, ContractError::WithdrawExceedsBalance { .. }));
 }
