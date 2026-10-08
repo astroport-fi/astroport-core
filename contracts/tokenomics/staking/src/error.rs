@@ -27,4 +27,7 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Staking is paused")]
+    Paused {},
 }

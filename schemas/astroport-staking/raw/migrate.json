@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MigrateMsg",
+  "type": "object",
+  "properties": {
+    "paused": {
+      "description": "Pauses (`true`) or resumes (`false`) enter and leave. Leaves it as it is if not set.",
+      "default": null,
+      "type": [
+        "boolean",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}

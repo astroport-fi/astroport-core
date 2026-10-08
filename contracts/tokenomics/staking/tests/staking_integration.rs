@@ -612,3 +612,83 @@ fn test_hooks() {
         .stake_with_hook(&alice, 10000, absorber.to_string(), &())
         .unwrap_err();
 }
+
+#[test]
+fn test_pause() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let xastro_denom = helper.xastro_denom.clone();
+
+    let alice = Addr::unchecked("alice");
+    helper.give_astro(10000, &alice);
+    helper.stake(&alice, 2000).unwrap();
+
+    let total_shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
+        .unwrap();
+    let total_deposit: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
+        .unwrap();
+
+    // a migration without the field leaves staking running
+    helper.migrate(None).unwrap();
+    helper.stake(&alice, 100).unwrap();
+
+    let resp = helper.migrate(Some(true)).unwrap();
+    assert!(resp.events.iter().any(|e| e
+        .attributes
+        .iter()
+        .any(|a| a.key == "paused" && a.value == "true")));
+
+    // enter, enter with a hook and leave are all refused while paused
+    let err = helper.stake(&alice, 100).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Paused {}
+    );
+    let err = helper
+        .stake_with_hook(&alice, 100, "contract".to_string(), &Empty {})
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Paused {}
+    );
+    let err = helper.unstake(&alice, 10).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Paused {}
+    );
+
+    // nothing moved, and queries still work
+    let paused_shares: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalShares {})
+        .unwrap();
+    let paused_deposit: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(&helper.staking, &QueryMsg::TotalDeposit {})
+        .unwrap();
+    assert_eq!(paused_shares, total_shares + Uint128::new(100));
+    assert_eq!(paused_deposit, total_deposit + Uint128::new(100));
+    let alice_xastro = helper.query_balance(&alice, &xastro_denom).unwrap();
+    assert_eq!(alice_xastro.u128(), 1100);
+
+    // a migration without the field keeps it paused
+    helper.migrate(None).unwrap();
+    let err = helper.stake(&alice, 100).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Paused {}
+    );
+
+    // resuming lets enter and leave through again
+    helper.migrate(Some(false)).unwrap();
+    helper.stake(&alice, 100).unwrap();
+    helper.unstake(&alice, 10).unwrap();
+}
