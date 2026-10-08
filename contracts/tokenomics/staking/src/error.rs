@@ -27,4 +27,10 @@ pub enum ContractError {
 
     #[error("Contract can't be migrated!")]
     MigrationError {},
+
+    #[error("Staking is paused")]
+    Paused {},
+
+    #[error("Staking is leave-only: new ASTRO can't be staked")]
+    LeaveOnly {},
 }

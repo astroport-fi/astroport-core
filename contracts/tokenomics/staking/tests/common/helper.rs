@@ -23,7 +23,8 @@ fn staking_contract() -> Box<dyn Contract<Empty>> {
             astroport_staking::contract::instantiate,
             astroport_staking::contract::query,
         )
-        .with_reply_empty(astroport_staking::contract::reply),
+        .with_reply_empty(astroport_staking::contract::reply)
+        .with_migrate_empty(astroport_staking::migrate::migrate),
     )
 }
 
@@ -90,7 +91,7 @@ impl Helper {
                 &msg,
                 &[],
                 String::from("Astroport Staking"),
-                None,
+                Some(owner.to_string()),
             )
             .unwrap();
 
@@ -146,6 +147,20 @@ impl Helper {
                 msg: to_json_binary(msg)?,
             },
             &coins(amount, ASTRO_DENOM),
+        )
+    }
+
+    /// Migrates the staking contract to its own code with the given mode.
+    pub fn migrate(
+        &mut self,
+        mode: Option<astroport_staking::state::StakingMode>,
+    ) -> AnyResult<AppResponse> {
+        let code_id = self.app.contract_data(&self.staking)?.code_id;
+        self.app.migrate_contract(
+            self.owner.clone(),
+            self.staking.clone(),
+            &astroport_staking::migrate::MigrateMsg { mode },
+            code_id,
         )
     }
 

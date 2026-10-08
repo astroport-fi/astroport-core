@@ -203,3 +203,77 @@ fn test_queries() {
         "Generic error: Querier contract error: Invalid asset rand"
     );
 }
+
+#[test]
+fn test_follows_staking_mode() {
+    use astroport_staking::error::ContractError as StakingError;
+    use astroport_staking::state::StakingMode;
+
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let xastro_denom = helper.xastro_denom.clone();
+
+    // get some xASTRO through the pair while staking is open
+    helper
+        .swap(&owner, &Asset::native(ASTRO_DENOM, 100000u128), None, None)
+        .unwrap();
+    let xastro_bal = helper.native_balance(&xastro_denom, &owner);
+    assert_eq!(xastro_bal, 100000u128 - 1000);
+
+    let staking_err =
+        |res: anyhow::Result<astroport_test::cw_multi_test::AppResponse>| -> StakingError {
+            res.unwrap_err().downcast::<StakingError>().unwrap()
+        };
+
+    // paused staking: swaps in both directions fail and nothing moves
+    helper.set_staking_mode(StakingMode::Paused).unwrap();
+    let astro_before = helper.native_balance(ASTRO_DENOM, &owner);
+    assert_eq!(
+        staking_err(helper.swap(&owner, &Asset::native(ASTRO_DENOM, 1000u128), None, None)),
+        StakingError::Paused {}
+    );
+    assert_eq!(
+        staking_err(helper.swap(&owner, &Asset::native(&xastro_denom, 1000u128), None, None)),
+        StakingError::Paused {}
+    );
+    assert_eq!(helper.native_balance(ASTRO_DENOM, &owner), astro_before);
+    assert_eq!(helper.native_balance(&xastro_denom, &owner), xastro_bal);
+
+    // leave-only staking: ASTRO -> xASTRO fails, xASTRO -> ASTRO works
+    helper.set_staking_mode(StakingMode::LeaveOnly).unwrap();
+    assert_eq!(
+        staking_err(helper.swap(&owner, &Asset::native(ASTRO_DENOM, 1000u128), None, None)),
+        StakingError::LeaveOnly {}
+    );
+    helper
+        .swap(&owner, &Asset::native(&xastro_denom, 1000u128), None, None)
+        .unwrap();
+    assert_eq!(
+        helper.native_balance(&xastro_denom, &owner),
+        xastro_bal - 1000
+    );
+    assert_eq!(
+        helper.native_balance(ASTRO_DENOM, &owner),
+        astro_before + 1000
+    );
+
+    // open again: both directions work
+    helper.set_staking_mode(StakingMode::Open).unwrap();
+    helper
+        .swap(&owner, &Asset::native(ASTRO_DENOM, 1000u128), None, None)
+        .unwrap();
+    let xastro_after_entry = helper.native_balance(&xastro_denom, &owner);
+    assert_eq!(xastro_after_entry, xastro_bal);
+    let astro_before_exit = helper.native_balance(ASTRO_DENOM, &owner);
+    helper
+        .swap(&owner, &Asset::native(&xastro_denom, 1000u128), None, None)
+        .unwrap();
+    assert_eq!(
+        helper.native_balance(&xastro_denom, &owner),
+        xastro_after_entry - 1000
+    );
+    assert_eq!(
+        helper.native_balance(ASTRO_DENOM, &owner),
+        astro_before_exit + 1000
+    );
+}

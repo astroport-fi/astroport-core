@@ -1,0 +1,48 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MigrateMsg",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "description": "Sets what users can do: `\"open\"`, `\"leave_only\"` or `\"paused\"`. Leaves it as it is if not set.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/StakingMode"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "StakingMode": {
+      "description": "What the staking contract lets users do. Only a migration changes it.",
+      "oneOf": [
+        {
+          "description": "Enter and leave both work",
+          "type": "string",
+          "enum": [
+            "open"
+          ]
+        },
+        {
+          "description": "Only leave works: no new ASTRO can be staked",
+          "type": "string",
+          "enum": [
+            "leave_only"
+          ]
+        },
+        {
+          "description": "Neither enter nor leave works",
+          "type": "string",
+          "enum": [
+            "paused"
+          ]
+        }
+      ]
+    }
+  }
+}

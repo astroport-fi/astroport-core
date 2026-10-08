@@ -67,7 +67,8 @@ fn staking_contract() -> Box<dyn Contract<Empty>> {
             astroport_staking::contract::instantiate,
             astroport_staking::contract::query,
         )
-        .with_reply_empty(astroport_staking::contract::reply),
+        .with_reply_empty(astroport_staking::contract::reply)
+        .with_migrate_empty(astroport_staking::migrate::migrate),
     )
 }
 
@@ -94,6 +95,7 @@ pub struct Helper {
     pub owner: Addr,
     pub factory: Addr,
     pub pair_addr: Addr,
+    pub staking: Addr,
     pub fake_maker: Addr,
     pub xastro_denom: String,
 }
@@ -163,7 +165,7 @@ impl Helper {
                 &msg,
                 &[],
                 String::from("Astroport Staking"),
-                None,
+                Some(owner.to_string()),
             )
             .unwrap();
 
@@ -199,6 +201,7 @@ impl Helper {
             owner: owner.clone(),
             factory,
             pair_addr: resp.contract_addr,
+            staking,
             fake_maker,
             xastro_denom,
         })
@@ -218,6 +221,20 @@ impl Helper {
 
         self.app
             .execute_contract(sender.clone(), self.pair_addr.clone(), &msg, &funds)
+    }
+
+    /// Migrates the staking contract to its own code with the given mode.
+    pub fn set_staking_mode(
+        &mut self,
+        mode: astroport_staking::state::StakingMode,
+    ) -> AnyResult<AppResponse> {
+        let code_id = self.app.contract_data(&self.staking)?.code_id;
+        self.app.migrate_contract(
+            self.owner.clone(),
+            self.staking.clone(),
+            &astroport_staking::migrate::MigrateMsg { mode: Some(mode) },
+            code_id,
+        )
     }
 
     pub fn swap(
