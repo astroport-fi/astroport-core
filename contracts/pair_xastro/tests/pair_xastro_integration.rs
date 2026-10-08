@@ -262,4 +262,18 @@ fn test_follows_staking_mode() {
     helper
         .swap(&owner, &Asset::native(ASTRO_DENOM, 1000u128), None, None)
         .unwrap();
+    let xastro_after_entry = helper.native_balance(&xastro_denom, &owner);
+    assert_eq!(xastro_after_entry, xastro_bal);
+    let astro_before_exit = helper.native_balance(ASTRO_DENOM, &owner);
+    helper
+        .swap(&owner, &Asset::native(&xastro_denom, 1000u128), None, None)
+        .unwrap();
+    assert_eq!(
+        helper.native_balance(&xastro_denom, &owner),
+        xastro_after_entry - 1000
+    );
+    assert_eq!(
+        helper.native_balance(ASTRO_DENOM, &owner),
+        astro_before_exit + 1000
+    );
 }
