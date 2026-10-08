@@ -167,3 +167,71 @@ fn live_state_set_hook() {
     .unwrap_err();
     assert_eq!(err, ContractError::Paused {});
 }
+
+/// The live contract as it is now: 2.3.1, paused (all four stored keys).
+fn live_v231() -> cosmwasm_std::OwnedDeps<
+    cosmwasm_std::MemoryStorage,
+    cosmwasm_std::testing::MockApi,
+    cosmwasm_std::testing::MockQuerier,
+> {
+    let mut deps = mock_dependencies();
+    for key in ["config", "contract_info", "tracker_data", "mode"] {
+        let raw = std::fs::read(format!(
+            "{}/tests/fixtures/neutron_staking_v231_{key}.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        deps.storage.set(key.as_bytes(), &raw);
+    }
+    deps
+}
+
+#[test]
+fn live_v231_freeze() {
+    use cosmwasm_std::{Addr, CosmosMsg};
+
+    const FREEZER: &str = "neutron1lrm2g9hxj2qxgu0cxakdhmq8ktxnlh9pf86y9eae0g7mtgx7hxqqj4skw7";
+
+    // the freeze proposal's exact message
+    let mut deps = live_v231();
+    let mut env = mock_env();
+    env.contract.address =
+        Addr::unchecked("neutron1zlf3hutsa4qnmue53lz2tfxrutp8y2e3rj4nkghg3rupgl4mqy8s5jgxsn");
+    let msg: MigrateMsg = cosmwasm_std::from_json(
+        format!(r#"{{"mode":"paused","before_send_hook":"{FREEZER}"}}"#).as_bytes(),
+    )
+    .unwrap();
+    let res = migrate(deps.as_mut(), env.clone(), msg).unwrap();
+    let CosmosMsg::Stargate { value, .. } = &res.messages[0].msg else {
+        panic!("expected a stargate message");
+    };
+    let hook: osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetBeforeSendHook =
+        value.clone().try_into().unwrap();
+    assert_eq!(hook.denom, XASTRO);
+    assert_eq!(hook.cosmwasm_address, FREEZER);
+    assert_eq!(
+        cw2::get_contract_version(&deps.storage).unwrap().version,
+        CONTRACT_VERSION
+    );
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("user", &coins(1_000_000, ASTRO)),
+        ExecuteMsg::Enter { receiver: None },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Paused {});
+
+    // leaving the mode out keeps the stored "paused", and sets no hook
+    let mut deps = live_v231();
+    let res = migrate(deps.as_mut(), env, MigrateMsg::default()).unwrap();
+    assert!(res.messages.is_empty());
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("user", &coins(1_000_000, XASTRO)),
+        ExecuteMsg::Leave { receiver: None },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Paused {});
+}
