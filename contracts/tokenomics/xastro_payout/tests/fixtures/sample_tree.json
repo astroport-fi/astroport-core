@@ -1,0 +1,50 @@
+{
+ "merkle_root": "0ed1644e7ab11605f5f2641e0c7f3caf16c0c7ae6bc9e32197e72a10ef85c301",
+ "total": "126964",
+ "count": 5,
+ "payments": [
+  {
+   "address": "neutron1carol",
+   "amount": "7",
+   "proof": [
+    "be35d1b62dd77603953f7fcfadd476cba5ef5672b03c542c4b50b98f1b910150",
+    "5c03c2ad5c99dc687bca2b29d1081363d94239f48dc7b569800a507d338fd0bb",
+    "efbf747edcafdfa5646a1e3d5c7d92e606910b1d645091d72bc86b518de2ccd1"
+   ]
+  },
+  {
+   "address": "neutron1bob",
+   "amount": "2500",
+   "proof": [
+    "a8886ba131146175b6c71e3d4ab4c223811edde80defc3d9b37a1f2e21645d4a",
+    "5c03c2ad5c99dc687bca2b29d1081363d94239f48dc7b569800a507d338fd0bb",
+    "efbf747edcafdfa5646a1e3d5c7d92e606910b1d645091d72bc86b518de2ccd1"
+   ]
+  },
+  {
+   "address": "neutron1alice",
+   "amount": "1000",
+   "proof": [
+    "eada3b648d0aef98f1f9b61b018f6649264a343e6e8caac66456b308e3f9d932",
+    "2142e41f0929b1752d0ceb57db12041a81d526621fc708910411b1acfcb7d1b8",
+    "efbf747edcafdfa5646a1e3d5c7d92e606910b1d645091d72bc86b518de2ccd1"
+   ]
+  },
+  {
+   "address": "neutron1dave",
+   "amount": "123456",
+   "proof": [
+    "de99943b69f0985d3d7f1fa18a0e4ece2723ead7ec77d9fab29606417331fd19",
+    "2142e41f0929b1752d0ceb57db12041a81d526621fc708910411b1acfcb7d1b8",
+    "efbf747edcafdfa5646a1e3d5c7d92e606910b1d645091d72bc86b518de2ccd1"
+   ]
+  },
+  {
+   "address": "neutron1erin",
+   "amount": "1",
+   "proof": [
+    "ec8d6dc0bc0f3a2f8ee96d9a9d8f2b42068f1b6e3c6563ff4ee1f31be79847d9"
+   ]
+  }
+ ]
+}
