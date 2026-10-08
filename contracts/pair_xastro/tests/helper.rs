@@ -232,7 +232,10 @@ impl Helper {
         self.app.migrate_contract(
             self.owner.clone(),
             self.staking.clone(),
-            &astroport_staking::migrate::MigrateMsg { mode: Some(mode) },
+            &astroport_staking::migrate::MigrateMsg {
+                mode: Some(mode),
+                before_send_hook: None,
+            },
             code_id,
         )
     }

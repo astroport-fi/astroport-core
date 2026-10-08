@@ -45,6 +45,7 @@ fn migrate_live_state() {
         mock_env(),
         MigrateMsg {
             mode: Some(StakingMode::Paused),
+            before_send_hook: None,
         },
     )
     .unwrap();
@@ -109,9 +110,60 @@ fn migrate_live_state() {
         mock_env(),
         MigrateMsg {
             mode: Some(StakingMode::LeaveOnly),
+            before_send_hook: None,
         },
     )
     .unwrap();
     assert_eq!(mode_of(&res), "LeaveOnly");
     assert_eq!(enter(&mut deps), ContractError::LeaveOnly {});
+}
+
+#[test]
+fn live_state_set_hook() {
+    use cosmwasm_std::{Addr, CosmosMsg};
+
+    let mut deps = mock_dependencies();
+    for key in ["config", "contract_info", "tracker_data"] {
+        deps.storage.set(key.as_bytes(), &fixture(key));
+    }
+    let mut env = mock_env();
+    env.contract.address =
+        Addr::unchecked("neutron1zlf3hutsa4qnmue53lz2tfxrutp8y2e3rj4nkghg3rupgl4mqy8s5jgxsn");
+
+    let res = migrate(
+        deps.as_mut(),
+        env,
+        MigrateMsg {
+            mode: Some(StakingMode::Paused),
+            before_send_hook: Some("freezer".to_string()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(res.messages.len(), 1);
+    let CosmosMsg::Stargate { type_url, value } = &res.messages[0].msg else {
+        panic!("expected a stargate message, got {:?}", res.messages[0].msg);
+    };
+    assert_eq!(
+        type_url,
+        "/osmosis.tokenfactory.v1beta1.MsgSetBeforeSendHook"
+    );
+    let msg: osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetBeforeSendHook =
+        value.clone().try_into().unwrap();
+    assert_eq!(
+        msg.sender,
+        "neutron1zlf3hutsa4qnmue53lz2tfxrutp8y2e3rj4nkghg3rupgl4mqy8s5jgxsn"
+    );
+    assert_eq!(msg.denom, XASTRO);
+    assert_eq!(msg.cosmwasm_address, "freezer");
+
+    // the mode is applied in the same migration
+    let err = execute(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("user", &coins(1_000_000, ASTRO)),
+        ExecuteMsg::Enter { receiver: None },
+    )
+    .unwrap_err();
+    assert_eq!(err, ContractError::Paused {});
 }

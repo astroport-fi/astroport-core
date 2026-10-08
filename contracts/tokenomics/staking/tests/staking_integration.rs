@@ -703,3 +703,89 @@ fn test_modes() {
     helper.stake(&alice, 100).unwrap();
     helper.unstake(&alice, 10).unwrap();
 }
+
+#[test]
+fn test_freeze_through_hook() {
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let xastro_denom = helper.xastro_denom.clone();
+    let tracker = Addr::unchecked(helper.tracker_addr.clone());
+
+    let alice = Addr::unchecked("alice");
+    let bob = Addr::unchecked("bob");
+    helper.give_astro(10000, &alice);
+    helper.stake(&alice, 2000).unwrap();
+    helper
+        .app
+        .send_tokens(alice.clone(), bob.clone(), &coins(100, &xastro_denom))
+        .unwrap();
+
+    // a tracker of the same code, tracking another denom, refuses every xASTRO move
+    let freezer = helper.instantiate_tracker("xastro-freeze");
+    let resp = helper.set_hook(&freezer).unwrap();
+    assert!(resp.events.iter().any(|e| e
+        .attributes
+        .iter()
+        .any(|a| a.key == "before_send_hook" && a.value == freezer.as_str())));
+
+    // plain transfers, entering (mint) and leaving (burn) all fail
+    let err = helper
+        .app
+        .send_tokens(alice.clone(), bob.clone(), &coins(10, &xastro_denom))
+        .unwrap_err();
+    assert!(
+        format!("{err:#}").contains("Invalid denom"),
+        "unexpected error: {err:#}"
+    );
+    assert!(helper.stake(&alice, 100).is_err());
+    assert!(helper.unstake(&alice, 10).is_err());
+    assert_eq!(
+        helper.query_balance(&alice, &xastro_denom).unwrap().u128(),
+        900
+    );
+    assert_eq!(
+        helper.query_balance(&bob, &xastro_denom).unwrap().u128(),
+        100
+    );
+
+    // pointing the hook back at the balance tracker unfreezes, and tracking carries on
+    helper.set_hook(&tracker).unwrap();
+    helper
+        .app
+        .send_tokens(alice.clone(), bob.clone(), &coins(10, &xastro_denom))
+        .unwrap();
+    helper.stake(&alice, 100).unwrap();
+    helper.unstake(&alice, 10).unwrap();
+    let bob_tracked: Uint128 = helper
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &tracker,
+            &astroport_v4::tokenfactory_tracker::QueryMsg::BalanceAt {
+                address: bob.to_string(),
+                timestamp: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(bob_tracked.u128(), 110);
+
+    // an invalid hook address is refused
+    let code_id = helper.app.contract_data(&helper.staking).unwrap().code_id;
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.staking.clone(),
+            &astroport_staking::migrate::MigrateMsg {
+                mode: None,
+                before_send_hook: Some("".to_string()),
+            },
+            code_id,
+        )
+        .unwrap_err();
+    assert!(
+        format!("{err:#}").to_lowercase().contains("invalid")
+            || format!("{err:#}").to_lowercase().contains("empty"),
+        "{err:#}"
+    );
+}

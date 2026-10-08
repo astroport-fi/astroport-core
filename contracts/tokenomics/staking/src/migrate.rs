@@ -3,10 +3,11 @@ use cosmwasm_schema::cw_serde;
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{DepsMut, Env, Response};
 use cw2::{get_contract_version, set_contract_version};
+use osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetBeforeSendHook;
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::{StakingMode, MODE};
+use crate::state::{StakingMode, CONFIG, MODE};
 
 #[cw_serde]
 #[derive(Default)]
@@ -15,15 +16,22 @@ pub struct MigrateMsg {
     /// set.
     #[serde(default)]
     pub mode: Option<StakingMode>,
+    /// Points xASTRO's tokenfactory before-send hook at this contract (the staking contract is
+    /// the denom admin). Leaves the hook as it is if not set. The chain only calls a hook whose
+    /// code id is whitelisted for xASTRO, so this is meant for instances of the whitelisted
+    /// tracker code: the balance tracker itself, or one tracking another denom, which refuses
+    /// every xASTRO send, mint and burn and so freezes xASTRO until the hook is pointed back.
+    #[serde(default)]
+    pub before_send_hook: Option<String>,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let contract_version = get_contract_version(deps.storage)?;
 
     match contract_version.contract.as_ref() {
         "astroport-staking" => match contract_version.version.as_ref() {
-            "2.0.0" | "2.1.0" | "2.3.0" | "2.3.1" => {}
+            "2.0.0" | "2.1.0" | "2.2.0" | "2.3.0" | "2.3.1" | "2.3.2" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
@@ -33,9 +41,22 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
         MODE.save(deps.storage, &mode)?;
     }
 
+    let mut response = Response::new();
+    if let Some(hook) = msg.before_send_hook {
+        let hook = deps.api.addr_validate(&hook)?;
+        let config = CONFIG.load(deps.storage)?;
+        response = response
+            .add_message(MsgSetBeforeSendHook {
+                sender: env.contract.address.to_string(),
+                denom: config.xastro_denom,
+                cosmwasm_address: hook.to_string(),
+            })
+            .add_attribute("before_send_hook", hook);
+    }
+
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    Ok(Response::new()
+    Ok(response
         .add_attribute("previous_contract_name", &contract_version.contract)
         .add_attribute("previous_contract_version", &contract_version.version)
         .add_attribute("new_contract_name", CONTRACT_NAME)
@@ -59,7 +80,8 @@ mod tests {
             ("2.1.0", true),
             ("2.3.0", true),
             ("2.3.1", true),
-            ("2.2.0", false),
+            ("2.2.0", true),
+            ("2.3.2", true),
             ("1.0.0", false),
         ] {
             let mut deps = mock_dependencies();
@@ -70,6 +92,7 @@ mod tests {
                 mock_env(),
                 MigrateMsg {
                     mode: Some(StakingMode::Paused),
+                    before_send_hook: None,
                 },
             );
             if !ok {
@@ -97,7 +120,7 @@ mod tests {
     fn empty_message_is_accepted() {
         // the message deployed contracts were migrated with so far
         let msg: MigrateMsg = cosmwasm_std::from_json(b"{}").unwrap();
-        assert_eq!(msg, MigrateMsg { mode: None });
+        assert_eq!(msg, MigrateMsg::default());
     }
 
     #[test]
