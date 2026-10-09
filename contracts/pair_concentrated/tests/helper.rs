@@ -87,7 +87,11 @@ fn token_contract() -> Box<dyn Contract<Empty>> {
 }
 
 fn pair_contract() -> Box<dyn Contract<Empty>> {
-    Box::new(ContractWrapper::new_with_empty(execute, instantiate, query).with_reply_empty(reply))
+    Box::new(
+        ContractWrapper::new_with_empty(execute, instantiate, query)
+            .with_reply_empty(reply)
+            .with_migrate_empty(astroport_pair_concentrated::contract::migrate),
+    )
 }
 
 fn coin_registry_contract() -> Box<dyn Contract<Empty>> {

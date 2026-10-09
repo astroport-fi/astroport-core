@@ -13,6 +13,19 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("The pool is exit-only: only withdrawing liquidity is allowed")]
+    ExitOnly {},
+
+    #[error("The pool already withholds {0}")]
+    ExitOnlyAlreadySet(String),
+
+    #[error("Received {received} {asset_name} but expected {expected}")]
+    WithdrawSlippageViolation {
+        asset_name: String,
+        received: Uint128,
+        expected: Uint128,
+    },
+
     #[error("{0}")]
     ConversionOverflowError(#[from] ConversionOverflowError),
 

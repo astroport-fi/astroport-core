@@ -51,6 +51,24 @@ use crate::utils::{calculate_shares, get_assets_with_precision, pool_info, query
 ///   asset that was in the pool just preceding the moment of the specified block height creation.
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    // routers and aggregators quote through the simulations, and oracles read the prices; an
+    // exit-only pool neither trades nor has a meaningful price
+    if crate::state::EXIT_ONLY.exists(deps.storage)
+        && matches!(
+            msg,
+            QueryMsg::Simulation { .. }
+                | QueryMsg::ReverseSimulation { .. }
+                | QueryMsg::SimulateProvide { .. }
+                | QueryMsg::CumulativePrices { .. }
+                | QueryMsg::Observe { .. }
+                | QueryMsg::LpPrice { .. }
+        )
+    {
+        return Err(StdError::generic_err(
+            "The pool is exit-only: only withdrawing liquidity is allowed",
+        ));
+    }
+
     match msg {
         QueryMsg::Pair {} => to_json_binary(&CONFIG.load(deps.storage)?.pair_info),
         QueryMsg::Pool {} => to_json_binary(&query_pool(deps)?),
@@ -138,7 +156,8 @@ fn query_share(deps: Deps, amount: Uint128) -> Result<Vec<Asset>, ContractError>
         })
         .collect::<StdResult<Vec<_>>>()?;
 
-    Ok(refund_assets)
+    // same amounts as withdraw_liquidity pays out
+    Ok(crate::state::withhold(deps.storage, refund_assets)?)
 }
 
 /// Returns information about a swap simulation.
