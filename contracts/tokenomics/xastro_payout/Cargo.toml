@@ -1,0 +1,41 @@
+[package]
+name = "astroport-xastro-payout"
+version = "1.0.0"
+authors = ["Astroport"]
+edition = "2021"
+description = "Pays out a Merkle-rooted list of (address, amount) once per address; built for the xASTRO incident payout"
+license = "GPL-3.0-only"
+repository = "https://github.com/astroport-fi/astroport"
+homepage = "https://astroport.fi"
+
+exclude = [
+    # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+    "contract.wasm",
+    "hash.txt",
+]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+cosmwasm-schema.workspace = true
+cosmwasm-std.workspace = true
+cw-storage-plus.workspace = true
+cw2.workspace = true
+thiserror.workspace = true
+astroport.workspace = true
+cw-utils.workspace = true
+sha2 = { version = "0.10.8", default-features = false }
+hex = "0.4.3"
+
+[dev-dependencies]
+astroport-test = { path = "../../../packages/astroport_test" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
