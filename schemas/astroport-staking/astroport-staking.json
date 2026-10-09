@@ -260,7 +260,7 @@
         ]
       },
       "withdraw_astro": {
-        "description": "Sends `amount` of the staked ASTRO to `recipient`. Only allowed while staking is paused (after this migration's `mode` is applied), and never more than the contract holds. Meant for moving ASTRO deposited at a broken rate out so it can be returned to its owners.",
+        "description": "Sends `amount` of the staked ASTRO to `recipient`. Only allowed while staking is paused (after this migration's `mode` is applied), and never more than the contract holds. Meant for moving ASTRO deposited at a broken rate out so it can be returned to its owners. After a withdrawal staking stays paused for good: later migrations can't set another mode.",
         "default": null,
         "anyOf": [
           {

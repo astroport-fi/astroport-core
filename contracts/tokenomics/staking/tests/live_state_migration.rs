@@ -259,6 +259,8 @@ fn live_v231_withdraw_astro() {
     )
     .unwrap();
     let res = migrate(deps.as_mut(), env.clone(), msg).unwrap();
+    // only the send: no hook change, and staking stays paused
+    assert_eq!(res.messages.len(), 1);
     assert_eq!(
         res.messages[0].msg,
         CosmosMsg::Bank(BankMsg::Send {
@@ -266,6 +268,17 @@ fn live_v231_withdraw_astro() {
             amount: coins(4_990_549_139_992, ASTRO)
         })
     );
+    assert!(res
+        .attributes
+        .iter()
+        .any(|a| a.key == "mode" && a.value == "Paused"));
+
+    // the amount must be a JSON string, as Uint128 is
+    assert!(cosmwasm_std::from_json::<MigrateMsg>(
+        format!(r#"{{"withdraw_astro":{{"recipient":"{TREASURY}","amount":4990549139992}}}}"#)
+            .as_bytes(),
+    )
+    .is_err());
 
     // one unit more than the balance is refused
     let mut deps = live_v231();

@@ -7,7 +7,7 @@ use osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetBeforeSendHook;
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::{StakingMode, CONFIG, MODE};
+use crate::state::{StakingMode, CONFIG, MODE, RETIRED};
 
 #[cw_serde]
 #[derive(Default)]
@@ -25,7 +25,8 @@ pub struct MigrateMsg {
     pub before_send_hook: Option<String>,
     /// Sends `amount` of the staked ASTRO to `recipient`. Only allowed while staking is paused
     /// (after this migration's `mode` is applied), and never more than the contract holds. Meant
-    /// for moving ASTRO deposited at a broken rate out so it can be returned to its owners.
+    /// for moving ASTRO deposited at a broken rate out so it can be returned to its owners. After
+    /// a withdrawal staking stays paused for good: later migrations can't set another mode.
     #[serde(default)]
     pub withdraw_astro: Option<WithdrawAstro>,
 }
@@ -49,6 +50,9 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
     }
 
     if let Some(mode) = msg.mode {
+        if RETIRED.exists(deps.storage) && mode != StakingMode::Paused {
+            return Err(ContractError::Retired {});
+        }
         MODE.save(deps.storage, &mode)?;
     }
 
@@ -75,9 +79,13 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
             .querier
             .query_balance(&env.contract.address, &config.astro_denom)?
             .amount;
-        if amount.is_zero() || amount > balance {
+        if amount.is_zero() {
+            return Err(ContractError::WithdrawZero {});
+        }
+        if amount > balance {
             return Err(ContractError::WithdrawExceedsBalance { amount, balance });
         }
+        RETIRED.save(deps.storage, &())?;
         response = response
             .add_message(BankMsg::Send {
                 to_address: recipient.to_string(),

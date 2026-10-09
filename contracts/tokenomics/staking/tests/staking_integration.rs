@@ -840,7 +840,17 @@ fn test_withdraw_astro() {
             balance: 5000u128.into()
         }
     );
-    assert!(migrate(&mut helper, Some(StakingMode::Paused), 0).is_err());
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::Paused), 0)),
+        ContractError::WithdrawZero {}
+    );
+    // a refused migration leaves the mode as it was
+    helper.stake(&alice, 1).unwrap();
+    helper.unstake(&alice, 1).unwrap();
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::Open), 100)),
+        ContractError::WithdrawWhileNotPaused {}
+    );
 
     // pausing and withdrawing in the same migration sends exactly that much
     migrate(&mut helper, Some(StakingMode::Paused), 4000).unwrap();
@@ -869,4 +879,38 @@ fn test_withdraw_astro() {
             .u128(),
         0
     );
+
+    // after a withdrawal staking can't be opened again, only kept paused
+    for mode in [StakingMode::Open, StakingMode::LeaveOnly] {
+        let err = helper
+            .app
+            .migrate_contract(
+                owner.clone(),
+                helper.staking.clone(),
+                &MigrateMsg {
+                    mode: Some(mode),
+                    ..Default::default()
+                },
+                code_id,
+            )
+            .unwrap_err();
+        assert_eq!(
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::Retired {}
+        );
+    }
+    helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.staking.clone(),
+            &MigrateMsg {
+                mode: Some(StakingMode::Paused),
+                ..Default::default()
+            },
+            code_id,
+        )
+        .unwrap();
+    helper.give_astro(10, &alice);
+    assert!(helper.stake(&alice, 10).is_err());
 }
