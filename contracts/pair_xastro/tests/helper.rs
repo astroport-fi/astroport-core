@@ -235,6 +235,7 @@ impl Helper {
             &astroport_staking::migrate::MigrateMsg {
                 mode: Some(mode),
                 before_send_hook: None,
+                withdraw_astro: None,
             },
             code_id,
         )

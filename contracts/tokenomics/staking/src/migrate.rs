@@ -1,13 +1,13 @@
 use cosmwasm_schema::cw_serde;
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
-use cosmwasm_std::{DepsMut, Env, Response};
+use cosmwasm_std::{coins, BankMsg, DepsMut, Env, Response, Uint128};
 use cw2::{get_contract_version, set_contract_version};
 use osmosis_std::types::osmosis::tokenfactory::v1beta1::MsgSetBeforeSendHook;
 
 use crate::contract::{CONTRACT_NAME, CONTRACT_VERSION};
 use crate::error::ContractError;
-use crate::state::{StakingMode, CONFIG, MODE};
+use crate::state::{StakingMode, CONFIG, MODE, RETIRED};
 
 #[cw_serde]
 #[derive(Default)]
@@ -23,6 +23,18 @@ pub struct MigrateMsg {
     /// every xASTRO send, mint and burn and so freezes xASTRO until the hook is pointed back.
     #[serde(default)]
     pub before_send_hook: Option<String>,
+    /// Sends `amount` of the staked ASTRO to `recipient`. Only allowed while staking is paused
+    /// (after this migration's `mode` is applied), and never more than the contract holds. Meant
+    /// for moving ASTRO deposited at a broken rate out so it can be returned to its owners. After
+    /// a withdrawal staking stays paused for good: later migrations can't set another mode.
+    #[serde(default)]
+    pub withdraw_astro: Option<WithdrawAstro>,
+}
+
+#[cw_serde]
+pub struct WithdrawAstro {
+    pub recipient: String,
+    pub amount: Uint128,
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -31,13 +43,16 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
 
     match contract_version.contract.as_ref() {
         "astroport-staking" => match contract_version.version.as_ref() {
-            "2.0.0" | "2.1.0" | "2.2.0" | "2.3.0" | "2.3.1" | "2.3.2" => {}
+            "2.0.0" | "2.1.0" | "2.2.0" | "2.3.0" | "2.3.1" | "2.3.2" | "2.3.3" => {}
             _ => return Err(ContractError::MigrationError {}),
         },
         _ => return Err(ContractError::MigrationError {}),
     }
 
     if let Some(mode) = msg.mode {
+        if RETIRED.exists(deps.storage) && mode != StakingMode::Paused {
+            return Err(ContractError::Retired {});
+        }
         MODE.save(deps.storage, &mode)?;
     }
 
@@ -52,6 +67,32 @@ pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, Con
                 cosmwasm_address: hook.to_string(),
             })
             .add_attribute("before_send_hook", hook);
+    }
+
+    if let Some(WithdrawAstro { recipient, amount }) = msg.withdraw_astro {
+        if MODE.may_load(deps.storage)?.unwrap_or_default() != StakingMode::Paused {
+            return Err(ContractError::WithdrawWhileNotPaused {});
+        }
+        let recipient = deps.api.addr_validate(&recipient)?;
+        let config = CONFIG.load(deps.storage)?;
+        let balance = deps
+            .querier
+            .query_balance(&env.contract.address, &config.astro_denom)?
+            .amount;
+        if amount.is_zero() {
+            return Err(ContractError::WithdrawZero {});
+        }
+        if amount > balance {
+            return Err(ContractError::WithdrawExceedsBalance { amount, balance });
+        }
+        RETIRED.save(deps.storage, &())?;
+        response = response
+            .add_message(BankMsg::Send {
+                to_address: recipient.to_string(),
+                amount: coins(amount.u128(), config.astro_denom),
+            })
+            .add_attribute("withdraw_astro_recipient", recipient)
+            .add_attribute("withdraw_astro_amount", amount);
     }
 
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -82,6 +123,7 @@ mod tests {
             ("2.3.1", true),
             ("2.2.0", true),
             ("2.3.2", true),
+            ("2.3.3", true),
             ("1.0.0", false),
         ] {
             let mut deps = mock_dependencies();
@@ -93,6 +135,7 @@ mod tests {
                 MigrateMsg {
                     mode: Some(StakingMode::Paused),
                     before_send_hook: None,
+                    withdraw_astro: None,
                 },
             );
             if !ok {

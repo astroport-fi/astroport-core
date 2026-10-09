@@ -779,6 +779,7 @@ fn test_freeze_through_hook() {
             &astroport_staking::migrate::MigrateMsg {
                 mode: None,
                 before_send_hook: Some("".to_string()),
+                withdraw_astro: None,
             },
             code_id,
         )
@@ -788,4 +789,128 @@ fn test_freeze_through_hook() {
             || format!("{err:#}").to_lowercase().contains("empty"),
         "{err:#}"
     );
+}
+
+#[test]
+fn test_withdraw_astro() {
+    use astroport_staking::migrate::{MigrateMsg, WithdrawAstro};
+    use astroport_staking::state::StakingMode;
+
+    let owner = Addr::unchecked("owner");
+    let mut helper = Helper::new(&owner).unwrap();
+    let alice = Addr::unchecked("alice");
+    let treasury = Addr::unchecked("treasury");
+    helper.give_astro(10000, &alice);
+    helper.stake(&alice, 5000).unwrap();
+    let code_id = helper.app.contract_data(&helper.staking).unwrap().code_id;
+    let migrate = |helper: &mut Helper, mode: Option<StakingMode>, amount: u128| {
+        helper.app.migrate_contract(
+            owner.clone(),
+            helper.staking.clone(),
+            &MigrateMsg {
+                mode,
+                before_send_hook: None,
+                withdraw_astro: Some(WithdrawAstro {
+                    recipient: treasury.to_string(),
+                    amount: amount.into(),
+                }),
+            },
+            code_id,
+        )
+    };
+    let err_of = |res: anyhow::Result<cw_multi_test::AppResponse>| -> ContractError {
+        res.unwrap_err().downcast::<ContractError>().unwrap()
+    };
+
+    // refused while open or leave-only
+    assert_eq!(
+        err_of(migrate(&mut helper, None, 100)),
+        ContractError::WithdrawWhileNotPaused {}
+    );
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::LeaveOnly), 100)),
+        ContractError::WithdrawWhileNotPaused {}
+    );
+
+    // refused beyond the balance, or for zero
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::Paused), 5001)),
+        ContractError::WithdrawExceedsBalance {
+            amount: 5001u128.into(),
+            balance: 5000u128.into()
+        }
+    );
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::Paused), 0)),
+        ContractError::WithdrawZero {}
+    );
+    // a refused migration leaves the mode as it was
+    helper.stake(&alice, 1).unwrap();
+    helper.unstake(&alice, 1).unwrap();
+    assert_eq!(
+        err_of(migrate(&mut helper, Some(StakingMode::Open), 100)),
+        ContractError::WithdrawWhileNotPaused {}
+    );
+
+    // pausing and withdrawing in the same migration sends exactly that much
+    migrate(&mut helper, Some(StakingMode::Paused), 4000).unwrap();
+    assert_eq!(
+        helper.query_balance(&treasury, ASTRO_DENOM).unwrap().u128(),
+        4000
+    );
+    assert_eq!(
+        helper
+            .query_balance(&helper.staking, ASTRO_DENOM)
+            .unwrap()
+            .u128(),
+        1000
+    );
+
+    // and the rest, while still paused
+    migrate(&mut helper, None, 1000).unwrap();
+    assert_eq!(
+        helper.query_balance(&treasury, ASTRO_DENOM).unwrap().u128(),
+        5000
+    );
+    assert_eq!(
+        helper
+            .query_balance(&helper.staking, ASTRO_DENOM)
+            .unwrap()
+            .u128(),
+        0
+    );
+
+    // after a withdrawal staking can't be opened again, only kept paused
+    for mode in [StakingMode::Open, StakingMode::LeaveOnly] {
+        let err = helper
+            .app
+            .migrate_contract(
+                owner.clone(),
+                helper.staking.clone(),
+                &MigrateMsg {
+                    mode: Some(mode),
+                    ..Default::default()
+                },
+                code_id,
+            )
+            .unwrap_err();
+        assert_eq!(
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::Retired {}
+        );
+    }
+    helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.staking.clone(),
+            &MigrateMsg {
+                mode: Some(StakingMode::Paused),
+                ..Default::default()
+            },
+            code_id,
+        )
+        .unwrap();
+    helper.give_astro(10, &alice);
+    assert!(helper.stake(&alice, 10).is_err());
 }

@@ -594,7 +594,7 @@ dependencies = [
 
 [[package]]
 name = "astroport-staking"
-version = "2.3.2"
+version = "2.3.3"
 dependencies = [
  "anyhow",
  "astroport 4.0.3",

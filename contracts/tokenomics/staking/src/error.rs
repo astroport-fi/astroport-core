@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use cw_utils::{ParseReplyError, PaymentError};
 use thiserror::Error;
 
@@ -33,4 +33,16 @@ pub enum ContractError {
 
     #[error("Staking is leave-only: new ASTRO can't be staked")]
     LeaveOnly {},
+
+    #[error("ASTRO can only be withdrawn while staking is paused")]
+    WithdrawWhileNotPaused {},
+
+    #[error("Can't withdraw {amount} ASTRO: the contract holds {balance}")]
+    WithdrawExceedsBalance { amount: Uint128, balance: Uint128 },
+
+    #[error("Can't withdraw zero ASTRO")]
+    WithdrawZero {},
+
+    #[error("ASTRO was withdrawn from staking, so it can only stay paused")]
+    Retired {},
 }
