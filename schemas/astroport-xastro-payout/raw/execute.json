@@ -28,7 +28,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Ends the payout and sends the whole remaining balance to `recipient`. Only the owner can call it, and no payment can be made afterwards.",
+      "description": "Ends the payout and sends the whole remaining balance to the sweep recipient. Only the owner can call it, and no payment can be made afterwards.",
       "type": "object",
       "required": [
         "close"
@@ -36,14 +36,6 @@
       "properties": {
         "close": {
           "type": "object",
-          "required": [
-            "recipient"
-          ],
-          "properties": {
-            "recipient": {
-              "type": "string"
-            }
-          },
           "additionalProperties": false
         }
       },

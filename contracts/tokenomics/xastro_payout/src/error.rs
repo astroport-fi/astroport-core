@@ -22,6 +22,9 @@ pub enum ContractError {
     #[error("Invalid proof for {address}")]
     InvalidProof { address: String },
 
+    #[error("Zero amount for {address}")]
+    ZeroAmount { address: String },
+
     #[error("Paying out more than the list total")]
     TotalExceeded {},
 

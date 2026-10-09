@@ -11,7 +11,9 @@ submit their own entry.
 - An address is paid at most once. Already-paid entries in a batch are skipped, so retrying a batch is safe.
 - An invalid proof fails the whole batch.
 - The contract never pays out more than `total`.
-- The owner can `close` the payout at any time, which sends the remaining balance to a recipient and stops all payments.
+- The owner can `close` the payout at any time. It stops all payments and sends the remaining balance to the
+  `sweep_recipient` set at instantiate, so the owner can't send it anywhere else.
+- Instantiate it with no wasm admin (or the same DAO as owner): an admin can migrate to other code and move the funds.
 - The asset is configurable (native or cw20), so the same code serves Neutron and Terra.
 
 ## The tree
@@ -19,8 +21,10 @@ submit their own entry.
 `merkle.py` builds the root and proofs from a JSON list of `{"address", "amount"}`:
 
 ```
-python3 merkle.py list.json tree.json
+python3 merkle.py list.json tree.json neutron
 ```
+
+It refuses an address that isn't lowercase bech32 with the given prefix, a duplicate, or a non-positive amount.
 
 ```
 leaf = sha256(0x00 || "{address}:{amount}")
@@ -38,9 +42,10 @@ the published list and check it against `config`.
 ```json
 {
   "owner": "neutron1...",
+  "sweep_recipient": "neutron1...",
   "asset_info": { "native_token": { "denom": "factory/neutron1.../astro" } },
-  "merkle_root": "9546d979...",
-  "total": "327331114071527"
+  "merkle_root": "9c59a4b1...",
+  "total": "327322163277365"
 }
 ```
 
@@ -62,10 +67,10 @@ Anyone can call it. Funds can't be attached.
 
 ### `close`
 
-Owner only. Ends the payout and sends the remaining balance to `recipient`.
+Owner only. Ends the payout and sends the remaining balance to `sweep_recipient`.
 
 ```json
-{ "close": { "recipient": "neutron1..." } }
+{ "close": {} }
 ```
 
 ### `propose_new_owner`, `drop_ownership_proposal`, `claim_ownership`

@@ -80,6 +80,7 @@ fn setup(root: &str, total: u128, fund: u128) -> (StargateApp, Addr) {
             Addr::unchecked("owner"),
             &InstantiateMsg {
                 owner: "owner".to_string(),
+                sweep_recipient: "treasury".to_string(),
                 asset_info: AssetInfo::native(ASTRO),
                 merkle_root: root.to_string(),
                 total: Uint128::new(total),
@@ -271,7 +272,7 @@ fn rejects_forged_entries() {
         }
     );
 
-    // an inner node can't be passed off as a leaf
+    // a missing proof
     let mut p = payments[0].clone();
     p.proof.clear();
     assert!(pay(&mut app, p).is_err());
@@ -357,9 +358,7 @@ fn owner_closes_and_sweeps() {
     .unwrap();
     let left = total - payments[..2].iter().map(|p| p.amount.u128()).sum::<u128>();
 
-    let close = ExecuteMsg::Close {
-        recipient: "treasury".to_string(),
-    };
+    let close = ExecuteMsg::Close {};
     let e = app
         .execute_contract(Addr::unchecked("bot"), payout.clone(), &close, &[])
         .unwrap_err();
@@ -419,14 +418,7 @@ fn ownership_transfer() {
 
     // the old owner lost Close
     let e = app
-        .execute_contract(
-            Addr::unchecked("owner"),
-            payout,
-            &ExecuteMsg::Close {
-                recipient: "owner".to_string(),
-            },
-            &[],
-        )
+        .execute_contract(Addr::unchecked("owner"), payout, &ExecuteMsg::Close {}, &[])
         .unwrap_err();
     assert_eq!(err(e), ContractError::Unauthorized {});
 }
@@ -443,6 +435,7 @@ fn rejects_bad_root() {
             Addr::unchecked("owner"),
             &InstantiateMsg {
                 owner: "owner".to_string(),
+                sweep_recipient: "treasury".to_string(),
                 asset_info: AssetInfo::native(ASTRO),
                 merkle_root: "abcd".to_string(),
                 total: Uint128::new(1),
@@ -453,4 +446,73 @@ fn rejects_bad_root() {
         )
         .unwrap_err();
     assert_eq!(err(e), ContractError::InvalidRoot {});
+}
+
+#[test]
+fn one_leaf_tree_has_an_empty_proof() {
+    let (root, payments) = build(&[("neutron1alice", 1000)]);
+    assert!(payments[0].proof.is_empty());
+    let (mut app, payout) = setup(&root, 1000, 1000);
+    app.execute_contract(
+        Addr::unchecked("bot"),
+        payout,
+        &ExecuteMsg::Pay { payments },
+        &[],
+    )
+    .unwrap();
+    assert_eq!(balance(&app, "neutron1alice"), 1000);
+}
+
+#[test]
+fn inner_node_is_not_a_leaf() {
+    let list = [("neutron1alice", 1000), ("neutron1bob", 2500)];
+    let (root, payments) = build(&list);
+    let (mut app, payout) = setup(&root, 3500, 3500);
+
+    // a leaf can't stand in for the root with an empty proof
+    let mut p = payments[0].clone();
+    p.proof.clear();
+    let e = app
+        .execute_contract(
+            Addr::unchecked("bot"),
+            payout.clone(),
+            &ExecuteMsg::Pay { payments: vec![p] },
+            &[],
+        )
+        .unwrap_err();
+    assert!(matches!(err(e), ContractError::InvalidProof { .. }));
+
+    // the root's two children, re-read as "address:amount" bytes, can't be a leaf either: leaves
+    // and nodes hash under different prefixes, so no string reproduces a node hash
+    let a = leaf_hash(list[0].0, list[0].1);
+    let b = leaf_hash(list[1].0, list[1].1);
+    assert_eq!(hex::encode(node_hash(&a, &b)), root);
+    assert_ne!(leaf_hash(&hex::encode(a), 0), a);
+}
+
+#[test]
+fn zero_amount_is_refused() {
+    let (root, payments) = build(&[("neutron1alice", 0), ("neutron1bob", 5)]);
+    let (mut app, payout) = setup(&root, 5, 5);
+    let zero = payments
+        .iter()
+        .find(|p| p.address == "neutron1alice")
+        .unwrap()
+        .clone();
+    let e = app
+        .execute_contract(
+            Addr::unchecked("bot"),
+            payout,
+            &ExecuteMsg::Pay {
+                payments: vec![zero],
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err(e),
+        ContractError::ZeroAmount {
+            address: "neutron1alice".to_string()
+        }
+    );
 }

@@ -10,6 +10,7 @@
       "asset_info",
       "merkle_root",
       "owner",
+      "sweep_recipient",
       "total"
     ],
     "properties": {
@@ -26,7 +27,11 @@
         "type": "string"
       },
       "owner": {
-        "description": "Can close the payout and sweep what is left",
+        "description": "Can close the payout",
+        "type": "string"
+      },
+      "sweep_recipient": {
+        "description": "Where `close` sends what is left. Fixed here so the owner can't sweep anywhere else.",
         "type": "string"
       },
       "total": {
@@ -129,7 +134,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Ends the payout and sends the whole remaining balance to `recipient`. Only the owner can call it, and no payment can be made afterwards.",
+        "description": "Ends the payout and sends the whole remaining balance to the sweep recipient. Only the owner can call it, and no payment can be made afterwards.",
         "type": "object",
         "required": [
           "close"
@@ -137,14 +142,6 @@
         "properties": {
           "close": {
             "type": "object",
-            "required": [
-              "recipient"
-            ],
-            "properties": {
-              "recipient": {
-                "type": "string"
-              }
-            },
             "additionalProperties": false
           }
         },
@@ -339,6 +336,7 @@
         "asset_info",
         "merkle_root",
         "owner",
+        "sweep_recipient",
         "total"
       ],
       "properties": {
@@ -349,6 +347,9 @@
           "type": "string"
         },
         "owner": {
+          "$ref": "#/definitions/Addr"
+        },
+        "sweep_recipient": {
           "$ref": "#/definitions/Addr"
         },
         "total": {

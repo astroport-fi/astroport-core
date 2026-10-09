@@ -5,8 +5,10 @@ use astroport::asset::AssetInfo;
 
 #[cw_serde]
 pub struct InstantiateMsg {
-    /// Can close the payout and sweep what is left
+    /// Can close the payout
     pub owner: String,
+    /// Where `close` sends what is left. Fixed here so the owner can't sweep anywhere else.
+    pub sweep_recipient: String,
     /// The asset paid out
     pub asset_info: AssetInfo,
     /// Hex sha256 Merkle root of the (address, amount) list
@@ -29,9 +31,9 @@ pub enum ExecuteMsg {
     /// Pays every entry to its own address. Anyone can call it. An address that was already paid
     /// is skipped, and an invalid proof fails the whole call.
     Pay { payments: Vec<Payment> },
-    /// Ends the payout and sends the whole remaining balance to `recipient`. Only the owner can
-    /// call it, and no payment can be made afterwards.
-    Close { recipient: String },
+    /// Ends the payout and sends the whole remaining balance to the sweep recipient. Only the
+    /// owner can call it, and no payment can be made afterwards.
+    Close {},
     /// Creates a request to change contract ownership
     ProposeNewOwner { owner: String, expires_in: u64 },
     /// Removes the ownership change request
@@ -43,6 +45,7 @@ pub enum ExecuteMsg {
 #[cw_serde]
 pub struct Config {
     pub owner: Addr,
+    pub sweep_recipient: Addr,
     pub asset_info: AssetInfo,
     pub merkle_root: String,
     pub total: Uint128,

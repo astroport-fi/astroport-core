@@ -39,6 +39,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             owner: deps.api.addr_validate(&msg.owner)?,
+            sweep_recipient: deps.api.addr_validate(&msg.sweep_recipient)?,
             asset_info: msg.asset_info,
             merkle_root: msg.merkle_root.to_lowercase(),
             total: msg.total,
@@ -65,7 +66,7 @@ pub fn execute(
 ) -> Result<Response, ContractError> {
     match msg {
         ExecuteMsg::Pay { payments } => pay(deps, info, payments),
-        ExecuteMsg::Close { recipient } => close(deps, env, info, recipient),
+        ExecuteMsg::Close {} => close(deps, env, info),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             let config = CONFIG.load(deps.storage)?;
             propose_new_owner(
@@ -135,6 +136,14 @@ fn pay(
             }
         );
 
+        // a zero send would fail the batch anyway; say why
+        ensure!(
+            !payment.amount.is_zero(),
+            ContractError::ZeroAmount {
+                address: payment.address
+            }
+        );
+
         let recipient = deps.api.addr_validate(&payment.address)?;
         if PAID.has(deps.storage, &recipient) {
             skipped += 1;
@@ -169,16 +178,11 @@ fn pay(
     ]))
 }
 
-/// Ends the payout and sends the whole remaining balance to `recipient`.
-fn close(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    recipient: String,
-) -> Result<Response, ContractError> {
+/// Ends the payout and sends the whole remaining balance to the sweep recipient.
+fn close(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     ensure!(info.sender == config.owner, ContractError::Unauthorized {});
-    let recipient = deps.api.addr_validate(&recipient)?;
+    let recipient = config.sweep_recipient;
 
     let mut status = STATUS.load(deps.storage)?;
     status.closed = true;

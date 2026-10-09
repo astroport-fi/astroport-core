@@ -6,6 +6,7 @@
     "asset_info",
     "merkle_root",
     "owner",
+    "sweep_recipient",
     "total"
   ],
   "properties": {
@@ -16,6 +17,9 @@
       "type": "string"
     },
     "owner": {
+      "$ref": "#/definitions/Addr"
+    },
+    "sweep_recipient": {
       "$ref": "#/definitions/Addr"
     },
     "total": {

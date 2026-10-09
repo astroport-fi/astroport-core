@@ -6,6 +6,7 @@
     "asset_info",
     "merkle_root",
     "owner",
+    "sweep_recipient",
     "total"
   ],
   "properties": {
@@ -22,7 +23,11 @@
       "type": "string"
     },
     "owner": {
-      "description": "Can close the payout and sweep what is left",
+      "description": "Can close the payout",
+      "type": "string"
+    },
+    "sweep_recipient": {
+      "description": "Where `close` sends what is left. Fixed here so the owner can't sweep anywhere else.",
       "type": "string"
     },
     "total": {
