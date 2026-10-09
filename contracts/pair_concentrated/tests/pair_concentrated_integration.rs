@@ -2169,12 +2169,15 @@ fn test_tracker_contract() {
 
 #[test]
 fn exit_only_withholds_one_asset() {
-    use astroport::asset::AssetInfoExt;
     use astroport_pair_concentrated::contract::{ExitOnly, MigrateMsg};
 
     let owner = Addr::unchecked("owner");
     let test_coins = vec![TestCoin::native("uluna"), TestCoin::native("uusd")];
-    let mut helper = Helper::new(&owner, test_coins.clone(), common_pcl_params()).unwrap();
+    let params = ConcentratedPoolParams {
+        track_asset_balances: Some(true),
+        ..common_pcl_params()
+    };
+    let mut helper = Helper::new(&owner, test_coins.clone(), params).unwrap();
     let eclip = helper.assets[&test_coins[0]].clone();
     let xastro = helper.assets[&test_coins[1]].clone();
 
@@ -2261,6 +2264,45 @@ fn exit_only_withholds_one_asset() {
     assert!(helper
         .simulate_swap(&xastro.with_balance(1_000000u128), None)
         .is_err());
+    for q in [
+        QueryMsg::ReverseSimulation {
+            offer_asset_info: None,
+            ask_asset: eclip.with_balance(1_000000u128),
+        },
+        QueryMsg::SimulateProvide {
+            assets: vec![eclip.with_balance(1u128), xastro.with_balance(1u128)],
+            slippage_tolerance: None,
+        },
+        QueryMsg::CumulativePrices {},
+        QueryMsg::LpPrice {},
+        QueryMsg::Observe { seconds_ago: 0 },
+    ] {
+        let err = helper
+            .app
+            .wrap()
+            .query_wasm_smart::<cosmwasm_std::Empty>(&helper.pair_addr, &q)
+            .unwrap_err();
+        assert!(err.to_string().contains("exit-only"), "{q:?}: {err}");
+    }
+
+    // the withheld side can't be switched afterwards
+    let err = helper
+        .app
+        .migrate_contract(
+            owner.clone(),
+            helper.pair_addr.clone(),
+            &MigrateMsg {
+                exit_only: Some(ExitOnly {
+                    withheld: eclip.clone(),
+                }),
+            },
+            code_id,
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::ExitOnlyAlreadySet(xastro.to_string())
+    );
 
     // withdrawing returns the LP's share of everything except xASTRO
     let alice_lp = helper.native_balance(&helper.lp_token, &alice);
@@ -2285,9 +2327,52 @@ fn exit_only_withholds_one_asset() {
         .unwrap()
         .amount
         .u128();
-    helper.withdraw_liquidity(&alice, alice_lp, vec![]).unwrap();
-
     let expected = (alice_lp - 1) * eclip_pool / lp_supply;
+
+    // the withdraw quotes match what is paid: nothing of the withheld asset
+    for q in [
+        QueryMsg::Share {
+            amount: alice_lp.into(),
+        },
+        QueryMsg::SimulateWithdraw {
+            lp_amount: alice_lp.into(),
+        },
+    ] {
+        let quote: Vec<Asset> = helper
+            .app
+            .wrap()
+            .query_wasm_smart(&helper.pair_addr, &q)
+            .unwrap();
+        assert_eq!(
+            quote,
+            vec![eclip.with_balance(expected), xastro.with_balance(0u128)]
+        );
+    }
+
+    // minimums are enforced, so a quote made before the mode can't burn LP for less
+    let withdraw = |helper: &mut Helper, min: Vec<Asset>| {
+        let lp_token = helper.lp_token.to_string();
+        helper.app.execute_contract(
+            alice.clone(),
+            helper.pair_addr.clone(),
+            &ExecuteMsg::WithdrawLiquidity {
+                assets: vec![],
+                min_assets_to_receive: Some(min),
+            },
+            &[Coin::new(alice_lp, lp_token)],
+        )
+    };
+    for min in [
+        vec![xastro.with_balance(1u128)],
+        vec![eclip.with_balance(expected + 1), xastro.with_balance(0u128)],
+    ] {
+        let err = withdraw(&mut helper, min).unwrap_err();
+        assert!(matches!(
+            err.downcast::<ContractError>().unwrap(),
+            ContractError::WithdrawSlippageViolation { .. }
+        ));
+    }
+    withdraw(&mut helper, vec![eclip.with_balance(expected)]).unwrap();
     let got = helper.coin_balance(&test_coins[0], &alice);
     assert_eq!(got, expected);
     assert_eq!(helper.coin_balance(&test_coins[1], &alice), 0);
@@ -2322,11 +2407,49 @@ fn exit_only_withholds_one_asset() {
         eclip_pool - expected
     );
 
-    // bob exits too; the withheld xASTRO stays in the pool
+    // bob, the last LP, exits too, at the same pro-rata rate; the withheld xASTRO stays
     let bob_lp = helper.native_balance(&helper.lp_token, &bob);
+    let lp_supply = helper
+        .app
+        .wrap()
+        .query_supply(&helper.lp_token)
+        .unwrap()
+        .amount
+        .u128();
+    let bob_expected = (bob_lp - 1) * (eclip_pool - expected) / lp_supply;
     helper.withdraw_liquidity(&bob, bob_lp, vec![]).unwrap();
-    assert!(helper.coin_balance(&test_coins[0], &bob) > 0);
+    assert_eq!(helper.coin_balance(&test_coins[0], &bob), bob_expected);
     assert_eq!(helper.coin_balance(&test_coins[1], &bob), 0);
+
+    // the tracked balances follow: xASTRO untouched, eclipASTRO down by both exits
+    helper.app.next_block(10);
+    for (asset, amount) in [
+        (&xastro, xastro_pool),
+        (&eclip, eclip_pool - expected - bob_expected),
+    ] {
+        let tracked: Option<Uint128> = helper
+            .app
+            .wrap()
+            .query_wasm_smart(
+                &helper.pair_addr,
+                &QueryMsg::AssetBalanceAt {
+                    asset_info: asset.clone(),
+                    block_height: helper.app.block_info().height.into(),
+                },
+            )
+            .unwrap();
+        assert_eq!(tracked, Some(Uint128::new(amount)));
+        assert_eq!(
+            helper
+                .app
+                .wrap()
+                .query_balance(&helper.pair_addr, asset.to_string())
+                .unwrap()
+                .amount
+                .u128(),
+            amount
+        );
+    }
 
     // a migration without the field keeps exit-only
     helper

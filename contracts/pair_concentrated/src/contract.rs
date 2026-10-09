@@ -43,7 +43,7 @@ use astroport_pcl_common::utils::{
 };
 
 use crate::error::ContractError;
-use crate::state::{BALANCES, CONFIG, EXIT_ONLY, OBSERVATIONS, OWNERSHIP_PROPOSAL};
+use crate::state::{withhold, BALANCES, CONFIG, EXIT_ONLY, OBSERVATIONS, OWNERSHIP_PROPOSAL};
 use crate::utils::{
     accumulate_swap_sizes, calculate_shares, get_assets_with_precision, query_pools,
 };
@@ -376,7 +376,10 @@ pub fn execute(
             })
             .map_err(Into::into)
         }
-        ExecuteMsg::WithdrawLiquidity { assets, .. } => withdraw_liquidity(deps, env, info, assets),
+        ExecuteMsg::WithdrawLiquidity {
+            assets,
+            min_assets_to_receive,
+        } => withdraw_liquidity(deps, env, info, assets, min_assets_to_receive),
         _ => Err(ContractError::NotSupported {}),
     }
 }
@@ -567,6 +570,7 @@ fn withdraw_liquidity(
     env: Env,
     info: MessageInfo,
     assets: Vec<Asset>,
+    min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
 
@@ -596,24 +600,41 @@ fn withdraw_liquidity(
         return Err(StdError::generic_err("Imbalanced withdraw is currently disabled").into());
     };
 
-    // in exit-only mode the withheld asset's share stays in the pool
-    let withheld = EXIT_ONLY.may_load(deps.storage)?;
     let refund_assets = refund_assets
         .into_iter()
         .map(|asset| {
             let prec = precisions.get_precision(&asset.info).unwrap();
-            let amount = if withheld.as_ref() == Some(&asset.info) {
-                Uint128::zero()
-            } else {
-                asset.amount.to_uint(prec)?
-            };
 
             Ok(Asset {
                 info: asset.info,
-                amount,
+                amount: asset.amount.to_uint(prec)?,
             })
         })
         .collect::<StdResult<Vec<_>>>()?;
+
+    // in exit-only mode the withheld asset's share stays in the pool, and the minimums are
+    // enforced, since a quote made before the mode was set expects the withheld asset too
+    let refund_assets = if EXIT_ONLY.exists(deps.storage) {
+        let refund_assets = withhold(deps.storage, refund_assets)?;
+        for min in min_assets_to_receive.unwrap_or_default() {
+            let received = refund_assets
+                .iter()
+                .find(|asset| asset.info == min.info)
+                .ok_or_else(|| ContractError::InvalidAsset(min.info.to_string()))?
+                .amount;
+            ensure!(
+                received >= min.amount,
+                ContractError::WithdrawSlippageViolation {
+                    asset_name: min.info.to_string(),
+                    received,
+                    expected: min.amount,
+                }
+            );
+        }
+        refund_assets
+    } else {
+        refund_assets
+    };
 
     messages.extend(
         refund_assets
@@ -924,6 +945,13 @@ pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> Result<Response, Co
             config.pair_info.asset_infos.contains(&withheld),
             StdError::generic_err(format!("{withheld} is not one of the pool's assets"))
         );
+        // switching sides would make the remaining withdrawals send the frozen asset
+        if let Some(current) = EXIT_ONLY.may_load(deps.storage)? {
+            ensure!(
+                current == withheld,
+                ContractError::ExitOnlyAlreadySet(current.to_string())
+            );
+        }
         EXIT_ONLY.save(deps.storage, &withheld)?;
         response = response.add_attribute("exit_only_withheld", withheld.to_string());
     }
