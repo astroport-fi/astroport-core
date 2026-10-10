@@ -13,7 +13,7 @@
       "type": "string"
     },
     "incentives": {
-      "description": "Astroport Incentives, where registered pools' rewards are forwarded for their LP stakers",
+      "description": "Astroport Incentives, where pools' rewards are forwarded for their LP stakers",
       "anyOf": [
         {
           "$ref": "#/definitions/Addr"

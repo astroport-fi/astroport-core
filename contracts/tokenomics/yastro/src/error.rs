@@ -37,14 +37,29 @@ pub enum ContractError {
     #[error("No rewards to claim")]
     NothingToClaim {},
 
-    #[error("{pool} isn't a registered pool")]
-    PoolNotRegistered { pool: String },
+    #[error("{address} isn't a pool holding yASTRO")]
+    NotAPool { address: String },
+
+    #[error("{address} is a pool: its rewards go to its LP stakers with forward_pool_rewards")]
+    IsAPool { address: String },
+
+    #[error("Nobody has staked {lp_token} in Incentives, so there's nobody to forward to yet")]
+    NoLpStakers { lp_token: String },
+
+    #[error("Every reward is still too small to schedule in Incentives")]
+    NothingToForward {},
+
+    #[error("yASTRO can't be sent to its own contract")]
+    SelfRecipient {},
+
+    #[error("At most {max} reward denoms, ever")]
+    TooManyRewardDenoms { max: usize },
 
     #[error("Incentives isn't set")]
     IncentivesNotSet {},
 
-    #[error("The unbonding period must be greater than zero")]
-    ZeroUnbondingPeriod {},
+    #[error("The unbonding period must be between 1 second and {max} seconds")]
+    InvalidUnbondingPeriod { max: u64 },
 
     #[error("Contract can't be migrated!")]
     MigrationError {},

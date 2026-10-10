@@ -26,10 +26,21 @@
         "minimum": 0.0
       },
       "incentives": {
-        "description": "Astroport Incentives, for forwarding registered pools' rewards to their LP stakers",
+        "description": "Astroport Incentives, for forwarding pools' rewards to their LP stakers",
         "type": [
           "string",
           "null"
+        ]
+      },
+      "marketing": {
+        "description": "Project, description, logo, and the address that can update them",
+        "anyOf": [
+          {
+            "$ref": "#/definitions/InstantiateMarketingInfo"
+          },
+          {
+            "type": "null"
+          }
         ]
       },
       "name": {
@@ -55,7 +66,109 @@
         "minimum": 0.0
       }
     },
-    "additionalProperties": false
+    "additionalProperties": false,
+    "definitions": {
+      "Binary": {
+        "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+        "type": "string"
+      },
+      "EmbeddedLogo": {
+        "description": "This is used to store the logo on the blockchain in an accepted format. Enforce maximum size of 5KB on all variants.",
+        "oneOf": [
+          {
+            "description": "Store the Logo as an SVG file. The content must conform to the spec at https://en.wikipedia.org/wiki/Scalable_Vector_Graphics (The contract should do some light-weight sanity-check validation)",
+            "type": "object",
+            "required": [
+              "svg"
+            ],
+            "properties": {
+              "svg": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Store the Logo as a PNG file. This will likely only support up to 64x64 or so within the 5KB limit.",
+            "type": "object",
+            "required": [
+              "png"
+            ],
+            "properties": {
+              "png": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "InstantiateMarketingInfo": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "logo": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/Logo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "marketing": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Logo": {
+        "description": "This is used for uploading logo data, or setting it in InstantiateData",
+        "oneOf": [
+          {
+            "description": "A reference to an externally hosted logo. Must be a valid HTTP or HTTPS URL.",
+            "type": "object",
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Logo content stored on the blockchain. Enforce maximum size of 5KB on all variants",
+            "type": "object",
+            "required": [
+              "embedded"
+            ],
+            "properties": {
+              "embedded": {
+                "$ref": "#/definitions/EmbeddedLogo"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    }
   },
   "execute": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -120,7 +233,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Splits the attached reward tokens across current yASTRO holders, pro-rata. Anyone can call it; only the reward denoms are accepted.",
+        "description": "Queues the attached reward tokens to stream to yASTRO holders over the next epoch (weeks starting Monday 00:00 UTC), pro-rata to balance and time held. Anyone can call it; only the reward denoms are accepted.",
         "type": "object",
         "required": [
           "deposit_rewards"
@@ -156,7 +269,29 @@
         "additionalProperties": false
       },
       {
-        "description": "Moves a registered pool's accrued rewards into Incentives for that pool's LP stakers, over the next epoch. Anyone can call it. Funds attached here pay Incentives' fee for a new reward token on that pool, if it's due.",
+        "description": "Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders that can't call `claim` (DAO treasuries, vaults). Pools use `forward_pool_rewards`.",
+        "type": "object",
+        "required": [
+          "claim_for"
+        ],
+        "properties": {
+          "claim_for": {
+            "type": "object",
+            "required": [
+              "address"
+            ],
+            "properties": {
+              "address": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule lasting until the next Monday plus one week. Anyone can call it, for any contract that answers Astroport's `pair {}` query with yASTRO among its assets. Needs LP staked in Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one too small to schedule yet, stays with the pool for the next call.",
         "type": "object",
         "required": [
           "forward_pool_rewards"
@@ -364,6 +499,53 @@
         "additionalProperties": false
       },
       {
+        "description": "Only the marketing address",
+        "type": "object",
+        "required": [
+          "update_marketing"
+        ],
+        "properties": {
+          "update_marketing": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "marketing": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Only the marketing address",
+        "type": "object",
+        "required": [
+          "upload_logo"
+        ],
+        "properties": {
+          "upload_logo": {
+            "$ref": "#/definitions/Logo"
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Owner only. Leaves unset fields as they are.",
         "type": "object",
         "required": [
@@ -399,41 +581,13 @@
                 }
               },
               "unbonding_period": {
-                "description": "Applies to unbondings started after the change",
+                "description": "Applies to unbondings started after the change. At most 28 days.",
                 "type": [
                   "integer",
                   "null"
                 ],
                 "format": "uint64",
                 "minimum": 0.0
-              }
-            },
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "description": "Owner only. Registers a pool holding yASTRO and its LP token, or unregisters it when `lp_token` is unset.",
-        "type": "object",
-        "required": [
-          "set_pool"
-        ],
-        "properties": {
-          "set_pool": {
-            "type": "object",
-            "required": [
-              "pool"
-            ],
-            "properties": {
-              "lp_token": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "pool": {
-                "type": "string"
               }
             },
             "additionalProperties": false
@@ -500,6 +654,37 @@
         "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
         "type": "string"
       },
+      "EmbeddedLogo": {
+        "description": "This is used to store the logo on the blockchain in an accepted format. Enforce maximum size of 5KB on all variants.",
+        "oneOf": [
+          {
+            "description": "Store the Logo as an SVG file. The content must conform to the spec at https://en.wikipedia.org/wiki/Scalable_Vector_Graphics (The contract should do some light-weight sanity-check validation)",
+            "type": "object",
+            "required": [
+              "svg"
+            ],
+            "properties": {
+              "svg": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Store the Logo as a PNG file. This will likely only support up to 64x64 or so within the 5KB limit.",
+            "type": "object",
+            "required": [
+              "png"
+            ],
+            "properties": {
+              "png": {
+                "$ref": "#/definitions/Binary"
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
       "Expiration": {
         "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
         "oneOf": [
@@ -541,6 +726,37 @@
               "never": {
                 "type": "object",
                 "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Logo": {
+        "description": "This is used for uploading logo data, or setting it in InstantiateData",
+        "oneOf": [
+          {
+            "description": "A reference to an externally hosted logo. Must be a valid HTTP or HTTPS URL.",
+            "type": "object",
+            "required": [
+              "url"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "Logo content stored on the blockchain. Enforce maximum size of 5KB on all variants",
+            "type": "object",
+            "required": [
+              "embedded"
+            ],
+            "properties": {
+              "embedded": {
+                "$ref": "#/definitions/EmbeddedLogo"
               }
             },
             "additionalProperties": false
@@ -645,20 +861,6 @@
         ],
         "properties": {
           "staking_state": {
-            "type": "object",
-            "additionalProperties": false
-          }
-        },
-        "additionalProperties": false
-      },
-      {
-        "description": "Registered pools and their LP tokens",
-        "type": "object",
-        "required": [
-          "pools"
-        ],
-        "properties": {
-          "pools": {
             "type": "object",
             "additionalProperties": false
           }
@@ -844,6 +1046,19 @@
         ],
         "properties": {
           "marketing_info": {
+            "type": "object",
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "required": [
+          "download_logo"
+        ],
+        "properties": {
+          "download_logo": {
             "type": "object",
             "additionalProperties": false
           }
@@ -1195,7 +1410,7 @@
           "type": "string"
         },
         "incentives": {
-          "description": "Astroport Incentives, where registered pools' rewards are forwarded for their LP stakers",
+          "description": "Astroport Incentives, where pools' rewards are forwarded for their LP stakers",
           "anyOf": [
             {
               "$ref": "#/definitions/Addr"
@@ -1224,6 +1439,31 @@
       "definitions": {
         "Addr": {
           "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
+        }
+      }
+    },
+    "download_logo": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DownloadLogoResponse",
+      "description": "When we download an embedded logo, we get this response type. We expect a SPA to be able to accept this info and display it.",
+      "type": "object",
+      "required": [
+        "data",
+        "mime_type"
+      ],
+      "properties": {
+        "data": {
+          "$ref": "#/definitions/Binary"
+        },
+        "mime_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "definitions": {
+        "Binary": {
+          "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
           "type": "string"
         }
       }
@@ -1372,30 +1612,6 @@
         }
       }
     },
-    "pools": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "Array_of_Tuple_of_Addr_and_String",
-      "type": "array",
-      "items": {
-        "type": "array",
-        "items": [
-          {
-            "$ref": "#/definitions/Addr"
-          },
-          {
-            "type": "string"
-          }
-        ],
-        "maxItems": 2,
-        "minItems": 2
-      },
-      "definitions": {
-        "Addr": {
-          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
-          "type": "string"
-        }
-      }
-    },
     "reward_state": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Array_of_RewardState",
@@ -1413,8 +1629,11 @@
           "required": [
             "accepted",
             "denom",
+            "epoch_end",
             "index",
-            "undistributed"
+            "queued",
+            "rate",
+            "total_deposited"
           ],
           "properties": {
             "accepted": {
@@ -1424,6 +1643,12 @@
             "denom": {
               "type": "string"
             },
+            "epoch_end": {
+              "description": "When the current epoch ends",
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
             "index": {
               "description": "Reward per yASTRO paid out so far",
               "allOf": [
@@ -1432,8 +1657,24 @@
                 }
               ]
             },
-            "undistributed": {
-              "description": "Waiting for yASTRO holders",
+            "queued": {
+              "description": "Streams over the next epoch",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Decimal256"
+                }
+              ]
+            },
+            "rate": {
+              "description": "Paid out per second until `epoch_end`, shared by all yASTRO. APR is `rate * 31_536_000 / total_staked`, in reward per ASTRO.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Decimal256"
+                }
+              ]
+            },
+            "total_deposited": {
+              "description": "Everything ever deposited",
               "allOf": [
                 {
                   "$ref": "#/definitions/Uint128"
