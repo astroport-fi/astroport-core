@@ -183,7 +183,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Checks whether fee expected for the specified pool if user wants to add new reward schedule. Senders exempt from the fee never pay it (see `fee_exemptions`).",
+      "description": "Checks whether fee expected for the specified pool if user wants to add new reward schedule. Pass `sender` to account for fee exemptions (see `fee_exemptions`).",
       "type": "object",
       "required": [
         "is_fee_expected"
@@ -201,6 +201,13 @@
             },
             "reward": {
               "type": "string"
+            },
+            "sender": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
             }
           },
           "additionalProperties": false

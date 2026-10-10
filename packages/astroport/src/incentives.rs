@@ -266,9 +266,14 @@ pub enum QueryMsg {
         limit: Option<u8>,
     },
     /// Checks whether fee expected for the specified pool if user wants to add new reward schedule.
-    /// Senders exempt from the fee never pay it (see `fee_exemptions`).
+    /// Pass `sender` to account for fee exemptions (see `fee_exemptions`).
     #[returns(bool)]
-    IsFeeExpected { lp_token: String, reward: String },
+    IsFeeExpected {
+        lp_token: String,
+        reward: String,
+        #[serde(default)]
+        sender: Option<String>,
+    },
     /// Returns paginated list of addresses that don't pay the incentivization fee
     #[returns(Vec<Addr>)]
     FeeExemptions {

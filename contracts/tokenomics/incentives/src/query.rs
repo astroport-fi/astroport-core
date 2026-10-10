@@ -74,12 +74,23 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
                 .collect::<StdResult<Vec<_>>>()?;
             Ok(to_json_binary(&exemptions)?)
         }
-        QueryMsg::IsFeeExpected { lp_token, reward } => {
+        QueryMsg::IsFeeExpected {
+            lp_token,
+            reward,
+            sender,
+        } => {
             let reward_asset = determine_asset_info(&reward, deps.api)?;
             let config = CONFIG.load(deps.storage)?;
+            let is_exempt = match sender {
+                Some(sender) => FEE_EXEMPTIONS.has(deps.storage, &deps.api.addr_validate(&sender)?),
+                None => false,
+            };
 
-            let is_fee_expected = if reward_asset == config.astro_token {
-                // ASTRO rewards don't require incentivize fee.
+            let is_fee_expected = if reward_asset == config.astro_token
+                || is_exempt
+                || config.incentivization_fee_info.is_none()
+            {
+                // ASTRO rewards and exempt senders don't pay the incentivize fee
                 false
             } else {
                 let lp_asset = determine_asset_info(&lp_token, deps.api)?;
