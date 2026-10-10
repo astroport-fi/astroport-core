@@ -61,7 +61,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Splits the attached reward tokens across current yASTRO holders, pro-rata. Anyone can call it; only the reward denoms are accepted.",
+      "description": "Queues the attached reward tokens to stream to yASTRO holders over the next epoch (weeks starting Monday 00:00 UTC), pro-rata to balance and time held. Anyone can call it; only the reward denoms are accepted.",
       "type": "object",
       "required": [
         "deposit_rewards"
@@ -97,7 +97,29 @@
       "additionalProperties": false
     },
     {
-      "description": "Moves a registered pool's accrued rewards into Incentives for that pool's LP stakers, over the next epoch. Anyone can call it. Funds attached here pay Incentives' fee for a new reward token on that pool, if it's due.",
+      "description": "Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders that can't call `claim` (DAO treasuries, vaults). Pools use `forward_pool_rewards`.",
+      "type": "object",
+      "required": [
+        "claim_for"
+      ],
+      "properties": {
+        "claim_for": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule lasting until the next Monday plus one week. Anyone can call it, for any contract that answers Astroport's `pair {}` query with yASTRO among its assets. Needs LP staked in Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one too small to schedule yet, stays with the pool for the next call.",
       "type": "object",
       "required": [
         "forward_pool_rewards"
@@ -305,6 +327,53 @@
       "additionalProperties": false
     },
     {
+      "description": "Only the marketing address",
+      "type": "object",
+      "required": [
+        "update_marketing"
+      ],
+      "properties": {
+        "update_marketing": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "marketing": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "project": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Only the marketing address",
+      "type": "object",
+      "required": [
+        "upload_logo"
+      ],
+      "properties": {
+        "upload_logo": {
+          "$ref": "#/definitions/Logo"
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Owner only. Leaves unset fields as they are.",
       "type": "object",
       "required": [
@@ -340,41 +409,13 @@
               }
             },
             "unbonding_period": {
-              "description": "Applies to unbondings started after the change",
+              "description": "Applies to unbondings started after the change. At most 28 days.",
               "type": [
                 "integer",
                 "null"
               ],
               "format": "uint64",
               "minimum": 0.0
-            }
-          },
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
-      "description": "Owner only. Registers a pool holding yASTRO and its LP token, or unregisters it when `lp_token` is unset.",
-      "type": "object",
-      "required": [
-        "set_pool"
-      ],
-      "properties": {
-        "set_pool": {
-          "type": "object",
-          "required": [
-            "pool"
-          ],
-          "properties": {
-            "lp_token": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pool": {
-              "type": "string"
             }
           },
           "additionalProperties": false
@@ -441,6 +482,37 @@
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
       "type": "string"
     },
+    "EmbeddedLogo": {
+      "description": "This is used to store the logo on the blockchain in an accepted format. Enforce maximum size of 5KB on all variants.",
+      "oneOf": [
+        {
+          "description": "Store the Logo as an SVG file. The content must conform to the spec at https://en.wikipedia.org/wiki/Scalable_Vector_Graphics (The contract should do some light-weight sanity-check validation)",
+          "type": "object",
+          "required": [
+            "svg"
+          ],
+          "properties": {
+            "svg": {
+              "$ref": "#/definitions/Binary"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Store the Logo as a PNG file. This will likely only support up to 64x64 or so within the 5KB limit.",
+          "type": "object",
+          "required": [
+            "png"
+          ],
+          "properties": {
+            "png": {
+              "$ref": "#/definitions/Binary"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "Expiration": {
       "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
       "oneOf": [
@@ -482,6 +554,37 @@
             "never": {
               "type": "object",
               "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Logo": {
+      "description": "This is used for uploading logo data, or setting it in InstantiateData",
+      "oneOf": [
+        {
+          "description": "A reference to an externally hosted logo. Must be a valid HTTP or HTTPS URL.",
+          "type": "object",
+          "required": [
+            "url"
+          ],
+          "properties": {
+            "url": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Logo content stored on the blockchain. Enforce maximum size of 5KB on all variants",
+          "type": "object",
+          "required": [
+            "embedded"
+          ],
+          "properties": {
+            "embedded": {
+              "$ref": "#/definitions/EmbeddedLogo"
             }
           },
           "additionalProperties": false

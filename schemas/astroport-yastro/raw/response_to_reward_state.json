@@ -15,8 +15,11 @@
       "required": [
         "accepted",
         "denom",
+        "epoch_end",
         "index",
-        "undistributed"
+        "queued",
+        "rate",
+        "total_deposited"
       ],
       "properties": {
         "accepted": {
@@ -26,6 +29,12 @@
         "denom": {
           "type": "string"
         },
+        "epoch_end": {
+          "description": "When the current epoch ends",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "index": {
           "description": "Reward per yASTRO paid out so far",
           "allOf": [
@@ -34,8 +43,24 @@
             }
           ]
         },
-        "undistributed": {
-          "description": "Waiting for yASTRO holders",
+        "queued": {
+          "description": "Streams over the next epoch",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal256"
+            }
+          ]
+        },
+        "rate": {
+          "description": "Paid out per second until `epoch_end`, shared by all yASTRO. APR is `rate * 31_536_000 / total_staked`, in reward per ASTRO.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Decimal256"
+            }
+          ]
+        },
+        "total_deposited": {
+          "description": "Everything ever deposited",
           "allOf": [
             {
               "$ref": "#/definitions/Uint128"

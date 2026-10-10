@@ -85,20 +85,6 @@
       "additionalProperties": false
     },
     {
-      "description": "Registered pools and their LP tokens",
-      "type": "object",
-      "required": [
-        "pools"
-      ],
-      "properties": {
-        "pools": {
-          "type": "object",
-          "additionalProperties": false
-        }
-      },
-      "additionalProperties": false
-    },
-    {
       "type": "object",
       "required": [
         "balance"
@@ -277,6 +263,19 @@
       ],
       "properties": {
         "marketing_info": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "download_logo"
+      ],
+      "properties": {
+        "download_logo": {
           "type": "object",
           "additionalProperties": false
         }

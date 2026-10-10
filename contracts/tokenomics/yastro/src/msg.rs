@@ -1,9 +1,12 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, Binary, Coin, Decimal256, Uint128};
+use cosmwasm_std::{Binary, Coin, Decimal256, Uint128};
 use cw20::{
     AllAccountsResponse, AllAllowancesResponse, AllSpenderAllowancesResponse, AllowanceResponse,
-    BalanceResponse, Expiration, MarketingInfoResponse, MinterResponse, TokenInfoResponse,
+    BalanceResponse, DownloadLogoResponse, Expiration, Logo, MarketingInfoResponse, MinterResponse,
+    TokenInfoResponse,
 };
+
+use cw20_base::msg::InstantiateMarketingInfo;
 
 use crate::state::{Config, Unbonding};
 
@@ -16,11 +19,13 @@ pub struct InstantiateMsg {
     pub unbonding_period: u64,
     /// Denoms `deposit_rewards` accepts
     pub reward_denoms: Vec<String>,
-    /// Astroport Incentives, for forwarding registered pools' rewards to their LP stakers
+    /// Astroport Incentives, for forwarding pools' rewards to their LP stakers
     pub incentives: Option<String>,
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+    /// Project, description, logo, and the address that can update them
+    pub marketing: Option<InstantiateMarketingInfo>,
 }
 
 #[cw_serde]
@@ -37,16 +42,24 @@ pub enum ExecuteMsg {
     },
     /// Sends the sender every unbonding that has matured
     Withdraw {},
-    /// Splits the attached reward tokens across current yASTRO holders, pro-rata. Anyone can
-    /// call it; only the reward denoms are accepted.
+    /// Queues the attached reward tokens to stream to yASTRO holders over the next epoch
+    /// (weeks starting Monday 00:00 UTC), pro-rata to balance and time held. Anyone can call it;
+    /// only the reward denoms are accepted.
     DepositRewards {},
     /// Sends the sender's accrued rewards to `recipient` (default: the sender)
     Claim {
         recipient: Option<String>,
     },
-    /// Moves a registered pool's accrued rewards into Incentives for that pool's LP stakers,
-    /// over the next epoch. Anyone can call it. Funds attached here pay Incentives' fee for a
-    /// new reward token on that pool, if it's due.
+    /// Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders
+    /// that can't call `claim` (DAO treasuries, vaults). Pools use `forward_pool_rewards`.
+    ClaimFor {
+        address: String,
+    },
+    /// Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule
+    /// lasting until the next Monday plus one week. Anyone can call it, for any contract that
+    /// answers Astroport's `pair {}` query with yASTRO among its assets. Needs LP staked in
+    /// Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one
+    /// too small to schedule yet, stays with the pool for the next call.
     ForwardPoolRewards {
         pool: String,
     },
@@ -82,21 +95,23 @@ pub enum ExecuteMsg {
         amount: Uint128,
         msg: Binary,
     },
+    /// Only the marketing address
+    UpdateMarketing {
+        project: Option<String>,
+        description: Option<String>,
+        marketing: Option<String>,
+    },
+    /// Only the marketing address
+    UploadLogo(Logo),
 
     /// Owner only. Leaves unset fields as they are.
     UpdateConfig {
         add_reward_denoms: Option<Vec<String>>,
         /// Stops accepting these; rewards already deposited stay claimable
         remove_reward_denoms: Option<Vec<String>>,
-        /// Applies to unbondings started after the change
+        /// Applies to unbondings started after the change. At most 28 days.
         unbonding_period: Option<u64>,
         incentives: Option<String>,
-    },
-    /// Owner only. Registers a pool holding yASTRO and its LP token, or unregisters it when
-    /// `lp_token` is unset.
-    SetPool {
-        pool: String,
-        lp_token: Option<String>,
     },
     ProposeNewOwner {
         owner: String,
@@ -111,8 +126,15 @@ pub struct RewardState {
     pub denom: String,
     /// Reward per yASTRO paid out so far
     pub index: Decimal256,
-    /// Waiting for yASTRO holders
-    pub undistributed: Uint128,
+    /// Paid out per second until `epoch_end`, shared by all yASTRO. APR is
+    /// `rate * 31_536_000 / total_staked`, in reward per ASTRO.
+    pub rate: Decimal256,
+    /// When the current epoch ends
+    pub epoch_end: u64,
+    /// Streams over the next epoch
+    pub queued: Decimal256,
+    /// Everything ever deposited
+    pub total_deposited: Uint128,
     /// Whether `deposit_rewards` still accepts it
     pub accepted: bool,
 }
@@ -138,9 +160,6 @@ pub enum QueryMsg {
     RewardState {},
     #[returns(StakingState)]
     StakingState {},
-    /// Registered pools and their LP tokens
-    #[returns(Vec<(Addr, String)>)]
-    Pools {},
 
     // CW20
     #[returns(BalanceResponse)]
@@ -171,6 +190,8 @@ pub enum QueryMsg {
     },
     #[returns(MarketingInfoResponse)]
     MarketingInfo {},
+    #[returns(DownloadLogoResponse)]
+    DownloadLogo {},
 }
 
 #[cw_serde]

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, coin, ensure, entry_point, to_json_binary, wasm_execute, Addr, BankMsg, Binary, Coin,
-    Coins, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response, StdError, StdResult,
+    Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult,
     Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
@@ -10,22 +10,27 @@ use cw20_base::allowances::{
     execute_transfer_from, query_allowance,
 };
 use cw20_base::contract::{
-    execute_send, execute_transfer, query_balance, query_marketing_info, query_token_info,
+    execute_send, execute_transfer, execute_update_marketing, execute_upload_logo, query_balance,
+    query_download_logo, query_marketing_info, query_token_info,
 };
 use cw20_base::enumerable::{query_all_accounts, query_owner_allowances, query_spender_allowances};
-use cw20_base::state::{TokenInfo, BALANCES, TOKEN_INFO};
+use cw20_base::state::{BALANCES, TOKEN_INFO};
 use cw_utils::{must_pay, nonpayable};
 
-use astroport::asset::{AssetInfo, AssetInfoExt};
+use astroport::asset::{AssetInfo, AssetInfoExt, PairInfo};
 use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
-use astroport::incentives::{ExecuteMsg as IncentivesExecuteMsg, InputSchedule};
+use astroport::incentives::{
+    ExecuteMsg as IncentivesExecuteMsg, IncentivesSchedule, InputSchedule, PoolInfoResponse,
+    QueryMsg as IncentivesQueryMsg,
+};
+use astroport::pair::QueryMsg as PairQueryMsg;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RewardState, StakingState};
-use crate::rewards::{distribute, pending, settle, take};
+use crate::rewards::{deposit, pending, restore, settle, streams_at, take};
 use crate::state::{
-    Config, Unbonding, CONFIG, GLOBAL_INDEX, OWNERSHIP_PROPOSAL, POOLS, REWARD_DENOMS,
-    TOTAL_UNBONDING, UNBONDINGS, UNDISTRIBUTED,
+    Config, Unbonding, CONFIG, FORWARDS, NEXT_FORWARD_ID, OWNERSHIP_PROPOSAL, REWARD_DENOMS,
+    STREAMS, TOTAL_UNBONDING, UNBONDINGS,
 };
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -33,29 +38,52 @@ const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Open unbondings per address, so withdrawing stays cheap
 pub const MAX_UNBONDINGS: usize = 30;
+/// Longest unbonding period the owner can set
+pub const MAX_UNBONDING_PERIOD: u64 = 28 * 86400;
+/// Reward denoms ever accepted, since every balance change settles each one
+pub const MAX_REWARD_DENOMS: usize = 5;
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
+    // Validates the token info and stores it with the marketing info, minting nothing and
+    // leaving no minter
+    cw20_base::contract::instantiate(
+        deps.branch(),
+        env,
+        info,
+        cw20_base::msg::InstantiateMsg {
+            name: msg.name,
+            symbol: msg.symbol,
+            decimals: msg.decimals,
+            initial_balances: vec![],
+            mint: None,
+            marketing: msg.marketing,
+        },
+    )?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
-    ensure!(
-        msg.unbonding_period > 0,
-        ContractError::ZeroUnbondingPeriod {}
-    );
-    let reward_denoms = dedup(msg.reward_denoms);
-    for denom in &reward_denoms {
+    check_unbonding_period(msg.unbonding_period)?;
+    let mut reward_denoms: Vec<String> = vec![];
+    for denom in msg.reward_denoms {
         ensure!(
-            *denom != msg.astro_denom,
-            ContractError::StakedDenomAsReward {
-                denom: denom.clone()
-            }
+            denom != msg.astro_denom,
+            ContractError::StakedDenomAsReward { denom }
         );
+        if !reward_denoms.contains(&denom) {
+            reward_denoms.push(denom);
+        }
     }
+    ensure!(
+        reward_denoms.len() <= MAX_REWARD_DENOMS,
+        ContractError::TooManyRewardDenoms {
+            max: MAX_REWARD_DENOMS
+        }
+    );
 
     CONFIG.save(
         deps.storage,
@@ -71,16 +99,7 @@ pub fn instantiate(
     )?;
     REWARD_DENOMS.save(deps.storage, &reward_denoms)?;
     TOTAL_UNBONDING.save(deps.storage, &Uint128::zero())?;
-    TOKEN_INFO.save(
-        deps.storage,
-        &TokenInfo {
-            name: msg.name,
-            symbol: msg.symbol,
-            decimals: msg.decimals,
-            total_supply: Uint128::zero(),
-            mint: None,
-        },
-    )?;
+    NEXT_FORWARD_ID.save(deps.storage, &0)?;
 
     Ok(Response::new().add_attribute("action", "instantiate"))
 }
@@ -92,19 +111,37 @@ pub fn execute(
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
+    let now = env.block.time.seconds();
     match msg {
-        ExecuteMsg::Stake { recipient } => stake(deps, info, recipient),
+        ExecuteMsg::Stake { recipient } => stake(deps, env, info, recipient),
         ExecuteMsg::Unstake { amount } => unstake(deps, env, info, amount),
         ExecuteMsg::Withdraw {} => withdraw(deps, env, info),
-        ExecuteMsg::DepositRewards {} => deposit_rewards(deps, info),
-        ExecuteMsg::Claim { recipient } => claim(deps, info, recipient),
-        ExecuteMsg::ForwardPoolRewards { pool } => forward_pool_rewards(deps, info, pool),
+        ExecuteMsg::DepositRewards {} => deposit_rewards(deps, env, info),
+        ExecuteMsg::Claim { recipient } => {
+            nonpayable(&info)?;
+            let recipient = recipient
+                .map(|r| deps.api.addr_validate(&r))
+                .transpose()?
+                .unwrap_or_else(|| info.sender.clone());
+            claim(deps, now, info.sender, recipient)
+        }
+        ExecuteMsg::ClaimFor { address } => {
+            nonpayable(&info)?;
+            let address = deps.api.addr_validate(&address)?;
+            ensure!(
+                pool_lp_token(deps.as_ref(), &env, &address).is_none(),
+                ContractError::IsAPool {
+                    address: address.to_string()
+                }
+            );
+            claim(deps, now, address.clone(), address)
+        }
+        ExecuteMsg::ForwardPoolRewards { pool } => forward_pool_rewards(deps, env, info, pool),
 
         ExecuteMsg::Transfer { recipient, amount } => {
             nonpayable(&info)?;
-            let to = deps.api.addr_validate(&recipient)?;
-            settle(deps.storage, &info.sender)?;
-            settle(deps.storage, &to)?;
+            let to = check_recipient(deps.as_ref(), &env, &recipient, amount)?;
+            settle(deps.storage, now, &[&info.sender, &to])?;
             Ok(execute_transfer(deps, env, info, recipient, amount)?)
         }
         ExecuteMsg::Send {
@@ -113,9 +150,8 @@ pub fn execute(
             msg,
         } => {
             nonpayable(&info)?;
-            let to = deps.api.addr_validate(&contract)?;
-            settle(deps.storage, &info.sender)?;
-            settle(deps.storage, &to)?;
+            let to = check_recipient(deps.as_ref(), &env, &contract, amount)?;
+            settle(deps.storage, now, &[&info.sender, &to])?;
             Ok(execute_send(deps, env, info, contract, amount, msg)?)
         }
         ExecuteMsg::TransferFrom {
@@ -125,9 +161,8 @@ pub fn execute(
         } => {
             nonpayable(&info)?;
             let from = deps.api.addr_validate(&owner)?;
-            let to = deps.api.addr_validate(&recipient)?;
-            settle(deps.storage, &from)?;
-            settle(deps.storage, &to)?;
+            let to = check_recipient(deps.as_ref(), &env, &recipient, amount)?;
+            settle(deps.storage, now, &[&from, &to])?;
             Ok(execute_transfer_from(
                 deps, env, info, owner, recipient, amount,
             )?)
@@ -140,9 +175,8 @@ pub fn execute(
         } => {
             nonpayable(&info)?;
             let from = deps.api.addr_validate(&owner)?;
-            let to = deps.api.addr_validate(&contract)?;
-            settle(deps.storage, &from)?;
-            settle(deps.storage, &to)?;
+            let to = check_recipient(deps.as_ref(), &env, &contract, amount)?;
+            settle(deps.storage, now, &[&from, &to])?;
             Ok(execute_send_from(
                 deps, env, info, owner, contract, amount, msg,
             )?)
@@ -167,6 +201,25 @@ pub fn execute(
                 deps, env, info, spender, amount, expires,
             )?)
         }
+        ExecuteMsg::UpdateMarketing {
+            project,
+            description,
+            marketing,
+        } => {
+            nonpayable(&info)?;
+            Ok(execute_update_marketing(
+                deps,
+                env,
+                info,
+                project,
+                description,
+                marketing,
+            )?)
+        }
+        ExecuteMsg::UploadLogo(logo) => {
+            nonpayable(&info)?;
+            Ok(execute_upload_logo(deps, env, info, logo)?)
+        }
 
         ExecuteMsg::UpdateConfig {
             add_reward_denoms,
@@ -181,8 +234,8 @@ pub fn execute(
             unbonding_period,
             incentives,
         ),
-        ExecuteMsg::SetPool { pool, lp_token } => set_pool(deps, info, pool, lp_token),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
+            nonpayable(&info)?;
             let config = CONFIG.load(deps.storage)?;
             Ok(propose_new_owner(
                 deps,
@@ -195,6 +248,7 @@ pub fn execute(
             )?)
         }
         ExecuteMsg::DropOwnershipProposal {} => {
+            nonpayable(&info)?;
             let config = CONFIG.load(deps.storage)?;
             Ok(drop_ownership_proposal(
                 deps,
@@ -203,35 +257,80 @@ pub fn execute(
                 OWNERSHIP_PROPOSAL,
             )?)
         }
-        ExecuteMsg::ClaimOwnership {} => Ok(claim_ownership(
-            deps,
-            info,
-            env,
-            OWNERSHIP_PROPOSAL,
-            |deps, new_owner| {
-                CONFIG.update::<_, StdError>(deps.storage, |mut c| {
-                    c.owner = new_owner;
-                    Ok(c)
-                })?;
-                Ok(())
-            },
-        )?),
+        ExecuteMsg::ClaimOwnership {} => {
+            nonpayable(&info)?;
+            Ok(claim_ownership(
+                deps,
+                info,
+                env,
+                OWNERSHIP_PROPOSAL,
+                |deps, new_owner| {
+                    CONFIG.update::<_, StdError>(deps.storage, |mut c| {
+                        c.owner = new_owner;
+                        Ok(c)
+                    })?;
+                    Ok(())
+                },
+            )?)
+        }
     }
+}
+
+/// A yASTRO recipient: valid, not this contract, and with a non-zero amount
+fn check_recipient(
+    deps: Deps,
+    env: &Env,
+    recipient: &str,
+    amount: Uint128,
+) -> Result<Addr, ContractError> {
+    ensure!(!amount.is_zero(), ContractError::ZeroAmount {});
+    let addr = deps.api.addr_validate(recipient)?;
+    ensure!(
+        addr != env.contract.address,
+        ContractError::SelfRecipient {}
+    );
+    Ok(addr)
+}
+
+fn check_unbonding_period(period: u64) -> Result<(), ContractError> {
+    ensure!(
+        period > 0 && period <= MAX_UNBONDING_PERIOD,
+        ContractError::InvalidUnbondingPeriod {
+            max: MAX_UNBONDING_PERIOD
+        }
+    );
+    Ok(())
+}
+
+/// The LP token of `address` if it's a pool holding yASTRO: a contract answering Astroport's
+/// `pair {}` query with yASTRO among its assets
+fn pool_lp_token(deps: Deps, env: &Env, address: &Addr) -> Option<String> {
+    let pair: PairInfo = deps
+        .querier
+        .query_wasm_smart(address, &PairQueryMsg::Pair {})
+        .ok()?;
+    let yastro = AssetInfo::Token {
+        contract_addr: env.contract.address.clone(),
+    };
+    pair.asset_infos
+        .contains(&yastro)
+        .then_some(pair.liquidity_token)
 }
 
 fn stake(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     recipient: Option<String>,
 ) -> Result<Response, ContractError> {
     let config = CONFIG.load(deps.storage)?;
     let amount = must_pay(&info, &config.astro_denom)?;
-    let recipient = recipient
-        .map(|r| deps.api.addr_validate(&r))
-        .transpose()?
-        .unwrap_or(info.sender);
+    let recipient = match recipient {
+        Some(r) => check_recipient(deps.as_ref(), &env, &r, amount)?,
+        None => info.sender.clone(),
+    };
 
-    settle(deps.storage, &recipient)?;
+    settle(deps.storage, env.block.time.seconds(), &[&recipient])?;
     BALANCES.update::<_, StdError>(deps.storage, &recipient, |b| {
         Ok(b.unwrap_or_default().checked_add(amount)?)
     })?;
@@ -242,6 +341,7 @@ fn stake(
 
     Ok(Response::new().add_attributes([
         attr("action", "stake"),
+        attr("sender", info.sender),
         attr("recipient", recipient),
         attr("amount", amount),
     ]))
@@ -256,6 +356,7 @@ fn unstake(
     nonpayable(&info)?;
     ensure!(!amount.is_zero(), ContractError::ZeroAmount {});
     let config = CONFIG.load(deps.storage)?;
+    let now = env.block.time.seconds();
 
     let mut unbondings = UNBONDINGS
         .may_load(deps.storage, &info.sender)?
@@ -265,7 +366,7 @@ fn unstake(
         ContractError::TooManyUnbondings {}
     );
 
-    settle(deps.storage, &info.sender)?;
+    settle(deps.storage, now, &[&info.sender])?;
     BALANCES.update::<_, StdError>(deps.storage, &info.sender, |b| {
         Ok(b.unwrap_or_default().checked_sub(amount)?)
     })?;
@@ -274,13 +375,16 @@ fn unstake(
         Ok(t)
     })?;
 
-    let release_at = env.block.time.seconds() + config.unbonding_period;
+    let release_at = now
+        .checked_add(config.unbonding_period)
+        .ok_or_else(|| StdError::generic_err("Unbonding period overflow"))?;
     unbondings.push(Unbonding { amount, release_at });
     UNBONDINGS.save(deps.storage, &info.sender, &unbondings)?;
     TOTAL_UNBONDING.update::<_, StdError>(deps.storage, |t| Ok(t.checked_add(amount)?))?;
 
     Ok(Response::new().add_attributes([
         attr("action", "unstake"),
+        attr("sender", info.sender),
         attr("amount", amount),
         attr("release_at", release_at.to_string()),
     ]))
@@ -313,15 +417,21 @@ fn withdraw(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, Cont
             to_address: info.sender.to_string(),
             amount: vec![coin(amount.u128(), config.astro_denom)],
         })
-        .add_attributes([attr("action", "withdraw"), attr("amount", amount)]))
+        .add_attributes([
+            attr("action", "withdraw"),
+            attr("sender", info.sender),
+            attr("amount", amount),
+        ]))
 }
 
-fn deposit_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
+fn deposit_rewards(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     ensure!(
         info.funds.iter().any(|c| !c.amount.is_zero()),
         ContractError::Payment(cw_utils::PaymentError::NoFunds {})
     );
+    let now = env.block.time.seconds();
     let accepted = REWARD_DENOMS.load(deps.storage)?;
+    let mut epoch_end = None;
     for coin in &info.funds {
         ensure!(
             accepted.contains(&coin.denom),
@@ -330,35 +440,21 @@ fn deposit_rewards(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
             }
         );
         if !coin.amount.is_zero() {
-            distribute(deps.storage, coin)?;
+            epoch_end = Some(deposit(deps.storage, now, coin)?.epoch_end);
         }
     }
 
     Ok(Response::new().add_attributes([
         attr("action", "deposit_rewards"),
-        attr(
-            "rewards",
-            info.funds
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
+        attr("sender", info.sender),
+        attr("rewards", join(&info.funds)),
+        attr("streams_from", epoch_end.unwrap_or_default().to_string()),
+        attr("total_staked", TOKEN_INFO.load(deps.storage)?.total_supply),
     ]))
 }
 
-fn claim(
-    deps: DepsMut,
-    info: MessageInfo,
-    recipient: Option<String>,
-) -> Result<Response, ContractError> {
-    nonpayable(&info)?;
-    let recipient = recipient
-        .map(|r| deps.api.addr_validate(&r))
-        .transpose()?
-        .unwrap_or_else(|| info.sender.clone());
-
-    let rewards = take(deps.storage, &info.sender)?;
+fn claim(deps: DepsMut, now: u64, owner: Addr, recipient: Addr) -> Result<Response, ContractError> {
+    let rewards = take(deps.storage, now, &owner)?;
     ensure!(!rewards.is_empty(), ContractError::NothingToClaim {});
 
     Ok(Response::new()
@@ -368,74 +464,112 @@ fn claim(
         })
         .add_attributes([
             attr("action", "claim"),
+            attr("owner", owner),
             attr("recipient", recipient),
-            attr(
-                "rewards",
-                rewards
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect::<Vec<_>>()
-                    .join(","),
-            ),
+            attr("rewards", join(&rewards)),
         ]))
 }
 
 fn forward_pool_rewards(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     pool: String,
 ) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
     let config = CONFIG.load(deps.storage)?;
     let incentives = config
         .incentives
         .ok_or(ContractError::IncentivesNotSet {})?;
     let pool = deps.api.addr_validate(&pool)?;
     let lp_token =
-        POOLS
-            .may_load(deps.storage, &pool)?
-            .ok_or_else(|| ContractError::PoolNotRegistered {
-                pool: pool.to_string(),
-            })?;
+        pool_lp_token(deps.as_ref(), &env, &pool).ok_or_else(|| ContractError::NotAPool {
+            address: pool.to_string(),
+        })?;
 
-    let rewards = take(deps.storage, &pool)?;
-    ensure!(!rewards.is_empty(), ContractError::NothingToClaim {});
+    // Incentives gives rewards streamed while nobody is staked to whoever stakes first
+    let staked = deps
+        .querier
+        .query_wasm_smart::<PoolInfoResponse>(
+            &incentives,
+            &IncentivesQueryMsg::PoolInfo {
+                lp_token: lp_token.clone(),
+            },
+        )
+        .map(|p| p.total_lp)
+        .unwrap_or_default();
+    ensure!(
+        !staked.is_zero(),
+        ContractError::NoLpStakers {
+            lp_token: lp_token.clone()
+        }
+    );
 
-    // the caller's funds (Incentives' fee for a new reward token) ride with the first schedule
-    let mut fee: Option<Vec<Coin>> = Some(info.funds);
-    let mut messages: Vec<CosmosMsg> = vec![];
-    for reward in &rewards {
-        let mut funds = Coins::try_from(fee.take().unwrap_or_default())
-            .map_err(|e| StdError::generic_err(e.to_string()))?;
-        funds.add(reward.clone())?;
-        messages.push(
+    let rewards = take(deps.storage, env.block.time.seconds(), &pool)?;
+    let mut forward_id = NEXT_FORWARD_ID.load(deps.storage)?;
+    let mut forwarded = vec![];
+    let mut kept = vec![];
+    let mut messages = vec![];
+    for reward in rewards {
+        let schedule = InputSchedule {
+            reward: AssetInfo::native(&reward.denom).with_balance(reward.amount),
+            duration_periods: 1,
+        };
+        // Too small for Incentives' minimum of 1 unit per second: keep it until it adds up
+        if IncentivesSchedule::from_input(&env, &schedule).is_err() {
+            restore(deps.storage, &pool, &reward)?;
+            kept.push(reward);
+            continue;
+        }
+        // If Incentives rejects it anyway, the reply gives it back to the pool
+        messages.push(SubMsg::reply_always(
             wasm_execute(
                 &incentives,
                 &IncentivesExecuteMsg::Incentivize {
                     lp_token: lp_token.clone(),
-                    schedule: InputSchedule {
-                        reward: AssetInfo::native(&reward.denom).with_balance(reward.amount),
-                        duration_periods: 1,
-                    },
+                    schedule,
                 },
-                funds.into_vec(),
-            )?
-            .into(),
-        );
+                vec![reward.clone()],
+            )?,
+            forward_id,
+        ));
+        FORWARDS.save(deps.storage, forward_id, &(pool.clone(), reward.clone()))?;
+        forward_id = forward_id.wrapping_add(1);
+        forwarded.push(reward);
     }
+    ensure!(!forwarded.is_empty(), ContractError::NothingToForward {});
+    NEXT_FORWARD_ID.save(deps.storage, &forward_id)?;
 
-    Ok(Response::new().add_messages(messages).add_attributes([
+    let mut attrs = vec![
         attr("action", "forward_pool_rewards"),
         attr("pool", pool),
         attr("lp_token", lp_token),
-        attr(
-            "rewards",
-            rewards
-                .iter()
-                .map(|c| c.to_string())
-                .collect::<Vec<_>>()
-                .join(","),
-        ),
-    ]))
+        attr("rewards", join(&forwarded)),
+    ];
+    if !kept.is_empty() {
+        attrs.push(attr("kept", join(&kept)));
+    }
+    Ok(Response::new()
+        .add_submessages(messages)
+        .add_attributes(attrs))
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn reply(deps: DepsMut, _env: Env, msg: Reply) -> Result<Response, ContractError> {
+    let (pool, reward) = FORWARDS.load(deps.storage, msg.id)?;
+    FORWARDS.remove(deps.storage, msg.id);
+    match msg.result {
+        SubMsgResult::Ok(_) => Ok(Response::new()),
+        SubMsgResult::Err(err) => {
+            restore(deps.storage, &pool, &reward)?;
+            Ok(Response::new().add_attributes([
+                attr("action", "forward_failed"),
+                attr("pool", pool),
+                attr("reward", reward.to_string()),
+                attr("error", err),
+            ]))
+        }
+    }
 }
 
 fn update_config(
@@ -446,6 +580,7 @@ fn update_config(
     unbonding_period: Option<u64>,
     incentives: Option<String>,
 ) -> Result<Response, ContractError> {
+    nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
     ensure!(info.sender == config.owner, ContractError::Unauthorized {});
     let mut attrs = vec![attr("action", "update_config")];
@@ -467,10 +602,25 @@ fn update_config(
             denoms.remove(i);
         }
     }
+    // Every denom ever streamed is settled on every balance change, accepted or not
+    let mut ever: Vec<String> = STREAMS
+        .keys(deps.storage, None, None, cosmwasm_std::Order::Ascending)
+        .collect::<StdResult<_>>()?;
+    for denom in &denoms {
+        if !ever.contains(denom) {
+            ever.push(denom.clone());
+        }
+    }
+    ensure!(
+        ever.len() <= MAX_REWARD_DENOMS,
+        ContractError::TooManyRewardDenoms {
+            max: MAX_REWARD_DENOMS
+        }
+    );
     REWARD_DENOMS.save(deps.storage, &denoms)?;
 
     if let Some(period) = unbonding_period {
-        ensure!(period > 0, ContractError::ZeroUnbondingPeriod {});
+        check_unbonding_period(period)?;
         config.unbonding_period = period;
         attrs.push(attr("unbonding_period", period.to_string()));
     }
@@ -484,43 +634,22 @@ fn update_config(
     Ok(Response::new().add_attributes(attrs))
 }
 
-fn set_pool(
-    deps: DepsMut,
-    info: MessageInfo,
-    pool: String,
-    lp_token: Option<String>,
-) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
-    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
-    let pool = deps.api.addr_validate(&pool)?;
-    match &lp_token {
-        Some(lp) => POOLS.save(deps.storage, &pool, lp)?,
-        None => POOLS.remove(deps.storage, &pool),
-    }
-    Ok(Response::new().add_attributes([
-        attr("action", "set_pool"),
-        attr("pool", pool),
-        attr("lp_token", lp_token.unwrap_or_default()),
-    ]))
-}
-
-fn dedup(denoms: Vec<String>) -> Vec<String> {
-    let mut out: Vec<String> = vec![];
-    for d in denoms {
-        if !out.contains(&d) {
-            out.push(d);
-        }
-    }
-    out
+fn join(coins: &[Coin]) -> String {
+    coins
+        .iter()
+        .map(|c| c.to_string())
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    let now = env.block.time.seconds();
     match msg {
         QueryMsg::Config {} => to_json_binary(&CONFIG.load(deps.storage)?),
         QueryMsg::PendingRewards { address } => {
             let addr = deps.api.addr_validate(&address)?;
-            to_json_binary(&pending(deps.storage, &addr)?)
+            to_json_binary(&pending(deps.storage, now, &addr)?)
         }
         QueryMsg::Unbondings { address } => {
             let addr = deps.api.addr_validate(&address)?;
@@ -532,40 +661,37 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::RewardState {} => {
             let accepted = REWARD_DENOMS.load(deps.storage)?;
-            let mut denoms: Vec<String> = GLOBAL_INDEX
-                .keys(deps.storage, None, None, Order::Ascending)
-                .chain(UNDISTRIBUTED.keys(deps.storage, None, None, Order::Ascending))
-                .collect::<StdResult<_>>()?;
-            denoms.extend(accepted.iter().cloned());
-            denoms.sort();
-            denoms.dedup();
-            let states = denoms
+            let mut states: Vec<RewardState> = streams_at(deps.storage, now)?
                 .into_iter()
-                .map(|denom| {
-                    Ok(RewardState {
-                        index: GLOBAL_INDEX
-                            .may_load(deps.storage, &denom)?
-                            .unwrap_or_default(),
-                        undistributed: UNDISTRIBUTED
-                            .may_load(deps.storage, &denom)?
-                            .unwrap_or_default(),
-                        accepted: accepted.contains(&denom),
-                        denom,
-                    })
+                .map(|(denom, s)| RewardState {
+                    index: s.index,
+                    rate: s.rate,
+                    epoch_end: s.epoch_end,
+                    queued: s.queued,
+                    total_deposited: s.total_deposited,
+                    accepted: accepted.contains(&denom),
+                    denom,
                 })
-                .collect::<StdResult<Vec<_>>>()?;
+                .collect();
+            for denom in accepted {
+                if !states.iter().any(|s| s.denom == denom) {
+                    states.push(RewardState {
+                        denom,
+                        index: Default::default(),
+                        rate: Default::default(),
+                        epoch_end: 0,
+                        queued: Default::default(),
+                        total_deposited: Uint128::zero(),
+                        accepted: true,
+                    });
+                }
+            }
             to_json_binary(&states)
         }
         QueryMsg::StakingState {} => to_json_binary(&StakingState {
             total_staked: TOKEN_INFO.load(deps.storage)?.total_supply,
             total_unbonding: TOTAL_UNBONDING.load(deps.storage)?,
         }),
-        QueryMsg::Pools {} => {
-            let pools: Vec<(Addr, String)> = POOLS
-                .range(deps.storage, None, None, Order::Ascending)
-                .collect::<StdResult<_>>()?;
-            to_json_binary(&pools)
-        }
 
         QueryMsg::Balance { address } => to_json_binary(&query_balance(deps, address)?),
         QueryMsg::TokenInfo {} => to_json_binary(&query_token_info(deps)?),
@@ -592,14 +718,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&query_all_accounts(deps, start_after, limit)?)
         }
         QueryMsg::MarketingInfo {} => to_json_binary(&query_marketing_info(deps)?),
+        QueryMsg::DownloadLogo {} => to_json_binary(&query_download_logo(deps)?),
     }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    // Versions this one can migrate from
+    const SUPPORTED: &[&str] = &[];
+
     let version = get_contract_version(deps.storage)?;
     ensure!(
-        version.contract == CONTRACT_NAME,
+        version.contract == CONTRACT_NAME && SUPPORTED.contains(&version.version.as_str()),
         ContractError::MigrationError {}
     );
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
