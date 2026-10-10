@@ -192,6 +192,17 @@ pub enum ExecuteMsg {
         #[serde(default)]
         remove: Vec<AssetInfo>,
     },
+    /// Only the owner can execute this.
+    /// Senders on this list don't pay the incentivization fee when they add a new reward token
+    /// to a pool.
+    UpdateFeeExemptions {
+        /// Addresses to add
+        #[serde(default)]
+        add: Vec<String>,
+        /// Addresses to remove
+        #[serde(default)]
+        remove: Vec<String>,
+    },
     /// Only factory can set the allocation points to zero for the specified pool.
     /// Initiated from deregistration context in factory.
     DeactivatePool { lp_token: String },
@@ -254,9 +265,16 @@ pub enum QueryMsg {
         start_after: Option<AssetInfo>,
         limit: Option<u8>,
     },
-    /// Checks whether fee expected for the specified pool if user wants to add new reward schedule
+    /// Checks whether fee expected for the specified pool if user wants to add new reward schedule.
+    /// Senders exempt from the fee never pay it (see `fee_exemptions`).
     #[returns(bool)]
     IsFeeExpected { lp_token: String, reward: String },
+    /// Returns paginated list of addresses that don't pay the incentivization fee
+    #[returns(Vec<Addr>)]
+    FeeExemptions {
+        start_after: Option<String>,
+        limit: Option<u8>,
+    },
     /// Returns the list of all external reward schedules for the specified LP token
     #[returns(Vec<ScheduleResponse>)]
     ExternalRewardSchedules {

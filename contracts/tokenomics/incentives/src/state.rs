@@ -24,6 +24,8 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 pub const ACTIVE_POOLS: Item<Vec<(AssetInfo, Uint128)>> = Item::new("active_pools");
 /// Prohibited tokens set. Key: binary representing [`AssetInfo`] converted with [`crate::utils::asset_info_key`].
 pub const BLOCKED_TOKENS: Map<&[u8], ()> = Map::new("blocked_tokens");
+/// Senders that don't pay the incentivization fee
+pub const FEE_EXEMPTIONS: Map<&Addr, ()> = Map::new("fee_exemptions");
 
 /// Contains reward indexes for finished rewards. They are removed from [`PoolInfo`] and stored here.
 /// Next time user claims rewards they will be able to claim outstanding rewards from this index.

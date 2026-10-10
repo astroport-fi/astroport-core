@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use astroport::asset::{native_asset_info, Asset, AssetInfo, AssetInfoExt};
 use astroport::incentives::{
-    ExecuteMsg, IncentivizationFeeInfo, InputSchedule, ScheduleResponse, EPOCHS_START,
+    ExecuteMsg, IncentivizationFeeInfo, InputSchedule, QueryMsg, ScheduleResponse, EPOCHS_START,
     EPOCH_LENGTH, MAX_REWARD_TOKENS,
 };
-use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Decimal256, Timestamp, Uint128};
 use cw20::Cw20Coin;
 use itertools::Itertools;
 
@@ -2687,4 +2687,173 @@ fn test_invalid_cw20_lp_token() {
         err.root_cause().to_string(),
         "Generic error: LP token wasm1_contract6 doesn't match LP token registered in factory factory/wasm1_contract5/astroport/share".to_string()
     )
+}
+
+#[test]
+fn test_fee_exemptions() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let generator = helper.generator.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let pair_a = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("bar")])
+        .unwrap();
+    let pair_b = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("baz")])
+        .unwrap();
+    let lp_a = pair_a.liquidity_token.to_string();
+    let lp_b = pair_b.liquidity_token.to_string();
+
+    let exempt = TestAddr::new("yastro");
+    let random = TestAddr::new("random");
+
+    let update = |add: Vec<&Addr>, remove: Vec<&Addr>| ExecuteMsg::UpdateFeeExemptions {
+        add: add.into_iter().map(|a| a.to_string()).collect(),
+        remove: remove.into_iter().map(|a| a.to_string()).collect(),
+    };
+    let query_exemptions = |helper: &Helper| -> Vec<Addr> {
+        helper
+            .app
+            .wrap()
+            .query_wasm_smart(
+                &generator,
+                &QueryMsg::FeeExemptions {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+    };
+
+    // Only the owner can update the list
+    let err = helper
+        .app
+        .execute_contract(
+            random.clone(),
+            generator.clone(),
+            &update(vec![&random], vec![]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // Can't remove an address that isn't on the list, nor list duplicates
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![], vec![&exempt]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Address {exempt} wasn't found in the fee exemptions")
+    );
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![&exempt]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Duplicated addresses found"
+    );
+
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![]),
+            &[],
+        )
+        .unwrap();
+    assert_eq!(query_exemptions(&helper), vec![exempt.clone()]);
+
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Address {exempt} is already exempt from the fee")
+    );
+
+    // The exempt sender adds a new reward token without the fee
+    let reward = AssetInfo::native("reward").with_balance(1000_000000u128);
+    helper.mint_assets(&exempt, &[reward.clone()]);
+    let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
+    helper
+        .incentivize(&exempt, &lp_a, schedule.clone(), &[])
+        .unwrap();
+    let maker_balance = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert!(maker_balance.amount.is_zero());
+
+    // Anyone else still pays it
+    helper.mint_assets(&random, &[reward.clone()]);
+    let err = helper
+        .incentivize(&random, &lp_b, schedule.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncentivizationFeeExpected {
+            fee: incentivization_fee.to_string(),
+            lp_token: lp_b.clone(),
+            new_reward_token: reward.info.to_string(),
+        }
+    );
+
+    // Once removed, the address pays the fee again
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![], vec![&exempt]),
+            &[],
+        )
+        .unwrap();
+    assert!(query_exemptions(&helper).is_empty());
+    helper.mint_assets(&exempt, &[reward.clone()]);
+    let err = helper
+        .incentivize(&exempt, &lp_b, schedule.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncentivizationFeeExpected {
+            fee: incentivization_fee.to_string(),
+            lp_token: lp_b.clone(),
+            new_reward_token: reward.info.to_string(),
+        }
+    );
+    helper.mint_coin(&exempt, &incentivization_fee);
+    helper
+        .incentivize(&exempt, &lp_b, schedule, &[incentivization_fee.clone()])
+        .unwrap();
+    let maker_balance = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert_eq!(maker_balance.amount, incentivization_fee.amount);
 }

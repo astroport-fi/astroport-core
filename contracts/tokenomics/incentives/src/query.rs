@@ -12,7 +12,7 @@ use astroport::incentives::{QueryMsg, RewardType, ScheduleResponse, MAX_PAGE_LIM
 use crate::error::ContractError;
 use crate::state::{
     list_pool_stakers, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG,
-    EXTERNAL_REWARD_SCHEDULES, POOLS,
+    EXTERNAL_REWARD_SCHEDULES, FEE_EXEMPTIONS, POOLS,
 };
 use crate::utils::{asset_info_key, from_key_to_asset_info};
 
@@ -57,6 +57,22 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> Result<Binary, ContractErro
                 .transpose()?;
             let stakers = list_pool_stakers(deps.storage, &lp_asset, start_after, limit)?;
             Ok(to_json_binary(&stakers)?)
+        }
+        QueryMsg::FeeExemptions { start_after, limit } => {
+            let start_after = start_after
+                .map(|addr| deps.api.addr_validate(&addr))
+                .transpose()?;
+            let limit = limit.unwrap_or(MAX_PAGE_LIMIT).min(MAX_PAGE_LIMIT) as usize;
+            let exemptions = FEE_EXEMPTIONS
+                .keys(
+                    deps.storage,
+                    start_after.as_ref().map(Bound::exclusive),
+                    None,
+                    Order::Ascending,
+                )
+                .take(limit)
+                .collect::<StdResult<Vec<_>>>()?;
+            Ok(to_json_binary(&exemptions)?)
         }
         QueryMsg::IsFeeExpected { lp_token, reward } => {
             let reward_asset = determine_asset_info(&reward, deps.api)?;
