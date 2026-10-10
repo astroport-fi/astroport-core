@@ -387,6 +387,38 @@
       "additionalProperties": false
     },
     {
+      "description": "Only the owner can execute this. Senders on this list don't pay the incentivization fee when they add a new reward token to a pool.",
+      "type": "object",
+      "required": [
+        "update_fee_exemptions"
+      ],
+      "properties": {
+        "update_fee_exemptions": {
+          "type": "object",
+          "properties": {
+            "add": {
+              "description": "Addresses to add",
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "remove": {
+              "description": "Addresses to remove",
+              "default": [],
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "description": "Only factory can set the allocation points to zero for the specified pool. Initiated from deregistration context in factory.",
       "type": "object",
       "required": [

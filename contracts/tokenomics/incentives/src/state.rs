@@ -24,6 +24,8 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 pub const ACTIVE_POOLS: Item<Vec<(AssetInfo, Uint128)>> = Item::new("active_pools");
 /// Prohibited tokens set. Key: binary representing [`AssetInfo`] converted with [`crate::utils::asset_info_key`].
 pub const BLOCKED_TOKENS: Map<&[u8], ()> = Map::new("blocked_tokens");
+/// Senders that don't pay the incentivization fee
+pub const FEE_EXEMPTIONS: Map<&Addr, ()> = Map::new("fee_exemptions");
 
 /// Contains reward indexes for finished rewards. They are removed from [`PoolInfo`] and stored here.
 /// Next time user claims rewards they will be able to claim outstanding rewards from this index.
@@ -268,10 +270,11 @@ impl PoolInfo {
         schedule: &IncentivesSchedule,
         astro_token: &AssetInfo,
     ) -> Result<(), ContractError> {
+        // External ASTRO rewards don't count towards the limit
         let ext_rewards_len = self
             .rewards
             .iter()
-            .filter(|r| r.reward.is_external())
+            .filter(|r| r.reward.is_external() && r.reward.asset_info() != astro_token)
             .count();
 
         let maybe_active_schedule = self.rewards.iter_mut().find(
@@ -280,7 +283,7 @@ impl PoolInfo {
 
         // Check that we don't exceed the maximum number of reward tokens per pool.
         // Allowing ASTRO reward to exceed this limit
-        if ext_rewards_len == MAX_REWARD_TOKENS as usize
+        if ext_rewards_len >= MAX_REWARD_TOKENS as usize
             && maybe_active_schedule.is_none()
             && schedule.reward_info.ne(astro_token)
         {
@@ -379,9 +382,11 @@ impl PoolInfo {
             .iter()
             .find_position(|reward| matches!(&reward.reward, RewardType::Ext { info, .. } if info == reward_asset))
             .ok_or_else(|| ContractError::RewardNotFound { pool: lp_asset.to_string(), reward: reward_asset.to_string() })?;
+        // Orphaned rewards are refunded below with the rest, so they must not also be credited
+        // to ORPHANED_REWARDS on save
         self.rewards_to_remove.insert(
             reward_info.reward.clone(),
-            (reward_info.index, reward_info.orphaned),
+            (reward_info.index, Decimal256::zero()),
         );
         let reward_info = self.rewards.remove(pos);
 

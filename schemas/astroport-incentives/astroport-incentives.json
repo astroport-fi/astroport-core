@@ -1,6 +1,6 @@
 {
   "contract_name": "astroport-incentives",
-  "contract_version": "1.4.0",
+  "contract_version": "1.5.0",
   "idl_version": "1.0.0",
   "instantiate": {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -533,6 +533,38 @@
         "additionalProperties": false
       },
       {
+        "description": "Only the owner can execute this. Senders on this list don't pay the incentivization fee when they add a new reward token to a pool.",
+        "type": "object",
+        "required": [
+          "update_fee_exemptions"
+        ],
+        "properties": {
+          "update_fee_exemptions": {
+            "type": "object",
+            "properties": {
+              "add": {
+                "description": "Addresses to add",
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "remove": {
+                "description": "Addresses to remove",
+                "default": [],
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
         "description": "Only factory can set the allocation points to zero for the specified pool. Initiated from deregistration context in factory.",
         "type": "object",
         "required": [
@@ -983,7 +1015,7 @@
         "additionalProperties": false
       },
       {
-        "description": "Checks whether fee expected for the specified pool if user wants to add new reward schedule",
+        "description": "Checks whether fee expected for the specified pool if user wants to add new reward schedule. Pass `sender` to account for fee exemptions (see `fee_exemptions`).",
         "type": "object",
         "required": [
           "is_fee_expected"
@@ -1001,6 +1033,43 @@
               },
               "reward": {
                 "type": "string"
+              },
+              "sender": {
+                "default": null,
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      {
+        "description": "Returns paginated list of addresses that don't pay the incentivization fee",
+        "type": "object",
+        "required": [
+          "fee_exemptions"
+        ],
+        "properties": {
+          "fee_exemptions": {
+            "type": "object",
+            "properties": {
+              "limit": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "uint8",
+                "minimum": 0.0
+              },
+              "start_after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
               }
             },
             "additionalProperties": false
@@ -1493,6 +1562,20 @@
             }
           },
           "additionalProperties": false
+        }
+      }
+    },
+    "fee_exemptions": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Array_of_Addr",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Addr"
+      },
+      "definitions": {
+        "Addr": {
+          "description": "A human readable address.\n\nIn Cosmos, this is typically bech32 encoded. But for multi-chain smart contracts no assumptions should be made other than being UTF-8 encoded and of reasonable length.\n\nThis type represents a validated address. It can be created in the following ways 1. Use `Addr::unchecked(input)` 2. Use `let checked: Addr = deps.api.addr_validate(input)?` 3. Use `let checked: Addr = deps.api.addr_humanize(canonical_addr)?` 4. Deserialize from JSON. This must only be done from JSON that was validated before such as a contract's state. `Addr` must not be used in messages sent by the user because this would result in unvalidated instances.\n\nThis type is immutable. If you really need to mutate it (Really? Are you sure?), create a mutable copy using `let mut mutable = Addr::to_string()` and operate on that `String` instance.",
+          "type": "string"
         }
       }
     },

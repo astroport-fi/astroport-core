@@ -2,10 +2,10 @@ use std::str::FromStr;
 
 use astroport::asset::{native_asset_info, Asset, AssetInfo, AssetInfoExt};
 use astroport::incentives::{
-    ExecuteMsg, IncentivizationFeeInfo, InputSchedule, ScheduleResponse, EPOCHS_START,
+    ExecuteMsg, IncentivizationFeeInfo, InputSchedule, QueryMsg, ScheduleResponse, EPOCHS_START,
     EPOCH_LENGTH, MAX_REWARD_TOKENS,
 };
-use cosmwasm_std::{coin, coins, Decimal256, Timestamp, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Decimal256, Timestamp, Uint128};
 use cw20::Cw20Coin;
 use itertools::Itertools;
 
@@ -743,6 +743,26 @@ fn test_astro_can_bypass_rewards_limit() {
             &[],
         )
         .unwrap();
+
+    // External ASTRO doesn't open room for another reward token
+    let extra = AssetInfo::native("reward_extra").with_balance(1000_000000u128);
+    let (extra_schedule, _) = helper.create_schedule(&extra, 1).unwrap();
+    helper.mint_assets(&bank, &[extra]);
+    helper.mint_coin(&bank, &incentivization_fee);
+    let err = helper
+        .incentivize(
+            &bank,
+            &lp_token,
+            extra_schedule,
+            &[incentivization_fee.clone()],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::TooManyRewardTokens {
+            lp_token: lp_token.clone()
+        }
+    );
 }
 
 #[test]
@@ -2687,4 +2707,249 @@ fn test_invalid_cw20_lp_token() {
         err.root_cause().to_string(),
         "Generic error: LP token wasm1_contract6 doesn't match LP token registered in factory factory/wasm1_contract5/astroport/share".to_string()
     )
+}
+
+#[test]
+fn test_fee_exemptions() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let generator = helper.generator.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    let pair_a = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("bar")])
+        .unwrap();
+    let pair_b = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("baz")])
+        .unwrap();
+    let lp_a = pair_a.liquidity_token.to_string();
+    let lp_b = pair_b.liquidity_token.to_string();
+
+    let exempt = TestAddr::new("yastro");
+    let random = TestAddr::new("random");
+
+    let update = |add: Vec<&Addr>, remove: Vec<&Addr>| ExecuteMsg::UpdateFeeExemptions {
+        add: add.into_iter().map(|a| a.to_string()).collect(),
+        remove: remove.into_iter().map(|a| a.to_string()).collect(),
+    };
+    let query_exemptions = |helper: &Helper| -> Vec<Addr> {
+        helper
+            .app
+            .wrap()
+            .query_wasm_smart(
+                &generator,
+                &QueryMsg::FeeExemptions {
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap()
+    };
+
+    // Only the owner can update the list
+    let err = helper
+        .app
+        .execute_contract(
+            random.clone(),
+            generator.clone(),
+            &update(vec![&random], vec![]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::Unauthorized {}
+    );
+
+    // Can't remove an address that isn't on the list, nor list duplicates
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![], vec![&exempt]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Address {exempt} wasn't found in the fee exemptions")
+    );
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![&exempt]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        "Generic error: Duplicated addresses found"
+    );
+
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![]),
+            &[],
+        )
+        .unwrap();
+    assert_eq!(query_exemptions(&helper), vec![exempt.clone()]);
+
+    let err = helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![&exempt], vec![]),
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(
+        err.root_cause().to_string(),
+        format!("Generic error: Address {exempt} is already exempt from the fee")
+    );
+
+    // The fee quote accounts for the sender
+    let reward = AssetInfo::native("reward").with_balance(1000_000000u128);
+    assert!(!helper.is_fee_needed_for(&lp_a, &reward.info, Some(&exempt)));
+    assert!(helper.is_fee_needed_for(&lp_a, &reward.info, Some(&random)));
+    assert!(helper.is_fee_needed(&lp_a, &reward.info));
+
+    // The exempt sender adds a new reward token without the fee
+    helper.mint_assets(&exempt, &[reward.clone()]);
+    let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
+    helper
+        .incentivize(&exempt, &lp_a, schedule.clone(), &[])
+        .unwrap();
+    let maker_balance = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert!(maker_balance.amount.is_zero());
+
+    // Anyone else still pays it
+    helper.mint_assets(&random, &[reward.clone()]);
+    let err = helper
+        .incentivize(&random, &lp_b, schedule.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncentivizationFeeExpected {
+            fee: incentivization_fee.to_string(),
+            lp_token: lp_b.clone(),
+            new_reward_token: reward.info.to_string(),
+        }
+    );
+
+    // Once removed, the address pays the fee again
+    helper
+        .app
+        .execute_contract(
+            owner.clone(),
+            generator.clone(),
+            &update(vec![], vec![&exempt]),
+            &[],
+        )
+        .unwrap();
+    assert!(query_exemptions(&helper).is_empty());
+    helper.mint_assets(&exempt, &[reward.clone()]);
+    let err = helper
+        .incentivize(&exempt, &lp_b, schedule.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::IncentivizationFeeExpected {
+            fee: incentivization_fee.to_string(),
+            lp_token: lp_b.clone(),
+            new_reward_token: reward.info.to_string(),
+        }
+    );
+    helper.mint_coin(&exempt, &incentivization_fee);
+    helper
+        .incentivize(&exempt, &lp_b, schedule, &[incentivization_fee.clone()])
+        .unwrap();
+    let maker_balance = helper
+        .app
+        .wrap()
+        .query_balance(TestAddr::new("maker"), &incentivization_fee.denom)
+        .unwrap();
+    assert_eq!(maker_balance.amount, incentivization_fee.amount);
+}
+
+#[test]
+fn test_remove_reward_refunds_orphaned_rewards_once() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let incentivization_fee = helper.incentivization_fee.clone();
+
+    // Pool A has no stakers, so its rewards become orphaned. Pool B has a staker and is owed the
+    // same reward token.
+    let assets_a = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let assets_b = [AssetInfo::native("foo"), AssetInfo::native("baz")];
+    let pair_a = helper.create_pair(&assets_a).unwrap();
+    let pair_b = helper.create_pair(&assets_b).unwrap();
+    let lp_a = pair_a.liquidity_token.to_string();
+    let lp_b = pair_b.liquidity_token.to_string();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(
+            &user,
+            &[
+                assets_b[0].with_balance(100000u64),
+                assets_b[1].with_balance(100000u64),
+            ],
+            &pair_b.contract_addr,
+            true,
+        )
+        .unwrap();
+
+    let bank = TestAddr::new("bank");
+    let reward = AssetInfo::native("reward").with_balance(1000_000000u128);
+    let (schedule, int_schedule) = helper.create_schedule(&reward, 1).unwrap();
+    for lp in [&lp_a, &lp_b] {
+        helper.mint_assets(&bank, &[reward.clone()]);
+        helper.mint_coin(&bank, &incentivization_fee);
+        helper
+            .incentivize(&bank, lp, schedule.clone(), &[incentivization_fee.clone()])
+            .unwrap();
+    }
+
+    // Halfway through, the owner removes pool A's reward: everything left of it, orphaned
+    // part included, goes to the receiver
+    helper.app.update_block(|block| {
+        block.time = Timestamp::from_seconds((block.time.seconds() + int_schedule.end_ts) / 2)
+    });
+    let receiver = TestAddr::new("receiver");
+    helper
+        .remove_reward(&owner, &lp_a, &reward.info.to_string(), false, &receiver)
+        .unwrap();
+    let refunded = reward
+        .info
+        .query_pool(&helper.app.wrap(), &receiver)
+        .unwrap();
+    assert!(refunded.u128() >= 999_999990 && refunded.u128() <= 1000_000000);
+
+    // The orphaned part must not be claimable a second time
+    let err = helper.claim_orphaned_rewards(None, &receiver).unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::NoOrphanedRewards {}
+    );
+
+    // Pool B's staker still gets all of pool B's reward
+    helper
+        .app
+        .update_block(|block| block.time = Timestamp::from_seconds(int_schedule.end_ts + 1));
+    helper.claim_rewards(&user, vec![lp_b.clone()]).unwrap();
+    let claimed = reward.info.query_pool(&helper.app.wrap(), &user).unwrap();
+    assert!(claimed.u128() >= 999_999990);
 }

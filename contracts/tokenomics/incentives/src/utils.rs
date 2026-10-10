@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::error::ContractError;
 use crate::reply::POST_TRANSFER_REPLY_ID;
 use crate::state::{
-    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, ORPHANED_REWARDS,
+    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, FEE_EXEMPTIONS, ORPHANED_REWARDS,
 };
 use astroport::asset::{
     determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo,
@@ -243,8 +243,10 @@ pub fn incentivize(
     // 3rd parties are encouraged to keep endless schedules without breaks even with the small rewards.
     // Otherwise, reward token will be removed from the pool info and go to outstanding rewards.
     // Next schedules with the same token will be considered as "new".
-    // ASTRO rewards don't require incentivize fee.
-    if rewards_number_before < pool_info.rewards.len() && schedule.reward_info != config.astro_token
+    // ASTRO rewards don't require incentivize fee, nor do senders exempt from it.
+    if rewards_number_before < pool_info.rewards.len()
+        && schedule.reward_info != config.astro_token
+        && !FEE_EXEMPTIONS.has(deps.storage, &info.sender)
     {
         // If fee set we expect to receive it
         if let Some(incentivization_fee_info) = &config.incentivization_fee_info {
