@@ -1,0 +1,508 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ExecuteMsg",
+  "oneOf": [
+    {
+      "description": "Stakes the attached ASTRO for the same amount of yASTRO, minted to `recipient` (default: the sender)",
+      "type": "object",
+      "required": [
+        "stake"
+      ],
+      "properties": {
+        "stake": {
+          "type": "object",
+          "properties": {
+            "recipient": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Burns `amount` of the sender's yASTRO and starts its unbonding. Unbonding ASTRO earns nothing.",
+      "type": "object",
+      "required": [
+        "unstake"
+      ],
+      "properties": {
+        "unstake": {
+          "type": "object",
+          "required": [
+            "amount"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sends the sender every unbonding that has matured",
+      "type": "object",
+      "required": [
+        "withdraw"
+      ],
+      "properties": {
+        "withdraw": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Splits the attached reward tokens across current yASTRO holders, pro-rata. Anyone can call it; only the reward denoms are accepted.",
+      "type": "object",
+      "required": [
+        "deposit_rewards"
+      ],
+      "properties": {
+        "deposit_rewards": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Sends the sender's accrued rewards to `recipient` (default: the sender)",
+      "type": "object",
+      "required": [
+        "claim"
+      ],
+      "properties": {
+        "claim": {
+          "type": "object",
+          "properties": {
+            "recipient": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Moves a registered pool's accrued rewards into Incentives for that pool's LP stakers, over the next epoch. Anyone can call it. Funds attached here pay Incentives' fee for a new reward token on that pool, if it's due.",
+      "type": "object",
+      "required": [
+        "forward_pool_rewards"
+      ],
+      "properties": {
+        "forward_pool_rewards": {
+          "type": "object",
+          "required": [
+            "pool"
+          ],
+          "properties": {
+            "pool": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "transfer"
+      ],
+      "properties": {
+        "transfer": {
+          "type": "object",
+          "required": [
+            "amount",
+            "recipient"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "send"
+      ],
+      "properties": {
+        "send": {
+          "type": "object",
+          "required": [
+            "amount",
+            "contract",
+            "msg"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "contract": {
+              "type": "string"
+            },
+            "msg": {
+              "$ref": "#/definitions/Binary"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "increase_allowance"
+      ],
+      "properties": {
+        "increase_allowance": {
+          "type": "object",
+          "required": [
+            "amount",
+            "spender"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "expires": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Expiration"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spender": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "decrease_allowance"
+      ],
+      "properties": {
+        "decrease_allowance": {
+          "type": "object",
+          "required": [
+            "amount",
+            "spender"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "expires": {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Expiration"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "spender": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "transfer_from"
+      ],
+      "properties": {
+        "transfer_from": {
+          "type": "object",
+          "required": [
+            "amount",
+            "owner",
+            "recipient"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "owner": {
+              "type": "string"
+            },
+            "recipient": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "send_from"
+      ],
+      "properties": {
+        "send_from": {
+          "type": "object",
+          "required": [
+            "amount",
+            "contract",
+            "msg",
+            "owner"
+          ],
+          "properties": {
+            "amount": {
+              "$ref": "#/definitions/Uint128"
+            },
+            "contract": {
+              "type": "string"
+            },
+            "msg": {
+              "$ref": "#/definitions/Binary"
+            },
+            "owner": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Owner only. Leaves unset fields as they are.",
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "add_reward_denoms": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "incentives": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "remove_reward_denoms": {
+              "description": "Stops accepting these; rewards already deposited stay claimable",
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "unbonding_period": {
+              "description": "Applies to unbondings started after the change",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Owner only. Registers a pool holding yASTRO and its LP token, or unregisters it when `lp_token` is unset.",
+      "type": "object",
+      "required": [
+        "set_pool"
+      ],
+      "properties": {
+        "set_pool": {
+          "type": "object",
+          "required": [
+            "pool"
+          ],
+          "properties": {
+            "lp_token": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pool": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "propose_new_owner"
+      ],
+      "properties": {
+        "propose_new_owner": {
+          "type": "object",
+          "required": [
+            "expires_in",
+            "owner"
+          ],
+          "properties": {
+            "expires_in": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            },
+            "owner": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "drop_ownership_proposal"
+      ],
+      "properties": {
+        "drop_ownership_proposal": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "claim_ownership"
+      ],
+      "properties": {
+        "claim_ownership": {
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
+    "Expiration": {
+      "description": "Expiration represents a point in time when some event happens. It can compare with a BlockInfo and will return is_expired() == true once the condition is hit (and for every block in the future)",
+      "oneOf": [
+        {
+          "description": "AtHeight will expire when `env.block.height` >= height",
+          "type": "object",
+          "required": [
+            "at_height"
+          ],
+          "properties": {
+            "at_height": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "AtTime will expire when `env.block.time` >= time",
+          "type": "object",
+          "required": [
+            "at_time"
+          ],
+          "properties": {
+            "at_time": {
+              "$ref": "#/definitions/Timestamp"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "Never will never expire. Used to express the empty variant",
+          "type": "object",
+          "required": [
+            "never"
+          ],
+          "properties": {
+            "never": {
+              "type": "object",
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Timestamp": {
+      "description": "A point in time in nanosecond precision.\n\nThis type can represent times from 1970-01-01T00:00:00Z to 2554-07-21T23:34:33Z.\n\n## Examples\n\n``` # use cosmwasm_std::Timestamp; let ts = Timestamp::from_nanos(1_000_000_202); assert_eq!(ts.nanos(), 1_000_000_202); assert_eq!(ts.seconds(), 1); assert_eq!(ts.subsec_nanos(), 202);\n\nlet ts = ts.plus_seconds(2); assert_eq!(ts.nanos(), 3_000_000_202); assert_eq!(ts.seconds(), 3); assert_eq!(ts.subsec_nanos(), 202); ```",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Uint64"
+        }
+      ]
+    },
+    "Uint128": {
+      "description": "A thin wrapper around u128 that is using strings for JSON encoding/decoding, such that the full u128 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u128` to get the value out:\n\n``` # use cosmwasm_std::Uint128; let a = Uint128::from(123u128); assert_eq!(a.u128(), 123);\n\nlet b = Uint128::from(42u64); assert_eq!(b.u128(), 42);\n\nlet c = Uint128::from(70u32); assert_eq!(c.u128(), 70); ```",
+      "type": "string"
+    },
+    "Uint64": {
+      "description": "A thin wrapper around u64 that is using strings for JSON encoding/decoding, such that the full u64 range can be used for clients that convert JSON numbers to floats, like JavaScript and jq.\n\n# Examples\n\nUse `from` to create instances of this and `u64` to get the value out:\n\n``` # use cosmwasm_std::Uint64; let a = Uint64::from(42u64); assert_eq!(a.u64(), 42);\n\nlet b = Uint64::from(70u32); assert_eq!(b.u64(), 70); ```",
+      "type": "string"
+    }
+  }
+}
