@@ -2953,3 +2953,228 @@ fn test_remove_reward_refunds_orphaned_rewards_once() {
     let claimed = reward.info.query_pool(&helper.app.wrap(), &user).unwrap();
     assert!(claimed.u128() >= 999_999990);
 }
+
+fn amount_of_denom(assets: &[Asset], denom: &str) -> u128 {
+    assets
+        .iter()
+        .find(|a| a.info == AssetInfo::native(denom))
+        .map(|a| a.amount.u128())
+        .unwrap_or_default()
+}
+
+fn bank_balance(helper: &Helper, who: &Addr, denom: &str) -> u128 {
+    helper
+        .app
+        .wrap()
+        .query_balance(who, denom)
+        .unwrap()
+        .amount
+        .u128()
+}
+
+/// Two rewards finishing in one block share FINISHED_REWARD_INDEXES' key: the second must not
+/// overwrite the first, or stakers lose what they accrued of it.
+#[test]
+fn test_two_reward_removals_in_one_block_keep_accrued_rewards() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let fee = helper.incentivization_fee.clone();
+
+    let assets = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair = helper.create_pair(&assets).unwrap();
+    let lp = pair.liquidity_token.to_string();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(
+            &user,
+            &[
+                assets[0].with_balance(100000u64),
+                assets[1].with_balance(100000u64),
+            ],
+            &pair.contract_addr,
+            true,
+        )
+        .unwrap();
+
+    let bank_addr = TestAddr::new("bank");
+    let reward_a = AssetInfo::native("reward_a").with_balance(1000_000000u128);
+    let reward_b = AssetInfo::native("reward_b").with_balance(1000_000000u128);
+    for reward in [&reward_a, &reward_b] {
+        let (schedule, _) = helper.create_schedule(reward, 1).unwrap();
+        helper.mint_assets(&bank_addr, &[reward.clone()]);
+        helper.mint_coin(&bank_addr, &fee);
+        helper
+            .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+            .unwrap();
+    }
+
+    // Part of both schedules streams to the user
+    helper.next_block(3 * 86400);
+    let pending = helper.query_pending_rewards(&user, &lp);
+    let (a_before, b_before) = (
+        amount_of_denom(&pending, "reward_a"),
+        amount_of_denom(&pending, "reward_b"),
+    );
+    assert!(a_before > 0 && b_before > 0, "{pending:?}");
+
+    // The owner removes both rewards in the same block, e.g. one proposal with two messages
+    let receiver = TestAddr::new("receiver");
+    helper
+        .remove_reward(&owner, &lp, "reward_a", false, &receiver)
+        .unwrap();
+    helper
+        .remove_reward(&owner, &lp, "reward_b", false, &receiver)
+        .unwrap();
+
+    helper.claim_rewards(&user, vec![lp.clone()]).unwrap();
+    let got_a = bank_balance(&helper, &user, "reward_a");
+    let got_b = bank_balance(&helper, &user, "reward_b");
+    assert!(
+        got_b + 1 >= b_before,
+        "reward_b: accrued {b_before}, got {got_b}"
+    );
+    assert!(
+        got_a + 1 >= a_before,
+        "reward_a: user had accrued {a_before} but received {got_a}; the receiver got {} \
+         and the rest is stuck in Incentives",
+        bank_balance(&helper, &receiver, "reward_a")
+    );
+}
+
+/// A schedule that ends is moved to FINISHED_REWARD_INDEXES by whichever action updates the pool
+/// first; an owner removal in the same block must not overwrite it.
+#[test]
+fn test_reward_ending_and_removal_in_one_block_keep_accrued_rewards() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let fee = helper.incentivization_fee.clone();
+
+    let assets = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair = helper.create_pair(&assets).unwrap();
+    let lp = pair.liquidity_token.to_string();
+
+    let (user1, user2) = (TestAddr::new("user1"), TestAddr::new("user2"));
+    for user in [&user1, &user2] {
+        helper
+            .provide_liquidity(
+                user,
+                &[
+                    assets[0].with_balance(100000u64),
+                    assets[1].with_balance(100000u64),
+                ],
+                &pair.contract_addr,
+                true,
+            )
+            .unwrap();
+    }
+
+    let bank_addr = TestAddr::new("bank");
+    // reward_a: one period, ends first. reward_b: three periods, still running.
+    let reward_a = AssetInfo::native("reward_a").with_balance(1000_000000u128);
+    let reward_b = AssetInfo::native("reward_b").with_balance(3000_000000u128);
+    let (schedule_a, int_a) = helper.create_schedule(&reward_a, 1).unwrap();
+    let (schedule_b, _) = helper.create_schedule(&reward_b, 3).unwrap();
+    for (reward, schedule) in [(&reward_a, schedule_a), (&reward_b, schedule_b)] {
+        helper.mint_assets(&bank_addr, &[reward.clone()]);
+        helper.mint_coin(&bank_addr, &fee);
+        helper
+            .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+            .unwrap();
+    }
+
+    // reward_a's schedule has ended; each user is owed ~half of it
+    let now = helper.app.block_info().time.seconds();
+    helper.next_block(int_a.end_ts - now + 1);
+    let a_owed_user2 = amount_of_denom(&helper.query_pending_rewards(&user2, &lp), "reward_a");
+    assert!(a_owed_user2 > 499_000000, "{a_owed_user2}");
+
+    // Same block: user1 claims (this finishes reward_a in state), then the owner removes reward_b
+    helper.claim_rewards(&user1, vec![lp.clone()]).unwrap();
+    let receiver = TestAddr::new("receiver");
+    helper
+        .remove_reward(&owner, &lp, "reward_b", false, &receiver)
+        .unwrap();
+
+    helper.next_block(EPOCH_LENGTH);
+    helper.claim_rewards(&user2, vec![lp.clone()]).unwrap();
+    let got_a = bank_balance(&helper, &user2, "reward_a");
+    assert!(
+        got_a + 1 >= a_owed_user2,
+        "user2 was owed {a_owed_user2} reward_a but received {got_a}"
+    );
+}
+
+#[test]
+fn test_fee_exempt_senders_are_not_blocked_by_the_reward_token_cap() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let generator = helper.generator.clone();
+    let fee = helper.incentivization_fee.clone();
+
+    let lp_token = helper
+        .create_pair(&[AssetInfo::native("foo"), AssetInfo::native("bar")])
+        .unwrap()
+        .liquidity_token
+        .to_string();
+
+    // Someone fills every reward slot
+    let bank = TestAddr::new("bank");
+    for i in 1..=MAX_REWARD_TOKENS {
+        let reward = AssetInfo::native(format!("junk{i}")).with_balance(1000_000000u128);
+        let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
+        helper.mint_assets(&bank, &[reward]);
+        helper.mint_coin(&bank, &fee);
+        helper
+            .incentivize(&bank, &lp_token, schedule, &[fee.clone()])
+            .unwrap();
+    }
+
+    let exempt = TestAddr::new("yastro");
+    let reward = AssetInfo::native("usdc").with_balance(1000_000000u128);
+    let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
+    helper.mint_assets(&exempt, &[reward.clone()]);
+    let err = helper
+        .incentivize(&exempt, &lp_token, schedule.clone(), &[])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::TooManyRewardTokens {
+            lp_token: lp_token.clone()
+        }
+    );
+
+    helper
+        .app
+        .execute_contract(
+            owner,
+            generator,
+            &ExecuteMsg::UpdateFeeExemptions {
+                add: vec![exempt.to_string()],
+                remove: vec![],
+            },
+            &[],
+        )
+        .unwrap();
+    helper
+        .incentivize(&exempt, &lp_token, schedule, &[])
+        .unwrap();
+
+    // Others are still capped
+    let extra = AssetInfo::native("junk_extra").with_balance(1000_000000u128);
+    let (extra_schedule, _) = helper.create_schedule(&extra, 1).unwrap();
+    helper.mint_assets(&bank, &[extra]);
+    helper.mint_coin(&bank, &fee);
+    let err = helper
+        .incentivize(&bank, &lp_token, extra_schedule, &[fee.clone()])
+        .unwrap_err();
+    assert_eq!(
+        err.downcast::<ContractError>().unwrap(),
+        ContractError::TooManyRewardTokens {
+            lp_token: lp_token.clone()
+        }
+    );
+}

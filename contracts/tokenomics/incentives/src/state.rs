@@ -269,6 +269,7 @@ impl PoolInfo {
         lp_asset: &AssetInfo,
         schedule: &IncentivesSchedule,
         astro_token: &AssetInfo,
+        fee_exempt: bool,
     ) -> Result<(), ContractError> {
         // External ASTRO rewards don't count towards the limit
         let ext_rewards_len = self
@@ -282,10 +283,12 @@ impl PoolInfo {
         );
 
         // Check that we don't exceed the maximum number of reward tokens per pool.
-        // Allowing ASTRO reward to exceed this limit
+        // Allowing ASTRO rewards and fee exempt senders to exceed this limit, so other senders
+        // can't fill a pool's slots to block them
         if ext_rewards_len >= MAX_REWARD_TOKENS as usize
             && maybe_active_schedule.is_none()
             && schedule.reward_info.ne(astro_token)
+            && !fee_exempt
         {
             return Err(ContractError::TooManyRewardTokens {
                 lp_token: lp_asset.to_string(),
@@ -448,37 +451,41 @@ impl PoolInfo {
     /// This function consumes self just to make sure it becomes unusable after calling save().
     pub fn save(self, storage: &mut dyn Storage, lp_token: &AssetInfo) -> StdResult<()> {
         if !self.rewards_to_remove.is_empty() {
-            self.rewards_to_remove
+            let (finished, orphaned): (Vec<_>, Vec<_>) = self
+                .rewards_to_remove
                 .iter()
                 .map(|(reward, index)| (reward.asset_info().clone(), *index))
-                .group_by(|(_, (_, orphaned_amount))| orphaned_amount.is_zero())
-                .into_iter()
-                .try_for_each(|(is_zero, group)| {
-                    if is_zero {
-                        let finished_indexes = group
-                            .map(|(reward_asset_info, (index, _))| (reward_asset_info, index))
-                            .collect_vec();
-                        FINISHED_REWARD_INDEXES.save(
-                            storage,
-                            (lp_token, self.last_update_ts),
-                            &finished_indexes,
-                        )
-                    } else {
-                        // Processing finished schedules with orphaned rewards
-                        for (reward, (_, orphaned_amount)) in group {
-                            ORPHANED_REWARDS.update::<_, StdError>(
-                                storage,
-                                &asset_info_key(&reward),
-                                |amount| {
-                                    Ok(amount.unwrap_or_default()
-                                        + Uint128::try_from(orphaned_amount.to_uint_floor())?)
-                                },
-                            )?;
-                        }
+                .partition(|(_, (_, orphaned_amount))| orphaned_amount.is_zero());
 
-                        Ok(())
-                    }
-                })?;
+            if !finished.is_empty() {
+                // Other rewards of this pool may have finished earlier in the same block: add to
+                // their indexes rather than overwrite them
+                FINISHED_REWARD_INDEXES.update::<_, StdError>(
+                    storage,
+                    (lp_token, self.last_update_ts),
+                    |indexes| {
+                        let mut indexes = indexes.unwrap_or_default();
+                        indexes.extend(
+                            finished
+                                .into_iter()
+                                .map(|(reward_asset_info, (index, _))| (reward_asset_info, index)),
+                        );
+                        Ok(indexes)
+                    },
+                )?;
+            }
+
+            // Processing finished schedules with orphaned rewards
+            for (reward, (_, orphaned_amount)) in orphaned {
+                ORPHANED_REWARDS.update::<_, StdError>(
+                    storage,
+                    &asset_info_key(&reward),
+                    |amount| {
+                        Ok(amount.unwrap_or_default()
+                            + Uint128::try_from(orphaned_amount.to_uint_floor())?)
+                    },
+                )?;
+            }
         }
 
         POOLS.save(storage, lp_token, &self)

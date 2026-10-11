@@ -231,12 +231,14 @@ pub fn incentivize(
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
 
+    let fee_exempt = FEE_EXEMPTIONS.has(deps.storage, &info.sender);
     let rewards_number_before = pool_info.rewards.len();
     pool_info.incentivize(
         deps.storage,
         &lp_token_asset,
         &schedule,
         &config.astro_token,
+        fee_exempt,
     )?;
 
     // Check whether this is a new external reward token.
@@ -246,7 +248,7 @@ pub fn incentivize(
     // ASTRO rewards don't require incentivize fee, nor do senders exempt from it.
     if rewards_number_before < pool_info.rewards.len()
         && schedule.reward_info != config.astro_token
-        && !FEE_EXEMPTIONS.has(deps.storage, &info.sender)
+        && !fee_exempt
     {
         // If fee set we expect to receive it
         if let Some(incentivization_fee_info) = &config.incentivization_fee_info {
@@ -396,7 +398,7 @@ pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> 
 
 pub fn get_pair_from_denom(deps: Deps, denom: &str) -> StdResult<Addr> {
     let parts = denom.split('/').collect_vec();
-    if denom.starts_with("factory") && denom.ends_with(LP_SUBDENOM) {
+    if denom.starts_with("factory/") && denom.ends_with(LP_SUBDENOM) {
         let lp_minter = parts[1];
         deps.api.addr_validate(lp_minter)
     } else {
