@@ -1,9 +1,9 @@
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::testing::MockApi;
 use cosmwasm_std::{
-    coin, coins, to_json_binary, Addr, Api, Binary, CanonicalAddr, Coin, Deps, DepsMut, Empty, Env,
-    MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage, Timestamp, Uint128,
-    VerificationError,
+    coin, coins, to_json_binary, Addr, Api, Binary, CanonicalAddr, Coin, Decimal, Decimal256, Deps,
+    DepsMut, Empty, Env, MessageInfo, RecoverPubkeyError, Response, StdError, StdResult, Storage,
+    Timestamp, Uint128, VerificationError,
 };
 use cw20::{BalanceResponse, Cw20ReceiveMsg, MarketingInfoResponse};
 use cw20_base::msg::InstantiateMarketingInfo;
@@ -125,12 +125,15 @@ fn incentives_contract() -> Box<dyn Contract<Empty>> {
     )
 }
 
-// A pool stand-in: answers Astroport's `pair {}` with its assets and its own tokenfactory LP
-const ASSETS: Item<Vec<AssetInfo>> = Item::new("assets");
+// A pool stand-in: answers Astroport's `pair {}` with its assets and, unless told otherwise, its
+// own address and its own tokenfactory LP
+const PAIR: Item<PairInit> = Item::new("pair");
 
 #[cw_serde]
 struct PairInit {
     assets: Vec<AssetInfo>,
+    lp_token: Option<String>,
+    contract_addr: Option<Addr>,
 }
 
 #[cw_serde]
@@ -144,17 +147,20 @@ fn lp_of(pool: &Addr) -> String {
 
 fn mock_pair() -> Box<dyn Contract<Empty>> {
     fn instantiate(deps: DepsMut, _: Env, _: MessageInfo, msg: PairInit) -> StdResult<Response> {
-        ASSETS.save(deps.storage, &msg.assets)?;
+        PAIR.save(deps.storage, &msg)?;
         Ok(Response::new())
     }
     fn execute(_: DepsMut, _: Env, _: MessageInfo, _: Empty) -> StdResult<Response> {
         Ok(Response::new())
     }
     fn query(deps: Deps, env: Env, _: PairQuery) -> StdResult<Binary> {
+        let pair = PAIR.load(deps.storage)?;
         to_json_binary(&PairInfo {
-            asset_infos: ASSETS.load(deps.storage)?,
-            liquidity_token: lp_of(&env.contract.address),
-            contract_addr: env.contract.address,
+            asset_infos: pair.assets,
+            liquidity_token: pair
+                .lp_token
+                .unwrap_or_else(|| lp_of(&env.contract.address)),
+            contract_addr: pair.contract_addr.unwrap_or(env.contract.address),
             pair_type: PairType::Xyk {},
         })
     }
@@ -187,6 +193,7 @@ fn instantiate_msg(incentives: &Addr) -> InstantiateMsg {
         unbonding_period: WEEK,
         reward_denoms: vec![USDC.to_string()],
         incentives: Some(incentives.to_string()),
+        min_lp_staked: Decimal::percent(10),
         name: "Staked ASTRO".to_string(),
         symbol: "yASTRO".to_string(),
         decimals: 6,
@@ -394,9 +401,17 @@ impl Suite {
     }
 
     fn pool(&mut self, assets: Vec<AssetInfo>) -> Addr {
+        self.pair(PairInit {
+            assets,
+            lp_token: None,
+            contract_addr: None,
+        })
+    }
+
+    fn pair(&mut self, init: PairInit) -> Addr {
         let code = self.app.store_code(mock_pair());
         self.app
-            .instantiate_contract(code, a("owner"), &PairInit { assets }, &[], "pair", None)
+            .instantiate_contract(code, a("owner"), &init, &[], "pair", None)
             .unwrap()
     }
 
@@ -520,7 +535,8 @@ fn deposits_stream_over_the_next_epoch() {
     assert_close(s.pending(&alice), 3_500_000, 1);
     let state = &s.reward_state()[0];
     assert_eq!(state.epoch_end, B + WEEK);
-    assert!(state.queued.is_zero());
+    // Only the rounding left over from the per-second rate, carried to the next epoch
+    assert!(state.queued < Decimal256::one(), "{}", state.queued);
 
     s.at(B + WEEK);
     assert_close(s.pending(&alice), 7_000_000, 1);
@@ -691,24 +707,58 @@ fn transfers_and_contract_holders() {
         assert_close(s.pending(who), 1_000_000, 1);
     }
 
-    // The receiver can't claim, so anyone can pay it its own rewards
-    s.exec(
-        &a("anyone"),
-        &ExecuteMsg::ClaimFor {
-            address: receiver.to_string(),
-        },
-        &[],
-    )
-    .unwrap();
-    assert_close(s.bank(&receiver, USDC), 1_000_000, 1);
-    assert_eq!(s.pending(&receiver), 0);
+    // claim_for only pays holders that enabled it: the receiver didn't, so its rewards stay
+    // pending rather than land where it may not be able to use them
+    let claim_for = |who: &Addr| ExecuteMsg::ClaimFor {
+        address: who.to_string(),
+    };
+    let e = s
+        .exec(&a("anyone"), &claim_for(&receiver), &[])
+        .unwrap_err();
+    assert_eq!(
+        err(e),
+        ContractError::ClaimForNotEnabled {
+            address: receiver.to_string()
+        }
+    );
+    assert_close(s.pending(&receiver), 1_000_000, 1);
 
-    // Nothing to this contract, nothing of zero
+    // Bob enables it, and a bot pays him
+    s.exec(&bob, &ExecuteMsg::SetClaimFor { enabled: true }, &[])
+        .unwrap();
+    let enabled: bool = s
+        .app
+        .wrap()
+        .query_wasm_smart(
+            &s.yastro,
+            &QueryMsg::ClaimForEnabled {
+                address: bob.to_string(),
+            },
+        )
+        .unwrap();
+    assert!(enabled);
+    s.exec(&a("anyone"), &claim_for(&bob), &[]).unwrap();
+    assert_close(s.bank(&bob, USDC), 1_000_000, 1);
+    s.exec(&bob, &ExecuteMsg::SetClaimFor { enabled: false }, &[])
+        .unwrap();
+    let e = s.exec(&a("anyone"), &claim_for(&bob), &[]).unwrap_err();
+    assert!(matches!(err(e), ContractError::ClaimForNotEnabled { .. }));
+
+    // Nothing to this contract; zero transfers are fine, as in cw20-base (pairs send them)
     let me = s.yastro.clone();
     let e = s.transfer(&alice, &me, 1).unwrap_err();
     assert_eq!(err(e), ContractError::SelfRecipient {});
-    let e = s.transfer(&alice, &bob, 0).unwrap_err();
-    assert_eq!(err(e), ContractError::ZeroAmount {});
+    s.transfer(&alice, &bob, 0).unwrap();
+    let e = s
+        .exec(
+            &alice,
+            &ExecuteMsg::Claim {
+                recipient: Some(me.to_string()),
+            },
+            &[],
+        )
+        .unwrap_err();
+    assert_eq!(err(e), ContractError::SelfRecipient {});
     s.mint(&alice, 1, ASTRO);
     let e = s
         .exec(
@@ -777,6 +827,7 @@ fn unbonding_limits() {
                     remove_reward_denoms: None,
                     unbonding_period: Some(period),
                     incentives: None,
+                    min_lp_staked: None,
                 },
                 &[],
             )
@@ -818,6 +869,7 @@ fn reward_denoms() {
         remove_reward_denoms: Some(remove.into_iter().map(String::from).collect()),
         unbonding_period: None,
         incentives: None,
+        min_lp_staked: None,
     };
     let e = s
         .exec(&a("owner"), &update(vec![ASTRO], vec![]), &[])
@@ -837,7 +889,10 @@ fn reward_denoms() {
     let e = s
         .exec(
             &a("owner"),
-            &update(vec!["d1", "d2", "d3", "d4", "d5"], vec![]),
+            &update(
+                vec!["udenom1", "udenom2", "udenom3", "udenom4", "udenom5"],
+                vec![],
+            ),
             &[],
         )
         .unwrap_err();
@@ -858,14 +913,17 @@ fn reward_denoms() {
     let e = s
         .exec(
             &a("owner"),
-            &update(vec!["d1", "d2", "d3", "d4", "d5"], vec![]),
+            &update(
+                vec!["udenom1", "udenom2", "udenom3", "udenom4", "udenom5"],
+                vec![],
+            ),
             &[],
         )
         .unwrap_err();
     assert_eq!(err(e), ContractError::TooManyRewardDenoms { max: 5 });
     s.exec(
         &a("owner"),
-        &update(vec!["d1", "d2", "d3", "d4"], vec![]),
+        &update(vec!["udenom1", "udenom2", "udenom3", "udenom4"], vec![]),
         &[],
     )
     .unwrap();
@@ -902,32 +960,48 @@ fn pool_rewards_go_to_lp_stakers_in_incentives() {
             address: other_pool.to_string()
         }
     );
-    // Pools get theirs through forwarding, not claim_for
-    let e = s
-        .exec(
-            &a("anyone"),
-            &ExecuteMsg::ClaimFor {
-                address: pool.to_string(),
-            },
-            &[],
-        )
-        .unwrap_err();
-    assert_eq!(
-        err(e),
-        ContractError::IsAPool {
-            address: pool.to_string()
-        }
-    );
+    // Contracts claiming to be pairs: for another address, or with an LP token they don't mint
+    let yastro_asset = AssetInfo::cw20(s.yastro.clone());
+    let impostors = [
+        PairInit {
+            assets: vec![yastro_asset.clone(), AssetInfo::native(ASTRO)],
+            lp_token: None,
+            contract_addr: Some(pool.clone()),
+        },
+        PairInit {
+            assets: vec![yastro_asset.clone(), AssetInfo::native(ASTRO)],
+            lp_token: Some(lp_of(&pool)),
+            contract_addr: None,
+        },
+    ];
+    for init in impostors {
+        let impostor = s.pair(init);
+        let e = s.forward(&impostor).unwrap_err();
+        assert_eq!(
+            err(e),
+            ContractError::NotAPool {
+                address: impostor.to_string()
+            }
+        );
+    }
 
-    // Nobody has staked the LP token yet
+    // Not enough of the LP supply staked in Incentives: 1 unit of 951, then 101 of 1,050
+    s.mint(&a("lp_holder"), 950, &lp_of(&pool));
+    s.stake_lp(&lp_staker, &pool, 1);
     let e = s.forward(&pool).unwrap_err();
     assert_eq!(
         err(e),
-        ContractError::NoLpStakers {
-            lp_token: lp_of(&pool)
+        ContractError::NotEnoughLpStaked {
+            lp_token: lp_of(&pool),
+            staked: Uint128::new(1),
+            supply: Uint128::new(951),
+            min_share: Decimal::percent(10),
         }
     );
     s.stake_lp(&lp_staker, &pool, 100);
+    let e = s.forward(&pool).unwrap_err();
+    assert!(matches!(err(e), ContractError::NotEnoughLpStaked { .. }));
+    s.stake_lp(&lp_staker, &pool, 50);
 
     // Not exempt from the fee yet: Incentives rejects it and the pool keeps its rewards
     let held = s.bank(&s.yastro.clone(), USDC);
@@ -1147,4 +1221,35 @@ fn fuzz_never_owes_more_than_it_holds() {
     let left = s.bank(&s.yastro.clone(), USDC);
     assert_eq!(left + claimed, deposited);
     assert!(left <= 1_000, "{left} left as dust");
+}
+
+#[test]
+fn min_lp_staked_is_a_share() {
+    let mut s = Suite::new();
+    let update = |share: Decimal| ExecuteMsg::UpdateConfig {
+        add_reward_denoms: None,
+        remove_reward_denoms: None,
+        unbonding_period: None,
+        incentives: None,
+        min_lp_staked: Some(share),
+    };
+    let e = s
+        .exec(&a("owner"), &update(Decimal::percent(101)), &[])
+        .unwrap_err();
+    assert_eq!(err(e), ContractError::InvalidMinLpStaked {});
+    s.exec(&a("owner"), &update(Decimal::percent(25)), &[])
+        .unwrap();
+    let e = s
+        .exec(&a("alice"), &update(Decimal::percent(5)), &[])
+        .unwrap_err();
+    assert_eq!(err(e), ContractError::Unauthorized {});
+
+    let mut msg = instantiate_msg(&s.incentives);
+    msg.min_lp_staked = Decimal::percent(150);
+    let code = s.yastro_code;
+    let e = s
+        .app
+        .instantiate_contract(code, a("owner"), &msg, &[], "y", None)
+        .unwrap_err();
+    assert_eq!(err(e), ContractError::InvalidMinLpStaked {});
 }

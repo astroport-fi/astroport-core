@@ -1,10 +1,10 @@
 use cosmwasm_std::{
     attr, coin, ensure, entry_point, to_json_binary, wasm_execute, Addr, BankMsg, Binary, Coin,
-    Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg, SubMsgResult,
-    Uint128,
+    Decimal, Deps, DepsMut, Env, MessageInfo, Reply, Response, StdError, StdResult, SubMsg,
+    SubMsgResult, Uint128,
 };
 use cw2::{get_contract_version, set_contract_version};
-use cw20::MinterResponse;
+use cw20::{Cw20QueryMsg, MinterResponse, TokenInfoResponse};
 use cw20_base::allowances::{
     execute_decrease_allowance, execute_increase_allowance, execute_send_from,
     execute_transfer_from, query_allowance,
@@ -17,8 +17,8 @@ use cw20_base::enumerable::{query_all_accounts, query_owner_allowances, query_sp
 use cw20_base::state::{BALANCES, TOKEN_INFO};
 use cw_utils::{must_pay, nonpayable};
 
-use astroport::asset::{AssetInfo, AssetInfoExt, PairInfo};
-use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner};
+use astroport::asset::{validate_native_denom, AssetInfo, AssetInfoExt, PairInfo};
+use astroport::common::{claim_ownership, drop_ownership_proposal, propose_new_owner, LP_SUBDENOM};
 use astroport::incentives::{
     ExecuteMsg as IncentivesExecuteMsg, IncentivesSchedule, InputSchedule, PoolInfoResponse,
     QueryMsg as IncentivesQueryMsg,
@@ -29,8 +29,8 @@ use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, RewardState, StakingState};
 use crate::rewards::{deposit, pending, restore, settle, streams_at, take};
 use crate::state::{
-    Config, Unbonding, CONFIG, FORWARDS, NEXT_FORWARD_ID, OWNERSHIP_PROPOSAL, REWARD_DENOMS,
-    STREAMS, TOTAL_UNBONDING, UNBONDINGS,
+    Config, Unbonding, CLAIM_FOR, CONFIG, FORWARDS, NEXT_FORWARD_ID, OWNERSHIP_PROPOSAL,
+    REWARD_DENOMS, STREAMS, TOTAL_UNBONDING, UNBONDINGS,
 };
 
 const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
@@ -68,8 +68,11 @@ pub fn instantiate(
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     check_unbonding_period(msg.unbonding_period)?;
+    check_min_lp_staked(msg.min_lp_staked)?;
+    validate_native_denom(&msg.astro_denom)?;
     let mut reward_denoms: Vec<String> = vec![];
     for denom in msg.reward_denoms {
+        validate_native_denom(&denom)?;
         ensure!(
             denom != msg.astro_denom,
             ContractError::StakedDenomAsReward { denom }
@@ -95,6 +98,7 @@ pub fn instantiate(
                 .incentives
                 .map(|a| deps.api.addr_validate(&a))
                 .transpose()?,
+            min_lp_staked: msg.min_lp_staked,
         },
     )?;
     REWARD_DENOMS.save(deps.storage, &reward_denoms)?;
@@ -119,28 +123,41 @@ pub fn execute(
         ExecuteMsg::DepositRewards {} => deposit_rewards(deps, env, info),
         ExecuteMsg::Claim { recipient } => {
             nonpayable(&info)?;
-            let recipient = recipient
-                .map(|r| deps.api.addr_validate(&r))
-                .transpose()?
-                .unwrap_or_else(|| info.sender.clone());
+            let recipient = match recipient {
+                Some(r) => check_recipient(deps.as_ref(), &env, &r)?,
+                None => info.sender.clone(),
+            };
             claim(deps, now, info.sender, recipient)
         }
         ExecuteMsg::ClaimFor { address } => {
             nonpayable(&info)?;
             let address = deps.api.addr_validate(&address)?;
             ensure!(
-                pool_lp_token(deps.as_ref(), &env, &address).is_none(),
-                ContractError::IsAPool {
+                CLAIM_FOR.has(deps.storage, &address),
+                ContractError::ClaimForNotEnabled {
                     address: address.to_string()
                 }
             );
             claim(deps, now, address.clone(), address)
         }
+        ExecuteMsg::SetClaimFor { enabled } => {
+            nonpayable(&info)?;
+            if enabled {
+                CLAIM_FOR.save(deps.storage, &info.sender, &())?;
+            } else {
+                CLAIM_FOR.remove(deps.storage, &info.sender);
+            }
+            Ok(Response::new().add_attributes([
+                attr("action", "set_claim_for"),
+                attr("address", info.sender),
+                attr("enabled", enabled.to_string()),
+            ]))
+        }
         ExecuteMsg::ForwardPoolRewards { pool } => forward_pool_rewards(deps, env, info, pool),
 
         ExecuteMsg::Transfer { recipient, amount } => {
             nonpayable(&info)?;
-            let to = check_recipient(deps.as_ref(), &env, &recipient, amount)?;
+            let to = check_recipient(deps.as_ref(), &env, &recipient)?;
             settle(deps.storage, now, &[&info.sender, &to])?;
             Ok(execute_transfer(deps, env, info, recipient, amount)?)
         }
@@ -150,7 +167,7 @@ pub fn execute(
             msg,
         } => {
             nonpayable(&info)?;
-            let to = check_recipient(deps.as_ref(), &env, &contract, amount)?;
+            let to = check_recipient(deps.as_ref(), &env, &contract)?;
             settle(deps.storage, now, &[&info.sender, &to])?;
             Ok(execute_send(deps, env, info, contract, amount, msg)?)
         }
@@ -161,7 +178,7 @@ pub fn execute(
         } => {
             nonpayable(&info)?;
             let from = deps.api.addr_validate(&owner)?;
-            let to = check_recipient(deps.as_ref(), &env, &recipient, amount)?;
+            let to = check_recipient(deps.as_ref(), &env, &recipient)?;
             settle(deps.storage, now, &[&from, &to])?;
             Ok(execute_transfer_from(
                 deps, env, info, owner, recipient, amount,
@@ -175,7 +192,7 @@ pub fn execute(
         } => {
             nonpayable(&info)?;
             let from = deps.api.addr_validate(&owner)?;
-            let to = check_recipient(deps.as_ref(), &env, &contract, amount)?;
+            let to = check_recipient(deps.as_ref(), &env, &contract)?;
             settle(deps.storage, now, &[&from, &to])?;
             Ok(execute_send_from(
                 deps, env, info, owner, contract, amount, msg,
@@ -226,6 +243,7 @@ pub fn execute(
             remove_reward_denoms,
             unbonding_period,
             incentives,
+            min_lp_staked,
         } => update_config(
             deps,
             info,
@@ -233,6 +251,7 @@ pub fn execute(
             remove_reward_denoms,
             unbonding_period,
             incentives,
+            min_lp_staked,
         ),
         ExecuteMsg::ProposeNewOwner { owner, expires_in } => {
             nonpayable(&info)?;
@@ -276,20 +295,23 @@ pub fn execute(
     }
 }
 
-/// A yASTRO recipient: valid, not this contract, and with a non-zero amount
-fn check_recipient(
-    deps: Deps,
-    env: &Env,
-    recipient: &str,
-    amount: Uint128,
-) -> Result<Addr, ContractError> {
-    ensure!(!amount.is_zero(), ContractError::ZeroAmount {});
+/// A recipient of yASTRO or rewards: valid, and not this contract. Zero transfers are allowed, as
+/// in cw20-base: pairs send them when a withdrawal's yASTRO share rounds to zero.
+fn check_recipient(deps: Deps, env: &Env, recipient: &str) -> Result<Addr, ContractError> {
     let addr = deps.api.addr_validate(recipient)?;
     ensure!(
         addr != env.contract.address,
         ContractError::SelfRecipient {}
     );
     Ok(addr)
+}
+
+fn check_min_lp_staked(share: Decimal) -> Result<(), ContractError> {
+    ensure!(
+        share <= Decimal::one(),
+        ContractError::InvalidMinLpStaked {}
+    );
+    Ok(())
 }
 
 fn check_unbonding_period(period: u64) -> Result<(), ContractError> {
@@ -303,7 +325,8 @@ fn check_unbonding_period(period: u64) -> Result<(), ContractError> {
 }
 
 /// The LP token of `address` if it's a pool holding yASTRO: a contract answering Astroport's
-/// `pair {}` query with yASTRO among its assets
+/// `pair {}` query for itself, with yASTRO among its assets and an LP token it mints itself
+/// (`factory/{address}/astroport/share`, or a CW20 whose minter is `address`)
 fn pool_lp_token(deps: Deps, env: &Env, address: &Addr) -> Option<String> {
     let pair: PairInfo = deps
         .querier
@@ -312,9 +335,32 @@ fn pool_lp_token(deps: Deps, env: &Env, address: &Addr) -> Option<String> {
     let yastro = AssetInfo::Token {
         contract_addr: env.contract.address.clone(),
     };
-    pair.asset_infos
-        .contains(&yastro)
-        .then_some(pair.liquidity_token)
+    if pair.contract_addr != *address || !pair.asset_infos.contains(&yastro) {
+        return None;
+    }
+    let lp = pair.liquidity_token;
+    let own_lp = if lp.starts_with("factory/") {
+        lp == format!("factory/{address}/{LP_SUBDENOM}")
+    } else {
+        deps.querier
+            .query_wasm_smart::<Option<MinterResponse>>(&lp, &Cw20QueryMsg::Minter {})
+            .ok()
+            .flatten()
+            .is_some_and(|m| m.minter == address.as_str())
+    };
+    own_lp.then_some(lp)
+}
+
+/// Total supply of a pool's LP token
+fn lp_supply(deps: Deps, lp_token: &str) -> StdResult<Uint128> {
+    if lp_token.starts_with("factory/") {
+        Ok(deps.querier.query_supply(lp_token)?.amount)
+    } else {
+        Ok(deps
+            .querier
+            .query_wasm_smart::<TokenInfoResponse>(lp_token, &Cw20QueryMsg::TokenInfo {})?
+            .total_supply)
+    }
 }
 
 fn stake(
@@ -326,7 +372,7 @@ fn stake(
     let config = CONFIG.load(deps.storage)?;
     let amount = must_pay(&info, &config.astro_denom)?;
     let recipient = match recipient {
-        Some(r) => check_recipient(deps.as_ref(), &env, &r, amount)?,
+        Some(r) => check_recipient(deps.as_ref(), &env, &r)?,
         None => info.sender.clone(),
     };
 
@@ -487,7 +533,8 @@ fn forward_pool_rewards(
             address: pool.to_string(),
         })?;
 
-    // Incentives gives rewards streamed while nobody is staked to whoever stakes first
+    // Incentives gives rewards streamed while nobody is staked to whoever stakes first, and the
+    // whole schedule to whoever is staked: forward only once enough of the pool's LPs are
     let staked = deps
         .querier
         .query_wasm_smart::<PoolInfoResponse>(
@@ -498,10 +545,14 @@ fn forward_pool_rewards(
         )
         .map(|p| p.total_lp)
         .unwrap_or_default();
+    let supply = lp_supply(deps.as_ref(), &lp_token)?;
     ensure!(
-        !staked.is_zero(),
-        ContractError::NoLpStakers {
-            lp_token: lp_token.clone()
+        !staked.is_zero() && Decimal::from_ratio(staked, supply) >= config.min_lp_staked,
+        ContractError::NotEnoughLpStaked {
+            lp_token: lp_token.clone(),
+            staked,
+            supply,
+            min_share: config.min_lp_staked,
         }
     );
 
@@ -579,6 +630,7 @@ fn update_config(
     remove_reward_denoms: Option<Vec<String>>,
     unbonding_period: Option<u64>,
     incentives: Option<String>,
+    min_lp_staked: Option<Decimal>,
 ) -> Result<Response, ContractError> {
     nonpayable(&info)?;
     let mut config = CONFIG.load(deps.storage)?;
@@ -587,6 +639,7 @@ fn update_config(
 
     let mut denoms = REWARD_DENOMS.load(deps.storage)?;
     for denom in add_reward_denoms.unwrap_or_default() {
+        validate_native_denom(&denom)?;
         ensure!(
             denom != config.astro_denom,
             ContractError::StakedDenomAsReward { denom }
@@ -628,6 +681,11 @@ fn update_config(
         let addr = deps.api.addr_validate(&incentives)?;
         attrs.push(attr("incentives", &addr));
         config.incentives = Some(addr);
+    }
+    if let Some(share) = min_lp_staked {
+        check_min_lp_staked(share)?;
+        attrs.push(attr("min_lp_staked", share.to_string()));
+        config.min_lp_staked = share;
     }
     CONFIG.save(deps.storage, &config)?;
 
@@ -687,6 +745,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 }
             }
             to_json_binary(&states)
+        }
+        QueryMsg::ClaimForEnabled { address } => {
+            let addr = deps.api.addr_validate(&address)?;
+            to_json_binary(&CLAIM_FOR.has(deps.storage, &addr))
         }
         QueryMsg::StakingState {} => to_json_binary(&StakingState {
             total_staked: TOKEN_INFO.load(deps.storage)?.total_supply,

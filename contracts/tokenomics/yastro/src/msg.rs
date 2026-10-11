@@ -1,5 +1,5 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Binary, Coin, Decimal256, Uint128};
+use cosmwasm_std::{Binary, Coin, Decimal, Decimal256, Uint128};
 use cw20::{
     AllAccountsResponse, AllAllowancesResponse, AllSpenderAllowancesResponse, AllowanceResponse,
     BalanceResponse, DownloadLogoResponse, Expiration, Logo, MarketingInfoResponse, MinterResponse,
@@ -21,6 +21,9 @@ pub struct InstantiateMsg {
     pub reward_denoms: Vec<String>,
     /// Astroport Incentives, for forwarding pools' rewards to their LP stakers
     pub incentives: Option<String>,
+    /// Share of a pool's LP supply that must be staked in Incentives before its rewards are
+    /// forwarded there, e.g. 0.1
+    pub min_lp_staked: Decimal,
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
@@ -50,15 +53,20 @@ pub enum ExecuteMsg {
     Claim {
         recipient: Option<String>,
     },
-    /// Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders
-    /// that can't call `claim` (DAO treasuries, vaults). Pools use `forward_pool_rewards`.
+    /// Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders that
+    /// enabled it with `set_claim_for`, so a bot can pay out DAO treasuries.
     ClaimFor {
         address: String,
     },
+    /// Lets anyone send the sender its rewards with `claim_for`, or stops it
+    SetClaimFor {
+        enabled: bool,
+    },
     /// Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule
     /// lasting until the next Monday plus one week. Anyone can call it, for any contract that
-    /// answers Astroport's `pair {}` query with yASTRO among its assets. Needs LP staked in
-    /// Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one
+    /// answers Astroport's `pair {}` query for itself, with yASTRO among its assets and an LP
+    /// token it mints. Needs at least `min_lp_staked` of the LP supply staked in Incentives, and
+    /// yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one
     /// too small to schedule yet, stays with the pool for the next call.
     ForwardPoolRewards {
         pool: String,
@@ -112,6 +120,8 @@ pub enum ExecuteMsg {
         /// Applies to unbondings started after the change. At most 28 days.
         unbonding_period: Option<u64>,
         incentives: Option<String>,
+        /// At most 1
+        min_lp_staked: Option<Decimal>,
     },
     ProposeNewOwner {
         owner: String,
@@ -158,6 +168,9 @@ pub enum QueryMsg {
     Unbondings { address: String },
     #[returns(Vec<RewardState>)]
     RewardState {},
+    /// Whether `claim_for` can pay out `address`
+    #[returns(bool)]
+    ClaimForEnabled { address: String },
     #[returns(StakingState)]
     StakingState {},
 

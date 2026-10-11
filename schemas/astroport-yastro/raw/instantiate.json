@@ -5,6 +5,7 @@
   "required": [
     "astro_denom",
     "decimals",
+    "min_lp_staked",
     "name",
     "owner",
     "reward_denoms",
@@ -39,6 +40,14 @@
         }
       ]
     },
+    "min_lp_staked": {
+      "description": "Share of a pool's LP supply that must be staked in Incentives before its rewards are forwarded there, e.g. 0.1",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Decimal"
+        }
+      ]
+    },
     "name": {
       "type": "string"
     },
@@ -66,6 +75,10 @@
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
     "EmbeddedLogo": {

@@ -72,6 +72,28 @@
       "additionalProperties": false
     },
     {
+      "description": "Whether `claim_for` can pay out `address`",
+      "type": "object",
+      "required": [
+        "claim_for_enabled"
+      ],
+      "properties": {
+        "claim_for_enabled": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
       "type": "object",
       "required": [
         "staking_state"

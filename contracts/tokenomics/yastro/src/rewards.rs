@@ -19,6 +19,12 @@ fn div(a: Decimal256, b: Decimal256) -> StdResult<Decimal256> {
         .map_err(|e| StdError::generic_err(e.to_string()))
 }
 
+/// Seconds from `from` to `to`
+fn elapsed(from: u64, to: u64) -> StdResult<u64> {
+    to.checked_sub(from)
+        .ok_or_else(|| StdError::generic_err("Stream time went backwards"))
+}
+
 impl Stream {
     pub fn new(now: u64) -> Self {
         Stream {
@@ -27,8 +33,17 @@ impl Stream {
             queued: Decimal256::zero(),
             epoch_end: epoch_end(now),
             last_update: now,
+            unindexed: Decimal256::zero(),
             total_deposited: Uint128::zero(),
         }
+    }
+
+    /// Streams `amount` over an epoch. What the per-second rate rounds off waits in `queued`.
+    fn stream_over_epoch(&mut self, amount: Decimal256) -> StdResult<()> {
+        let epoch = seconds(EPOCH_LENGTH);
+        self.rate = div(amount, epoch)?;
+        self.queued = amount.checked_sub(self.rate.checked_mul(epoch)?)?;
+        Ok(())
     }
 
     /// Pays the stream out to `supply` yASTRO up to `now`. Must run before the supply changes.
@@ -39,36 +54,43 @@ impl Stream {
                 // streams again over the epoch `now` is in
                 let unpaid = self
                     .rate
-                    .checked_mul(seconds(self.epoch_end - self.last_update))?
+                    .checked_mul(seconds(elapsed(self.last_update, self.epoch_end)?))?
                     .checked_add(self.queued)?;
                 self.epoch_end = epoch_end(now);
-                self.last_update = self.epoch_end - EPOCH_LENGTH;
-                self.rate = div(unpaid, seconds(EPOCH_LENGTH))?;
-                self.queued = Decimal256::zero();
+                self.last_update = elapsed(EPOCH_LENGTH, self.epoch_end)?;
+                self.stream_over_epoch(unpaid)?;
                 continue;
             }
 
             let until = now.min(self.epoch_end);
-            let accrued = self.rate.checked_mul(seconds(until - self.last_update))?;
+            let accrued = self
+                .rate
+                .checked_mul(seconds(elapsed(self.last_update, until)?))?;
             if supply.is_zero() {
                 // Nobody to pay: stream it again next epoch
                 self.queued = self.queued.checked_add(accrued)?;
             } else {
-                self.index = self
-                    .index
-                    .checked_add(div(accrued, Decimal256::from_ratio(supply, 1u8))?)?;
+                // What dividing by the supply rounds off is added to the next step
+                let supply = Decimal256::from_ratio(supply, 1u8);
+                let total = accrued.checked_add(self.unindexed)?;
+                let step = div(total, supply)?;
+                self.index = self.index.checked_add(step)?;
+                self.unindexed = total.checked_sub(step.checked_mul(supply)?)?;
             }
             self.last_update = until;
 
             if until == self.epoch_end {
-                self.rate = div(self.queued, seconds(EPOCH_LENGTH))?;
-                self.queued = Decimal256::zero();
+                let queued = self.queued;
+                self.stream_over_epoch(queued)?;
                 if self.rate.is_zero() {
                     // Idle: jump to the epoch `now` is in
                     self.epoch_end = epoch_end(now);
-                    self.last_update = self.last_update.max(self.epoch_end - EPOCH_LENGTH);
+                    self.last_update = self.last_update.max(elapsed(EPOCH_LENGTH, self.epoch_end)?);
                 } else {
-                    self.epoch_end += EPOCH_LENGTH;
+                    self.epoch_end = self
+                        .epoch_end
+                        .checked_add(EPOCH_LENGTH)
+                        .ok_or_else(|| StdError::generic_err("Epoch overflow"))?;
                 }
             }
         }

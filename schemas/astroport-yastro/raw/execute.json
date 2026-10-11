@@ -97,7 +97,7 @@
       "additionalProperties": false
     },
     {
-      "description": "Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders that can't call `claim` (DAO treasuries, vaults). Pools use `forward_pool_rewards`.",
+      "description": "Sends `address`'s accrued rewards to `address` itself. Anyone can call it, for holders that enabled it with `set_claim_for`, so a bot can pay out DAO treasuries.",
       "type": "object",
       "required": [
         "claim_for"
@@ -119,7 +119,29 @@
       "additionalProperties": false
     },
     {
-      "description": "Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule lasting until the next Monday plus one week. Anyone can call it, for any contract that answers Astroport's `pair {}` query with yASTRO among its assets. Needs LP staked in Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one too small to schedule yet, stays with the pool for the next call.",
+      "description": "Lets anyone send the sender its rewards with `claim_for`, or stops it",
+      "type": "object",
+      "required": [
+        "set_claim_for"
+      ],
+      "properties": {
+        "set_claim_for": {
+          "type": "object",
+          "required": [
+            "enabled"
+          ],
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Moves a pool's accrued rewards into Incentives for that pool's LP stakers, as a schedule lasting until the next Monday plus one week. Anyone can call it, for any contract that answers Astroport's `pair {}` query for itself, with yASTRO among its assets and an LP token it mints. Needs at least `min_lp_staked` of the LP supply staked in Incentives, and yASTRO exempt from Incentives' fee. A reward Incentives rejects, or one too small to schedule yet, stays with the pool for the next call.",
       "type": "object",
       "required": [
         "forward_pool_rewards"
@@ -398,6 +420,17 @@
                 "null"
               ]
             },
+            "min_lp_staked": {
+              "description": "At most 1",
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/Decimal"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "remove_reward_denoms": {
               "description": "Stops accepting these; rewards already deposited stay claimable",
               "type": [
@@ -480,6 +513,10 @@
   "definitions": {
     "Binary": {
       "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>. See also <https://github.com/CosmWasm/cosmwasm/blob/main/docs/MESSAGE_TYPES.md>.",
+      "type": "string"
+    },
+    "Decimal": {
+      "description": "A fixed-point decimal value with 18 fractional digits, i.e. Decimal(1_000_000_000_000_000_000) == 1.0\n\nThe greatest possible value that can be represented is 340282366920938463463.374607431768211455 (which is (2^128 - 1) / 10^18)",
       "type": "string"
     },
     "EmbeddedLogo": {

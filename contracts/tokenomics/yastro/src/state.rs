@@ -1,5 +1,5 @@
 use cosmwasm_schema::cw_serde;
-use cosmwasm_std::{Addr, Coin, Decimal256, Uint128};
+use cosmwasm_std::{Addr, Coin, Decimal, Decimal256, Uint128};
 use cw_storage_plus::{Item, Map};
 
 use astroport::common::OwnershipProposal;
@@ -14,6 +14,9 @@ pub struct Config {
     pub unbonding_period: u64,
     /// Astroport Incentives, where pools' rewards are forwarded for their LP stakers
     pub incentives: Option<Addr>,
+    /// Share of a pool's LP supply that must be staked in Incentives before its rewards are
+    /// forwarded there
+    pub min_lp_staked: Decimal,
 }
 
 /// ASTRO on its way out: burned yASTRO that can be withdrawn after `release_at`
@@ -38,6 +41,8 @@ pub struct Stream {
     pub epoch_end: u64,
     /// When `index` was last brought up to date
     pub last_update: u64,
+    /// Streamed but not yet in `index`: what dividing by the supply rounded off
+    pub unindexed: Decimal256,
     /// Everything ever deposited
     pub total_deposited: Uint128,
 }
@@ -56,6 +61,9 @@ pub const PENDING: Map<(&Addr, &str), Decimal256> = Map::new("pending");
 
 pub const UNBONDINGS: Map<&Addr, Vec<Unbonding>> = Map::new("unbondings");
 pub const TOTAL_UNBONDING: Item<Uint128> = Item::new("total_unbonding");
+
+/// Holders that let anyone send them their rewards with `claim_for`
+pub const CLAIM_FOR: Map<&Addr, ()> = Map::new("claim_for");
 
 /// Pool rewards sent to Incentives, by reply id, so a failed schedule can go back to the pool
 pub const FORWARDS: Map<u64, (Addr, Coin)> = Map::new("forwards");
