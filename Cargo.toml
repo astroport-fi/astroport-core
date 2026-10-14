@@ -13,6 +13,7 @@ members = [
     "contracts/pair_xastro",
     "contracts/pair_supervault_adapter",
     "contracts/pair_xyk_sale_tax",
+    "contracts/pair_exit_only",
     "contracts/router",
     "contracts/whitelist",
     "contracts/tokenomics/*",

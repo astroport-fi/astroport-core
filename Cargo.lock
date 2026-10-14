@@ -465,6 +465,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "astroport-pair-exit-only"
+version = "1.0.0"
+dependencies = [
+ "anyhow",
+ "astroport 5.16.0",
+ "astroport-factory 1.10.0",
+ "astroport-native-coin-registry 1.1.0",
+ "astroport-pair-concentrated",
+ "astroport-test",
+ "astroport-tokenfactory-tracker 2.0.0",
+ "cosmwasm-schema",
+ "cosmwasm-std",
+ "cw-storage-plus 1.2.0",
+ "cw-utils 1.0.3",
+ "cw2 1.1.2",
+ "cw20 1.1.2",
+ "cw20-base 1.1.2",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "astroport-pair-stable"
 version = "4.2.0"
 dependencies = [
