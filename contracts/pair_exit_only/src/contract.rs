@@ -277,30 +277,6 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
         deps.storage.get(b"exit_only").is_none(),
         refuse("already exit-only with a withheld asset")
     );
-    // Liquidity placed on the Duality orderbook isn't in the pool's balance
-    if version.contract == "astroport-pair-concentrated-duality" {
-        #[derive(serde::Deserialize)]
-        struct Orderbook {
-            enabled: bool,
-            orders: Vec<String>,
-            delayed_trade: Option<serde::de::IgnoredAny>,
-        }
-        let raw = deps
-            .storage
-            .get(b"orderbook_config")
-            .ok_or_else(|| refuse("no orderbook config"))?;
-        let orderbook: Orderbook =
-            from_json(&raw).map_err(|_| refuse("unreadable orderbook config"))?;
-        ensure!(
-            !orderbook.enabled,
-            refuse("orderbook integration is enabled")
-        );
-        ensure!(
-            orderbook.orders.is_empty() && orderbook.delayed_trade.is_none(),
-            refuse("orders are still on the orderbook")
-        );
-    }
-
     let total = total_share(deps.as_ref(), &pair_info)?;
 
     Ok(Response::new().add_attributes([

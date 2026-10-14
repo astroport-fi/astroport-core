@@ -26,9 +26,10 @@ Supported: `astroport-pair-concentrated` (1.x and 4.x), `astroport-pair-concentr
 
 - other contracts;
 - a config naming another address;
-- a pool already exit-only through `pair_concentrated` 4.3 (it withholds an asset that this code would pay out);
-- a duality pool with its orderbook enabled, orders still placed, a delayed trade, or no orderbook state, since part of
-  its liquidity could be on the orderbook.
+- a pool already exit-only through `pair_concentrated` 4.3 (it withholds an asset that this code would pay out).
+
+A duality pool's orderbook must be disabled with no orders before it migrates here, or part of its liquidity is on the
+orderbook rather than in its balance. Both Neutron duality pools are.
 
 Migrating here again changes nothing.
 

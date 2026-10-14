@@ -89,9 +89,6 @@ struct MockPairInit {
     config: String,
     contract: String,
     version: String,
-    /// The duality pair's raw `orderbook_config`
-    #[serde(default)]
-    orderbook: Option<String>,
 }
 
 fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
@@ -102,9 +99,6 @@ fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
         |deps: DepsMut, env: Env, _: MessageInfo, msg: MockPairInit| -> StdResult<Response> {
             let config = msg.config.replace("{self}", env.contract.address.as_str());
             deps.storage.set(b"config", config.as_bytes());
-            if let Some(ob) = msg.orderbook {
-                deps.storage.set(b"orderbook_config", ob.as_bytes());
-            }
             cw2::set_contract_version(deps.storage, msg.contract, msg.version)?;
             Ok(Response::new())
         },
@@ -512,7 +506,7 @@ fn refuses_pairs_it_cant_take_over() {
             r#"{{"pair_info":{{"asset_infos":[{{"native_token":{{"denom":"{X}"}}}},{{"native_token":{{"denom":"{Y}"}}}}],"contract_addr":"{addr}","liquidity_token":"factory/{addr}/astroport/share","pair_type":{{"xyk":{{}}}}}},"factory_addr":"factory"}}"#
         )
     };
-    let instantiate = |s: &mut Pcl, contract: &str, cfg: String, orderbook: Option<String>| {
+    let instantiate = |s: &mut Pcl, contract: &str, cfg: String| {
         s.app
             .instantiate_contract(
                 mock,
@@ -521,7 +515,6 @@ fn refuses_pairs_it_cant_take_over() {
                     config: cfg,
                     contract: contract.to_string(),
                     version: "1.0.0".to_string(),
-                    orderbook,
                 },
                 &[],
                 "mock",
@@ -530,22 +523,8 @@ fn refuses_pairs_it_cant_take_over() {
             .unwrap()
     };
 
-    let live_orderbook = |enabled: bool, orders: &str| {
-        let raw = std::fs::read_to_string(format!(
-            "{}/tests/fixtures/ntrn_usdc.orderbook_config.json",
-            env!("CARGO_MANIFEST_DIR")
-        ))
-        .unwrap();
-        assert!(raw.contains(r#""orders":[],"enabled":false"#));
-        Some(raw.replace(
-            r#""orders":[],"enabled":false"#,
-            &format!(r#""orders":{orders},"enabled":{enabled}"#),
-        ))
-    };
-    let duality = "astroport-pair-concentrated-duality";
-
     // An XYK pair isn't supported
-    let pair = instantiate(&mut s, "astroport-pair", config("{self}"), None);
+    let pair = instantiate(&mut s, "astroport-pair", config("{self}"));
     let e = s
         .app
         .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
@@ -553,47 +532,19 @@ fn refuses_pairs_it_cant_take_over() {
     assert!(matches!(err(e), ContractError::MigrationError { .. }));
 
     // A config for another address
-    let pair = instantiate(
-        &mut s,
-        "astroport-pair-transmuter",
-        config("someone_else"),
-        None,
-    );
+    let pair = instantiate(&mut s, "astroport-pair-transmuter", config("someone_else"));
     let e = s
         .app
         .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
         .unwrap_err();
     assert!(err(e).to_string().contains("another address"));
 
-    // An orderbook pool with its Duality orderbook enabled, with orders still placed, or with no
-    // orderbook state: part of the liquidity may not be in its balance
-    for (orderbook, reason) in [
-        (
-            live_orderbook(true, "[]"),
-            "orderbook integration is enabled",
-        ),
-        (
-            live_orderbook(false, r#"["tranche"]"#),
-            "orders are still on",
-        ),
-        (None, "no orderbook config"),
-    ] {
-        let pair = instantiate(&mut s, duality, config("{self}"), orderbook);
-        let e = s
-            .app
-            .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
-            .unwrap_err();
-        assert!(err(e).to_string().contains(reason), "{reason}");
-    }
-
+    // A duality pair migrates
     let pair = instantiate(
         &mut s,
-        duality,
+        "astroport-pair-concentrated-duality",
         config("{self}"),
-        live_orderbook(false, "[]"),
     );
-
-    // The live NTRN/USDC orderbook state (disabled, no orders) migrates
     s.app
         .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
         .unwrap();
@@ -704,7 +655,6 @@ fn cw20_lp_pools_withdraw_through_send() {
                 config,
                 contract: "astroport-pair-concentrated".to_string(),
                 version: "1.2.13".to_string(),
-                orderbook: None,
             },
             &[],
             "pair",
