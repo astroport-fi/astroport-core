@@ -19,6 +19,17 @@ pub enum ContractError {
     #[error("Nothing to withdraw: the pool holds no assets for this share yet")]
     NothingToWithdraw {},
 
+    #[error(
+        "This pool's LP token is a CW20: send it to the pool with {{\"withdraw_liquidity\":{{}}}}"
+    )]
+    Cw20LpWithdraw {},
+
+    #[error("Unsupported hook: send the LP token with {{\"withdraw_liquidity\":{{}}}}")]
+    UnsupportedHook {},
+
+    #[error("Withdrawals are closed: {0}")]
+    Closed(String),
+
     #[error("Unauthorized")]
     Unauthorized {},
 

@@ -12,7 +12,7 @@ use astroport::pair::{ExecuteMsg, PoolResponse, QueryMsg};
 use astroport::token_factory::tf_burn_msg;
 
 use crate::error::ContractError;
-use crate::state::{is_native_lp, load_pair_info};
+use crate::state::{is_native_lp, load_pair_info, Gate, GATE};
 
 pub const CONTRACT_NAME: &str = env!("CARGO_PKG_NAME");
 pub const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -59,7 +59,7 @@ pub fn execute(
             assets,
             min_assets_to_receive,
         } => {
-            ensure!(is_native_lp(&pair_info), ContractError::ExitOnly {});
+            ensure!(is_native_lp(&pair_info), ContractError::Cw20LpWithdraw {});
             let amount = must_pay(&info, &pair_info.liquidity_token)?;
             withdraw(
                 deps.as_ref(),
@@ -85,7 +85,7 @@ pub fn execute(
                 min_assets_to_receive,
             }) = from_json(&msg)
             else {
-                return Err(ContractError::ExitOnly {});
+                return Err(ContractError::UnsupportedHook {});
             };
             let sender = deps.api.addr_validate(&sender)?;
             withdraw(
@@ -134,6 +134,36 @@ fn pool_assets(deps: Deps, env: &Env, pair_info: &PairInfo) -> StdResult<Vec<Ass
         .collect()
 }
 
+/// Refuses while withdrawals are closed: the LP supply is above the drained pool's, or an asset
+/// backs each LP token less than the refill will. Withdrawals keep each asset's balance per LP
+/// token where it was (rounding leaves a little more), so once open the pool stays open.
+fn ensure_open(gate: &Gate, total: Uint128, assets: &[Asset]) -> Result<(), ContractError> {
+    ensure!(
+        total <= gate.max_total_share,
+        ContractError::Closed(format!(
+            "the LP supply {total} is above the {} issued when the pool was drained",
+            gate.max_total_share
+        ))
+    );
+    for min in &gate.min_balances {
+        let balance = assets
+            .iter()
+            .find(|a| a.info == min.info)
+            .map(|a| a.amount)
+            .unwrap_or_default();
+        // balance / total >= min / max_total_share
+        ensure!(
+            balance.full_mul(gate.max_total_share) >= min.amount.full_mul(total),
+            ContractError::Closed(format!(
+                "waiting for the refill: {balance} {} of {} for {total} LP tokens",
+                min.info,
+                min.amount.multiply_ratio(total, gate.max_total_share)
+            ))
+        );
+    }
+    Ok(())
+}
+
 /// `amount` LP tokens' share of every pool asset, rounded down
 fn share(deps: Deps, env: &Env, pair_info: &PairInfo, amount: Uint128) -> StdResult<Vec<Asset>> {
     let total = total_share(deps, pair_info)?;
@@ -172,6 +202,11 @@ fn withdraw(
     min_assets_to_receive: Option<Vec<Asset>>,
 ) -> Result<Response, ContractError> {
     ensure!(assets.is_empty(), ContractError::ImbalancedWithdraw {});
+    ensure_open(
+        &GATE.load(deps.storage)?,
+        total_share(deps, pair_info)?,
+        &pool_assets(deps, env, pair_info)?,
+    )?;
 
     let refund = share(deps, env, pair_info, amount)?;
     // The LP tokens would be burned for nothing, e.g. before the pool is refilled
@@ -241,6 +276,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }),
         QueryMsg::Share { amount } => to_json_binary(&share(deps, &env, &pair_info, amount)?),
         QueryMsg::SimulateWithdraw { lp_amount } => {
+            ensure_open(
+                &GATE.load(deps.storage)?,
+                total_share(deps, &pair_info)?,
+                &pool_assets(deps, &env, &pair_info)?,
+            )
+            .map_err(|e| StdError::generic_err(e.to_string()))?;
             to_json_binary(&share(deps, &env, &pair_info, lp_amount)?)
         }
         _ => Err(StdError::generic_err(
@@ -250,12 +291,22 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cw_serde]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    /// The pool's LP supply when it was drained. Withdrawals stay closed while the supply is
+    /// above it.
+    pub max_total_share: Uint128,
+    /// What the refill brings, per asset, for `max_total_share` LP tokens. Withdrawals open once
+    /// every listed asset backs each LP token at least this much. Assets left out aren't waited
+    /// for.
+    #[serde(default)]
+    pub min_balances: Vec<Asset>,
+}
 
-/// Takes over a pair, leaving its storage as it is. The pair's version stays in cw2, so it can
-/// later be migrated back to a newer build of its own contract.
+/// Takes over a pair, leaving its storage as it is apart from the withdrawal gate. The pair's
+/// version stays in cw2, so it can later be migrated to a build of its own contract that
+/// accepts that version. Migrating here again replaces the gate.
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+pub fn migrate(deps: DepsMut, env: Env, msg: MigrateMsg) -> Result<Response, ContractError> {
     let version = get_contract_version(deps.storage)?;
     let refuse = |reason: &str| ContractError::MigrationError {
         contract: version.contract.clone(),
@@ -279,18 +330,49 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
         refuse("already exit-only with a withheld asset")
     );
     // Liquidity placed on the Duality orderbook isn't in the pool's balance
-    if let Some(raw) = deps.storage.get(b"orderbook_config") {
+    if version.contract == "astroport-pair-concentrated-duality" {
         #[derive(serde::Deserialize)]
         struct Orderbook {
             enabled: bool,
+            orders: Vec<String>,
+            delayed_trade: Option<serde::de::IgnoredAny>,
         }
+        let raw = deps
+            .storage
+            .get(b"orderbook_config")
+            .ok_or_else(|| refuse("no orderbook config"))?;
         let orderbook: Orderbook =
             from_json(&raw).map_err(|_| refuse("unreadable orderbook config"))?;
         ensure!(
             !orderbook.enabled,
             refuse("orderbook integration is enabled")
         );
+        ensure!(
+            orderbook.orders.is_empty() && orderbook.delayed_trade.is_none(),
+            refuse("orders are still on the orderbook")
+        );
     }
+
+    ensure!(
+        !msg.max_total_share.is_zero(),
+        refuse("max_total_share must be above zero")
+    );
+    for (i, min) in msg.min_balances.iter().enumerate() {
+        ensure!(
+            pair_info.asset_infos.contains(&min.info),
+            refuse(&format!("{} is not one of the pool's assets", min.info))
+        );
+        ensure!(
+            !msg.min_balances[..i].iter().any(|m| m.info == min.info),
+            refuse(&format!("{} is listed twice", min.info))
+        );
+    }
+    let total = total_share(deps.as_ref(), &pair_info)?;
+    let gate = Gate {
+        max_total_share: msg.max_total_share,
+        min_balances: msg.min_balances,
+    };
+    GATE.save(deps.storage, &gate)?;
 
     Ok(Response::new().add_attributes([
         attr("action", "migrate_to_exit_only"),
@@ -298,5 +380,19 @@ pub fn migrate(deps: DepsMut, env: Env, _msg: MigrateMsg) -> Result<Response, Co
         attr("pair_version", version.version),
         attr("exit_only_version", CONTRACT_VERSION),
         attr("liquidity_token", pair_info.liquidity_token),
+        attr("total_share", total),
+        attr("max_total_share", gate.max_total_share),
+        attr(
+            "min_balances",
+            if gate.min_balances.is_empty() {
+                "none".to_string()
+            } else {
+                gate.min_balances
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            },
+        ),
     ]))
 }

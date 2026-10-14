@@ -89,8 +89,9 @@ struct MockPairInit {
     config: String,
     contract: String,
     version: String,
+    /// The duality pair's raw `orderbook_config`
     #[serde(default)]
-    orderbook_enabled: Option<bool>,
+    orderbook: Option<String>,
 }
 
 fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
@@ -101,11 +102,7 @@ fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
         |deps: DepsMut, env: Env, _: MessageInfo, msg: MockPairInit| -> StdResult<Response> {
             let config = msg.config.replace("{self}", env.contract.address.as_str());
             deps.storage.set(b"config", config.as_bytes());
-            if let Some(enabled) = msg.orderbook_enabled {
-                // The duality pair's orderbook state, abridged
-                let ob = format!(
-                    r#"{{"enabled":{enabled},"orders_number":1,"liquidity_percent":"0.1"}}"#
-                );
+            if let Some(ob) = msg.orderbook {
                 deps.storage.set(b"orderbook_config", ob.as_bytes());
             }
             cw2::set_contract_version(deps.storage, msg.contract, msg.version)?;
@@ -113,6 +110,16 @@ fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
         },
         |_: Deps, _: Env, _: Empty| -> StdResult<Binary> { Err(StdError::generic_err("old pair")) },
     ))
+}
+
+fn gate(max_total_share: u128, min_balances: &[(&str, u128)]) -> MigrateMsg {
+    MigrateMsg {
+        max_total_share: max_total_share.into(),
+        min_balances: min_balances
+            .iter()
+            .map(|(denom, amount)| native_asset_info(denom.to_string()).with_balance(*amount))
+            .collect(),
+    }
 }
 
 fn a(name: &str) -> Addr {
@@ -310,13 +317,23 @@ impl Pcl {
             .unwrap()
     }
 
-    fn migrate_to_exit_only(&mut self) -> anyhow::Result<AppResponse> {
+    fn migrate_to_exit_only(
+        &mut self,
+        max_total_share: u128,
+        min_balances: &[(&str, u128)],
+    ) -> anyhow::Result<AppResponse> {
         self.app.migrate_contract(
             a(OWNER),
             self.pair.clone(),
-            &MigrateMsg {},
+            &gate(max_total_share, min_balances),
             self.exit_only_code,
         )
+    }
+
+    fn refill(&mut self, from: &Addr, funds: &[Coin]) {
+        self.app
+            .send_tokens(from.clone(), self.pair.clone(), funds)
+            .unwrap();
     }
 
     /// What the 2026-09-22 drainer did: every pool balance out, LP supply untouched
@@ -343,8 +360,10 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
     let (alice_lp, bob_lp) = (s.lp_of(&alice), s.lp_of(&bob));
     let supply = s.pool().total_share.u128();
     let (x, y) = s.drain(&recovery);
+    // The refill comes back at different recovery rates per asset
+    let (rx, ry) = (x * 7121 / 10000, y);
 
-    s.migrate_to_exit_only().unwrap();
+    s.migrate_to_exit_only(supply, &[(X, rx), (Y, ry)]).unwrap();
     // The pair's version is left as it was, so it can migrate back to its own contract later
     let version = cw2::query_contract_info(&s.app.wrap(), &s.pair).unwrap();
     assert_eq!(version.contract, "astroport-pair-concentrated");
@@ -402,20 +421,29 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
         .unwrap_err();
     assert!(e.to_string().contains("exit-only"), "{e}");
 
-    // Before the refill the pool holds only the attacker's dust: a withdrawal that would burn LP
-    // for nothing is refused
-    let e = s.withdraw(&bob, 1, vec![], None).unwrap_err();
-    assert_eq!(err(e), ContractError::NothingToWithdraw {});
-
-    // Refill at different recovery rates per asset
-    let (rx, ry) = (x * 7121 / 10000, y);
-    s.app
-        .send_tokens(
-            recovery.clone(),
-            s.pair.clone(),
-            &[coin(rx, X), coin(ry, Y)],
+    // Before the refill the pool holds only the attacker's dust: withdrawals are closed, so no LP
+    // is burned for it
+    let e = s.withdraw(&bob, bob_lp, vec![], None).unwrap_err();
+    assert!(matches!(err(e), ContractError::Closed(_)));
+    let e = s
+        .app
+        .wrap()
+        .query_wasm_smart::<Vec<Asset>>(
+            &s.pair,
+            &QueryMsg::SimulateWithdraw {
+                lp_amount: Uint128::new(bob_lp),
+            },
         )
-        .unwrap();
+        .unwrap_err();
+    assert!(e.to_string().contains("waiting for the refill"), "{e}");
+
+    // Part of the refill: still closed, or Bob would give up his share of the rest
+    s.refill(&recovery, &[coin(rx, X), coin(ry / 2, Y)]);
+    let e = s.withdraw(&bob, bob_lp, vec![], None).unwrap_err();
+    assert!(err(e).to_string().contains("waiting for the refill"));
+
+    // The rest of it opens withdrawals
+    s.refill(&recovery, &[coin(ry - ry / 2, Y)]);
     let pool = s.pool();
     assert_eq!(pool.total_share.u128(), supply);
     assert_eq!(pool.assets[0].amount.u128(), rx + 10);
@@ -475,8 +503,36 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
     assert_eq!(pool.total_share.u128(), supply - alice_lp - bob_lp);
     assert!(pool.assets[0].amount.u128() < 10_000, "{pool:?}");
 
-    // Migrating again is harmless
-    s.migrate_to_exit_only().unwrap();
+    // Migrating again replaces the gate
+    s.migrate_to_exit_only(supply, &[(X, rx), (Y, ry)]).unwrap();
+}
+
+/// LP minted after the drain and before the migration would take a share of the refill: the pool
+/// stays closed
+#[test]
+fn lp_minted_after_the_drain_keeps_the_pool_closed() {
+    let mut s = Pcl::new();
+    let (alice, attacker, recovery) = (a("alice"), a("attacker"), a("recovery"));
+    s.provide(&alice, 1_000_000_000_000, 1_000_000_000_000)
+        .unwrap();
+    let alice_lp = s.lp_of(&alice);
+    let supply = s.pool().total_share.u128();
+    let (x, y) = s.drain(&recovery);
+
+    // Still on its own code: a dust donation and a small deposit mint nearly all LP tokens
+    mint(&mut s.app, &attacker, &[coin(10, X), coin(10, Y)]);
+    s.refill(&attacker, &[coin(10, X), coin(10, Y)]);
+    s.provide(&attacker, 1_000_000, 1_000_000).unwrap();
+    let attacker_lp = s.lp_of(&attacker);
+    assert!(attacker_lp > 1000 * supply, "{attacker_lp} {supply}");
+
+    // The migration still freezes the pool, with the supply it had when it was drained
+    s.migrate_to_exit_only(supply, &[(X, x), (Y, y)]).unwrap();
+    s.refill(&recovery, &[coin(x, X), coin(y, Y)]);
+    for (who, lp) in [(&attacker, attacker_lp), (&alice, alice_lp)] {
+        let e = s.withdraw(who, lp, vec![], None).unwrap_err();
+        assert!(err(e).to_string().contains("LP supply"));
+    }
 }
 
 #[test]
@@ -485,13 +541,15 @@ fn back_to_its_own_contract_reopens_the_pool() {
     let alice = a("alice");
     s.provide(&alice, 1_000_000_000_000, 1_000_000_000_000)
         .unwrap();
-    s.migrate_to_exit_only().unwrap();
+    let supply = s.pool().total_share.u128();
+    s.migrate_to_exit_only(supply, &[]).unwrap();
     assert_eq!(
         err(s.provide(&alice, 1_000_000, 1_000_000).unwrap_err()),
         ContractError::ExitOnly {}
     );
 
-    // The pair's state was never touched: a newer build of its own contract takes it back
+    // Only the gate was added to the pair's state: a build of its own contract that accepts its
+    // version takes it back
     let pcl_code = s.app.store_code(pcl_contract());
     s.app
         .migrate_contract(
@@ -514,30 +572,43 @@ fn refuses_pairs_it_cant_take_over() {
             r#"{{"pair_info":{{"asset_infos":[{{"native_token":{{"denom":"{X}"}}}},{{"native_token":{{"denom":"{Y}"}}}}],"contract_addr":"{addr}","liquidity_token":"factory/{addr}/astroport/share","pair_type":{{"xyk":{{}}}}}},"factory_addr":"factory"}}"#
         )
     };
-    let instantiate =
-        |s: &mut Pcl, contract: &str, cfg: String, orderbook_enabled: Option<bool>| {
-            s.app
-                .instantiate_contract(
-                    mock,
-                    owner.clone(),
-                    &MockPairInit {
-                        config: cfg,
-                        contract: contract.to_string(),
-                        version: "1.0.0".to_string(),
-                        orderbook_enabled,
-                    },
-                    &[],
-                    "mock",
-                    Some(owner.to_string()),
-                )
-                .unwrap()
-        };
+    let instantiate = |s: &mut Pcl, contract: &str, cfg: String, orderbook: Option<String>| {
+        s.app
+            .instantiate_contract(
+                mock,
+                owner.clone(),
+                &MockPairInit {
+                    config: cfg,
+                    contract: contract.to_string(),
+                    version: "1.0.0".to_string(),
+                    orderbook,
+                },
+                &[],
+                "mock",
+                Some(owner.to_string()),
+            )
+            .unwrap()
+    };
+
+    let live_orderbook = |enabled: bool, orders: &str| {
+        let raw = std::fs::read_to_string(format!(
+            "{}/tests/fixtures/ntrn_usdc.orderbook_config.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap();
+        assert!(raw.contains(r#""orders":[],"enabled":false"#));
+        Some(raw.replace(
+            r#""orders":[],"enabled":false"#,
+            &format!(r#""orders":{orders},"enabled":{enabled}"#),
+        ))
+    };
+    let duality = "astroport-pair-concentrated-duality";
 
     // An XYK pair isn't supported
     let pair = instantiate(&mut s, "astroport-pair", config("{self}"), None);
     let e = s
         .app
-        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
+        .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
         .unwrap_err();
     assert!(matches!(err(e), ContractError::MigrationError { .. }));
 
@@ -550,33 +621,61 @@ fn refuses_pairs_it_cant_take_over() {
     );
     let e = s
         .app
-        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
+        .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
         .unwrap_err();
     assert!(err(e).to_string().contains("another address"));
 
-    // An orderbook pool with its Duality orderbook enabled: part of the liquidity isn't in its
-    // balance. Disabled, it migrates.
+    // An orderbook pool with its Duality orderbook enabled, with orders still placed, or with no
+    // orderbook state: part of the liquidity may not be in its balance
+    for (orderbook, reason) in [
+        (
+            live_orderbook(true, "[]"),
+            "orderbook integration is enabled",
+        ),
+        (
+            live_orderbook(false, r#"["tranche"]"#),
+            "orders are still on",
+        ),
+        (None, "no orderbook config"),
+    ] {
+        let pair = instantiate(&mut s, duality, config("{self}"), orderbook);
+        let e = s
+            .app
+            .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
+            .unwrap_err();
+        assert!(err(e).to_string().contains(reason), "{reason}");
+    }
+
+    // The gate must name the pool's own assets, once each, and a supply
     let pair = instantiate(
         &mut s,
-        "astroport-pair-concentrated-duality",
+        duality,
         config("{self}"),
-        Some(true),
+        live_orderbook(false, "[]"),
     );
-    let e = s
-        .app
-        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
-        .unwrap_err();
-    assert!(err(e)
-        .to_string()
-        .contains("orderbook integration is enabled"));
-    let pair = instantiate(
-        &mut s,
-        "astroport-pair-concentrated-duality",
-        config("{self}"),
-        Some(false),
-    );
+    for (msg, reason) in [
+        (
+            gate(1_000_000, &[("uusdc", 1)]),
+            "not one of the pool's assets",
+        ),
+        (gate(1_000_000, &[(X, 1), (X, 2)]), "listed twice"),
+        (gate(0, &[]), "above zero"),
+    ] {
+        let e = s
+            .app
+            .migrate_contract(owner.clone(), pair.clone(), &msg, s.exit_only_code)
+            .unwrap_err();
+        assert!(err(e).to_string().contains(reason), "{reason}");
+    }
+
+    // The live NTRN/USDC orderbook state (disabled, no orders) migrates
     s.app
-        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
+        .migrate_contract(
+            owner.clone(),
+            pair,
+            &gate(1_000_000, &[(X, 1)]),
+            s.exit_only_code,
+        )
         .unwrap();
 
     // A pool already exit-only with a withheld asset (pair_concentrated 4.3.0)
@@ -596,7 +695,7 @@ fn refuses_pairs_it_cant_take_over() {
                 pcl_code,
             )
             .unwrap();
-        s.migrate_to_exit_only().unwrap_err()
+        s.migrate_to_exit_only(1, &[]).unwrap_err()
     };
     assert!(err(e).to_string().contains("withheld"));
 }
@@ -685,7 +784,7 @@ fn cw20_lp_pools_withdraw_through_send() {
                 config,
                 contract: "astroport-pair-concentrated".to_string(),
                 version: "1.2.13".to_string(),
-                orderbook_enabled: None,
+                orderbook: None,
             },
             &[],
             "pair",
@@ -693,8 +792,13 @@ fn cw20_lp_pools_withdraw_through_send() {
         )
         .unwrap();
 
-    app.migrate_contract(owner.clone(), pair.clone(), &MigrateMsg {}, exit_only)
-        .unwrap();
+    app.migrate_contract(
+        owner.clone(),
+        pair.clone(),
+        &gate(1000, &[(X, 586_300), (Y, 1_000_000)]),
+        exit_only,
+    )
+    .unwrap();
 
     let send = |app: &mut TestApp, token: &Addr, who: &Addr, amount: u128, msg: Binary| {
         app.execute_contract(
@@ -710,9 +814,9 @@ fn cw20_lp_pools_withdraw_through_send() {
     };
     let withdraw = to_json_binary(&WithdrawHook::WithdrawLiquidity {}).unwrap();
 
-    // Before the refill: nothing to withdraw
+    // Before the refill: closed
     let e = send(&mut app, &lp, &bob, 250, withdraw.clone()).unwrap_err();
-    assert_eq!(err(e), ContractError::NothingToWithdraw {});
+    assert!(matches!(err(e), ContractError::Closed(_)));
 
     app.send_tokens(
         owner.clone(),
@@ -732,7 +836,7 @@ fn cw20_lp_pools_withdraw_through_send() {
     })
     .unwrap();
     let e = send(&mut app, &lp, &alice, 750, swap).unwrap_err();
-    assert_eq!(err(e), ContractError::ExitOnly {});
+    assert_eq!(err(e), ContractError::UnsupportedHook {});
     // Native-LP withdrawals don't apply
     let e = app
         .execute_contract(
@@ -745,7 +849,7 @@ fn cw20_lp_pools_withdraw_through_send() {
             &[],
         )
         .unwrap_err();
-    assert_eq!(err(e), ContractError::ExitOnly {});
+    assert_eq!(err(e), ContractError::Cw20LpWithdraw {});
 
     send(&mut app, &lp, &alice, 750, withdraw.clone()).unwrap();
     assert_eq!(bank(&app, &alice, X), 586_300 * 750 / 1000);
