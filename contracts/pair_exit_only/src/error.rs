@@ -27,9 +27,6 @@ pub enum ContractError {
     #[error("Unsupported hook: send the LP token with {{\"withdraw_liquidity\":{{}}}}")]
     UnsupportedHook {},
 
-    #[error("Withdrawals are closed: {0}")]
-    Closed(String),
-
     #[error("Unauthorized")]
     Unauthorized {},
 

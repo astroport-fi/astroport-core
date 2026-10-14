@@ -112,16 +112,6 @@ fn mock_pair_contract() -> Box<dyn Contract<Empty>> {
     ))
 }
 
-fn gate(max_total_share: u128, min_balances: &[(&str, u128)]) -> MigrateMsg {
-    MigrateMsg {
-        max_total_share: max_total_share.into(),
-        min_balances: min_balances
-            .iter()
-            .map(|(denom, amount)| native_asset_info(denom.to_string()).with_balance(*amount))
-            .collect(),
-    }
-}
-
 fn a(name: &str) -> Addr {
     Addr::unchecked(name)
 }
@@ -317,15 +307,11 @@ impl Pcl {
             .unwrap()
     }
 
-    fn migrate_to_exit_only(
-        &mut self,
-        max_total_share: u128,
-        min_balances: &[(&str, u128)],
-    ) -> anyhow::Result<AppResponse> {
+    fn migrate_to_exit_only(&mut self) -> anyhow::Result<AppResponse> {
         self.app.migrate_contract(
             a(OWNER),
             self.pair.clone(),
-            &gate(max_total_share, min_balances),
+            &MigrateMsg {},
             self.exit_only_code,
         )
     }
@@ -360,10 +346,8 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
     let (alice_lp, bob_lp) = (s.lp_of(&alice), s.lp_of(&bob));
     let supply = s.pool().total_share.u128();
     let (x, y) = s.drain(&recovery);
-    // The refill comes back at different recovery rates per asset
-    let (rx, ry) = (x * 7121 / 10000, y);
 
-    s.migrate_to_exit_only(supply, &[(X, rx), (Y, ry)]).unwrap();
+    s.migrate_to_exit_only().unwrap();
     // The pair's version is left as it was, so it can migrate back to its own contract later
     let version = cw2::query_contract_info(&s.app.wrap(), &s.pair).unwrap();
     assert_eq!(version.contract, "astroport-pair-concentrated");
@@ -421,29 +405,14 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
         .unwrap_err();
     assert!(e.to_string().contains("exit-only"), "{e}");
 
-    // Before the refill the pool holds only the attacker's dust: withdrawals are closed, so no LP
-    // is burned for it
-    let e = s.withdraw(&bob, bob_lp, vec![], None).unwrap_err();
-    assert!(matches!(err(e), ContractError::Closed(_)));
-    let e = s
-        .app
-        .wrap()
-        .query_wasm_smart::<Vec<Asset>>(
-            &s.pair,
-            &QueryMsg::SimulateWithdraw {
-                lp_amount: Uint128::new(bob_lp),
-            },
-        )
-        .unwrap_err();
-    assert!(e.to_string().contains("waiting for the refill"), "{e}");
+    // Before the refill the pool holds only the attacker's dust: a withdrawal that would burn LP
+    // for nothing is refused
+    let e = s.withdraw(&bob, 1, vec![], None).unwrap_err();
+    assert_eq!(err(e), ContractError::NothingToWithdraw {});
 
-    // Part of the refill: still closed, or Bob would give up his share of the rest
-    s.refill(&recovery, &[coin(rx, X), coin(ry / 2, Y)]);
-    let e = s.withdraw(&bob, bob_lp, vec![], None).unwrap_err();
-    assert!(err(e).to_string().contains("waiting for the refill"));
-
-    // The rest of it opens withdrawals
-    s.refill(&recovery, &[coin(ry - ry / 2, Y)]);
+    // Refill at different recovery rates per asset
+    let (rx, ry) = (x * 7121 / 10000, y);
+    s.refill(&recovery, &[coin(rx, X), coin(ry, Y)]);
     let pool = s.pool();
     assert_eq!(pool.total_share.u128(), supply);
     assert_eq!(pool.assets[0].amount.u128(), rx + 10);
@@ -503,36 +472,8 @@ fn drained_pool_is_exit_only_then_refilled_pro_rata() {
     assert_eq!(pool.total_share.u128(), supply - alice_lp - bob_lp);
     assert!(pool.assets[0].amount.u128() < 10_000, "{pool:?}");
 
-    // Migrating again replaces the gate
-    s.migrate_to_exit_only(supply, &[(X, rx), (Y, ry)]).unwrap();
-}
-
-/// LP minted after the drain and before the migration would take a share of the refill: the pool
-/// stays closed
-#[test]
-fn lp_minted_after_the_drain_keeps_the_pool_closed() {
-    let mut s = Pcl::new();
-    let (alice, attacker, recovery) = (a("alice"), a("attacker"), a("recovery"));
-    s.provide(&alice, 1_000_000_000_000, 1_000_000_000_000)
-        .unwrap();
-    let alice_lp = s.lp_of(&alice);
-    let supply = s.pool().total_share.u128();
-    let (x, y) = s.drain(&recovery);
-
-    // Still on its own code: a dust donation and a small deposit mint nearly all LP tokens
-    mint(&mut s.app, &attacker, &[coin(10, X), coin(10, Y)]);
-    s.refill(&attacker, &[coin(10, X), coin(10, Y)]);
-    s.provide(&attacker, 1_000_000, 1_000_000).unwrap();
-    let attacker_lp = s.lp_of(&attacker);
-    assert!(attacker_lp > 1000 * supply, "{attacker_lp} {supply}");
-
-    // The migration still freezes the pool, with the supply it had when it was drained
-    s.migrate_to_exit_only(supply, &[(X, x), (Y, y)]).unwrap();
-    s.refill(&recovery, &[coin(x, X), coin(y, Y)]);
-    for (who, lp) in [(&attacker, attacker_lp), (&alice, alice_lp)] {
-        let e = s.withdraw(who, lp, vec![], None).unwrap_err();
-        assert!(err(e).to_string().contains("LP supply"));
-    }
+    // Migrating again is harmless
+    s.migrate_to_exit_only().unwrap();
 }
 
 #[test]
@@ -541,8 +482,7 @@ fn back_to_its_own_contract_reopens_the_pool() {
     let alice = a("alice");
     s.provide(&alice, 1_000_000_000_000, 1_000_000_000_000)
         .unwrap();
-    let supply = s.pool().total_share.u128();
-    s.migrate_to_exit_only(supply, &[]).unwrap();
+    s.migrate_to_exit_only().unwrap();
     assert_eq!(
         err(s.provide(&alice, 1_000_000, 1_000_000).unwrap_err()),
         ContractError::ExitOnly {}
@@ -608,7 +548,7 @@ fn refuses_pairs_it_cant_take_over() {
     let pair = instantiate(&mut s, "astroport-pair", config("{self}"), None);
     let e = s
         .app
-        .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
+        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
         .unwrap_err();
     assert!(matches!(err(e), ContractError::MigrationError { .. }));
 
@@ -621,7 +561,7 @@ fn refuses_pairs_it_cant_take_over() {
     );
     let e = s
         .app
-        .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
+        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
         .unwrap_err();
     assert!(err(e).to_string().contains("another address"));
 
@@ -641,41 +581,21 @@ fn refuses_pairs_it_cant_take_over() {
         let pair = instantiate(&mut s, duality, config("{self}"), orderbook);
         let e = s
             .app
-            .migrate_contract(owner.clone(), pair, &gate(1_000_000, &[]), s.exit_only_code)
+            .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
             .unwrap_err();
         assert!(err(e).to_string().contains(reason), "{reason}");
     }
 
-    // The gate must name the pool's own assets, once each, and a supply
     let pair = instantiate(
         &mut s,
         duality,
         config("{self}"),
         live_orderbook(false, "[]"),
     );
-    for (msg, reason) in [
-        (
-            gate(1_000_000, &[("uusdc", 1)]),
-            "not one of the pool's assets",
-        ),
-        (gate(1_000_000, &[(X, 1), (X, 2)]), "listed twice"),
-        (gate(0, &[]), "above zero"),
-    ] {
-        let e = s
-            .app
-            .migrate_contract(owner.clone(), pair.clone(), &msg, s.exit_only_code)
-            .unwrap_err();
-        assert!(err(e).to_string().contains(reason), "{reason}");
-    }
 
     // The live NTRN/USDC orderbook state (disabled, no orders) migrates
     s.app
-        .migrate_contract(
-            owner.clone(),
-            pair,
-            &gate(1_000_000, &[(X, 1)]),
-            s.exit_only_code,
-        )
+        .migrate_contract(owner.clone(), pair, &MigrateMsg {}, s.exit_only_code)
         .unwrap();
 
     // A pool already exit-only with a withheld asset (pair_concentrated 4.3.0)
@@ -695,7 +615,7 @@ fn refuses_pairs_it_cant_take_over() {
                 pcl_code,
             )
             .unwrap();
-        s.migrate_to_exit_only(1, &[]).unwrap_err()
+        s.migrate_to_exit_only().unwrap_err()
     };
     assert!(err(e).to_string().contains("withheld"));
 }
@@ -792,13 +712,8 @@ fn cw20_lp_pools_withdraw_through_send() {
         )
         .unwrap();
 
-    app.migrate_contract(
-        owner.clone(),
-        pair.clone(),
-        &gate(1000, &[(X, 586_300), (Y, 1_000_000)]),
-        exit_only,
-    )
-    .unwrap();
+    app.migrate_contract(owner.clone(), pair.clone(), &MigrateMsg {}, exit_only)
+        .unwrap();
 
     let send = |app: &mut TestApp, token: &Addr, who: &Addr, amount: u128, msg: Binary| {
         app.execute_contract(
@@ -814,9 +729,9 @@ fn cw20_lp_pools_withdraw_through_send() {
     };
     let withdraw = to_json_binary(&WithdrawHook::WithdrawLiquidity {}).unwrap();
 
-    // Before the refill: closed
+    // Before the refill: nothing to withdraw
     let e = send(&mut app, &lp, &bob, 250, withdraw.clone()).unwrap_err();
-    assert!(matches!(err(e), ContractError::Closed(_)));
+    assert_eq!(err(e), ContractError::NothingToWithdraw {});
 
     app.send_tokens(
         owner.clone(),
