@@ -571,6 +571,40 @@ impl UserInfo {
         USER_INFO.may_load(storage, (lp_token, user))
     }
 
+    /// Finished reward indexes this position hasn't settled, oldest first.
+    /// A reward can finish in the same block as the position's last claim, after it: its index is
+    /// saved under the claim's timestamp. The position settled up to that index in its claim (an
+    /// index can't grow within a block) but still holds it, so it is returned for the position to
+    /// reset (its share is zero). Without it, the stale index would be set against a later schedule
+    /// of the same reward. One the position settled after it finished is no longer in its indexes.
+    fn finished_since_last_claim(
+        &self,
+        storage: &dyn Storage,
+        lp_token: &AssetInfo,
+    ) -> StdResult<Vec<(AssetInfo, Decimal256)>> {
+        let held = |info: &AssetInfo, index: &Decimal256| {
+            self.last_rewards_index.iter().any(|(reward, user_index)| {
+                reward.is_external() && reward.asset_info() == info && user_index == index
+            })
+        };
+        Ok(FINISHED_REWARD_INDEXES
+            .prefix(lp_token)
+            .range(
+                storage,
+                Some(Bound::inclusive(self.last_claim_time)),
+                None,
+                Order::Ascending,
+            )
+            .collect::<StdResult<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|(ts, indexes)| {
+                indexes
+                    .into_iter()
+                    .filter(move |(info, index)| ts > self.last_claim_time || held(info, index))
+            })
+            .collect())
+    }
+
     /// Reset user index for all finished rewards.
     /// This function is called after processing finished schedules and before processing active
     /// schedules for a specific user.
@@ -584,18 +618,9 @@ impl UserInfo {
         lp_token: &AssetInfo,
         pool_info: &PoolInfo,
     ) -> StdResult<()> {
-        let mut finished: HashSet<_> = FINISHED_REWARD_INDEXES
-            .prefix(lp_token)
-            .range(
-                storage,
-                Some(Bound::exclusive(self.last_claim_time)),
-                None,
-                Order::Ascending,
-            )
-            .map(|res| res.map(|(_, indexes)| indexes))
-            .collect::<StdResult<Vec<_>>>()?
+        let mut finished: HashSet<_> = self
+            .finished_since_last_claim(storage, lp_token)?
             .into_iter()
-            .flatten()
             .map(|(reward_asset, _)| reward_asset)
             .collect();
 
@@ -627,18 +652,9 @@ impl UserInfo {
         lp_token: &AssetInfo,
         pool_info: &PoolInfo,
     ) -> StdResult<Vec<Asset>> {
-        let finished_iter = FINISHED_REWARD_INDEXES
-            .prefix(lp_token)
-            .range(
-                storage,
-                Some(Bound::exclusive(self.last_claim_time)),
-                None,
-                Order::Ascending,
-            )
-            .map(|res| res.map(|(_, indexes)| indexes))
-            .collect::<StdResult<Vec<_>>>()?
-            .into_iter()
-            .flatten();
+        let finished_iter = self
+            .finished_since_last_claim(storage, lp_token)?
+            .into_iter();
 
         let to_remove_iter = pool_info
             .rewards_to_remove
