@@ -547,7 +547,9 @@ fn forward_pool_rewards(
         .unwrap_or_default();
     let supply = lp_supply(deps.as_ref(), &lp_token)?;
     ensure!(
-        !staked.is_zero() && Decimal::from_ratio(staked, supply) >= config.min_lp_staked,
+        !staked.is_zero()
+            && Decimal::checked_from_ratio(staked, supply)
+                .is_ok_and(|share| share >= config.min_lp_staked),
         ContractError::NotEnoughLpStaked {
             lp_token: lp_token.clone(),
             staked,
