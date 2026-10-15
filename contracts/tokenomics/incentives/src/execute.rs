@@ -21,7 +21,8 @@ use astroport::incentives::{
 
 use crate::error::ContractError;
 use crate::state::{
-    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, OWNERSHIP_PROPOSAL,
+    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, FEE_EXEMPTIONS,
+    OWNERSHIP_PROPOSAL,
 };
 use crate::utils::{
     asset_info_key, claim_orphaned_rewards, claim_rewards, deactivate_blocked_pools,
@@ -136,6 +137,9 @@ pub fn execute(
         ),
         ExecuteMsg::UpdateBlockedTokenslist { add, remove } => {
             update_blocked_pool_tokens(deps, env, info, add, remove)
+        }
+        ExecuteMsg::UpdateFeeExemptions { add, remove } => {
+            update_fee_exemptions(deps, info, add, remove)
         }
         ExecuteMsg::DeactivatePool { lp_token } => deactivate_pool(deps, info, env, lp_token),
         ExecuteMsg::DeactivateBlockedPools {} => deactivate_blocked_pools(deps, env),
@@ -454,6 +458,49 @@ fn update_config(
     }
 
     CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(attrs))
+}
+
+fn update_fee_exemptions(
+    deps: DepsMut,
+    info: MessageInfo,
+    add: Vec<String>,
+    remove: Vec<String>,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    ensure!(info.sender == config.owner, ContractError::Unauthorized {});
+
+    ensure!(
+        remove.iter().chain(add.iter()).all_unique(),
+        StdError::generic_err("Duplicated addresses found")
+    );
+
+    for addr in &remove {
+        let addr = deps.api.addr_validate(addr)?;
+        ensure!(
+            FEE_EXEMPTIONS.has(deps.storage, &addr),
+            StdError::generic_err(format!("Address {addr} wasn't found in the fee exemptions"))
+        );
+        FEE_EXEMPTIONS.remove(deps.storage, &addr);
+    }
+
+    for addr in &add {
+        let addr = deps.api.addr_validate(addr)?;
+        ensure!(
+            !FEE_EXEMPTIONS.has(deps.storage, &addr),
+            StdError::generic_err(format!("Address {addr} is already exempt from the fee"))
+        );
+        FEE_EXEMPTIONS.save(deps.storage, &addr, &())?;
+    }
+
+    let mut attrs = vec![attr("action", "update_fee_exemptions")];
+    if !add.is_empty() {
+        attrs.push(attr("added", add.join(",")));
+    }
+    if !remove.is_empty() {
+        attrs.push(attr("removed", remove.join(",")));
+    }
 
     Ok(Response::new().add_attributes(attrs))
 }

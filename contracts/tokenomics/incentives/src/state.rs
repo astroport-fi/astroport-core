@@ -24,6 +24,8 @@ pub const OWNERSHIP_PROPOSAL: Item<OwnershipProposal> = Item::new("ownership_pro
 pub const ACTIVE_POOLS: Item<Vec<(AssetInfo, Uint128)>> = Item::new("active_pools");
 /// Prohibited tokens set. Key: binary representing [`AssetInfo`] converted with [`crate::utils::asset_info_key`].
 pub const BLOCKED_TOKENS: Map<&[u8], ()> = Map::new("blocked_tokens");
+/// Senders that don't pay the incentivization fee
+pub const FEE_EXEMPTIONS: Map<&Addr, ()> = Map::new("fee_exemptions");
 
 /// Contains reward indexes for finished rewards. They are removed from [`PoolInfo`] and stored here.
 /// Next time user claims rewards they will be able to claim outstanding rewards from this index.
@@ -267,11 +269,13 @@ impl PoolInfo {
         lp_asset: &AssetInfo,
         schedule: &IncentivesSchedule,
         astro_token: &AssetInfo,
+        fee_exempt: bool,
     ) -> Result<(), ContractError> {
+        // External ASTRO rewards don't count towards the limit
         let ext_rewards_len = self
             .rewards
             .iter()
-            .filter(|r| r.reward.is_external())
+            .filter(|r| r.reward.is_external() && r.reward.asset_info() != astro_token)
             .count();
 
         let maybe_active_schedule = self.rewards.iter_mut().find(
@@ -279,10 +283,12 @@ impl PoolInfo {
         );
 
         // Check that we don't exceed the maximum number of reward tokens per pool.
-        // Allowing ASTRO reward to exceed this limit
-        if ext_rewards_len == MAX_REWARD_TOKENS as usize
+        // Allowing ASTRO rewards and fee exempt senders to exceed this limit, so other senders
+        // can't fill a pool's slots to block them
+        if ext_rewards_len >= MAX_REWARD_TOKENS as usize
             && maybe_active_schedule.is_none()
             && schedule.reward_info.ne(astro_token)
+            && !fee_exempt
         {
             return Err(ContractError::TooManyRewardTokens {
                 lp_token: lp_asset.to_string(),
@@ -379,9 +385,11 @@ impl PoolInfo {
             .iter()
             .find_position(|reward| matches!(&reward.reward, RewardType::Ext { info, .. } if info == reward_asset))
             .ok_or_else(|| ContractError::RewardNotFound { pool: lp_asset.to_string(), reward: reward_asset.to_string() })?;
+        // Orphaned rewards are refunded below with the rest, so they must not also be credited
+        // to ORPHANED_REWARDS on save
         self.rewards_to_remove.insert(
             reward_info.reward.clone(),
-            (reward_info.index, reward_info.orphaned),
+            (reward_info.index, Decimal256::zero()),
         );
         let reward_info = self.rewards.remove(pos);
 
@@ -443,37 +451,41 @@ impl PoolInfo {
     /// This function consumes self just to make sure it becomes unusable after calling save().
     pub fn save(self, storage: &mut dyn Storage, lp_token: &AssetInfo) -> StdResult<()> {
         if !self.rewards_to_remove.is_empty() {
-            self.rewards_to_remove
+            let (finished, orphaned): (Vec<_>, Vec<_>) = self
+                .rewards_to_remove
                 .iter()
                 .map(|(reward, index)| (reward.asset_info().clone(), *index))
-                .group_by(|(_, (_, orphaned_amount))| orphaned_amount.is_zero())
-                .into_iter()
-                .try_for_each(|(is_zero, group)| {
-                    if is_zero {
-                        let finished_indexes = group
-                            .map(|(reward_asset_info, (index, _))| (reward_asset_info, index))
-                            .collect_vec();
-                        FINISHED_REWARD_INDEXES.save(
-                            storage,
-                            (lp_token, self.last_update_ts),
-                            &finished_indexes,
-                        )
-                    } else {
-                        // Processing finished schedules with orphaned rewards
-                        for (reward, (_, orphaned_amount)) in group {
-                            ORPHANED_REWARDS.update::<_, StdError>(
-                                storage,
-                                &asset_info_key(&reward),
-                                |amount| {
-                                    Ok(amount.unwrap_or_default()
-                                        + Uint128::try_from(orphaned_amount.to_uint_floor())?)
-                                },
-                            )?;
-                        }
+                .partition(|(_, (_, orphaned_amount))| orphaned_amount.is_zero());
 
-                        Ok(())
-                    }
-                })?;
+            if !finished.is_empty() {
+                // Other rewards of this pool may have finished earlier in the same block: add to
+                // their indexes rather than overwrite them
+                FINISHED_REWARD_INDEXES.update::<_, StdError>(
+                    storage,
+                    (lp_token, self.last_update_ts),
+                    |indexes| {
+                        let mut indexes = indexes.unwrap_or_default();
+                        indexes.extend(
+                            finished
+                                .into_iter()
+                                .map(|(reward_asset_info, (index, _))| (reward_asset_info, index)),
+                        );
+                        Ok(indexes)
+                    },
+                )?;
+            }
+
+            // Processing finished schedules with orphaned rewards
+            for (reward, (_, orphaned_amount)) in orphaned {
+                ORPHANED_REWARDS.update::<_, StdError>(
+                    storage,
+                    &asset_info_key(&reward),
+                    |amount| {
+                        Ok(amount.unwrap_or_default()
+                            + Uint128::try_from(orphaned_amount.to_uint_floor())?)
+                    },
+                )?;
+            }
         }
 
         POOLS.save(storage, lp_token, &self)
@@ -559,6 +571,40 @@ impl UserInfo {
         USER_INFO.may_load(storage, (lp_token, user))
     }
 
+    /// Finished reward indexes this position hasn't settled, oldest first.
+    /// A reward can finish in the same block as the position's last claim, after it: its index is
+    /// saved under the claim's timestamp. The position settled up to that index in its claim (an
+    /// index can't grow within a block) but still holds it, so it is returned for the position to
+    /// reset (its share is zero). Without it, the stale index would be set against a later schedule
+    /// of the same reward. One the position settled after it finished is no longer in its indexes.
+    fn finished_since_last_claim(
+        &self,
+        storage: &dyn Storage,
+        lp_token: &AssetInfo,
+    ) -> StdResult<Vec<(AssetInfo, Decimal256)>> {
+        let held = |info: &AssetInfo, index: &Decimal256| {
+            self.last_rewards_index.iter().any(|(reward, user_index)| {
+                reward.is_external() && reward.asset_info() == info && user_index == index
+            })
+        };
+        Ok(FINISHED_REWARD_INDEXES
+            .prefix(lp_token)
+            .range(
+                storage,
+                Some(Bound::inclusive(self.last_claim_time)),
+                None,
+                Order::Ascending,
+            )
+            .collect::<StdResult<Vec<_>>>()?
+            .into_iter()
+            .flat_map(|(ts, indexes)| {
+                indexes
+                    .into_iter()
+                    .filter(move |(info, index)| ts > self.last_claim_time || held(info, index))
+            })
+            .collect())
+    }
+
     /// Reset user index for all finished rewards.
     /// This function is called after processing finished schedules and before processing active
     /// schedules for a specific user.
@@ -572,18 +618,9 @@ impl UserInfo {
         lp_token: &AssetInfo,
         pool_info: &PoolInfo,
     ) -> StdResult<()> {
-        let mut finished: HashSet<_> = FINISHED_REWARD_INDEXES
-            .prefix(lp_token)
-            .range(
-                storage,
-                Some(Bound::exclusive(self.last_claim_time)),
-                None,
-                Order::Ascending,
-            )
-            .map(|res| res.map(|(_, indexes)| indexes))
-            .collect::<StdResult<Vec<_>>>()?
+        let mut finished: HashSet<_> = self
+            .finished_since_last_claim(storage, lp_token)?
             .into_iter()
-            .flatten()
             .map(|(reward_asset, _)| reward_asset)
             .collect();
 
@@ -615,18 +652,9 @@ impl UserInfo {
         lp_token: &AssetInfo,
         pool_info: &PoolInfo,
     ) -> StdResult<Vec<Asset>> {
-        let finished_iter = FINISHED_REWARD_INDEXES
-            .prefix(lp_token)
-            .range(
-                storage,
-                Some(Bound::exclusive(self.last_claim_time)),
-                None,
-                Order::Ascending,
-            )
-            .map(|res| res.map(|(_, indexes)| indexes))
-            .collect::<StdResult<Vec<_>>>()?
-            .into_iter()
-            .flatten();
+        let finished_iter = self
+            .finished_since_last_claim(storage, lp_token)?
+            .into_iter();
 
         let to_remove_iter = pool_info
             .rewards_to_remove

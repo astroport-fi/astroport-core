@@ -7,7 +7,7 @@ use itertools::Itertools;
 use crate::error::ContractError;
 use crate::reply::POST_TRANSFER_REPLY_ID;
 use crate::state::{
-    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, ORPHANED_REWARDS,
+    Op, PoolInfo, UserInfo, ACTIVE_POOLS, BLOCKED_TOKENS, CONFIG, FEE_EXEMPTIONS, ORPHANED_REWARDS,
 };
 use astroport::asset::{
     determine_asset_info, pair_info_by_pool, AssetInfo, AssetInfoExt, PairInfo,
@@ -231,20 +231,24 @@ pub fn incentivize(
     let mut pool_info = PoolInfo::may_load(deps.storage, &lp_token_asset)?.unwrap_or_default();
     pool_info.update_rewards(deps.storage, env, &lp_token_asset)?;
 
+    let fee_exempt = FEE_EXEMPTIONS.has(deps.storage, &info.sender);
     let rewards_number_before = pool_info.rewards.len();
     pool_info.incentivize(
         deps.storage,
         &lp_token_asset,
         &schedule,
         &config.astro_token,
+        fee_exempt,
     )?;
 
     // Check whether this is a new external reward token.
     // 3rd parties are encouraged to keep endless schedules without breaks even with the small rewards.
     // Otherwise, reward token will be removed from the pool info and go to outstanding rewards.
     // Next schedules with the same token will be considered as "new".
-    // ASTRO rewards don't require incentivize fee.
-    if rewards_number_before < pool_info.rewards.len() && schedule.reward_info != config.astro_token
+    // ASTRO rewards don't require incentivize fee, nor do senders exempt from it.
+    if rewards_number_before < pool_info.rewards.len()
+        && schedule.reward_info != config.astro_token
+        && !fee_exempt
     {
         // If fee set we expect to receive it
         if let Some(incentivization_fee_info) = &config.incentivization_fee_info {
@@ -394,7 +398,7 @@ pub fn query_pair_info(deps: Deps, lp_asset: &AssetInfo) -> StdResult<PairInfo> 
 
 pub fn get_pair_from_denom(deps: Deps, denom: &str) -> StdResult<Addr> {
     let parts = denom.split('/').collect_vec();
-    if denom.starts_with("factory") && denom.ends_with(LP_SUBDENOM) {
+    if denom.starts_with("factory/") && denom.ends_with(LP_SUBDENOM) {
         let lp_minter = parts[1];
         deps.api.addr_validate(lp_minter)
     } else {

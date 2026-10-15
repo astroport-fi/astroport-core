@@ -909,6 +909,15 @@ impl Helper {
     }
 
     pub fn is_fee_needed(&self, lp_token: &str, reward: &AssetInfo) -> bool {
+        self.is_fee_needed_for(lp_token, reward, None)
+    }
+
+    pub fn is_fee_needed_for(
+        &self,
+        lp_token: &str,
+        reward: &AssetInfo,
+        sender: Option<&Addr>,
+    ) -> bool {
         self.app
             .wrap()
             .query_wasm_smart::<bool>(
@@ -916,6 +925,7 @@ impl Helper {
                 &QueryMsg::IsFeeExpected {
                     lp_token: lp_token.to_string(),
                     reward: reward.to_string(),
+                    sender: sender.map(|s| s.to_string()),
                 },
             )
             .unwrap()

@@ -14,6 +14,7 @@ Contract supports following execute endpoints:
 - `claim_rewards` - update and withdraw all rewards associated with the LP tokens. This endpoint accepts multiple LP tokens.
 - `set_tokens_per_second` - set new number of ASTRO emissions per second. Only owner can call this endpoint.
 - `incentivize` - add new reward schedule to a specific pool. All overlapped schedules are thoroughly considered and summed up. This is permissonless endpoint. However, it requires to pay incentivization fee in case this reward is new.
+Senders the owner adds with `update_fee_exemptions` (for example, Astroport's yASTRO contract forwarding pool rewards) never pay the fee. `fee_exemptions` lists them.
 - `remove_reward_from_pool` - completely remove reward from pool. However, all accrued rewards will be considered at current point. This endpoint can be called only by owner. One must supply remaining rewards receiver address.
 - `update_config` - is meant to update general contract settings. Only owner can call this endpoint.
 - `update_blocked_tokens_list` - update list of tokens that are not allowed to be incentivized with ASTRO as well as can't be used as external rewards. Only owner can call this endpoint.
