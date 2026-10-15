@@ -785,7 +785,7 @@ name = "astroport-yastro"
 version = "1.0.0"
 dependencies = [
  "anyhow",
- "astroport 5.16.0",
+ "astroport 5.17.0",
  "astroport-incentives",
  "astroport-test",
  "cosmwasm-schema",
