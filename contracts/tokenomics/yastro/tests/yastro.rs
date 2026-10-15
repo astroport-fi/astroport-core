@@ -193,7 +193,7 @@ fn instantiate_msg(incentives: &Addr) -> InstantiateMsg {
         unbonding_period: WEEK,
         reward_denoms: vec![USDC.to_string()],
         incentives: Some(incentives.to_string()),
-        min_lp_staked: Decimal::percent(10),
+        min_lp_staked: Decimal::percent(1),
         name: "Staked ASTRO".to_string(),
         symbol: "yASTRO".to_string(),
         decimals: 6,
@@ -985,7 +985,7 @@ fn pool_rewards_go_to_lp_stakers_in_incentives() {
         );
     }
 
-    // Not enough of the LP supply staked in Incentives: 1 unit of 951, then 101 of 1,050
+    // Not enough of the LP supply staked in Incentives: 1 unit of 951, then 9 of 959
     s.mint(&a("lp_holder"), 950, &lp_of(&pool));
     s.stake_lp(&lp_staker, &pool, 1);
     let e = s.forward(&pool).unwrap_err();
@@ -995,13 +995,14 @@ fn pool_rewards_go_to_lp_stakers_in_incentives() {
             lp_token: lp_of(&pool),
             staked: Uint128::new(1),
             supply: Uint128::new(951),
-            min_share: Decimal::percent(10),
+            min_share: Decimal::percent(1),
         }
     );
-    s.stake_lp(&lp_staker, &pool, 100);
+    s.stake_lp(&lp_staker, &pool, 8);
     let e = s.forward(&pool).unwrap_err();
     assert!(matches!(err(e), ContractError::NotEnoughLpStaked { .. }));
-    s.stake_lp(&lp_staker, &pool, 50);
+    // 11 of 961 is enough
+    s.stake_lp(&lp_staker, &pool, 2);
 
     // Not exempt from the fee yet: Incentives rejects it and the pool keeps its rewards
     let held = s.bank(&s.yastro.clone(), USDC);

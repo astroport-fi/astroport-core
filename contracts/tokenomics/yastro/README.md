@@ -28,7 +28,7 @@ holds the yASTRO, second by second, wherever the token moves: wallets, DAOs, poo
   Incentives as a schedule on that LP token (from now until the next Monday plus a week, the shortest Incentives allows),
   and LPs who stake their LP tokens in Incentives earn them there. LPs who don't stake in Incentives get none of it: the
   pool's yield is a subsidy for staked LPs over the next week or two, not a payout to whoever held the LP while it accrued.
-  - It needs at least `min_lp_staked` of the LP supply (10% at launch) staked in Incentives, so a tiny stake can't take a
+  - It needs at least `min_lp_staked` of the LP supply (1% at launch) staked in Incentives, so a tiny stake can't take a
     pool's rewards; until then they stay pending. yASTRO must be on Incentives' fee exemption list (it then isn't held
     to Incentives' 5-reward-token limit either). No funds are attached.
   - A reward too small for Incentives' minimum of 1 unit per second (about 0.6–1.2 USDC per call), or one Incentives
@@ -59,7 +59,7 @@ and must claim and pass them on. Stake and unstake emit `stake` and `unstake` ac
   "unbonding_period": 604800,
   "reward_denoms": ["ibc/E8481AD838C31D4FC12A504B10F9B4E2F830F8818D2735C2FFC707579B5FA60B"],
   "incentives": "terra1...",
-  "min_lp_staked": "0.1",
+  "min_lp_staked": "0.01",
   "name": "Staked ASTRO",
   "symbol": "yASTRO",
   "decimals": 6,
