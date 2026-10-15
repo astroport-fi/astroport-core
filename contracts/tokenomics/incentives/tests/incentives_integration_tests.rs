@@ -3178,3 +3178,172 @@ fn test_fee_exempt_senders_are_not_blocked_by_the_reward_token_cap() {
         }
     );
 }
+
+/// Codex review: a staker claims, then the owner removes the reward in the same block. Its
+/// finished index is saved under the staker's last claim time, so the staker's later claims skip
+/// it and keep their old index. Once a new schedule of the same reward finishes below that index,
+/// settling the staker underflows, and their LP can't be withdrawn.
+#[test]
+fn test_claim_then_removal_in_one_block_then_restart_keeps_lp_withdrawable() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let fee = helper.incentivization_fee.clone();
+
+    let assets = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair = helper.create_pair(&assets).unwrap();
+    let lp = pair.liquidity_token.to_string();
+
+    let user = TestAddr::new("user");
+    helper
+        .provide_liquidity(
+            &user,
+            &[
+                assets[0].with_balance(100000u64),
+                assets[1].with_balance(100000u64),
+            ],
+            &pair.contract_addr,
+            true,
+        )
+        .unwrap();
+
+    let bank_addr = TestAddr::new("bank");
+    let big = AssetInfo::native("reward").with_balance(1000_000000u128);
+    let (schedule, _) = helper.create_schedule(&big, 1).unwrap();
+    helper.mint_assets(&bank_addr, &[big.clone()]);
+    helper.mint_coin(&bank_addr, &fee);
+    helper
+        .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+        .unwrap();
+
+    // The user claims, then the owner removes the reward, in the same block
+    helper.next_block(3 * 86400);
+    helper.claim_rewards(&user, vec![lp.clone()]).unwrap();
+    let receiver = TestAddr::new("receiver");
+    helper
+        .remove_reward(&owner, &lp, "reward", false, &receiver)
+        .unwrap();
+
+    // A smaller schedule of the same reward runs to its end
+    helper.next_block(10);
+    let small = AssetInfo::native("reward").with_balance(1_000000u128);
+    let (schedule, int_schedule) = helper.create_schedule(&small, 1).unwrap();
+    helper.mint_assets(&bank_addr, &[small.clone()]);
+    helper.mint_coin(&bank_addr, &fee);
+    helper
+        .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+        .unwrap();
+    let now = helper.app.block_info().time.seconds();
+    helper.next_block(int_schedule.end_ts - now + 1);
+
+    let before = bank_balance(&helper, &user, "reward");
+    helper.claim_rewards(&user, vec![lp.clone()]).unwrap();
+    let got = bank_balance(&helper, &user, "reward") - before;
+    assert!(got >= 999_000, "the new schedule paid {got}");
+
+    let staked = helper.query_deposit(&lp, &user).unwrap();
+    helper
+        .app
+        .execute_contract(
+            user.clone(),
+            helper.generator.clone(),
+            &astroport::incentives::ExecuteMsg::Withdraw {
+                lp_token: lp.clone(),
+                amount: staked.into(),
+            },
+            &[],
+        )
+        .unwrap();
+}
+
+/// The other side of the case above: a staker who claims after the removal, in the same block,
+/// settles the removed reward then; later claims must not pay it again.
+#[test]
+fn test_removal_then_claim_in_one_block_pays_once() {
+    let astro = native_asset_info("astro".to_string());
+    let mut helper = Helper::new("owner", &astro, false).unwrap();
+    let owner = helper.owner.clone();
+    let fee = helper.incentivization_fee.clone();
+
+    let assets = [AssetInfo::native("foo"), AssetInfo::native("bar")];
+    let pair = helper.create_pair(&assets).unwrap();
+    let lp = pair.liquidity_token.to_string();
+
+    let (early, late) = (TestAddr::new("early"), TestAddr::new("late"));
+    for user in [&early, &late] {
+        helper
+            .provide_liquidity(
+                user,
+                &[
+                    assets[0].with_balance(100000u64),
+                    assets[1].with_balance(100000u64),
+                ],
+                &pair.contract_addr,
+                true,
+            )
+            .unwrap();
+    }
+
+    let bank_addr = TestAddr::new("bank");
+    let reward = AssetInfo::native("reward").with_balance(1000_000000u128);
+    let (schedule, _) = helper.create_schedule(&reward, 1).unwrap();
+    helper.mint_assets(&bank_addr, &[reward.clone()]);
+    helper.mint_coin(&bank_addr, &fee);
+    helper
+        .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+        .unwrap();
+
+    // Same block: one staker claims before the removal, the other after it
+    helper.next_block(3 * 86400);
+    helper.claim_rewards(&early, vec![lp.clone()]).unwrap();
+    let receiver = TestAddr::new("receiver");
+    helper
+        .remove_reward(&owner, &lp, "reward", false, &receiver)
+        .unwrap();
+    helper.claim_rewards(&late, vec![lp.clone()]).unwrap();
+    let (early_got, late_got) = (
+        bank_balance(&helper, &early, "reward"),
+        bank_balance(&helper, &late, "reward"),
+    );
+    // Pro rata to their LP (the first provider's is smaller by the pool's minimum liquidity)
+    let early_lp = helper.query_deposit(&lp, &early).unwrap();
+    let late_lp = helper.query_deposit(&lp, &late).unwrap();
+    assert!(
+        early_got > 0 && (early_got * late_lp).abs_diff(late_got * early_lp) <= late_lp + early_lp,
+        "{early_got} {late_got}"
+    );
+
+    // Later claims, with or without a new schedule of the same reward, pay nothing more of it
+    helper.next_block(10);
+    for user in [&early, &late] {
+        helper.claim_rewards(user, vec![lp.clone()]).unwrap();
+    }
+    assert_eq!(bank_balance(&helper, &early, "reward"), early_got);
+    assert_eq!(bank_balance(&helper, &late, "reward"), late_got);
+
+    let small = AssetInfo::native("reward").with_balance(1_000000u128);
+    let (schedule, int_schedule) = helper.create_schedule(&small, 1).unwrap();
+    helper.mint_assets(&bank_addr, &[small.clone()]);
+    helper.mint_coin(&bank_addr, &fee);
+    helper
+        .incentivize(&bank_addr, &lp, schedule, &[fee.clone()])
+        .unwrap();
+    let now = helper.app.block_info().time.seconds();
+    helper.next_block(int_schedule.end_ts - now + 1);
+    for user in [&early, &late] {
+        helper.claim_rewards(user, vec![lp.clone()]).unwrap();
+    }
+    let (early_new, late_new) = (
+        bank_balance(&helper, &early, "reward") - early_got,
+        bank_balance(&helper, &late, "reward") - late_got,
+    );
+    // Each gets their share of the new schedule, and nothing of the removed one again
+    assert!(
+        early_new + late_new <= 1_000000 && early_new + late_new >= 999_990,
+        "{early_new} {late_new}"
+    );
+    assert!(
+        (early_new * late_lp).abs_diff(late_new * early_lp) <= late_lp + early_lp,
+        "{early_new} {late_new}"
+    );
+}
